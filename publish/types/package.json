@@ -1,0 +1,22 @@
+{
+  "name": "@squared-functions/types",
+  "version": "0.1.0",
+  "description": "Type definitions for squared-functions",
+  "types": "lib/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anpham6/squared-functions.git"
+  },
+  "keywords": [
+    "squared-functions"
+  ],
+  "author": "An Pham <anpham6@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/anpham6/squared-functions#readme",
+  "dependencies": {
+    "typescript": "^3.8.3"
+  },
+  "bugs": {
+    "url": "https://github.com/anpham6/squared-functions/issues"
+  }
+}

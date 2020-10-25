@@ -1,0 +1,5 @@
+### squared-functions
+
+### LICENSE
+
+MIT

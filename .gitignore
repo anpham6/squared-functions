@@ -1,0 +1,7 @@
+.vscode/
+build/
+node_modules/
+publish/**/*.js
+*.code-workspace
+package-lock.json
+.DS_Store

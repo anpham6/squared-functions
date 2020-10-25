@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "es2017",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "outDir": "./build",
+    "inlineSourceMap": false,
+    "lib": ["es2017"],
+    "importHelpers": true,
+    "esModuleInterop": true,
+    "noUnusedLocals": true,
+    "preserveConstEnums": false,
+    "alwaysStrict": true,
+    "strictBindCallApply": true,
+    "strictNullChecks": true,
+    "strictPropertyInitialization": true,
+    "noImplicitAny": true,
+    "noImplicitThis": true,
+    "noImplicitReturns": false,
+    "suppressImplicitAnyIndexErrors": true,
+    "allowUmdGlobalAccess": false
+  },
+  "include": [
+    "**/*.ts"
+  ],
+  "exclude": [
+    "build",
+    "node_modules"
+  ]
+}
