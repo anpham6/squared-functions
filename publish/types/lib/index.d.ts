@@ -11,10 +11,10 @@ type BoolString = boolean | string;
 type ExternalCategory = "html" | "css" | "js";
 
 interface INode extends IModule {
-    enableReadDisk(): void;
-    enableWriteDisk(): void;
-    enableReadUNC(): void;
-    enableWriteUNC(): void;
+    enableDiskRead(): void;
+    enableDiskWrite(): void;
+    enableUNCRead(): void;
+    enableUNCWrite(): void;
     canReadDisk(): boolean;
     canWriteDisk(): boolean;
     canReadUNC(): boolean;
@@ -190,6 +190,7 @@ interface ExpressAsset extends FileAsset, ChromeAsset {
     filepath?: string;
     excluded?: boolean;
     originalName?: string;
+    toBase64?: string;
 }
 
 interface DataMap {

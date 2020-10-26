@@ -1,10 +1,12 @@
 import type { Response } from 'express';
 
 import path = require('path');
-import fs = require('fs-extra');
 import util = require('util');
+import fs = require('fs-extra');
 import request = require('request');
+import uuid = require('uuid');
 import jimp = require('jimp');
+import mime = require('mime-types');
 import tinify = require('tinify');
 
 import Module from '../module';
@@ -33,22 +35,21 @@ export default class extends Module implements functions.IFileManager {
         } = value;
 
         if (disk_read === true || disk_read === 'true') {
-            Node.enableReadDisk();
+            Node.enableDiskRead();
         }
         if (disk_write === true || disk_write === 'true') {
-            Node.enableWriteDisk();
+            Node.enableDiskWrite();
         }
         if (unc_read === true || unc_read === 'true') {
-            Node.enableReadUNC();
+            Node.enableUNCRead();
         }
         if (unc_write === true || unc_write === 'true') {
-            Node.enableWriteUNC();
+            Node.enableUNCWrite();
         }
 
         const gzip = parseInt(gzip_level as string);
         const brotli = parseInt(brotli_quality as string);
         const jpeg = parseInt(jpeg_quality as string);
-
         if (!isNaN(gzip)) {
             Compress.gzipLevel = gzip;
         }
@@ -58,6 +59,8 @@ export default class extends Module implements functions.IFileManager {
         if (!isNaN(jpeg)) {
             Image.jpegQuality = jpeg;
         }
+
+        Chrome.modules = value.chrome;
 
         if (tinypng_api_key) {
             tinify.key = tinypng_api_key;
@@ -485,7 +488,7 @@ export default class extends Module implements functions.IFileManager {
                     }
                 }
                 for (const item of assets) {
-                    if (item.excluded) {
+                    if (item.excluded || item === file) {
                         continue;
                     }
                     if (item.base64) {
@@ -494,25 +497,30 @@ export default class extends Module implements functions.IFileManager {
                             source = replaced;
                             html = source;
                         }
-                        continue;
                     }
-                    else if (item === file || item.content || !item.uri) {
-                        continue;
-                    }
-                    const value = this.getFullUri(item);
-                    if (item.rootDir || Node.fromSameOrigin(baseUri, item.uri)) {
-                        pattern = new RegExp(`(["'\\s,=])(((?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?${path.join(item.pathname, item.filename).replace(/[\\/]/g, '[\\\\/]')})`, 'g');
-                        while (match = pattern.exec(html)) {
-                            if (match[2] !== value && item.uri === Node.resolvePath(match[2], baseUri)) {
-                                source = source.replace(match[0], match[1] + value);
+                    else if (item.uri && !item.content) {
+                        let value = this.getFullUri(item);
+                        if (item.rootDir || Node.fromSameOrigin(baseUri, item.uri)) {
+                            pattern = new RegExp(`(["'\\s,=])(((?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?${path.join(item.pathname, item.filename).replace(/[\\/]/g, '[\\\\/]')})`, 'g');
+                            while (match = pattern.exec(html)) {
+                                if (match[2] !== value && item.uri === Node.resolvePath(match[2], baseUri)) {
+                                    source = source.replace(match[0], match[1] + value);
+                                }
                             }
                         }
+                        if (item.format === 'base64') {
+                            item.mimeType ||= mime.lookup(value).toString();
+                            if (item.mimeType.includes('image/')) {
+                                value = uuid.v4();
+                                item.toBase64 = value;
+                            }
+                        }
+                        const replaced = this.replacePath(source, item.uri, value);
+                        if (replaced) {
+                            source = replaced;
+                        }
+                        html = source;
                     }
-                    const replaced = this.replacePath(source, item.uri, value);
-                    if (replaced) {
-                        source = replaced;
-                    }
-                    html = source;
                 }
                 source = source
                     .replace(/\s*<(script|link|style)[^>]+?data-chrome-file="exclude"[^>]*>[\s\S]*?<\/\1>\n*/ig, '')
@@ -662,18 +670,18 @@ export default class extends Module implements functions.IFileManager {
                         this.performAsyncTask();
                         jimp.read(filepath)
                             .then(img => {
-                                const mime = img.getMIME();
-                                switch (mime) {
+                                const imgMimeType = img.getMIME();
+                                switch (imgMimeType) {
                                     case jimp.MIME_PNG:
                                     case jimp.MIME_JPEG:
                                     case jimp.MIME_BMP:
                                     case jimp.MIME_GIF:
                                     case jimp.MIME_TIFF:
                                         try {
-                                            const renameTo = this.replaceExtension(filepath, mime.split('/')[1]);
+                                            const renameTo = this.replaceExtension(filepath, imgMimeType.split('/')[1]);
                                             fs.renameSync(filepath, renameTo);
                                             afterConvert(renameTo, '@');
-                                            if ((mime === jimp.MIME_PNG || mime === jimp.MIME_JPEG) && Compress.findCompress(file.compress)) {
+                                            if ((imgMimeType === jimp.MIME_PNG || imgMimeType === jimp.MIME_JPEG) && Compress.findCompress(file.compress)) {
                                                 compressImage(renameTo);
                                             }
                                             else {
@@ -1335,6 +1343,8 @@ export default class extends Module implements functions.IFileManager {
                 this.writeFail(value, err);
             }
         }
+        const replaced = this.assets.filter(item => item.originalName);
+        const asBase64: StringMap = {};
         let tasks: Promise<void>[] = [];
         for (const [filepath, content] of this.contentToAppend.entries()) {
             let output = '';
@@ -1349,8 +1359,25 @@ export default class extends Module implements functions.IFileManager {
             await Promise.all(tasks);
             tasks = [];
         }
-        const replaced = this.assets.filter(item => item.originalName);
-        if (replaced.length || this.productionRelease) {
+        for (const item of this.assets) {
+            if (!item.excluded && item.toBase64) {
+                const filepath = item.filepath!;
+                const mimeType = mime.lookup(filepath).toString();
+                if (mimeType.startsWith('image/')) {
+                    tasks.push(
+                        readFile(filepath).then((data: Buffer) => {
+                            asBase64[item.toBase64!] = `data:${mimeType};base64,${data.toString('base64')}`;
+                            item.originalName = '';
+                        })
+                    );
+                }
+            }
+        }
+        if (tasks.length) {
+            await Promise.all(tasks);
+            tasks = [];
+        }
+        if (replaced.length || Object.keys(asBase64) || this.productionRelease) {
             for (const item of this.assets) {
                 if (item.excluded) {
                     continue;
@@ -1365,6 +1392,9 @@ export default class extends Module implements functions.IFileManager {
                             tasks.push(
                                 readFile(filepath).then((data: Buffer) => {
                                     let html = data.toString('utf-8');
+                                    for (const id in asBase64) {
+                                        html = html.replace(new RegExp(id, 'g'), asBase64[id]!);
+                                    }
                                     for (const asset of replaced) {
                                         html = html.replace(new RegExp(this.getFullUri(asset, asset.originalName).replace(/[\\/]/g, '[\\\\/]'), 'g'), this.getFullUri(asset));
                                     }

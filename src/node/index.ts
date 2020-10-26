@@ -8,16 +8,16 @@ export default new class extends Module implements functions.INode {
     private _unc_read = false;
     private _unc_write = false;
 
-    enableReadDisk() {
+    enableDiskRead() {
         this._disk_read = true;
     }
-    enableWriteDisk() {
+    enableDiskWrite() {
         this._disk_write = true;
     }
-    enableReadUNC() {
+    enableUNCRead() {
         this._unc_read = true;
     }
-    enableWriteUNC() {
+    enableUNCWrite() {
         this._unc_write = true;
     }
     canReadDisk() {

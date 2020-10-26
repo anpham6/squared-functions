@@ -1,6 +1,6 @@
 {
   "name": "@squared-functions/module",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Module extension class for squared-functions",
   "main": "index.js",
   "types": "index.d.ts",
@@ -11,14 +11,11 @@
   "keywords": [
     "squared-functions"
   ],
-  "author": {
-    "name": "An Pham",
-    "email": "anpham6@gmail.com"
-  },
+  "author": "An Pham <anpham6@gmail.com>",
   "license": "MIT",
   "homepage": "https://github.com/anpham6/squared-functions#readme",
   "dependencies": {
-    "@squared-functions/types": "^0.1.0",
+    "@squared-functions/types": "^0.2.1",
     "chalk": "^4.1.0"
   }
 }

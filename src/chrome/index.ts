@@ -113,14 +113,14 @@ export default new class extends Module implements functions.IChrome {
         if (html) {
             let valid: Undef<boolean>;
             const formatters = format.split('+');
-            for (let j = 0, length = formatters.length; j < length; ++j) {
-                const [module, options] = this.findTranspiler(html, formatters[j].trim(), 'html', transpileMap);
+            for (let i = 0, length = formatters.length; i < length; ++i) {
+                const [module, options] = this.findTranspiler(html, formatters[i].trim(), 'html', transpileMap);
                 if (module) {
                     try {
                         if (typeof options === 'function') {
                             const result = options(require(module), value);
                             if (result && typeof result === 'string') {
-                                if (j === length - 1) {
+                                if (i === length - 1) {
                                     return Promise.resolve(result);
                                 }
                                 value = result;
@@ -130,10 +130,9 @@ export default new class extends Module implements functions.IChrome {
                         else {
                             switch (module) {
                                 case 'prettier': {
-                                    this.setPrettierOptions(options);
-                                    const result: Undef<string> = require('prettier').format(value, options);
+                                    const result: Undef<string> = require('prettier').format(value, this.setPrettierOptions(options));
                                     if (result) {
-                                        if (j === length - 1) {
+                                        if (i === length - 1) {
                                             return Promise.resolve(result);
                                         }
                                         value = result;
@@ -145,7 +144,7 @@ export default new class extends Module implements functions.IChrome {
                                 case 'html-minifier-terser': {
                                     const result: Undef<string> = require(module).minify(value, options);
                                     if (result) {
-                                        if (j === length - 1) {
+                                        if (i === length - 1) {
                                             return Promise.resolve(result);
                                         }
                                         value = result;
@@ -172,14 +171,14 @@ export default new class extends Module implements functions.IChrome {
         if (css) {
             let valid: Undef<boolean>;
             const formatters = format.split('+');
-            for (let j = 0, length = formatters.length; j < length; ++j) {
-                const [module, options] = this.findTranspiler(css, formatters[j].trim(), 'css', transpileMap);
+            for (let i = 0, length = formatters.length; i < length; ++i) {
+                const [module, options] = this.findTranspiler(css, formatters[i].trim(), 'css', transpileMap);
                 if (module) {
                     try {
                         if (typeof options === 'function') {
                             const result = options(require(module), value);
                             if (result && typeof result === 'string') {
-                                if (j === length - 1) {
+                                if (i === length - 1) {
                                     return Promise.resolve(result);
                                 }
                                 value = result;
@@ -191,7 +190,7 @@ export default new class extends Module implements functions.IChrome {
                                 case 'prettier': {
                                     const result: Undef<string> = require('prettier').format(value, this.setPrettierOptions(options));
                                     if (result) {
-                                        if (j === length - 1) {
+                                        if (i === length - 1) {
                                             return Promise.resolve(result);
                                         }
                                         value = result;
@@ -203,7 +202,7 @@ export default new class extends Module implements functions.IChrome {
                                     const clean_css = require('clean-css');
                                     const result: Undef<string> = new clean_css(options).minify(value).styles;
                                     if (result) {
-                                        if (j === length - 1) {
+                                        if (i === length - 1) {
                                             return Promise.resolve(result);
                                         }
                                         value = result;
@@ -230,14 +229,14 @@ export default new class extends Module implements functions.IChrome {
         if (js) {
             const formatters = format.split('+');
             let modified: Undef<boolean>;
-            for (let j = 0, length = formatters.length; j < length; ++j) {
-                const [module, options] = this.findTranspiler(js, formatters[j].trim(), 'js', transpileMap);
+            for (let i = 0, length = formatters.length; i < length; ++i) {
+                const [module, options] = this.findTranspiler(js, formatters[i].trim(), 'js', transpileMap);
                 if (module) {
                     try {
                         if (typeof options === 'function') {
                             const result: Undef<string> = options(require(module), value);
                             if (result && typeof result === 'string') {
-                                if (j === length - 1) {
+                                if (i === length - 1) {
                                     return Promise.resolve(result);
                                 }
                                 value = result;
@@ -249,7 +248,7 @@ export default new class extends Module implements functions.IChrome {
                                 case '@babel/core': {
                                     const result: Undef<string> = require('@babel/core').transformSync(value, options).code;
                                     if (result) {
-                                        if (j === length - 1) {
+                                        if (i === length - 1) {
                                             return Promise.resolve(result);
                                         }
                                         value = result;
@@ -260,7 +259,7 @@ export default new class extends Module implements functions.IChrome {
                                 case 'prettier': {
                                     const result: Undef<string> = require('prettier').format(value, this.setPrettierOptions(options));
                                     if (result) {
-                                        if (j === length - 1) {
+                                        if (i === length - 1) {
                                             return Promise.resolve(result);
                                         }
                                         value = result;
@@ -273,7 +272,7 @@ export default new class extends Module implements functions.IChrome {
                                     const terser = require(module);
                                     const result: Undef<string> = (await terser.minify(value, options)).code;
                                     if (result) {
-                                        if (j === length - 1) {
+                                        if (i === length - 1) {
                                             return Promise.resolve(result);
                                         }
                                         value = result;
