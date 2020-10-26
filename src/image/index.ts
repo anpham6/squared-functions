@@ -5,6 +5,8 @@ import jimp = require('jimp');
 import Module from '../module';
 
 export default new class extends Module implements functions.IImage {
+    public jpegQuality = 9;
+
     isJpeg(filename: string, mimeType?: string, filepath?: string) {
         if (mimeType && mimeType.endsWith('image/jpeg')) {
             return true;
@@ -82,7 +84,7 @@ export default new class extends Module implements functions.IImage {
                         const output = filepath.substring(0, index) + '.' + value + filepath.substring(index);
                         img.write(output, err => {
                             if (err) {
-                                manager.completeAsyncTask('');
+                                manager.completeAsyncTask();
                                 this.writeFail(output, err);
                             }
                             else {
@@ -91,7 +93,7 @@ export default new class extends Module implements functions.IImage {
                         });
                     })
                     .catch(err => {
-                        manager.completeAsyncTask('');
+                        manager.completeAsyncTask();
                         this.writeFail(master, err);
                     });
             }

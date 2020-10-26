@@ -28,10 +28,9 @@ interface INode extends IModule {
 }
 
 interface ICompress extends IModule {
-    gzip_level: number;
-    brotli_quality: number;
-    jpeg_quality: number;
-    tinify_api_key: string;
+    gzipLevel: number;
+    brotliQuality: number;
+    tinifyApiKey: string;
     createWriteStreamAsGzip(source: string, filepath: string, level?: number): WriteStream;
     createWriteStreamAsBrotli(source: string, filepath: string, quality?: number, mimeType?: string): WriteStream;
     findFormat(compress: Undef<CompressFormat[]>, format: string): Undef<CompressFormat>;
@@ -42,6 +41,7 @@ interface ICompress extends IModule {
 }
 
 interface IImage extends IModule {
+    jpegQuality: number;
     isJpeg(filename: string, mimeType?: string, filepath?: string): boolean;
     parseResizeMode(value: string): Undef<ResizeMode>;
     parseOpacity(value: string): Undef<number>;
@@ -68,6 +68,8 @@ interface IFileManager extends IModule {
     serverRoot: string;
     delayed: number;
     cleared: boolean;
+    emptyDirectory: boolean;
+    productionRelease: boolean;
     readonly files: Set<string>;
     readonly filesQueued: Set<string>;
     readonly filesToRemove: Set<string>;
@@ -75,12 +77,14 @@ interface IFileManager extends IModule {
     readonly contentToAppend: Map<string, string[]>;
     readonly dirname: string;
     readonly assets: ExpressAsset[];
-    readonly completeAsyncTask: (filepath?: string) => void;
+    readonly postFinalize: (this: functions.IFileManager) => void;
     readonly requestMain?: ExpressAsset;
     add(value: string): void;
     delete(value: string): void;
     performAsyncTask(): void;
-    removeAsyncTask(): boolean;
+    removeAsyncTask(): void;
+    completeAsyncTask(filepath?: string): void;
+    performFinalize(): void;
     replace(file: ExpressAsset, replaceWith: string): void;
     validate(file: ExpressAsset, exclusions: Exclusions): boolean;
     getFileOutput(file: ExpressAsset): { pathname: string; filepath: string };
@@ -95,7 +99,7 @@ interface IFileManager extends IModule {
     transformCss(file: ExpressAsset, content: string): Undef<string>;
     compressFile(assets: ExpressAsset[], file: ExpressAsset, filepath: string, cached?: boolean): void;
     writeBuffer(assets: ExpressAsset[], file: ExpressAsset, filepath: string, cached?: boolean): void;
-    processAssets(empty: boolean): void;
+    processAssets(): void;
     finalizeAssets(release: boolean): Promise<void[]>;
 }
 
@@ -106,8 +110,10 @@ interface FileManagerConstructor {
     moduleCompress(): ICompress;
     moduleImage(): IImage;
     moduleChrome(): IChrome;
-    new(dirname: string, assets: ExpressAsset[], completeAsyncTask: (filepath?: string) => void): IFileManager;
+    new(dirname: string, assets: ExpressAsset[], postFinalize: (this: functions.IFileManager) => void, productionRelease?: boolean): IFileManager;
 }
+
+declare const FileManager: FileManagerConstructor;
 
 interface IModule {
     readonly major: number;

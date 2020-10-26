@@ -50,20 +50,20 @@ export default class extends Module implements functions.IFileManager {
         const jpeg = parseInt(jpeg_quality as string);
 
         if (!isNaN(gzip)) {
-            Compress.gzip_level = gzip;
+            Compress.gzipLevel = gzip;
         }
         if (!isNaN(brotli)) {
-            Compress.brotli_quality = brotli;
+            Compress.brotliQuality = brotli;
         }
         if (!isNaN(jpeg)) {
-            Compress.jpeg_quality = jpeg;
+            Image.jpegQuality = jpeg;
         }
 
         if (tinypng_api_key) {
             tinify.key = tinypng_api_key;
             tinify.validate(err => {
                 if (!err) {
-                    Compress.tinify_api_key = tinypng_api_key;
+                    Compress.tinifyApiKey = tinypng_api_key;
                 }
             });
         }
@@ -114,22 +114,26 @@ export default class extends Module implements functions.IFileManager {
     public serverRoot = '__serverroot__';
     public delayed = 0;
     public cleared = false;
+    public emptyDirectory = false;
+    public productionRelease = false;
     public readonly files = new Set<string>();
     public readonly filesQueued = new Set<string>();
     public readonly filesToRemove = new Set<string>();
     public readonly filesToCompare = new Map<functions.ExpressAsset, string[]>();
     public readonly contentToAppend = new Map<string, string[]>();
+    public readonly postFinalize: (this: functions.IFileManager) => void;
     public readonly requestMain?: functions.ExpressAsset;
     public readonly dataMap?: functions.DataMap;
 
     constructor(
         public readonly dirname: string,
         public readonly assets: functions.ExpressAsset[],
-        public readonly completeAsyncTask: (filepath?: string) => void)
+        postFinalize: (this: functions.IFileManager) => void)
     {
         super();
         this.requestMain = assets.find(item => item.requestMain);
         this.dataMap = assets[0].dataMap;
+        this.postFinalize = postFinalize.bind(this);
     }
 
     add(value: string) {
@@ -142,7 +146,22 @@ export default class extends Module implements functions.IFileManager {
         ++this.delayed;
     }
     removeAsyncTask() {
-        return --this.delayed <= 0;
+        --this.delayed;
+    }
+    completeAsyncTask(filepath?: string) {
+        if (this.delayed !== Infinity) {
+            if (filepath) {
+                this.add(filepath);
+            }
+            this.removeAsyncTask();
+            this.performFinalize();
+        }
+    }
+    performFinalize() {
+        if (this.cleared && this.delayed <= 0) {
+            this.delayed = Infinity;
+            this.finalizeAssets().then(() => this.postFinalize());
+        }
     }
     replace(file: functions.ExpressAsset, replaceWith: string) {
         const filepath = file.filepath;
@@ -662,7 +681,7 @@ export default class extends Module implements functions.IFileManager {
                                             }
                                         }
                                         catch (err) {
-                                            this.completeAsyncTask('');
+                                            this.completeAsyncTask();
                                             this.writeFail(filepath, err);
                                         }
                                         break;
@@ -670,7 +689,7 @@ export default class extends Module implements functions.IFileManager {
                                         const png = this.replaceExtension(filepath, 'png');
                                         img.write(png, err => {
                                             if (err) {
-                                                this.completeAsyncTask('');
+                                                this.completeAsyncTask();
                                                 this.writeFail(png, err);
                                             }
                                             else {
@@ -687,7 +706,7 @@ export default class extends Module implements functions.IFileManager {
                                 }
                             })
                             .catch(err => {
-                                this.completeAsyncTask('');
+                                this.completeAsyncTask();
                                 this.writeFail(filepath, err);
                             });
                     }
@@ -738,7 +757,7 @@ export default class extends Module implements functions.IFileManager {
                                         }
                                         img.write(image, err => {
                                             if (err) {
-                                                this.completeAsyncTask('');
+                                                this.completeAsyncTask();
                                                 this.writeFail(image, err);
                                             }
                                             else {
@@ -753,7 +772,7 @@ export default class extends Module implements functions.IFileManager {
                                         });
                                     })
                                     .catch(err => {
-                                        this.completeAsyncTask('');
+                                        this.completeAsyncTask();
                                         this.writeFail(filepath, err);
                                     });
                             }
@@ -762,7 +781,7 @@ export default class extends Module implements functions.IFileManager {
                                 jimp.read(filepath)
                                     .then(img => {
                                         setImagePath('jpeg', 'jpg');
-                                        img.quality(Compress.jpeg_quality);
+                                        img.quality(Image.jpegQuality);
                                         if (resizeMode) {
                                             Image.resize(img, resizeMode.width, resizeMode.height, resizeMode.mode);
                                         }
@@ -771,7 +790,7 @@ export default class extends Module implements functions.IFileManager {
                                         }
                                         img.write(image, err => {
                                             if (err) {
-                                                this.completeAsyncTask('');
+                                                this.completeAsyncTask();
                                                 this.writeFail(image, err);
                                             }
                                             else {
@@ -786,7 +805,7 @@ export default class extends Module implements functions.IFileManager {
                                         });
                                     })
                                     .catch(err => {
-                                        this.completeAsyncTask('');
+                                        this.completeAsyncTask();
                                         this.writeFail(filepath, err);
                                     });
                             }
@@ -806,7 +825,7 @@ export default class extends Module implements functions.IFileManager {
                                         }
                                         img.write(image, err => {
                                             if (err) {
-                                                this.completeAsyncTask('');
+                                                this.completeAsyncTask();
                                                 this.writeFail(image, err);
                                             }
                                             else {
@@ -816,7 +835,7 @@ export default class extends Module implements functions.IFileManager {
                                         });
                                     })
                                     .catch(err => {
-                                        this.completeAsyncTask('');
+                                        this.completeAsyncTask();
                                         this.writeFail(filepath, err);
                                     });
                             }
@@ -851,7 +870,7 @@ export default class extends Module implements functions.IFileManager {
                         })
                         .on('error', err => {
                             this.writeFail(gz, err);
-                            this.completeAsyncTask('');
+                            this.completeAsyncTask();
                         });
                 }
                 if (brotli && Node.checkVersion(11, 7) && Compress.withinSizeRange(filepath, brotli.condition)) {
@@ -871,7 +890,7 @@ export default class extends Module implements functions.IFileManager {
                         })
                         .on('error', err => {
                             this.writeFail(br, err);
-                            this.completeAsyncTask('');
+                            this.completeAsyncTask();
                         });
                 }
                 this.completeAsyncTask(!cached ? filepath : '');
@@ -882,7 +901,7 @@ export default class extends Module implements functions.IFileManager {
             const jpg = filepath + (jpeg.condition?.includes('%') ? '.jpg' : '');
             jimp.read(filepath)
                 .then(image => {
-                    image.quality(jpeg.level ?? Compress.jpeg_quality).write(jpg, err => {
+                    image.quality(jpeg.level ?? Image.jpegQuality).write(jpg, err => {
                         if (err) {
                             this.writeFail(filepath, err);
                         }
@@ -898,13 +917,13 @@ export default class extends Module implements functions.IFileManager {
                             catch {
                             }
                         }
-                        this.completeAsyncTask('');
+                        this.completeAsyncTask();
                         resumeThread();
                     });
                 })
                 .catch(err => {
                     this.writeFail(filepath, err);
-                    this.completeAsyncTask('');
+                    this.completeAsyncTask();
                     resumeThread();
                 });
         }
@@ -985,7 +1004,7 @@ export default class extends Module implements functions.IFileManager {
             this.compressFile(assets, file, filepath, cached);
         }
     }
-    processAssets(empty: boolean) {
+    processAssets() {
         const emptyDir = new Set<string>();
         const notFound: ObjectMap<boolean> = {};
         const processing: ObjectMap<functions.ExpressAsset[]> = {};
@@ -1113,14 +1132,14 @@ export default class extends Module implements functions.IFileManager {
                 }
                 else {
                     (bundleMain || file).excluded = true;
-                    this.completeAsyncTask('');
+                    this.completeAsyncTask();
                 }
             }
             else if (Array.isArray(processing[filepath])) {
                 completed.push(filepath);
                 for (const item of processing[filepath]) {
                     if (item.excluded) {
-                        this.completeAsyncTask('');
+                        this.completeAsyncTask();
                     }
                     else {
                         this.writeBuffer(assets, item, filepath);
@@ -1139,7 +1158,7 @@ export default class extends Module implements functions.IFileManager {
                     processQueue(file, filepath);
                 }
                 else {
-                    this.completeAsyncTask('');
+                    this.completeAsyncTask();
                 }
                 notFound[uri] = true;
             }
@@ -1169,11 +1188,11 @@ export default class extends Module implements functions.IFileManager {
                     processQueue(file, filepath);
                 }
                 else {
-                    this.completeAsyncTask('');
+                    this.completeAsyncTask();
                 }
             };
             if (!emptyDir.has(pathname)) {
-                if (empty) {
+                if (this.emptyDirectory) {
                     try {
                         fs.emptyDirSync(pathname);
                     }
@@ -1216,7 +1235,7 @@ export default class extends Module implements functions.IFileManager {
                         }
                         else {
                             file.excluded = true;
-                            this.completeAsyncTask('');
+                            this.completeAsyncTask();
                         }
                     }
                 );
@@ -1281,8 +1300,9 @@ export default class extends Module implements functions.IFileManager {
             }
         }
         this.cleared = true;
+        this.performFinalize();
     }
-    async finalizeAssets(release: boolean) {
+    async finalizeAssets() {
         const filesToRemove = this.filesToRemove;
         for (const [file, output] of this.filesToCompare) {
             const originalPath = file.filepath!;
@@ -1330,7 +1350,7 @@ export default class extends Module implements functions.IFileManager {
             tasks = [];
         }
         const replaced = this.assets.filter(item => item.originalName);
-        if (replaced.length || release) {
+        if (replaced.length || this.productionRelease) {
             for (const item of this.assets) {
                 if (item.excluded) {
                     continue;
@@ -1348,7 +1368,7 @@ export default class extends Module implements functions.IFileManager {
                                     for (const asset of replaced) {
                                         html = html.replace(new RegExp(this.getFullUri(asset, asset.originalName).replace(/[\\/]/g, '[\\\\/]'), 'g'), this.getFullUri(asset));
                                     }
-                                    if (release) {
+                                    if (this.productionRelease) {
                                         html = html.replace(/(\.\.\/)*__serverroot__/g, '');
                                     }
                                     fs.writeFileSync(filepath, html);
