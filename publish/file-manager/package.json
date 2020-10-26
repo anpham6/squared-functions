@@ -17,10 +17,10 @@
   "dependencies": {
     "@squared-functions/chrome": "^0.2.0",
     "@squared-functions/compress": "^0.2.1",
-    "@squared-functions/image": "^0.2.1",
+    "@squared-functions/image": "^0.2.2",
     "@squared-functions/module": "^0.2.0",
     "@squared-functions/node": "^0.2.0",
-    "@squared-functions/types": "^0.2.1",
+    "@squared-functions/types": "^0.2.2",
     "chalk": "^4.1.0",
     "fs-extra": "^9.0.1",
     "mime-types": "^2.1.27",

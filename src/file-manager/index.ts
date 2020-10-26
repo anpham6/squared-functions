@@ -15,38 +15,42 @@ import Compress from '../compress';
 import Image from '../image';
 import Chrome from '../chrome';
 
+type ExpressAsset = functions.ExpressAsset;
+type IFileManager = functions.IFileManager;
 type WriteTask = (file: string, data: any) => Promise<void>;
 
 const readFile = util.promisify(fs.readFile);
 const appendFile = util.promisify(fs.appendFile) as WriteTask;
 const writeFile = util.promisify(fs.writeFile) as WriteTask;
 
-export default class extends Module implements functions.IFileManager {
-    public static loadSettings(value: functions.Settings) {
+export default class extends Module implements IFileManager {
+    public static loadSettings(value: functions.Settings, ignorePermissions?: boolean) {
+        if (!ignorePermissions) {
+            const {
+                disk_read,
+                disk_write,
+                unc_read,
+                unc_write
+            } = value;
+            if (disk_read === true || disk_read === 'true') {
+                Node.enableDiskRead();
+            }
+            if (disk_write === true || disk_write === 'true') {
+                Node.enableDiskWrite();
+            }
+            if (unc_read === true || unc_read === 'true') {
+                Node.enableUNCRead();
+            }
+            if (unc_write === true || unc_write === 'true') {
+                Node.enableUNCWrite();
+            }
+        }
         const {
-            disk_read,
-            disk_write,
-            unc_read,
-            unc_write,
             gzip_level,
             brotli_quality,
             jpeg_quality,
             tinypng_api_key
         } = value;
-
-        if (disk_read === true || disk_read === 'true') {
-            Node.enableDiskRead();
-        }
-        if (disk_write === true || disk_write === 'true') {
-            Node.enableDiskWrite();
-        }
-        if (unc_read === true || unc_read === 'true') {
-            Node.enableUNCRead();
-        }
-        if (unc_write === true || unc_write === 'true') {
-            Node.enableUNCWrite();
-        }
-
         const gzip = parseInt(gzip_level as string);
         const brotli = parseInt(brotli_quality as string);
         const jpeg = parseInt(jpeg_quality as string);
@@ -59,9 +63,6 @@ export default class extends Module implements functions.IFileManager {
         if (!isNaN(jpeg)) {
             Image.jpegQuality = jpeg;
         }
-
-        Chrome.modules = value.chrome;
-
         if (tinypng_api_key) {
             tinify.key = tinypng_api_key;
             tinify.validate(err => {
@@ -70,6 +71,7 @@ export default class extends Module implements functions.IFileManager {
                 }
             });
         }
+        Chrome.modules = value.chrome;
     }
 
     public static moduleNode() {
@@ -122,16 +124,16 @@ export default class extends Module implements functions.IFileManager {
     public readonly files = new Set<string>();
     public readonly filesQueued = new Set<string>();
     public readonly filesToRemove = new Set<string>();
-    public readonly filesToCompare = new Map<functions.ExpressAsset, string[]>();
+    public readonly filesToCompare = new Map<ExpressAsset, string[]>();
     public readonly contentToAppend = new Map<string, string[]>();
-    public readonly postFinalize: (this: functions.IFileManager) => void;
-    public readonly requestMain?: functions.ExpressAsset;
+    public readonly postFinalize: (this: IFileManager) => void;
+    public readonly requestMain?: ExpressAsset;
     public readonly dataMap?: functions.DataMap;
 
     constructor(
         public readonly dirname: string,
-        public readonly assets: functions.ExpressAsset[],
-        postFinalize: (this: functions.IFileManager) => void)
+        public readonly assets: ExpressAsset[],
+        postFinalize: (this: IFileManager) => void)
     {
         super();
         this.requestMain = assets.find(item => item.requestMain);
@@ -166,7 +168,7 @@ export default class extends Module implements functions.IFileManager {
             this.finalizeAssets().then(() => this.postFinalize());
         }
     }
-    replace(file: functions.ExpressAsset, replaceWith: string) {
+    replace(file: ExpressAsset, replaceWith: string) {
         const filepath = file.filepath;
         if (filepath) {
             if (replaceWith.includes('__copy__') && path.extname(filepath) === path.extname(replaceWith)) {
@@ -186,7 +188,7 @@ export default class extends Module implements functions.IFileManager {
             }
         }
     }
-    validate(file: functions.ExpressAsset, exclusions: Exclusions) {
+    validate(file: ExpressAsset, exclusions: Exclusions) {
         const pathname = file.pathname.replace(/[\\/]$/, '');
         const filename = file.filename;
         const winOS = path.sep === '/' ? '' : 'i';
@@ -225,13 +227,13 @@ export default class extends Module implements functions.IFileManager {
         }
         return true;
     }
-    getFileOutput(file: functions.ExpressAsset) {
+    getFileOutput(file: ExpressAsset) {
         const pathname = path.join(this.dirname, file.moveTo || '', file.pathname);
         const filepath = path.join(pathname, file.filename);
         file.filepath = filepath;
         return { pathname, filepath };
     }
-    getRelativeUrl(file: functions.ExpressAsset, url: string) {
+    getRelativeUrl(file: ExpressAsset, url: string) {
         let asset = this.assets.find(item => item.uri === url),
             origin = file.uri;
         if (!asset && origin) {
@@ -299,7 +301,7 @@ export default class extends Module implements functions.IFileManager {
         }
         return [locationDir, assetDir];
     }
-    getFullUri(file: functions.ExpressAsset, filename = file.filename) {
+    getFullUri(file: ExpressAsset, filename = file.filename) {
         return path.join(file.moveTo || '', file.pathname, filename).replace(/\\/g, '/');
     }
     replacePath(source: string, segment: string, value: string, base64?: boolean) {
@@ -320,7 +322,7 @@ export default class extends Module implements functions.IFileManager {
         const index = value.lastIndexOf('.');
         return value.substring(0, index !== -1 ? index : value.length) + '.' + ext;
     }
-    async appendContent(file: functions.ExpressAsset, content: string, outputOnly?: boolean) {
+    async appendContent(file: ExpressAsset, content: string, outputOnly?: boolean) {
         const filepath = file.filepath || this.getFileOutput(file).filepath;
         if (filepath && file.bundleIndex !== undefined) {
             const { mimeType, format } = file;
@@ -362,7 +364,7 @@ export default class extends Module implements functions.IFileManager {
         }
         return Promise.resolve('');
     }
-    async getTrailingContent(file: functions.ExpressAsset) {
+    async getTrailingContent(file: ExpressAsset) {
         const trailingContent = file.trailingContent;
         let output = '';
         if (trailingContent) {
@@ -402,7 +404,7 @@ export default class extends Module implements functions.IFileManager {
         }
         return Promise.resolve(output);
     }
-    async transformBuffer(assets: functions.ExpressAsset[], file: functions.ExpressAsset, filepath: string) {
+    async transformBuffer(assets: ExpressAsset[], file: ExpressAsset, filepath: string) {
         const mimeType = file.mimeType;
         if (!mimeType || mimeType[0] === '&') {
             return Promise.resolve();
@@ -854,7 +856,7 @@ export default class extends Module implements functions.IFileManager {
         }
         return Promise.resolve();
     }
-    compressFile(assets: functions.ExpressAsset[], file: functions.ExpressAsset, filepath: string, cached?: boolean) {
+    compressFile(assets: ExpressAsset[], file: ExpressAsset, filepath: string, cached?: boolean) {
         const compress = file.compress;
         const jpeg = Image.isJpeg(file.filename, file.mimeType, filepath) && Compress.findFormat(compress, 'jpeg');
         const resumeThread = () => {
@@ -939,7 +941,7 @@ export default class extends Module implements functions.IFileManager {
             resumeThread();
         }
     }
-    transformCss(file: functions.ExpressAsset, content: string) {
+    transformCss(file: ExpressAsset, content: string) {
         const baseUrl = file.uri!;
         if (this.requestMain && Node.fromSameOrigin(this.requestMain.uri!, baseUrl)) {
             const assets = this.assets;
@@ -988,7 +990,7 @@ export default class extends Module implements functions.IFileManager {
             return output;
         }
     }
-    writeBuffer(assets: functions.ExpressAsset[], file: functions.ExpressAsset, filepath: string, cached?: boolean) {
+    writeBuffer(assets: ExpressAsset[], file: ExpressAsset, filepath: string, cached?: boolean) {
         const png = Compress.findCompress(file.compress);
         if (png && Compress.withinSizeRange(filepath, png.condition)) {
             try {
@@ -1015,12 +1017,12 @@ export default class extends Module implements functions.IFileManager {
     processAssets() {
         const emptyDir = new Set<string>();
         const notFound: ObjectMap<boolean> = {};
-        const processing: ObjectMap<functions.ExpressAsset[]> = {};
-        const appending: ObjectMap<functions.ExpressAsset[]> = {};
+        const processing: ObjectMap<ExpressAsset[]> = {};
+        const appending: ObjectMap<ExpressAsset[]> = {};
         const completed: string[] = [];
         const assets = this.assets;
         const exclusions = assets[0].exclusions;
-        const checkQueue = (file: functions.ExpressAsset, filepath: string, content?: boolean) => {
+        const checkQueue = (file: ExpressAsset, filepath: string, content?: boolean) => {
             const bundleIndex = file.bundleIndex;
             if (bundleIndex !== undefined) {
                 appending[filepath] ||= [];
@@ -1048,7 +1050,7 @@ export default class extends Module implements functions.IFileManager {
             }
             return false;
         };
-        const processQueue = async (file: functions.ExpressAsset, filepath: string, bundleMain?: functions.ExpressAsset) => {
+        const processQueue = async (file: ExpressAsset, filepath: string, bundleMain?: ExpressAsset) => {
             const bundleIndex = file.bundleIndex;
             if (bundleIndex !== undefined) {
                 if (bundleIndex === 0) {
@@ -1159,7 +1161,7 @@ export default class extends Module implements functions.IFileManager {
                 this.writeBuffer(assets, file, filepath);
             }
         };
-        const errorRequest = (file: functions.ExpressAsset, filepath: string, message: Error | string, stream?: fs.WriteStream) => {
+        const errorRequest = (file: ExpressAsset, filepath: string, message: Error | string, stream?: fs.WriteStream) => {
             const uri = file.uri!;
             if (!notFound[uri]) {
                 if (appending[filepath]?.length) {

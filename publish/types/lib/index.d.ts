@@ -77,7 +77,7 @@ interface IFileManager extends IModule {
     readonly contentToAppend: Map<string, string[]>;
     readonly dirname: string;
     readonly assets: ExpressAsset[];
-    readonly postFinalize: (this: functions.IFileManager) => void;
+    readonly postFinalize: (this: IFileManager) => void;
     readonly requestMain?: ExpressAsset;
     add(value: string): void;
     delete(value: string): void;
@@ -105,7 +105,7 @@ interface IFileManager extends IModule {
 
 interface FileManagerConstructor {
     checkPermissions(res: Response, dirname: string): boolean;
-    loadSettings(value: Settings): void;
+    loadSettings(value: Settings, ignorePermissions?: boolean): void;
     moduleNode(): INode;
     moduleCompress(): ICompress;
     moduleImage(): IImage;

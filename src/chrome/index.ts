@@ -6,6 +6,8 @@ import chalk = require('chalk');
 
 import Module from '../module';
 
+type TranspileMap = functions.TranspileMap;
+
 export default new class extends Module implements functions.IChrome {
     public modules: Undef<functions.ChromeModules>;
 
@@ -39,7 +41,7 @@ export default new class extends Module implements functions.IChrome {
         }
         return ['', {}];
     }
-    findTranspiler(config: ObjectMap<StandardMap>, name: string, category: functions.ExternalCategory, transpileMap?: functions.TranspileMap): [string, StandardMap | FunctionType<string>] {
+    findTranspiler(config: ObjectMap<StandardMap>, name: string, category: functions.ExternalCategory, transpileMap?: TranspileMap): [string, StandardMap | FunctionType<string>] {
         if (transpileMap && this.modules?.eval_text_template) {
             const data = transpileMap[category];
             for (const attr in data) {
@@ -108,7 +110,7 @@ export default new class extends Module implements functions.IChrome {
         }
         return options;
     }
-    async minifyHtml(format: string, value: string, transpileMap?: functions.TranspileMap) {
+    async minifyHtml(format: string, value: string, transpileMap?: TranspileMap) {
         const html = this.modules?.html;
         if (html) {
             let valid: Undef<boolean>;
@@ -166,7 +168,7 @@ export default new class extends Module implements functions.IChrome {
         }
         return Promise.resolve();
     }
-    async minifyCss(format: string, value: string, transpileMap?: functions.TranspileMap) {
+    async minifyCss(format: string, value: string, transpileMap?: TranspileMap) {
         const css = this.modules?.css;
         if (css) {
             let valid: Undef<boolean>;
@@ -224,7 +226,7 @@ export default new class extends Module implements functions.IChrome {
         }
         return Promise.resolve();
     }
-    async minifyJs(format: string, value: string, transpileMap?: functions.TranspileMap) {
+    async minifyJs(format: string, value: string, transpileMap?: TranspileMap) {
         const js = this.modules?.js;
         if (js) {
             const formatters = format.split('+');
@@ -294,7 +296,7 @@ export default new class extends Module implements functions.IChrome {
         }
         return Promise.resolve();
     }
-    formatContent(mimeType: string, format: string, value: string, transpileMap?: functions.TranspileMap) {
+    formatContent(mimeType: string, format: string, value: string, transpileMap?: TranspileMap) {
         if (mimeType.endsWith('text/html') || mimeType.endsWith('application/xhtml+xml')) {
             return this.minifyHtml(format, value, transpileMap);
         }

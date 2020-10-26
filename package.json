@@ -4,7 +4,7 @@
   "description": "Parent folder for @squared-functions packages.",
   "scripts": {
     "dev": "tsc -outDir ../squared/node_modules/@squared-functions",
-    "prod": "eslint **/*.ts && tsc && rollup -c rollup.config.js",
+    "prod": "rimraf build/* && eslint **/*.ts && tsc && rollup -c rollup.config.js",
     "dev-publish": "cd publish && cd chrome && npm publish --dry-run && cd ../compress && npm publish --dry-run && cd ../file-manager && npm publish --dry-run && cd ../image && npm publish --dry-run && cd ../module && npm publish --dry-run && cd ../node && npm publish --dry-run && cd ../types && npm publish --dry-run",
     "prod-publish": "cd publish && cd chrome && npm publish && cd ../compress && npm publish && cd ../file-manager && npm publish && cd ../image && npm publish && cd ../module && npm publish && cd ../node && npm publish && cd ../types && npm publish"
   },
@@ -34,6 +34,7 @@
     "eslint": "^7.12.0",
     "jimp": "^0.16.1",
     "prettier": "^2.1.2",
+    "rimraf": "^2.6.3",
     "rollup": "^2.32.1",
     "rollup-plugin-prettier": "^2.1.0",
     "tinify": "^1.6.0-beta.2",
