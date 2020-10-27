@@ -757,13 +757,13 @@ export default class extends Module implements IFileManager {
                                     .then(img => {
                                         setImagePath('png');
                                         if (resizeMode) {
-                                            Image.resize(img, resizeMode.width, resizeMode.height, resizeMode.mode);
+                                            Image.resize(img, resizeMode);
                                         }
                                         if (opacity) {
                                             Image.opacity(img, opacity);
                                         }
                                         if (rotation) {
-                                            Image.rotate(img, image, rotation, this);
+                                            Image.rotate(img, rotation, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
                                         }
                                         img.write(image, err => {
                                             if (err) {
@@ -791,12 +791,11 @@ export default class extends Module implements IFileManager {
                                 jimp.read(filepath)
                                     .then(img => {
                                         setImagePath('jpeg', 'jpg');
-                                        img.quality(Image.jpegQuality);
                                         if (resizeMode) {
-                                            Image.resize(img, resizeMode.width, resizeMode.height, resizeMode.mode);
+                                            Image.resize(img, resizeMode);
                                         }
                                         if (rotation) {
-                                            Image.rotate(img, image, rotation, this);
+                                            Image.rotate(img, rotation, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
                                         }
                                         img.write(image, err => {
                                             if (err) {
@@ -825,13 +824,13 @@ export default class extends Module implements IFileManager {
                                     .then(img => {
                                         setImagePath('bmp');
                                         if (resizeMode) {
-                                            Image.resize(img, resizeMode.width, resizeMode.height, resizeMode.mode);
+                                            Image.resize(img, resizeMode);
                                         }
                                         if (opacity) {
                                             Image.opacity(img, opacity);
                                         }
                                         if (rotation) {
-                                            Image.rotate(img, image, rotation, this);
+                                            Image.rotate(img, rotation, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
                                         }
                                         img.write(image, err => {
                                             if (err) {

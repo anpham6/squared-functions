@@ -43,11 +43,11 @@ interface ICompress extends IModule {
 interface IImage extends IModule {
     jpegQuality: number;
     isJpeg(filename: string, mimeType?: string, filepath?: string): boolean;
-    parseResizeMode(value: string): Undef<ResizeMode>;
+    parseResizeMode(value: string): Undef<ResizeData>;
     parseOpacity(value: string): Undef<number>;
-    parseRotation(value: string): Undef<number[]>;
-    resize(self: jimp, width: number, height: number, mode?: string): jimp;
-    rotate(self: jimp, filepath: string, values: number[], manager: IFileManager): jimp;
+    parseRotation(value: string): Undef<RotateData>;
+    resize(self: jimp, options: ResizeData): jimp;
+    rotate(self: jimp, options: RotateData, filepath: string, preRotate?: () => void, postWrite?: (result?: any) => void): jimp;
     opacity(self: jimp, value: Undef<number>): jimp;
 }
 
@@ -198,10 +198,18 @@ interface DataMap {
     transpileMap?: TranspileMap;
 }
 
-interface ResizeMode {
-    mode: string;
+interface RotateData {
+    values: number[];
+    color: Null<number>;
+}
+
+interface ResizeData {
     width: number;
     height: number;
+    mode: string;
+    algorithm: string;
+    align: number;
+    color: Null<number>;
 }
 
 export as namespace functions;

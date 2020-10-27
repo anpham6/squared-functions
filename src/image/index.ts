@@ -3,8 +3,17 @@ import jimp = require('jimp');
 
 import Module from '../module';
 
+type ResizeData = functions.ResizeData;
+type RotateData = functions.RotateData;
+
+const REGEXP_RESIZE = /\(\s*(\d+|auto)\s*x\s*(\d+|auto)(?:\s*\[\s*(bilinear|bicubic|hermite|bezier)\s*\])?(?:\s*^\s*(contain|cover|scale)(?:\s*\[\s*(left|center|right)?(?:\s*\|?\s*(top|middle|bottom))?\s*\])?)?(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\)/;
+const REGEXP_ROTATE = /\{\s*([\d\s,]+)(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\}/;
+const REGEXP_OPACITY = /\|\s*([\d.]+)\s*\|/;
+
+const parseHexDecimal = (value: Undef<string>) => value ? parseInt('0x' + value.padEnd(8, 'F')) : null;
+
 export default new class extends Module implements functions.IImage {
-    public jpegQuality = 9;
+    public jpegQuality = 100;
 
     isJpeg(filename: string, mimeType?: string, filepath?: string) {
         if (mimeType && mimeType.endsWith('image/jpeg')) {
@@ -19,13 +28,51 @@ export default new class extends Module implements functions.IImage {
         }
     }
     parseResizeMode(value: string) {
-        const match = /\(\s*(\d+)\s*x\s*(\d+)(?:\s*#\s*(contain|cover|scale))?\s*\)/.exec(value);
+        const match = REGEXP_RESIZE.exec(value);
         if (match) {
-            return { width: parseInt(match[1]), height: parseInt(match[2]), mode: match[3] };
+            let algorithm: string = jimp.RESIZE_NEAREST_NEIGHBOR,
+                align = 0;
+            switch (match[3]) {
+                case 'bilinear':
+                    algorithm = jimp.RESIZE_BILINEAR;
+                    break;
+                case 'bicubic':
+                    algorithm = jimp.RESIZE_BICUBIC;
+                    break;
+                case 'hermite':
+                    algorithm = jimp.RESIZE_HERMITE;
+                    break;
+                case 'bezier':
+                    algorithm = jimp.RESIZE_BEZIER;
+                    break;
+            }
+            switch (match[5]) {
+                case 'left':
+                    align |= jimp.HORIZONTAL_ALIGN_LEFT;
+                    break;
+                case 'center':
+                    align |= jimp.HORIZONTAL_ALIGN_CENTER;
+                    break;
+                case 'right':
+                    align |= jimp.HORIZONTAL_ALIGN_RIGHT;
+                    break;
+            }
+            switch (match[6]) {
+                case 'top':
+                    align |= jimp.VERTICAL_ALIGN_TOP;
+                    break;
+                case 'middle':
+                    align |= jimp.VERTICAL_ALIGN_MIDDLE;
+                    break;
+                case 'bottom':
+                    align |= jimp.VERTICAL_ALIGN_BOTTOM;
+                    break;
+            }
+            return { width: match[1] === 'auto' ? Infinity : parseInt(match[1]), height: match[2] === 'auto' ? Infinity : parseInt(match[2]), mode: match[4] || 'resize', algorithm, align, color: parseHexDecimal(match[7]) } as ResizeData;
         }
     }
     parseOpacity(value: string) {
-        const match = /|\s*([\d.]+)\s*|/.exec(value);
+        const match = REGEXP_OPACITY.exec(value);
         if (match) {
             const opacity = parseFloat(match[1]);
             if (!isNaN(opacity)) {
@@ -34,47 +81,57 @@ export default new class extends Module implements functions.IImage {
         }
     }
     parseRotation(value: string) {
-        const result = new Set<number>();
-        const match = /\{\s*([\d\s,]+)\s*\}/.exec(value);
+        const match = REGEXP_ROTATE.exec(value);
         if (match) {
+            const result = new Set<number>();
             for (const segment of match[1].split(',')) {
                 const angle = parseInt(segment);
                 if (!isNaN(angle)) {
                     result.add(angle);
                 }
             }
-        }
-        if (result.size) {
-            return Array.from(result);
+            if (result.size) {
+                return { values: Array.from(result), color: parseHexDecimal(match[2]) } as RotateData;
+            }
         }
     }
-    resize(self: jimp, width: number, height: number, mode?: string) {
-        switch (mode) {
+    resize(self: jimp, options: ResizeData) {
+        const { width, height, color } = options;
+        if (color !== null) {
+            self.background(color);
+        }
+        switch (options.mode) {
             case 'contain':
-                return self.contain(width, height);
+                return self.contain(width, height, options.align);
             case 'cover':
-                return self.cover(width, height);
+                return self.cover(width, height, options.align);
             case 'scale':
                 return self.scaleToFit(width, height);
             default:
-                return self.resize(width, height);
+                return self.resize(width === Infinity ? jimp.AUTO : width, height === Infinity ? jimp.AUTO : height, options.algorithm);
         }
     }
-    rotate(self: jimp, filepath: string, values: number[], manager: functions.IFileManager) {
+    rotate(self: jimp, options: RotateData, filepath: string, preRotate?: () => void, postWrite?: (result?: any) => void) {
+        const { values, color } = options;
+        if (color !== null) {
+            self.background(color);
+        }
         const deg = values[0];
         for (let i = 1, length = values.length; i < length; ++i) {
             const value = values[i];
-            manager.performAsyncTask();
+            if (preRotate) {
+                preRotate();
+            }
             const img = self.clone().rotate(value);
             const index = filepath.lastIndexOf('.');
-            const output = filepath.substring(0, index) + '.' + value + filepath.substring(index);
+            let output = filepath.substring(0, index) + '.' + value + filepath.substring(index);
             img.write(output, err => {
                 if (err) {
-                    manager.completeAsyncTask();
                     this.writeFail(output, err);
+                    output = '';
                 }
-                else {
-                    manager.completeAsyncTask(output);
+                if (postWrite) {
+                    postWrite(output);
                 }
             });
         }
