@@ -4,15 +4,17 @@ import jimp = require('jimp');
 import Module from '../module';
 
 type ResizeData = functions.ResizeData;
+type CropData = functions.CropData;
 type RotateData = functions.RotateData;
 
 const REGEXP_RESIZE = /\(\s*(\d+|auto)\s*x\s*(\d+|auto)(?:\s*\[\s*(bilinear|bicubic|hermite|bezier)\s*\])?(?:\s*^\s*(contain|cover|scale)(?:\s*\[\s*(left|center|right)?(?:\s*\|?\s*(top|middle|bottom))?\s*\])?)?(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\)/;
+const REGEXP_CROP = /\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*\|\s*(\d+)\s*x\s*(\d+)\s*\)/;
 const REGEXP_ROTATE = /\{\s*([\d\s,]+)(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\}/;
 const REGEXP_OPACITY = /\|\s*([\d.]+)\s*\|/;
 
 const parseHexDecimal = (value: Undef<string>) => value ? parseInt('0x' + value.padEnd(8, 'F')) : null;
 
-export default new class extends Module implements functions.IImage {
+const Image = new class extends Module implements functions.IImage {
     public jpegQuality = 100;
 
     isJpeg(filename: string, mimeType?: string, filepath?: string) {
@@ -71,6 +73,12 @@ export default new class extends Module implements functions.IImage {
             return { width: match[1] === 'auto' ? Infinity : parseInt(match[1]), height: match[2] === 'auto' ? Infinity : parseInt(match[2]), mode: match[4] || 'resize', algorithm, align, color: parseHexDecimal(match[7]) } as ResizeData;
         }
     }
+    parseCrop(value: string) {
+        const match = REGEXP_CROP.exec(value);
+        if (match) {
+            return { x: parseInt(match[1]), y: parseInt(match[2]), width: parseInt(match[3]), height: parseInt(match[4]) } as CropData;
+        }
+    }
     parseOpacity(value: string) {
         const match = REGEXP_OPACITY.exec(value);
         if (match) {
@@ -95,26 +103,32 @@ export default new class extends Module implements functions.IImage {
             }
         }
     }
-    resize(self: jimp, options: ResizeData) {
+    resize(instance: jimp, options: ResizeData) {
         const { width, height, color } = options;
         if (color !== null) {
-            self.background(color);
+            instance.background(color);
         }
         switch (options.mode) {
             case 'contain':
-                return self.contain(width, height, options.align);
+                return instance.contain(width, height, options.align);
             case 'cover':
-                return self.cover(width, height, options.align);
+                return instance.cover(width, height, options.align);
             case 'scale':
-                return self.scaleToFit(width, height);
+                return instance.scaleToFit(width, height);
             default:
-                return self.resize(width === Infinity ? jimp.AUTO : width, height === Infinity ? jimp.AUTO : height, options.algorithm);
+                return instance.resize(width === Infinity ? jimp.AUTO : width, height === Infinity ? jimp.AUTO : height, options.algorithm);
         }
     }
-    rotate(self: jimp, options: RotateData, filepath: string, preRotate?: () => void, postWrite?: (result?: any) => void) {
+    crop(instance: jimp, options: CropData) {
+        return instance.crop(options.x, options.y, options.width, options.height);
+    }
+    opacity(instance: jimp, value: number) {
+        return value >= 0 && value <= 1 ? instance.opacity(value) : instance;
+    }
+    rotate(instance: jimp, options: RotateData, filepath: string, preRotate?: () => void, postWrite?: (result?: unknown) => void) {
         const { values, color } = options;
         if (color !== null) {
-            self.background(color);
+            instance.background(color);
         }
         const deg = values[0];
         for (let i = 1, length = values.length; i < length; ++i) {
@@ -122,7 +136,7 @@ export default new class extends Module implements functions.IImage {
             if (preRotate) {
                 preRotate();
             }
-            const img = self.clone().rotate(value);
+            const img = instance.clone().rotate(value);
             const index = filepath.lastIndexOf('.');
             let output = filepath.substring(0, index) + '.' + value + filepath.substring(index);
             img.write(output, err => {
@@ -135,9 +149,14 @@ export default new class extends Module implements functions.IImage {
                 }
             });
         }
-        return deg ? self.rotate(deg) : self;
-    }
-    opacity(self: jimp, value: Undef<number>) {
-        return value !== undefined && value >= 0 && value <= 1 ? self.opacity(value) : self;
+        return deg ? instance.rotate(deg) : instance;
     }
 }();
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = Image;
+    module.exports.default = Image;
+    module.exports.__esModule = true;
+}
+
+export default Image;

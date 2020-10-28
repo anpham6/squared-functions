@@ -1,5 +1,6 @@
-import type { IModule } from '../types/lib';
+import type { ModuleConstructor } from '../types/lib';
 
-declare const Module: IModule;
+declare const Module: ModuleConstructor;
 
-export default Module;
+export = Module;
+export as namespace Module;

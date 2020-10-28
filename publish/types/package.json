@@ -1,6 +1,6 @@
 {
   "name": "@squared-functions/types",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Type definitions for squared-functions",
   "types": "lib/index.d.ts",
   "repository": {
@@ -8,7 +8,7 @@
     "url": "git+https://github.com/anpham6/squared-functions.git"
   },
   "keywords": [
-    "squared-functions"
+    "squared"
   ],
   "author": "An Pham <anpham6@gmail.com>",
   "license": "MIT",

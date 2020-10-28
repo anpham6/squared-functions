@@ -1,12 +1,12 @@
 {
   "name": "squared-functions",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Parent folder for @squared-functions packages.",
   "scripts": {
     "dev": "tsc -outDir ../squared/node_modules/@squared-functions",
     "prod": "rimraf build/* && eslint **/*.ts && tsc && rollup -c rollup.config.js",
-    "dev-publish": "cd publish && cd chrome && npm publish --dry-run && cd ../compress && npm publish --dry-run && cd ../file-manager && npm publish --dry-run && cd ../image && npm publish --dry-run && cd ../module && npm publish --dry-run && cd ../node && npm publish --dry-run && cd ../types && npm publish --dry-run",
-    "prod-publish": "cd publish && cd chrome && npm publish && cd ../compress && npm publish && cd ../file-manager && npm publish && cd ../image && npm publish && cd ../module && npm publish && cd ../node && npm publish && cd ../types && npm publish"
+    "dev-publish": "npm publish --dry-run && cd publish && cd chrome && npm publish --dry-run && cd ../compress && npm publish --dry-run && cd ../file-manager && npm publish --dry-run && cd ../image && npm publish --dry-run && cd ../module && npm publish --dry-run && cd ../node && npm publish --dry-run && cd ../types && npm publish --dry-run",
+    "prod-publish": "npm publish && cd publish && cd chrome && npm publish && cd ../compress && npm publish && cd ../file-manager && npm publish && cd ../image && npm publish && cd ../module && npm publish && cd ../node && npm publish && cd ../types && npm publish"
   },
   "repository": {
     "type": "git",
@@ -14,7 +14,8 @@
   },
   "keywords": [
     "squared",
-    "express"
+    "express",
+    "serverless"
   ],
   "author": "An Pham <anpham6@gmail.com>",
   "license": "MIT",
@@ -38,7 +39,6 @@
     "rollup": "^2.32.1",
     "rollup-plugin-prettier": "^2.1.0",
     "tinify": "^1.6.0-beta.2",
-    "tslib": "^2.0.3",
     "typescript": "^4.0.5"
   }
 }

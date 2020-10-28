@@ -1,6 +1,6 @@
 {
   "name": "@squared-functions/file-manager",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "File Manager functions for squared-functions",
   "main": "index.js",
   "types": "index.d.ts",
@@ -9,24 +9,23 @@
     "url": "git+https://github.com/anpham6/squared-functions.git"
   },
   "keywords": [
-    "squared-functions"
+    "squared"
   ],
   "author": "An Pham <anpham6@gmail.com>",
   "license": "MIT",
   "homepage": "https://github.com/anpham6/squared-functions#readme",
   "dependencies": {
-    "@squared-functions/chrome": "^0.2.0",
-    "@squared-functions/compress": "^0.2.1",
-    "@squared-functions/image": "^0.2.3",
-    "@squared-functions/module": "^0.2.0",
-    "@squared-functions/node": "^0.2.0",
-    "@squared-functions/types": "^0.2.3",
+    "@squared-functions/chrome": "^0.3.0",
+    "@squared-functions/compress": "^0.3.0",
+    "@squared-functions/image": "^0.3.0",
+    "@squared-functions/module": "^0.3.0",
+    "@squared-functions/node": "^0.3.0",
+    "@squared-functions/types": "^0.3.0",
     "chalk": "^4.1.0",
     "fs-extra": "^9.0.1",
     "mime-types": "^2.1.27",
     "request": "^2.88.2",
     "tinify": "^1.6.0-beta.2",
-    "tslib": "^2.0.3",
     "uuid": "^8.3.1"
   }
 }

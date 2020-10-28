@@ -2,7 +2,7 @@ import Module from '../module';
 
 const REGEXP_URL = /^([A-Za-z]+:\/\/[A-Za-z\d.-]+(?::\d+)?)(\/.*)/;
 
-export default new class extends Module implements functions.INode {
+const Node = new class extends Module implements functions.INode {
     private _disk_read = false;
     private _disk_write = false;
     private _unc_read = false;
@@ -41,8 +41,8 @@ export default new class extends Module implements functions.INode {
     isDirectoryUNC(value: string) {
         return /^\\\\([\w.-]+)\\([\w-]+\$|[\w-]+\$\\.+|[\w-]+\\.*)$/.test(value);
     }
-    fromSameOrigin(base: string, other: string) {
-        const baseMatch = REGEXP_URL.exec(base);
+    fromSameOrigin(value: string, other: string) {
+        const baseMatch = REGEXP_URL.exec(value);
         const otherMatch = REGEXP_URL.exec(other);
         return baseMatch && otherMatch ? baseMatch[1] === otherMatch[1] : false;
     }
@@ -80,3 +80,11 @@ export default new class extends Module implements functions.INode {
         }
     }
 }();
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = Node;
+    module.exports.default = Node;
+    module.exports.__esModule = true;
+}
+
+export default Node;

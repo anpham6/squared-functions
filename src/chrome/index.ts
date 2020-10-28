@@ -8,7 +8,7 @@ import Module from '../module';
 
 type TranspileMap = functions.TranspileMap;
 
-export default new class extends Module implements functions.IChrome {
+const Chrome = new class extends Module implements functions.IChrome {
     public modules: Undef<functions.ChromeModules>;
 
     findPlugin(data: ObjectMap<StandardMap>, name: string): [string, StandardMap | FunctionType<string>] {
@@ -345,3 +345,11 @@ export default new class extends Module implements functions.IChrome {
         return output;
     }
 }();
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = Chrome;
+    module.exports.default = Chrome;
+    module.exports.__esModule = true;
+}
+
+export default Chrome;

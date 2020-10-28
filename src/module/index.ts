@@ -1,7 +1,7 @@
 import fs = require('fs');
 import chalk = require('chalk');
 
-export default class implements functions.IModule {
+const Module = class implements functions.IModule {
     public major: number;
     public minor: number;
     public patch: number;
@@ -33,7 +33,15 @@ export default class implements functions.IModule {
         }
         return 0;
     }
-    writeFail(description: string, message: any) {
+    writeFail(description: string, message: unknown) {
         console.log(`${chalk.bgRed.bold.white('FAIL')}: ${description} (${message as string})`);
     }
+};
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = Module;
+    module.exports.default = Module;
+    module.exports.__esModule = true;
 }
+
+export default Module;

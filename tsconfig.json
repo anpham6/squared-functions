@@ -6,8 +6,6 @@
     "outDir": "./build",
     "inlineSourceMap": false,
     "lib": ["es2017"],
-    "importHelpers": true,
-    "esModuleInterop": true,
     "noUnusedLocals": true,
     "preserveConstEnums": false,
     "alwaysStrict": true,

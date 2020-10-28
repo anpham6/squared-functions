@@ -23,7 +23,7 @@ const readFile = util.promisify(fs.readFile);
 const appendFile = util.promisify(fs.appendFile) as WriteTask;
 const writeFile = util.promisify(fs.writeFile) as WriteTask;
 
-export default class extends Module implements IFileManager {
+const FileManager = class extends Module implements IFileManager {
     public static loadSettings(value: functions.Settings, ignorePermissions?: boolean) {
         if (!ignorePermissions) {
             const {
@@ -188,7 +188,7 @@ export default class extends Module implements IFileManager {
             }
         }
     }
-    validate(file: ExpressAsset, exclusions: Exclusions) {
+    validate(file: ExpressAsset, exclusions: functions.squared.base.Exclusions) {
         const pathname = file.pathname.replace(/[\\/]$/, '');
         const filename = file.filename;
         const winOS = path.sep === '/' ? '' : 'i';
@@ -727,9 +727,10 @@ export default class extends Module implements IFileManager {
                             if (!Compress.withinSizeRange(filepath, value)) {
                                 continue;
                             }
-                            const resizeMode = Image.parseResizeMode(value);
-                            const opacity = Image.parseOpacity(value);
-                            const rotation = Image.parseRotation(value);
+                            const resizeData = Image.parseResizeMode(value);
+                            const cropData = Image.parseCrop(value);
+                            const opacityData = Image.parseOpacity(value);
+                            const rotationData = Image.parseRotation(value);
                             let image = filepath;
                             const setImagePath = (extension: string, saveAs?: string) => {
                                 if (mimeType.endsWith('/' + extension)) {
@@ -756,14 +757,17 @@ export default class extends Module implements IFileManager {
                                 jimp.read(filepath)
                                     .then(img => {
                                         setImagePath('png');
-                                        if (resizeMode) {
-                                            Image.resize(img, resizeMode);
+                                        if (resizeData) {
+                                            Image.resize(img, resizeData);
                                         }
-                                        if (opacity) {
-                                            Image.opacity(img, opacity);
+                                        if (cropData) {
+                                            Image.crop(img, cropData);
                                         }
-                                        if (rotation) {
-                                            Image.rotate(img, rotation, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                                        if (opacityData !== undefined) {
+                                            Image.opacity(img, opacityData);
+                                        }
+                                        if (rotationData) {
+                                            Image.rotate(img, rotationData, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
                                         }
                                         img.write(image, err => {
                                             if (err) {
@@ -791,11 +795,14 @@ export default class extends Module implements IFileManager {
                                 jimp.read(filepath)
                                     .then(img => {
                                         setImagePath('jpeg', 'jpg');
-                                        if (resizeMode) {
-                                            Image.resize(img, resizeMode);
+                                        if (resizeData) {
+                                            Image.resize(img, resizeData);
                                         }
-                                        if (rotation) {
-                                            Image.rotate(img, rotation, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                                        if (cropData) {
+                                            Image.crop(img, cropData);
+                                        }
+                                        if (rotationData) {
+                                            Image.rotate(img, rotationData, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
                                         }
                                         img.write(image, err => {
                                             if (err) {
@@ -823,14 +830,17 @@ export default class extends Module implements IFileManager {
                                 jimp.read(filepath)
                                     .then(img => {
                                         setImagePath('bmp');
-                                        if (resizeMode) {
-                                            Image.resize(img, resizeMode);
+                                        if (resizeData) {
+                                            Image.resize(img, resizeData);
                                         }
-                                        if (opacity) {
-                                            Image.opacity(img, opacity);
+                                        if (cropData) {
+                                            Image.crop(img, cropData);
                                         }
-                                        if (rotation) {
-                                            Image.rotate(img, rotation, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                                        if (opacityData !== undefined) {
+                                            Image.opacity(img, opacityData);
+                                        }
+                                        if (rotationData) {
+                                            Image.rotate(img, rotationData, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
                                         }
                                         img.write(image, err => {
                                             if (err) {
@@ -1412,4 +1422,12 @@ export default class extends Module implements IFileManager {
         }
         return tasks.length ? Promise.all(tasks) : Promise.resolve([]);
     }
+};
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = FileManager;
+    module.exports.default = FileManager;
+    module.exports.__esModule = true;
 }
+
+export default FileManager;

@@ -1,14 +1,6 @@
-/// <reference path="../types/lib/file.d.ts" />
+import type { FileManagerConstructor } from '../types/lib';
 
-import type { Arguments, ExpressAsset, FileManagerConstructor, IFileManager, Settings } from '../types/lib';
+declare const FileManager: FileManagerConstructor;
 
-type __ResultOfFileAction = ResultOfFileAction;
-
-export {
-    Arguments,
-    IFileManager,
-    FileManagerConstructor,
-    ExpressAsset,
-    Settings,
-    __ResultOfFileAction as ResultOfFileAction
-};
+export = FileManager;
+export as namespace FileManager;

@@ -3,7 +3,9 @@ import zlib = require('zlib');
 
 import Module from '../module';
 
-export default new class extends Module implements functions.ICompress {
+type CompressFormat = functions.squared.base.CompressFormat;
+
+const Compress = new class extends Module implements functions.ICompress {
     public gzipLevel = 9;
     public brotliQuality = 11;
     public tinifyApiKey = '';
@@ -59,3 +61,11 @@ export default new class extends Module implements functions.ICompress {
         return true;
     }
 }();
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = Compress;
+    module.exports.default = Compress;
+    module.exports.__esModule = true;
+}
+
+export default Compress;
