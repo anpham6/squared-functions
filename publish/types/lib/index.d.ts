@@ -87,7 +87,7 @@ declare namespace functions {
         findFormat(compress: Undef<squared.base.CompressFormat[]>, format: string): Undef<squared.base.CompressFormat>;
         findCompress(compress: Undef<squared.base.CompressFormat[]>): Undef<squared.base.CompressFormat>;
         removeFormat(compress: Undef<squared.base.CompressFormat[]>, format: string): void;
-        getSizeRange(value: string): [number, number];
+        parseSizeRange(value: string): [number, number];
         withinSizeRange(filepath: string, value: Undef<string>): boolean;
     }
 
@@ -145,6 +145,7 @@ declare namespace functions {
         getAbsoluteUrl(value: string, href: string): string;
         getFullUri(file: ExpressAsset, filename?: string): string;
         replacePath(source: string, segment: string, value: string, base64?: boolean): Undef<string>;
+        normalizePath(value: string): string;
         replaceExtension(value: string, ext: string): string;
         getTrailingContent(file: ExpressAsset): Promise<string>;
         appendContent(file: ExpressAsset, content: string, outputOnly?: boolean): Promise<string>;
@@ -163,7 +164,7 @@ declare namespace functions {
         moduleCompress(): ICompress;
         moduleImage(): IImage;
         moduleChrome(): IChrome;
-        new(dirname: string, assets: ExpressAsset[], postFinalize: (this: functions.IFileManager) => void, productionRelease?: boolean): IFileManager;
+        new(dirname: string, assets: ExpressAsset[], postFinalize: (this: IFileManager) => void, productionRelease?: boolean): IFileManager;
     }
 
     const FileManager: FileManagerConstructor;

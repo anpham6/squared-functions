@@ -100,6 +100,11 @@ module.exports = {
             "nestedBinaryExpressions": false
         }],
         "@typescript-eslint/no-redeclare": "error",
+        "@typescript-eslint/no-unnecessary-boolean-literal-compare": "error",
+        "@typescript-eslint/no-unnecessary-qualifier": "error",
+        "@typescript-eslint/no-unnecessary-type-arguments": "error",
+        "@typescript-eslint/no-unnecessary-type-assertion": "error",
+        "@typescript-eslint/no-unnecessary-type-constraint": "error",
         "@typescript-eslint/prefer-for-of": "error",
         "@typescript-eslint/unified-signatures": "error"
     }

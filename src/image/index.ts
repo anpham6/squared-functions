@@ -123,7 +123,7 @@ const Image = new class extends Module implements functions.IImage {
         return instance.crop(options.x, options.y, options.width, options.height);
     }
     opacity(instance: jimp, value: number) {
-        return value >= 0 && value <= 1 ? instance.opacity(value) : instance;
+        return instance.opacity(value);
     }
     rotate(instance: jimp, options: RotateData, filepath: string, preRotate?: () => void, postWrite?: (result?: unknown) => void) {
         const { values, color } = options;

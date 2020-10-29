@@ -44,16 +44,16 @@ const Compress = new class extends Module implements functions.ICompress {
             return this.findFormat(compress, 'png');
         }
     }
-    getSizeRange(value: string): [number, number] {
+    parseSizeRange(value: string): [number, number] {
         const match = /\(\s*(\d+)\s*,\s*(\d+|\*)\s*\)/.exec(value);
         return match ? [parseInt(match[1]), match[2] === '*' ? Infinity : parseInt(match[2])] : [0, Infinity];
     }
     withinSizeRange(filepath: string, value: Undef<string>) {
         if (value) {
-            const [largerThan, smallerThan] = this.getSizeRange(value);
-            if (largerThan > 0 || smallerThan < Infinity) {
+            const [minSize, maxSize] = this.parseSizeRange(value);
+            if (minSize > 0 || maxSize < Infinity) {
                 const fileSize = this.getFileSize(filepath);
-                if (fileSize === 0 || fileSize < largerThan || fileSize > smallerThan) {
+                if (fileSize === 0 || fileSize < minSize || fileSize > maxSize) {
                     return false;
                 }
             }

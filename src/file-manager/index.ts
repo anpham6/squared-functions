@@ -139,6 +139,17 @@ const FileManager = class extends Module implements IFileManager {
         this.requestMain = assets.find(item => item.requestMain);
         this.dataMap = assets[0].dataMap;
         this.postFinalize = postFinalize.bind(this);
+        assets.sort((a, b) => {
+            const tA = a.mimeType?.includes(':image/');
+            const tB = b.mimeType?.includes(':image/');
+            if (tA && (!tB || a.outerHTML && !b.outerHTML)) {
+                return -1;
+            }
+            if (tB && (!tA || !a.outerHTML && b.outerHTML)) {
+                return 1;
+            }
+            return 0;
+        });
     }
 
     add(value: string) {
@@ -194,7 +205,7 @@ const FileManager = class extends Module implements IFileManager {
         const winOS = path.sep === '/' ? '' : 'i';
         if (exclusions.pathname) {
             for (const value of exclusions.pathname) {
-                const directory = value.trim().replace(/[\\/]/g, '[\\\\/]').replace(/[\\/]$/, '');
+                const directory = this.normalizePath(value.trim()).replace(/[\\/]$/, '');
                 if (new RegExp(`^${directory}$`, winOS).test(pathname) || new RegExp(`^${directory}[\\\\/]`, winOS).test(pathname)) {
                     return false;
                 }
@@ -305,7 +316,7 @@ const FileManager = class extends Module implements IFileManager {
         return path.join(file.moveTo || '', file.pathname, filename).replace(/\\/g, '/');
     }
     replacePath(source: string, segment: string, value: string, base64?: boolean) {
-        segment = !base64 ? segment.replace(/[\\/]/g, '[\\\\/]') : '[^"\',]+,\\s*' + segment;
+        segment = !base64 ? this.normalizePath(segment) : '[^"\',]+,\\s*' + segment;
         let output: Undef<string>,
             pattern = new RegExp(`([sS][rR][cC]|[hH][rR][eE][fF]|[dD][aA][tT][aA]|[pP][oO][sS][tT][eE][rR]=)?(["'])(\\s*)${segment}(\\s*)\\2`, 'g'),
             match: Null<RegExpExecArray>;
@@ -317,6 +328,9 @@ const FileManager = class extends Module implements IFileManager {
             output = (output || source).replace(match[0], `url(${value})`);
         }
         return output;
+    }
+    normalizePath(value: string) {
+        return value.replace(/[\\/]/g, '[\\\\/]');
     }
     replaceExtension(value: string, ext: string) {
         const index = value.lastIndexOf('.');
@@ -503,23 +517,31 @@ const FileManager = class extends Module implements IFileManager {
                     else if (item.uri && !item.content) {
                         let value = this.getFullUri(item);
                         if (item.rootDir || Node.fromSameOrigin(baseUri, item.uri)) {
-                            pattern = new RegExp(`(["'\\s,=])(((?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?${path.join(item.pathname, item.filename).replace(/[\\/]/g, '[\\\\/]')})`, 'g');
+                            pattern = new RegExp(`(["'\\s,=])(((?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?${this.normalizePath(path.join(item.pathname, item.filename))})`, 'g');
                             while (match = pattern.exec(html)) {
                                 if (match[2] !== value && item.uri === Node.resolvePath(match[2], baseUri)) {
                                     source = source.replace(match[0], match[1] + value);
                                 }
                             }
                         }
-                        if (item.format === 'base64') {
-                            item.mimeType ||= mime.lookup(value).toString();
-                            if (item.mimeType.includes('image/')) {
-                                value = uuid.v4();
-                                item.toBase64 = value;
+                        item.mimeType ||= mime.lookup(value).toString();
+                        if (item.format === 'base64' && item.mimeType.includes('image/')) {
+                            value = uuid.v4();
+                            item.toBase64 = value;
+                        }
+                        let outerHTML = item.outerHTML;
+                        if (outerHTML && item.mimeType.includes(':image/')) {
+                            outerHTML = outerHTML.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/\w+>)?\s*$/, '');
+                            const replaced = this.replacePath(outerHTML, item.uri, value);
+                            if (replaced) {
+                                source = source.replace(outerHTML, replaced);
                             }
                         }
-                        const replaced = this.replacePath(source, item.uri, value);
-                        if (replaced) {
-                            source = replaced;
+                        else {
+                            const replaced = this.replacePath(source, item.uri, value);
+                            if (replaced) {
+                                source = replaced;
+                            }
                         }
                         html = source;
                     }
@@ -672,18 +694,18 @@ const FileManager = class extends Module implements IFileManager {
                         this.performAsyncTask();
                         jimp.read(filepath)
                             .then(img => {
-                                const imgMimeType = img.getMIME();
-                                switch (imgMimeType) {
+                                const unknownType = img.getMIME();
+                                switch (unknownType) {
                                     case jimp.MIME_PNG:
                                     case jimp.MIME_JPEG:
                                     case jimp.MIME_BMP:
                                     case jimp.MIME_GIF:
                                     case jimp.MIME_TIFF:
                                         try {
-                                            const renameTo = this.replaceExtension(filepath, imgMimeType.split('/')[1]);
+                                            const renameTo = this.replaceExtension(filepath, unknownType.split('/')[1]);
                                             fs.renameSync(filepath, renameTo);
                                             afterConvert(renameTo, '@');
-                                            if ((imgMimeType === jimp.MIME_PNG || imgMimeType === jimp.MIME_JPEG) && Compress.findCompress(file.compress)) {
+                                            if ((unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG) && Compress.findCompress(file.compress)) {
                                                 compressImage(renameTo);
                                             }
                                             else {
@@ -758,16 +780,16 @@ const FileManager = class extends Module implements IFileManager {
                                     .then(img => {
                                         setImagePath('png');
                                         if (resizeData) {
-                                            Image.resize(img, resizeData);
+                                            img = Image.resize(img, resizeData);
                                         }
                                         if (cropData) {
-                                            Image.crop(img, cropData);
+                                            img = Image.crop(img, cropData);
                                         }
                                         if (opacityData !== undefined) {
-                                            Image.opacity(img, opacityData);
+                                            img = Image.opacity(img, opacityData);
                                         }
                                         if (rotationData) {
-                                            Image.rotate(img, rotationData, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                                            img = Image.rotate(img, rotationData, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
                                         }
                                         img.write(image, err => {
                                             if (err) {
@@ -796,13 +818,13 @@ const FileManager = class extends Module implements IFileManager {
                                     .then(img => {
                                         setImagePath('jpeg', 'jpg');
                                         if (resizeData) {
-                                            Image.resize(img, resizeData);
+                                            img = Image.resize(img, resizeData);
                                         }
                                         if (cropData) {
-                                            Image.crop(img, cropData);
+                                            img = Image.crop(img, cropData);
                                         }
                                         if (rotationData) {
-                                            Image.rotate(img, rotationData, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                                            img = Image.rotate(img, rotationData, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
                                         }
                                         img.write(image, err => {
                                             if (err) {
@@ -831,16 +853,16 @@ const FileManager = class extends Module implements IFileManager {
                                     .then(img => {
                                         setImagePath('bmp');
                                         if (resizeData) {
-                                            Image.resize(img, resizeData);
+                                            img = Image.resize(img, resizeData);
                                         }
                                         if (cropData) {
-                                            Image.crop(img, cropData);
+                                            img = Image.crop(img, cropData);
                                         }
                                         if (opacityData !== undefined) {
-                                            Image.opacity(img, opacityData);
+                                            img = Image.opacity(img, opacityData);
                                         }
                                         if (rotationData) {
-                                            Image.rotate(img, rotationData, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                                            img = Image.rotate(img, rotationData, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
                                         }
                                         img.write(image, err => {
                                             if (err) {
@@ -1355,7 +1377,7 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
         const replaced = this.assets.filter(item => item.originalName);
-        const asBase64: StringMap = {};
+        const base64Map: StringMap = {};
         let tasks: Promise<void>[] = [];
         for (const [filepath, content] of this.contentToAppend.entries()) {
             let output = '';
@@ -1377,7 +1399,7 @@ const FileManager = class extends Module implements IFileManager {
                 if (mimeType.startsWith('image/')) {
                     tasks.push(
                         readFile(filepath).then((data: Buffer) => {
-                            asBase64[item.toBase64!] = `data:${mimeType};base64,${data.toString('base64')}`;
+                            base64Map[item.toBase64!] = `data:${mimeType};base64,${data.toString('base64')}`;
                             item.originalName = '';
                         })
                     );
@@ -1388,7 +1410,7 @@ const FileManager = class extends Module implements IFileManager {
             await Promise.all(tasks);
             tasks = [];
         }
-        if (replaced.length || Object.keys(asBase64) || this.productionRelease) {
+        if (replaced.length || Object.keys(base64Map) || this.productionRelease) {
             for (const item of this.assets) {
                 if (item.excluded) {
                     continue;
@@ -1403,11 +1425,11 @@ const FileManager = class extends Module implements IFileManager {
                             tasks.push(
                                 readFile(filepath).then((data: Buffer) => {
                                     let html = data.toString('utf-8');
-                                    for (const id in asBase64) {
-                                        html = html.replace(new RegExp(id, 'g'), asBase64[id]!);
+                                    for (const id in base64Map) {
+                                        html = html.replace(new RegExp(id, 'g'), base64Map[id]!);
                                     }
                                     for (const asset of replaced) {
-                                        html = html.replace(new RegExp(this.getFullUri(asset, asset.originalName).replace(/[\\/]/g, '[\\\\/]'), 'g'), this.getFullUri(asset));
+                                        html = html.replace(new RegExp(this.normalizePath(this.getFullUri(asset, asset.originalName)), 'g'), this.getFullUri(asset));
                                     }
                                     if (this.productionRelease) {
                                         html = html.replace(/(\.\.\/)*__serverroot__/g, '');
