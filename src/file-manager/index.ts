@@ -417,11 +417,10 @@ const FileManager = class extends Module implements IFileManager {
         return Promise.resolve(output);
     }
     async transformBuffer(assets: ExpressAsset[], file: ExpressAsset, filepath: string) {
-        const mimeType = file.mimeType;
+        const { format, mimeType } = file;
         if (!mimeType || mimeType[0] === '&') {
             return Promise.resolve();
         }
-        const format = file.format;
         const transpileMap = this.dataMap?.transpileMap;
         switch (mimeType) {
             case '@text/html':
@@ -435,9 +434,13 @@ const FileManager = class extends Module implements IFileManager {
                     pattern = /(\s*)<(script|link|style)[^>]*?(\s+data-chrome-file="\s*(save|export)As:\s*((?:[^"]|\\")+)")[^>]*>(?:[\s\S]*?<\/\2>\n*)?/ig,
                     match: Null<RegExpExecArray>;
                 while (match = pattern.exec(html)) {
+                    const uri = match[5].split('::')[0].trim();
+                    if (uri === '~') {
+                        continue;
+                    }
                     const segment = match[0];
                     const script = match[2].toLowerCase() === 'script';
-                    const location = this.getAbsoluteUrl(match[5].split('::')[0].trim(), baseUri);
+                    const location = this.getAbsoluteUrl(uri, baseUri);
                     if (saved.has(location) || match[4] === 'export' && new RegExp(`<${script ? 'script' : 'link'}[^>]+?(?:${script ? 'src' : 'href'}=(["'])${location}\\1|data-chrome-file="saveAs:${location}[:"])[^>]*>`, 'i').test(html)) {
                         source = source.replace(segment, '');
                     }
@@ -741,7 +744,7 @@ const FileManager = class extends Module implements IFileManager {
                             });
                     }
                     else if (file.commands) {
-                        for (const value of file.commands.split(':')) {
+                        for (const value of file.commands) {
                             if (!Compress.withinSizeRange(filepath, value)) {
                                 continue;
                             }

@@ -19,7 +19,7 @@ declare namespace functions {
                 uri?: string;
                 mimeType?: string;
                 base64?: string;
-                commands?: string;
+                commands?: string[];
                 compress?: CompressFormat[];
             }
             interface Exclusions {
