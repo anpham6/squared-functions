@@ -140,12 +140,10 @@ const FileManager = class extends Module implements IFileManager {
         this.dataMap = assets[0].dataMap;
         this.postFinalize = postFinalize.bind(this);
         assets.sort((a, b) => {
-            const tA = a.mimeType?.includes(':image/');
-            const tB = b.mimeType?.includes(':image/');
-            if (tA && (!tB || a.outerHTML && !b.outerHTML)) {
+            if (a.commands && (!b.commands || a.outerHTML && !b.outerHTML)) {
                 return -1;
             }
-            if (tB && (!tA || !a.outerHTML && b.outerHTML)) {
+            if (b.commands && (!a.commands || !a.outerHTML && b.outerHTML)) {
                 return 1;
             }
             return 0;
@@ -525,12 +523,12 @@ const FileManager = class extends Module implements IFileManager {
                             }
                         }
                         item.mimeType ||= mime.lookup(value).toString();
-                        if (item.format === 'base64' && item.mimeType.includes('image/')) {
+                        if (item.format === 'base64' && item.mimeType.startsWith('image/')) {
                             value = uuid.v4();
                             item.toBase64 = value;
                         }
                         let outerHTML = item.outerHTML;
-                        if (outerHTML && item.mimeType.includes(':image/')) {
+                        if (outerHTML && item.mimeType.startsWith('image/')) {
                             outerHTML = outerHTML.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/\w+>)?\s*$/, '');
                             const replaced = this.replacePath(outerHTML, item.uri, value);
                             if (replaced) {
@@ -659,7 +657,7 @@ const FileManager = class extends Module implements IFileManager {
                 break;
             }
             default:
-                if (mimeType.includes('image/')) {
+                if (mimeType.startsWith('image/')) {
                     const afterConvert = (transformed: string, condition: string) => {
                         if (filepath !== transformed) {
                             if (condition.includes('@')) {
@@ -742,10 +740,8 @@ const FileManager = class extends Module implements IFileManager {
                                 this.writeFail(filepath, err);
                             });
                     }
-                    else {
-                        const convert = mimeType.split(':');
-                        --convert.length;
-                        for (const value of convert) {
+                    else if (file.commands) {
+                        for (const value of file.commands.split(':')) {
                             if (!Compress.withinSizeRange(filepath, value)) {
                                 continue;
                             }
@@ -1169,7 +1165,6 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 if (this.getFileSize(filepath)) {
                     this.compressFile(assets, bundleMain || file, filepath);
-                    this.completeAsyncTask(filepath);
                 }
                 else {
                     (bundleMain || file).excluded = true;
@@ -1179,10 +1174,7 @@ const FileManager = class extends Module implements IFileManager {
             else if (Array.isArray(processing[filepath])) {
                 completed.push(filepath);
                 for (const item of processing[filepath]) {
-                    if (item.excluded) {
-                        this.completeAsyncTask();
-                    }
-                    else {
+                    if (!item.excluded) {
                         this.writeBuffer(assets, item, filepath);
                     }
                 }
