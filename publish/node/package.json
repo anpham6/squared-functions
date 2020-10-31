@@ -1,6 +1,6 @@
 {
   "name": "@squared-functions/node",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Node functions for squared-functions",
   "main": "index.js",
   "types": "index.d.ts",
