@@ -49,9 +49,10 @@ declare namespace functions {
             rootDir?: string;
             moveTo?: string;
             format?: string;
+            preserve?: boolean;
+            inlineContent?: string;
             requestMain?: boolean;
             bundleIndex?: number;
-            preserve?: boolean;
             trailingContent?: FormattableContent[];
             outerHTML?: string;
         }
@@ -141,6 +142,7 @@ declare namespace functions {
         performFinalize(): void;
         replace(file: ExpressAsset, replaceWith: string): void;
         validate(file: ExpressAsset, exclusions: squared.base.Exclusions): boolean;
+        getHtmlPages(modified?: boolean): ExpressAsset[];
         getFileOutput(file: ExpressAsset): { pathname: string; filepath: string };
         getRelativeUrl(file: ExpressAsset, url: string): Undef<string>;
         getAbsoluteUrl(value: string, href: string): string;

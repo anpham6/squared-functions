@@ -178,6 +178,8 @@ The same concept can be used inline anywhere using a &lt;script&gt; tag with the
 JS and CSS files can be bundled together with the "saveAs" or "exportAs" action. Multiple transformations per asset can be chained using the "+" symbol. The "preserve" command will prevent unused styles from being deleted.
 
 ```xml
+<!-- NOTE: "inline" command is only supported when using YAML/JSON or JavaScript -->
+
 <link data-chrome-file="saveAs:css/prod.css::beautify::preserve" rel="stylesheet" href="css/dev.css" />
 <style data-chrome-file="exportAs:css/prod.css::minify+beautify">
     body {
@@ -197,7 +199,7 @@ const options = {
     saveAs: { // All attributes are optional
         html: { filename: 'index.html', format: 'beautify' }
         script: { pathname: '../js', filename: 'bundle.js', format: 'es5+es5-minify' },
-        link: { pathname: 'css', filename: 'bundle.css', preserve: true },
+        link: { pathname: 'css', filename: 'bundle.css', preserve: true, inline: true },
         image: { format: 'base64' },
         base64: { format: 'png' }
     },
@@ -235,7 +237,7 @@ You can use images commands with saveTo on any element when the image is the pri
 <img
     id="image1"
     src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg"
-    data-chrome-file="saveTo:../images/harbour::png@(10000,75000)(800x600[bezier]^contain[right|bottom])::compress|base64" /> <!-- "saveTo:~::~::base64" -->
+    data-chrome-file="saveTo:../images/harbour::png@(10000,75000)(800x600[bezier]^contain[right|bottom])::base64|compress" /> <!-- "saveTo:~::~::base64" -->
 ```
 
 ### Asset exclusion

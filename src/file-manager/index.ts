@@ -190,7 +190,6 @@ const FileManager = class extends Module implements IFileManager {
             }
             else {
                 this.filesToRemove.add(filepath);
-                this.delete(filepath);
                 file.originalName ||= file.filename;
                 file.filename = path.basename(replaceWith);
                 this.add(replaceWith);
@@ -235,6 +234,20 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
         return true;
+    }
+    getHtmlPages(modified = true) {
+        return this.assets.filter(item => {
+            switch (item.mimeType) {
+                case '@text/html':
+                case '@application/xhtml+xml':
+                    return modified;
+                case 'text/html':
+                case 'application/xhtml+xml':
+                    return !modified;
+                default:
+                    return false;
+            }
+        });
     }
     getFileOutput(file: ExpressAsset) {
         const pathname = path.join(this.dirname, file.moveTo || '', file.pathname);
@@ -425,7 +438,7 @@ const FileManager = class extends Module implements IFileManager {
         switch (mimeType) {
             case '@text/html':
             case '@application/xhtml+xml': {
-                const minifySpace = (value: string) => value.replace(/\s+/g, '');
+                const minifySpace = (value: string) => value.replace(/(\s+|\/)/g, '');
                 const getOuterHTML = (script: boolean, value: string) => script ? `<script type="text/javascript" src="${value}"></script>` : `<link rel="stylesheet" type="text/css" href="${value}" />`;
                 const baseUri = file.uri!;
                 const saved = new Set<string>();
@@ -463,37 +476,64 @@ const FileManager = class extends Module implements IFileManager {
                     if (item.excluded) {
                         continue;
                     }
-                    const { bundleIndex, trailingContent } = item;
-                    if (bundleIndex !== undefined) {
-                        const outerHTML = item.outerHTML;
-                        if (outerHTML) {
-                            let replaceWith = '',
-                                replaced: string;
-                            if (bundleIndex === 0 || bundleIndex === Infinity) {
-                                replaceWith = getOuterHTML(item.mimeType === 'text/javascript', this.getFullUri(item));
-                                replaced = source.replace(outerHTML, replaceWith);
-                            }
-                            else {
-                                replaced = source.replace(new RegExp(`\\s*${outerHTML}\\n*`), '');
-                            }
+                    const { outerHTML, trailingContent } = item;
+                    if (outerHTML) {
+                        const { bundleIndex, inlineContent } = item;
+                        let replaceWith = '',
+                            replaced!: string;
+                        const formattedTag = () => outerHTML.replace(/">$/, '" />');
+                        const replaceTry = () => {
+                            replaced = source.replace(outerHTML, replaceWith);
                             if (replaced === source) {
+                                replaced = source.replace(formattedTag(), replaceWith);
+                            }
+                        };
+                        const replaceMinify = () => {
+                            if (replaced === source) {
+                                pattern.lastIndex = 0;
                                 const content = item.content && minifySpace(item.content);
                                 const outerContent = minifySpace(outerHTML);
                                 while (match = pattern.exec(html)) {
                                     if (outerContent === minifySpace(match[0]) || content && content === minifySpace(match[3])) {
-                                        source = source.replace(match[0], (replaceWith ? match[1] : '') + replaceWith);
+                                        replaced = source.replace(match[0], (replaceWith ? match[1] : '') + replaceWith);
                                         break;
                                     }
                                 }
-                                pattern.lastIndex = 0;
+                            }
+                        };
+                        if (inlineContent) {
+                            const id = `<!-- ${uuid.v4()} -->`;
+                            replaceWith = `<${inlineContent}>${id}</${inlineContent}>`;
+                            replaceTry();
+                            replaceMinify();
+                            if (replaced !== source) {
+                                source = replaced;
+                                item.inlineContent = id;
+                                if (item.filepath) {
+                                    this.filesToRemove.add(item.filepath);
+                                }
+                            }
+                        }
+                        else if (bundleIndex !== undefined) {
+                            if (bundleIndex === 0 || bundleIndex === -1 || bundleIndex === Infinity) {
+                                replaceWith = getOuterHTML(item.mimeType === 'text/javascript', this.getFullUri(item));
+                                replaceTry();
                             }
                             else {
+                                replaced = source.replace(new RegExp(`\\s*${outerHTML}\\n*`), '');
+                                if (replaced === source) {
+                                    replaced = source.replace(new RegExp(`\\s*${formattedTag()}\\n*`), '');
+                                }
+                            }
+                            replaceMinify();
+                            if (replaced !== source) {
                                 source = replaced;
                             }
-                            html = source;
                         }
+                        html = source;
                     }
                     if (trailingContent) {
+                        pattern.lastIndex = 0;
                         const content = trailingContent.map(trailing => minifySpace(trailing.value));
                         while (match = pattern.exec(html)) {
                             if (content.includes(minifySpace(match[3]))) {
@@ -501,7 +541,6 @@ const FileManager = class extends Module implements IFileManager {
                             }
                         }
                         html = source;
-                        pattern.lastIndex = 0;
                     }
                 }
                 for (const item of assets) {
@@ -1054,7 +1093,7 @@ const FileManager = class extends Module implements IFileManager {
         const exclusions = assets[0].exclusions;
         const checkQueue = (file: ExpressAsset, filepath: string, content?: boolean) => {
             const bundleIndex = file.bundleIndex;
-            if (bundleIndex !== undefined) {
+            if (bundleIndex !== undefined && bundleIndex !== -1) {
                 appending[filepath] ||= [];
                 if (bundleIndex > 0) {
                     appending[filepath][bundleIndex - 1] = file;
@@ -1082,7 +1121,7 @@ const FileManager = class extends Module implements IFileManager {
         };
         const processQueue = async (file: ExpressAsset, filepath: string, bundleMain?: ExpressAsset) => {
             const bundleIndex = file.bundleIndex;
-            if (bundleIndex !== undefined) {
+            if (bundleIndex !== undefined && bundleIndex !== -1) {
                 if (bundleIndex === 0) {
                     if (this.getFileSize(filepath) && !file.excluded) {
                         const content = await this.appendContent(file, fs.readFileSync(filepath, 'utf8'), true);
@@ -1339,40 +1378,6 @@ const FileManager = class extends Module implements IFileManager {
         this.performFinalize();
     }
     async finalizeAssets() {
-        const filesToRemove = this.filesToRemove;
-        for (const [file, output] of this.filesToCompare) {
-            const originalPath = file.filepath!;
-            let minFile = originalPath,
-                minSize = this.getFileSize(minFile);
-            for (const transformed of output) {
-                const size = this.getFileSize(transformed);
-                if (size > 0 && size < minSize) {
-                    filesToRemove.add(minFile);
-                    minFile = transformed;
-                    minSize = size;
-                }
-                else {
-                    filesToRemove.add(transformed);
-                }
-            }
-            if (minFile !== originalPath) {
-                this.replace(file, minFile);
-            }
-        }
-        const length = this.dirname.length;
-        for (const value of this.filesToRemove) {
-            this.files.delete(value.substring(length + 1));
-            try {
-                if (fs.existsSync(value)) {
-                    fs.unlinkSync(value);
-                }
-            }
-            catch (err) {
-                this.writeFail(value, err);
-            }
-        }
-        const replaced = this.assets.filter(item => item.originalName);
-        const base64Map: StringMap = {};
         let tasks: Promise<void>[] = [];
         for (const [filepath, content] of this.contentToAppend.entries()) {
             let output = '';
@@ -1387,6 +1392,72 @@ const FileManager = class extends Module implements IFileManager {
             await Promise.all(tasks);
             tasks = [];
         }
+        const inlineMap: StringMap = {};
+        for (const item of this.assets) {
+            if (!item.excluded) {
+                const inlineContent = item.inlineContent;
+                if (inlineContent && inlineContent.startsWith('<!--')) {
+                    tasks.push(
+                        readFile(item.filepath!).then((data: Buffer) => {
+                            inlineMap[inlineContent] = data.toString('utf-8').trim();
+                            item.excluded = true;
+                            item.originalName = '';
+                        })
+                    );
+                }
+            }
+        }
+        if (tasks.length) {
+            const html = this.getHtmlPages();
+            if (html.length) {
+                await Promise.all(tasks).then(() => {
+                    for (const item of html) {
+                        const filepath = item.filepath!;
+                        const data = fs.readFileSync(filepath);
+                        if (data) {
+                            let content = data.toString('utf-8');
+                            for (const id in inlineMap) {
+                                const value = inlineMap[id]!;
+                                content = content.replace(new RegExp((value.includes(' ') ? '[ \t]*' : '') + id), value);
+                            }
+                            fs.writeFileSync(filepath, content);
+                        }
+                    }
+                });
+            }
+            tasks = [];
+        }
+        for (const [file, output] of this.filesToCompare) {
+            const originalPath = file.filepath!;
+            let minFile = originalPath,
+                minSize = this.getFileSize(minFile);
+            for (const other of output) {
+                const size = this.getFileSize(other);
+                if (size > 0 && size < minSize) {
+                    this.filesToRemove.add(minFile);
+                    minFile = other;
+                    minSize = size;
+                }
+                else {
+                    this.filesToRemove.add(other);
+                }
+            }
+            if (minFile !== originalPath) {
+                this.replace(file, minFile);
+            }
+        }
+        for (const value of this.filesToRemove) {
+            try {
+                if (fs.existsSync(value)) {
+                    fs.unlinkSync(value);
+                }
+                this.delete(value);
+            }
+            catch (err) {
+                this.writeFail(value, err);
+            }
+        }
+        const base64Map: StringMap = {};
         for (const item of this.assets) {
             if (!item.excluded && item.toBase64) {
                 const filepath = item.filepath!;
@@ -1396,6 +1467,7 @@ const FileManager = class extends Module implements IFileManager {
                         readFile(filepath).then((data: Buffer) => {
                             base64Map[item.toBase64!] = `data:${mimeType};base64,${data.toString('base64')}`;
                             item.originalName = '';
+                            item.excluded = true;
                         })
                     );
                 }
@@ -1405,6 +1477,7 @@ const FileManager = class extends Module implements IFileManager {
             await Promise.all(tasks);
             tasks = [];
         }
+        const replaced = this.assets.filter(item => item.originalName);
         if (replaced.length || Object.keys(base64Map) || this.productionRelease) {
             for (const item of this.assets) {
                 if (item.excluded) {
