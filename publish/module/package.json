@@ -15,7 +15,7 @@
   "license": "MIT",
   "homepage": "https://github.com/anpham6/squared-functions#readme",
   "dependencies": {
-    "@squared-functions/types": "^0.3.0",
+    "@squared-functions/types": "^0.3.5",
     "chalk": "^4.1.0"
   }
 }

@@ -7,6 +7,7 @@ import request = require('request');
 import uuid = require('uuid');
 import jimp = require('jimp');
 import mime = require('mime-types');
+import escapeRegexp = require('escape-string-regexp');
 import tinify = require('tinify');
 
 import Module from '../module';
@@ -447,13 +448,18 @@ const FileManager = class extends Module implements IFileManager {
                     pattern = /(\s*)<(script|link|style)[^>]*?(\s+data-chrome-file="\s*(save|export)As:\s*((?:[^"]|\\")+)")[^>]*>(?:[\s\S]*?<\/\2>\n*)?/ig,
                     match: Null<RegExpExecArray>;
                 while (match = pattern.exec(html)) {
-                    const uri = match[5].split('::')[0].trim();
+                    const items = match[5].split('::');
+                    const uri = items[0].trim();
                     if (uri === '~') {
                         continue;
                     }
                     const segment = match[0];
                     const script = match[2].toLowerCase() === 'script';
                     const location = this.getAbsoluteUrl(uri, baseUri);
+                    if (items[2] && items[2].includes('inline') && !saved.has(location)) {
+                        saved.add(location);
+                        continue;
+                    }
                     if (saved.has(location) || match[4] === 'export' && new RegExp(`<${script ? 'script' : 'link'}[^>]+?(?:${script ? 'src' : 'href'}=(["'])${location}\\1|data-chrome-file="saveAs:${location}[:"])[^>]*>`, 'i').test(html)) {
                         source = source.replace(segment, '');
                     }
@@ -473,29 +479,29 @@ const FileManager = class extends Module implements IFileManager {
                 html = source;
                 pattern = /(\s*)<(script|style)[^>]*>([\s\S]*?)<\/\2>\n*/ig;
                 for (const item of assets) {
-                    if (item.excluded) {
+                    if (item.invalid) {
                         continue;
                     }
                     const { outerHTML, trailingContent } = item;
                     if (outerHTML) {
                         const { bundleIndex, inlineContent } = item;
-                        let replaceWith = '',
-                            replaced!: string;
+                        const replacing = source;
+                        let replaceWith = '';
                         const formattedTag = () => outerHTML.replace(/">$/, '" />');
                         const replaceTry = () => {
-                            replaced = source.replace(outerHTML, replaceWith);
-                            if (replaced === source) {
-                                replaced = source.replace(formattedTag(), replaceWith);
+                            source = source.replace(outerHTML, replaceWith);
+                            if (replacing === source) {
+                                source = source.replace(formattedTag(), replaceWith);
                             }
                         };
                         const replaceMinify = () => {
-                            if (replaced === source) {
+                            if (replacing === source) {
                                 pattern.lastIndex = 0;
                                 const content = item.content && minifySpace(item.content);
                                 const outerContent = minifySpace(outerHTML);
                                 while (match = pattern.exec(html)) {
                                     if (outerContent === minifySpace(match[0]) || content && content === minifySpace(match[3])) {
-                                        replaced = source.replace(match[0], (replaceWith ? match[1] : '') + replaceWith);
+                                        source = source.replace(match[0], (replaceWith ? match[1] : '') + replaceWith);
                                         break;
                                     }
                                 }
@@ -506,29 +512,28 @@ const FileManager = class extends Module implements IFileManager {
                             replaceWith = `<${inlineContent}>${id}</${inlineContent}>`;
                             replaceTry();
                             replaceMinify();
-                            if (replaced !== source) {
-                                source = replaced;
+                            if (replacing !== source) {
                                 item.inlineContent = id;
                                 if (item.filepath) {
                                     this.filesToRemove.add(item.filepath);
                                 }
                             }
                         }
-                        else if (bundleIndex !== undefined) {
-                            if (bundleIndex === 0 || bundleIndex === -1 || bundleIndex === Infinity) {
+                        else {
+                            if (!item.exclude && (bundleIndex === 0 || bundleIndex === -1 || bundleIndex === Infinity)) {
                                 replaceWith = getOuterHTML(item.mimeType === 'text/javascript', this.getFullUri(item));
                                 replaceTry();
                             }
-                            else {
-                                replaced = source.replace(new RegExp(`\\s*${outerHTML}\\n*`), '');
-                                if (replaced === source) {
-                                    replaced = source.replace(new RegExp(`\\s*${formattedTag()}\\n*`), '');
+                            else if (bundleIndex !== undefined || item.exclude) {
+                                source = source.replace(new RegExp(`\\s*${escapeRegexp(outerHTML)}\\n*`), '');
+                                if (replacing === source) {
+                                    source = source.replace(new RegExp(`\\s*${escapeRegexp(formattedTag())}\\n*`), '');
+                                }
+                                if (item.exclude) {
+                                    item.invalid = true;
                                 }
                             }
                             replaceMinify();
-                            if (replaced !== source) {
-                                source = replaced;
-                            }
                         }
                         html = source;
                     }
@@ -544,7 +549,7 @@ const FileManager = class extends Module implements IFileManager {
                     }
                 }
                 for (const item of assets) {
-                    if (item.excluded || item === file) {
+                    if (item.invalid || item === file) {
                         continue;
                     }
                     if (item.base64) {
@@ -1015,7 +1020,7 @@ const FileManager = class extends Module implements IFileManager {
         if (this.requestMain && Node.fromSameOrigin(this.requestMain.uri!, baseUrl)) {
             const assets = this.assets;
             for (const item of assets) {
-                if (item.base64 && item.uri && !item.excluded) {
+                if (item.base64 && item.uri && !item.invalid) {
                     const url = this.getRelativeUrl(file, item.uri);
                     if (url) {
                         const replacement = this.replacePath(content, item.base64.replace(/\+/g, '\\+'), url, true);
@@ -1038,7 +1043,7 @@ const FileManager = class extends Module implements IFileManager {
                     else {
                         location = Node.resolvePath(url, this.requestMain.uri!);
                         if (location) {
-                            const asset = assets.find(item => item.uri === location && !item.excluded);
+                            const asset = assets.find(item => item.uri === location && !item.invalid);
                             if (asset) {
                                 location = this.getRelativeUrl(file, location);
                                 if (location) {
@@ -1049,7 +1054,7 @@ const FileManager = class extends Module implements IFileManager {
                     }
                 }
                 else {
-                    const asset = assets.find(item => item.uri === url && !item.excluded);
+                    const asset = assets.find(item => item.uri === url && !item.invalid);
                     if (asset) {
                         const count = file.pathname.split(/[\\/]/).length;
                         output = (output || content).replace(match[0], `url(${(count ? '../'.repeat(count) : '') + this.getFullUri(asset)})`);
@@ -1123,7 +1128,7 @@ const FileManager = class extends Module implements IFileManager {
             const bundleIndex = file.bundleIndex;
             if (bundleIndex !== undefined && bundleIndex !== -1) {
                 if (bundleIndex === 0) {
-                    if (this.getFileSize(filepath) && !file.excluded) {
+                    if (this.getFileSize(filepath) && !file.invalid) {
                         const content = await this.appendContent(file, fs.readFileSync(filepath, 'utf8'), true);
                         if (content) {
                             try {
@@ -1135,12 +1140,12 @@ const FileManager = class extends Module implements IFileManager {
                         }
                     }
                     else {
-                        file.excluded = true;
+                        file.invalid = true;
                         const content = await this.getTrailingContent(file);
                         if (content) {
                             try {
                                 fs.writeFileSync(filepath, content, 'utf8');
-                                file.excluded = false;
+                                file.invalid = false;
                             }
                             catch (err) {
                                 this.writeFail(filepath, err);
@@ -1166,13 +1171,13 @@ const FileManager = class extends Module implements IFileManager {
                                         bundleMain = queue;
                                     }
                                     catch (err) {
-                                        queue.excluded = true;
+                                        queue.invalid = true;
                                         this.writeFail(filepath, err);
                                     }
                                 }
                                 return Promise.resolve();
                             };
-                            const resumeQueue = () => processQueue(queue, filepath, !bundleMain || bundleMain.excluded ? !file.excluded && file || queue : bundleMain);
+                            const resumeQueue = () => processQueue(queue, filepath, !bundleMain || bundleMain.invalid ? !file.invalid && file || queue : bundleMain);
                             if (queue.content) {
                                 verifyBundle(queue.content).then(resumeQueue);
                             }
@@ -1180,7 +1185,7 @@ const FileManager = class extends Module implements IFileManager {
                                 request(uri, (err, response) => {
                                     if (err) {
                                         notFound[uri] = true;
-                                        queue.excluded = true;
+                                        queue.invalid = true;
                                         this.writeFail(uri, err);
                                         resumeQueue();
                                     }
@@ -1188,7 +1193,7 @@ const FileManager = class extends Module implements IFileManager {
                                         const statusCode = response.statusCode;
                                         if (statusCode >= 300) {
                                             notFound[uri] = true;
-                                            queue.excluded = true;
+                                            queue.invalid = true;
                                             this.writeFail(uri, statusCode + ' ' + response.statusMessage);
                                             resumeQueue();
                                         }
@@ -1209,14 +1214,14 @@ const FileManager = class extends Module implements IFileManager {
                     this.compressFile(assets, bundleMain || file, filepath);
                 }
                 else {
-                    (bundleMain || file).excluded = true;
+                    (bundleMain || file).invalid = true;
                     this.completeAsyncTask();
                 }
             }
             else if (Array.isArray(processing[filepath])) {
                 completed.push(filepath);
                 for (const item of processing[filepath]) {
-                    if (!item.excluded) {
+                    if (!item.invalid) {
                         this.writeBuffer(assets, item, filepath);
                     }
                 }
@@ -1245,19 +1250,22 @@ const FileManager = class extends Module implements IFileManager {
                 catch {
                 }
             }
-            file.excluded = true;
+            file.invalid = true;
             this.writeFail(uri, message);
             delete processing[filepath];
         };
         for (const file of assets) {
+            if (file.exclude) {
+                continue;
+            }
             if (exclusions && !this.validate(file, exclusions)) {
-                file.excluded = true;
+                file.invalid = true;
                 continue;
             }
             const { pathname, filepath } = this.getFileOutput(file);
             const fileReceived = (err: NodeJS.ErrnoException) => {
                 if (err) {
-                    file.excluded = true;
+                    file.invalid = true;
                 }
                 if (!err || appending[filepath]?.length) {
                     processQueue(file, filepath);
@@ -1280,7 +1288,7 @@ const FileManager = class extends Module implements IFileManager {
                         fs.mkdirpSync(pathname);
                     }
                     catch (err) {
-                        file.excluded = true;
+                        file.invalid = true;
                         this.writeFail(pathname, err);
                     }
                 }
@@ -1309,7 +1317,7 @@ const FileManager = class extends Module implements IFileManager {
                             this.writeBuffer(assets, file, filepath);
                         }
                         else {
-                            file.excluded = true;
+                            file.invalid = true;
                             this.completeAsyncTask();
                         }
                     }
@@ -1318,7 +1326,7 @@ const FileManager = class extends Module implements IFileManager {
             else {
                 const uri = file.uri;
                 if (!uri || notFound[uri]) {
-                    file.excluded = true;
+                    file.invalid = true;
                     continue;
                 }
                 try {
@@ -1366,7 +1374,7 @@ const FileManager = class extends Module implements IFileManager {
                         );
                     }
                     else {
-                        file.excluded = true;
+                        file.invalid = true;
                     }
                 }
                 catch (err) {
@@ -1393,14 +1401,15 @@ const FileManager = class extends Module implements IFileManager {
             tasks = [];
         }
         const inlineMap: StringMap = {};
+        const contentMap: StringMap = {};
         for (const item of this.assets) {
-            if (!item.excluded) {
+            if (!item.invalid) {
                 const inlineContent = item.inlineContent;
                 if (inlineContent && inlineContent.startsWith('<!--')) {
                     tasks.push(
                         readFile(item.filepath!).then((data: Buffer) => {
                             inlineMap[inlineContent] = data.toString('utf-8').trim();
-                            item.excluded = true;
+                            item.invalid = true;
                             item.originalName = '';
                         })
                     );
@@ -1420,6 +1429,7 @@ const FileManager = class extends Module implements IFileManager {
                                 const value = inlineMap[id]!;
                                 content = content.replace(new RegExp((value.includes(' ') ? '[ \t]*' : '') + id), value);
                             }
+                            contentMap[filepath] = content;
                             fs.writeFileSync(filepath, content);
                         }
                     }
@@ -1459,7 +1469,7 @@ const FileManager = class extends Module implements IFileManager {
         }
         const base64Map: StringMap = {};
         for (const item of this.assets) {
-            if (!item.excluded && item.toBase64) {
+            if (!item.invalid && item.toBase64) {
                 const filepath = item.filepath!;
                 const mimeType = mime.lookup(filepath).toString();
                 if (mimeType.startsWith('image/')) {
@@ -1467,7 +1477,7 @@ const FileManager = class extends Module implements IFileManager {
                         readFile(filepath).then((data: Buffer) => {
                             base64Map[item.toBase64!] = `data:${mimeType};base64,${data.toString('base64')}`;
                             item.originalName = '';
-                            item.excluded = true;
+                            item.invalid = true;
                         })
                     );
                 }
@@ -1480,31 +1490,33 @@ const FileManager = class extends Module implements IFileManager {
         const replaced = this.assets.filter(item => item.originalName);
         if (replaced.length || Object.keys(base64Map) || this.productionRelease) {
             for (const item of this.assets) {
-                if (item.excluded) {
+                if (item.invalid) {
                     continue;
                 }
                 const { filepath, mimeType } = item;
-                if (filepath) {
+                if (filepath && mimeType) {
+                    const replaceContent = (value: string) => {
+                        for (const id in base64Map) {
+                            value = value.replace(new RegExp(id, 'g'), base64Map[id]!);
+                        }
+                        for (const asset of replaced) {
+                            value = value.replace(new RegExp(this.normalizePath(this.getFullUri(asset, asset.originalName)), 'g'), this.getFullUri(asset));
+                        }
+                        if (this.productionRelease) {
+                            value = value.replace(/(\.\.\/)*__serverroot__/g, '');
+                        }
+                        fs.writeFileSync(filepath, value);
+                    };
                     switch (mimeType) {
                         case '@text/html':
                         case '@application/xhtml+xml':
+                            if (contentMap[filepath]) {
+                                replaceContent(contentMap[filepath]!);
+                                break;
+                            }
                         case '@text/css':
                         case '&text/css':
-                            tasks.push(
-                                readFile(filepath).then((data: Buffer) => {
-                                    let html = data.toString('utf-8');
-                                    for (const id in base64Map) {
-                                        html = html.replace(new RegExp(id, 'g'), base64Map[id]!);
-                                    }
-                                    for (const asset of replaced) {
-                                        html = html.replace(new RegExp(this.normalizePath(this.getFullUri(asset, asset.originalName)), 'g'), this.getFullUri(asset));
-                                    }
-                                    if (this.productionRelease) {
-                                        html = html.replace(/(\.\.\/)*__serverroot__/g, '');
-                                    }
-                                    fs.writeFileSync(filepath, html);
-                                })
-                            );
+                            tasks.push(readFile(filepath).then((data: Buffer) => replaceContent(data.toString('utf-8'))));
                             break;
                     }
                 }

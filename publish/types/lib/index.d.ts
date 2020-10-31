@@ -12,9 +12,11 @@ declare namespace functions {
 
     namespace squared {
         namespace base {
-            interface FileAsset {
+            interface LocationUri {
                 pathname: string;
                 filename: string;
+            }
+            interface FileAsset extends LocationUri {
                 content?: string;
                 uri?: string;
                 mimeType?: string;
@@ -22,9 +24,7 @@ declare namespace functions {
                 commands?: string[];
                 compress?: CompressFormat[];
             }
-            interface Exclusions {
-                pathname?: string[];
-                filename?: string[];
+            interface Exclusions extends Partial<LocationUri> {
                 extension?: string[];
                 pattern?: string[];
             }
@@ -51,6 +51,7 @@ declare namespace functions {
             format?: string;
             preserve?: boolean;
             inlineContent?: string;
+            exclude?: boolean;
             requestMain?: boolean;
             bundleIndex?: number;
             trailingContent?: FormattableContent[];
@@ -245,9 +246,9 @@ declare namespace functions {
         dataMap?: DataMap;
         exclusions?: squared.base.Exclusions;
         filepath?: string;
-        excluded?: boolean;
         originalName?: string;
         toBase64?: string;
+        invalid?: boolean;
     }
 
     interface DataMap {

@@ -178,9 +178,7 @@ The same concept can be used inline anywhere using a &lt;script&gt; tag with the
 JS and CSS files can be bundled together with the "saveAs" or "exportAs" action. Multiple transformations per asset can be chained using the "+" symbol. The "preserve" command will prevent unused styles from being deleted.
 
 ```xml
-<!-- NOTE: "inline" command is only supported when using YAML/JSON or JavaScript -->
-
-<link data-chrome-file="saveAs:css/prod.css::beautify::preserve" rel="stylesheet" href="css/dev.css" />
+<link data-chrome-file="saveAs:css/prod.css::beautify::preserve|inline" rel="stylesheet" href="css/dev.css" />
 <style data-chrome-file="exportAs:css/prod.css::minify+beautify">
     body {
         font: 1em/1.4 Helvetica, Arial, sans-serif;
