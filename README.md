@@ -263,6 +263,33 @@ You can similarly prevent an asset from being downloaded or transformed using th
 YAML (yml/yaml) configuration is optional and is provided for those who prefer to separate the bundling and transformations from the HTML. Any assets inside the configuration file will override any settings either inline or from JavaScript. You can also use the equivalent in JSON (json/js) for configuring as well.
 
 ```javascript
+interface FileModifiers {
+    preserve?: boolean; // type: css
+    inline?: boolean; // type: js | css
+    compress?: boolean; // type: image
+    base64?: boolean; // type: image
+    ignore?: boolean;
+    exclude?: boolean;
+}
+
+interface AssetCommand extends FileModifiers {
+    selector?: string;
+    type?: string;
+    saveAs?: string; // type: js | css
+    exportAs?: string; // type: js | css
+    saveTo?: string; // type: image | video | audio (transforms create multiple files and are given a UUID filename)
+    filename?: string; // type: html | ...image
+    process?: string[]; // type: js | css
+    commands?: string[]; // type: image
+    template?: {
+        module?: string;
+        identifier?: string;
+        value?: string;
+    };
+}
+```
+
+```javascript
 - selector: html
   type: html
   filename: index.html

@@ -1,10 +1,12 @@
 {
   "name": "squared-functions",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Parent folder for @squared-functions packages.",
   "scripts": {
     "dev": "tsc -outDir ../squared/node_modules/@squared-functions",
-    "prod": "rimraf build/* && eslint **/*.ts && tsc && rollup -c rollup.config.js"
+    "prod": "rimraf build/* && eslint **/*.ts && tsc && rollup -c rollup.config.js",
+    "dev-publish": "npm publish --dry-run && cd publish && cd chrome && npm publish --dry-run && cd ../compress && npm publish --dry-run && cd ../file-manager && npm publish --dry-run && cd ../image && npm publish --dry-run && cd ../module && npm publish --dry-run && cd ../node && npm publish --dry-run && cd ../types && npm publish --dry-run",
+    "prod-publish": "npm publish && cd publish && cd chrome && npm publish && cd ../compress && npm publish && cd ../file-manager && npm publish && cd ../image && npm publish && cd ../module && npm publish && cd ../node && npm publish && cd ../types && npm publish"
   },
   "repository": {
     "type": "git",
@@ -33,10 +35,9 @@
     "@typescript-eslint/parser": "^4.6.0",
     "eslint": "^7.12.1",
     "jimp": "^0.16.1",
-    "lerna": "^3.22.1",
     "prettier": "^2.1.2",
     "rimraf": "^3.0.2",
-    "rollup": "^2.32.1",
+    "rollup": "^2.33.0",
     "rollup-plugin-prettier": "^2.1.0",
     "tinify": "^1.6.0-beta.2",
     "typescript": "^4.0.5"

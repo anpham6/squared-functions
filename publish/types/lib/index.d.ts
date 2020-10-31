@@ -16,6 +16,7 @@ declare namespace functions {
                 pathname: string;
                 filename: string;
             }
+
             interface FileAsset extends LocationUri {
                 content?: string;
                 uri?: string;
@@ -24,15 +25,18 @@ declare namespace functions {
                 commands?: string[];
                 compress?: CompressFormat[];
             }
+
             interface Exclusions extends Partial<LocationUri> {
                 extension?: string[];
                 pattern?: string[];
             }
+
             interface CompressFormat {
                 format: string;
                 level?: number;
                 condition?: string;
             }
+
             interface ResultOfFileAction {
                 success: boolean;
                 zipname?: string;
@@ -52,15 +56,42 @@ declare namespace functions {
             preserve?: boolean;
             inlineContent?: string;
             exclude?: boolean;
-            requestMain?: boolean;
+            basePath?: string;
             bundleIndex?: number;
             trailingContent?: FormattableContent[];
-            outerHTML?: string;
+            textContent?: string;
         }
+
         interface FormattableContent {
             value: string;
             format?: string;
             preserve?: boolean;
+        }
+
+        interface DataMap {
+            unusedStyles?: string[];
+            transpileMap?: TranspileMap;
+        }
+    }
+
+    namespace internal {
+        interface RotateData {
+            values: number[];
+            color: Null<number>;
+        }
+
+        interface ResizeData extends Dimension {
+            mode: string;
+            algorithm: string;
+            align: number;
+            color: Null<number>;
+        }
+
+        interface CropData extends Point, Dimension {}
+
+        interface FileOutput {
+            pathname: string;
+            filepath: string;
         }
     }
 
@@ -97,14 +128,14 @@ declare namespace functions {
     interface IImage extends IModule {
         jpegQuality: number;
         isJpeg(filename: string, mimeType?: string, filepath?: string): boolean;
-        parseResizeMode(value: string): Undef<ResizeData>;
-        parseCrop(value: string): Undef<CropData>;
+        parseResizeMode(value: string): Undef<internal.ResizeData>;
+        parseCrop(value: string): Undef<internal.CropData>;
         parseOpacity(value: string): Undef<number>;
-        parseRotation(value: string): Undef<RotateData>;
-        resize(instance: jimp, options: ResizeData): jimp;
-        crop(instance: jimp, options: CropData): jimp;
+        parseRotation(value: string): Undef<internal.RotateData>;
+        resize(instance: jimp, options: internal.ResizeData): jimp;
+        crop(instance: jimp, options: internal.CropData): jimp;
         opacity(instance: jimp, value: number): jimp;
-        rotate(instance: jimp, options: RotateData, filepath: string, preRotate?: () => void, postWrite?: (result?: unknown) => void): jimp;
+        rotate(instance: jimp, options: internal.RotateData, filepath: string, preRotate?: () => void, postWrite?: (result?: unknown) => void): jimp;
     }
 
     interface IChrome extends IModule {
@@ -144,7 +175,7 @@ declare namespace functions {
         replace(file: ExpressAsset, replaceWith: string): void;
         validate(file: ExpressAsset, exclusions: squared.base.Exclusions): boolean;
         getHtmlPages(modified?: boolean): ExpressAsset[];
-        getFileOutput(file: ExpressAsset): { pathname: string; filepath: string };
+        getFileOutput(file: ExpressAsset): internal.FileOutput;
         getRelativeUrl(file: ExpressAsset, url: string): Undef<string>;
         getAbsoluteUrl(value: string, href: string): string;
         getFullUri(file: ExpressAsset, filename?: string): string;
@@ -243,32 +274,13 @@ declare namespace functions {
     }
 
     interface ExpressAsset extends squared.base.FileAsset, chrome.ChromeAsset {
-        dataMap?: DataMap;
+        dataMap?: chrome.DataMap;
         exclusions?: squared.base.Exclusions;
         filepath?: string;
         originalName?: string;
         toBase64?: string;
         invalid?: boolean;
     }
-
-    interface DataMap {
-        unusedStyles?: string[];
-        transpileMap?: TranspileMap;
-    }
-
-    interface RotateData {
-        values: number[];
-        color: Null<number>;
-    }
-
-    interface ResizeData extends Dimension {
-        mode: string;
-        algorithm: string;
-        align: number;
-        color: Null<number>;
-    }
-
-    interface CropData extends Point, Dimension {}
 }
 
 export = functions;

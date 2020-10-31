@@ -3,9 +3,9 @@ import jimp = require('jimp');
 
 import Module from '../module';
 
-type ResizeData = functions.ResizeData;
-type CropData = functions.CropData;
-type RotateData = functions.RotateData;
+type ResizeData = functions.internal.ResizeData;
+type CropData = functions.internal.CropData;
+type RotateData = functions.internal.RotateData;
 
 const REGEXP_RESIZE = /\(\s*(\d+|auto)\s*x\s*(\d+|auto)(?:\s*\[\s*(bilinear|bicubic|hermite|bezier)\s*\])?(?:\s*^\s*(contain|cover|scale)(?:\s*\[\s*(left|center|right)?(?:\s*\|?\s*(top|middle|bottom))?\s*\])?)?(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\)/;
 const REGEXP_CROP = /\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*\|\s*(\d+)\s*x\s*(\d+)\s*\)/;

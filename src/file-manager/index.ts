@@ -18,6 +18,12 @@ import Chrome from '../chrome';
 
 type ExpressAsset = functions.ExpressAsset;
 type IFileManager = functions.IFileManager;
+type Settings = functions.Settings;
+type TranspileMap = functions.TranspileMap
+type DataMap = functions.chrome.DataMap;
+type Exclusions = functions.squared.base.Exclusions;
+type FileOutput = functions.internal.FileOutput;
+
 type WriteTask = (file: string, data: any) => Promise<void>;
 
 const readFile = util.promisify(fs.readFile);
@@ -25,7 +31,7 @@ const appendFile = util.promisify(fs.appendFile) as WriteTask;
 const writeFile = util.promisify(fs.writeFile) as WriteTask;
 
 const FileManager = class extends Module implements IFileManager {
-    public static loadSettings(value: functions.Settings, ignorePermissions?: boolean) {
+    public static loadSettings(value: Settings, ignorePermissions?: boolean) {
         if (!ignorePermissions) {
             const {
                 disk_read,
@@ -129,7 +135,7 @@ const FileManager = class extends Module implements IFileManager {
     public readonly contentToAppend = new Map<string, string[]>();
     public readonly postFinalize: (this: IFileManager) => void;
     public readonly requestMain?: ExpressAsset;
-    public readonly dataMap?: functions.DataMap;
+    public readonly dataMap?: DataMap;
 
     constructor(
         public readonly dirname: string,
@@ -137,14 +143,14 @@ const FileManager = class extends Module implements IFileManager {
         postFinalize: (this: IFileManager) => void)
     {
         super();
-        this.requestMain = assets.find(item => item.requestMain);
+        this.requestMain = assets.find(item => item.basePath);
         this.dataMap = assets[0].dataMap;
         this.postFinalize = postFinalize.bind(this);
         assets.sort((a, b) => {
-            if (a.commands && (!b.commands || a.outerHTML && !b.outerHTML)) {
+            if (a.commands && (!b.commands || a.textContent && !b.textContent)) {
                 return -1;
             }
-            if (b.commands && (!a.commands || !a.outerHTML && b.outerHTML)) {
+            if (b.commands && (!a.commands || !a.textContent && b.textContent)) {
                 return 1;
             }
             return 0;
@@ -197,7 +203,7 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
     }
-    validate(file: ExpressAsset, exclusions: functions.squared.base.Exclusions) {
+    validate(file: ExpressAsset, exclusions: Exclusions) {
         const pathname = file.pathname.replace(/[\\/]$/, '');
         const filename = file.filename;
         const winOS = path.sep === '/' ? '' : 'i';
@@ -250,7 +256,7 @@ const FileManager = class extends Module implements IFileManager {
             }
         });
     }
-    getFileOutput(file: ExpressAsset) {
+    getFileOutput(file: ExpressAsset): FileOutput {
         const pathname = path.join(this.dirname, file.moveTo || '', file.pathname);
         const filepath = path.join(pathname, file.filename);
         file.filepath = filepath;
@@ -278,8 +284,8 @@ const FileManager = class extends Module implements IFileManager {
                         return path.join(asset.pathname, asset.filename).replace(/\\/g, '/');
                     }
                     else if (requestMain) {
-                        const mainUri = requestMain.uri;
-                        if (mainUri && Node.fromSameOrigin(origin, mainUri)) {
+                        const mainUri = requestMain.uri!;
+                        if (Node.fromSameOrigin(origin, mainUri)) {
                             const [originDir] = this.getRootDirectory(baseDir + '/' + file.filename, Node.parsePath(mainUri)!);
                             return '../'.repeat(originDir.length - 1) + this.getFullUri(asset);
                         }
@@ -395,7 +401,7 @@ const FileManager = class extends Module implements IFileManager {
         let output = '';
         if (trailingContent) {
             let unusedStyles: Undef<string[]>,
-                transpileMap: Undef<functions.TranspileMap>;
+                transpileMap: Undef<TranspileMap>;
             if (this.dataMap) {
                 ({ unusedStyles, transpileMap } = this.dataMap);
             }
@@ -482,14 +488,14 @@ const FileManager = class extends Module implements IFileManager {
                     if (item.invalid) {
                         continue;
                     }
-                    const { outerHTML, trailingContent } = item;
-                    if (outerHTML) {
+                    const { textContent, trailingContent } = item;
+                    if (textContent) {
                         const { bundleIndex, inlineContent } = item;
                         const replacing = source;
                         let replaceWith = '';
-                        const formattedTag = () => outerHTML.replace(/">$/, '" />');
+                        const formattedTag = () => textContent.replace(/">$/, '" />');
                         const replaceTry = () => {
-                            source = source.replace(outerHTML, replaceWith);
+                            source = source.replace(textContent, replaceWith);
                             if (replacing === source) {
                                 source = source.replace(formattedTag(), replaceWith);
                             }
@@ -498,7 +504,7 @@ const FileManager = class extends Module implements IFileManager {
                             if (replacing === source) {
                                 pattern.lastIndex = 0;
                                 const content = item.content && minifySpace(item.content);
-                                const outerContent = minifySpace(outerHTML);
+                                const outerContent = minifySpace(textContent);
                                 while (match = pattern.exec(html)) {
                                     if (outerContent === minifySpace(match[0]) || content && content === minifySpace(match[3])) {
                                         source = source.replace(match[0], (replaceWith ? match[1] : '') + replaceWith);
@@ -525,7 +531,7 @@ const FileManager = class extends Module implements IFileManager {
                                 replaceTry();
                             }
                             else if (bundleIndex !== undefined || item.exclude) {
-                                source = source.replace(new RegExp(`\\s*${escapeRegexp(outerHTML)}\\n*`), '');
+                                source = source.replace(new RegExp(`\\s*${escapeRegexp(textContent)}\\n*`), '');
                                 if (replacing === source) {
                                     source = source.replace(new RegExp(`\\s*${escapeRegexp(formattedTag())}\\n*`), '');
                                 }
@@ -574,12 +580,12 @@ const FileManager = class extends Module implements IFileManager {
                             value = uuid.v4();
                             item.toBase64 = value;
                         }
-                        let outerHTML = item.outerHTML;
-                        if (outerHTML && item.mimeType.startsWith('image/')) {
-                            outerHTML = outerHTML.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/\w+>)?\s*$/, '');
-                            const replaced = this.replacePath(outerHTML, item.uri, value);
+                        let textContent = item.textContent;
+                        if (textContent && item.mimeType.startsWith('image/')) {
+                            textContent = textContent.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/\w+>)?\s*$/, '');
+                            const replaced = this.replacePath(textContent, item.uri, value);
                             if (replaced) {
-                                source = source.replace(outerHTML, replaced);
+                                source = source.replace(textContent, replaced);
                             }
                         }
                         else {

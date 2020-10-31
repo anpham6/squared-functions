@@ -7,9 +7,11 @@ import chalk = require('chalk');
 import Module from '../module';
 
 type TranspileMap = functions.TranspileMap;
+type ChromeModules = functions.ChromeModules;
+type ExternalCategory = functions.ExternalCategory;
 
 const Chrome = new class extends Module implements functions.IChrome {
-    public modules: Undef<functions.ChromeModules>;
+    public modules: Undef<ChromeModules>;
 
     findPlugin(data: ObjectMap<StandardMap>, name: string): [string, StandardMap | FunctionType<string>] {
         for (const module in data) {
@@ -41,7 +43,7 @@ const Chrome = new class extends Module implements functions.IChrome {
         }
         return ['', {}];
     }
-    findTranspiler(config: ObjectMap<StandardMap>, name: string, category: functions.ExternalCategory, transpileMap?: TranspileMap): [string, StandardMap | FunctionType<string>] {
+    findTranspiler(config: ObjectMap<StandardMap>, name: string, category: ExternalCategory, transpileMap?: TranspileMap): [string, StandardMap | FunctionType<string>] {
         if (transpileMap && this.modules?.eval_text_template) {
             const data = transpileMap[category];
             for (const attr in data) {
