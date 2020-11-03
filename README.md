@@ -1,20 +1,20 @@
 ### squared-functions 0.3
 
-These are some of the available options when creating archives or copying files with squared 2.0.
+These are some of the available options when creating archives or copying files with squared 2.1.
 
 ```javascript
-// NOTE: common: zip | tar | gz/tgz | node-express: br | squared-apache: 7z | jar | cpio | xz | bz2 | lzma | lz4 | zstd
+// NOTE: zip | tar | gz/tgz | br
 
-squared.settings.outputArchiveFormat = '7z'; // default format "zip"
+squared.settings.outputArchiveFormat = 'tar'; // default format "zip"
 
 squared.saveAs('archive1', {
-    format: '7z',
+    format: 'gz',
     assets: [
         {
             pathname: 'app/src/main/res/drawable',
             filename: 'ic_launcher_background.xml',
             uri: 'http://localhost:3000/common/images/ic_launcher_background.xml',
-            compress: [{ format: 'gz', level: 9 }, { format: 'br' }, { format: 'bz2' }, { format: 'lzma' }, { format: 'zstd' }, { format: 'lz4' }]
+            compress: [{ format: 'gz', level: 9 }, { format: 'br' }]
         }
     ],
     exclusions: { // All attributes are optional
@@ -28,13 +28,11 @@ squared.saveAs('archive1', {
 
 Image conversion can be achieved using the mimeType property in a RequestAsset object. The supported formats are:
 
-* png
-* jpeg
-* bmp
-* gif
-* tiff
-
-node-express has only read support for GIF and TIFF. Opacity can be applied only to PNG and BMP. squared-apache does not support alignment or background color.
+* png - r/w
+* jpeg - r/w
+* bmp - r/w
+* gif - r
+* tiff - r
 
 ```javascript
 // All commands are optional except "format". Outer groupings and inner brackets are required.
@@ -61,8 +59,6 @@ png(50000,*)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,13
 ```
 
 ```javascript
-// NOTE: squared-apache uses TinyPNG <https://tinypng.com/developers> for resizing and refitting (contain|cover|scale) and supports only PNG and JPEG.
-
 const options = {
     assets: [
         {
@@ -83,6 +79,8 @@ const options = {
 };
 ```
 
+TinyPNG <https://tinypng.com/developers> is used for compression and supports only PNG and JPEG.
+
 ### CHROME: Saving web page assets
 
 Bundling options are available with these HTML tag names.
@@ -102,6 +100,7 @@ JS and CSS files can be optimized further using these settings (node-express):
 You can also define your own optimizations in squared.settings.json:
 
 * [npm i @babel/core && npm i @babel/preset-env](https://github.com/babel/babel)
+* [npm i rollup](https://github.com/rollup/rollup)
 * [npm i terser](https://github.com/terser/terser)
 * [npm i uglify-js](https://github.com/mishoo/UglifyJS)
 * [npm i prettier](https://github.com/prettier/prettier)
@@ -120,7 +119,40 @@ chrome -> html | js | css -> npm package name -> custom name
 * function closure
 
 ```javascript
-// squared.settings.json
+// squared.settings.yml
+chrome:
+  html:
+    prettier:
+      beautify:
+        parser: html
+        printWidth: 120
+        tabWidth: 4
+  js:
+    terser:
+      minify-example: >
+        function(context, value, config) {
+          return context.minify(value, config).code;
+        }
+      minify-example-config:
+        keep_classnames: true
+    "@babel/core":
+      es5-example: ./es5.js
+    rollup:
+      bundle: ./rollup.config.js
+      bundle-es6:
+        external:
+        - lodash
+      bundle-es6-config: ./rollup.output.config.js
+  css:
+    node-sass:
+      sass-example: >
+        function(context, value) {
+          return context.renderSync({ data: value }, functions: {});
+        }
+```
+
+```javascript
+// squared.settings.json (YAML configuration has higher precedence)
 {
   "chrome": {
     "html": { // built-in minifier
@@ -134,27 +166,39 @@ chrome -> html | js | css -> npm package name -> custom name
     },
     "js": { // custom function (chrome -> eval_function: true)
       "terser": {
-        "minify-example": "const options = { keep_classnames: true }; return context.minify(value, options).code;" // arguments are always 'context' and 'value'
+        "minify-example": "function(context, value, config) { return context.minify(value, config).code; }", // "minify-example-config" creates scoped variable "config"
+        "minify-example-config": {
+          "keep_classnames": true
+        }
       },
       "@babel/core": {
-        "es5-example": "./es5.js" // startsWith './'
+        "es5-example": "./es5.js" // startsWith('./ | ../')
+      },
+      "rollup": {
+        "bundle": "./rollup.config.js",
+        "bundle-es6": {
+          "external": ["lodash"]
+        },
+        "bundle-es6-config": "./rollup.output.config.js" // supplemental JSON configuration settings use the "-config" suffix
       }
     },
     "css": {
       "node-sass": { // npm i node-sass
-        "sass-example": "function (sass, value) { return sass.renderSync({ data: value }, functions: {}); }" // first transpiler in chain
+        "sass-example": "function(context, value) { return context.renderSync({ data: value }, functions: {}); }" // first transpiler in chain
       }
     }
   }
 }
+```
 
+```javascript
 // .babelrc
 {
   "presets": ["@babel/preset-env"]
 }
 
 // es5.js
-function (context, value) {
+function (context, value, config /* optional: "@babel/core-config" */) {
     const options = { presets: ['@babel/preset-env'] }; // <https://babeljs.io/docs/en/options>
     return context.transformSync(value, options).code;
 }
@@ -166,8 +210,8 @@ The same concept can be used inline anywhere using a &lt;script&gt; tag with the
 // "es5-example" is a custom name (chrome -> eval_text_template: true)
 
 <script type="text/template" data-chrome-template="js::@babel/core::es5-example">
-    function (context, value) {
-        const options = { presets: ['@babel/preset-env'] };
+    function (context, value, config /* optional */) {
+        const options = { ...config, presets: ['@babel/preset-env'] };
         return context.transformSync(value, options).code;
     }
 </script>
@@ -278,6 +322,7 @@ interface AssetCommand extends FileModifiers {
     saveAs?: string; // type: js | css
     exportAs?: string; // type: js | css
     saveTo?: string; // type: image | video | audio (transforms create multiple files and are given a UUID filename)
+    pathname?: string; // alias for "saveTo"
     filename?: string; // type: html | ...image
     process?: string[]; // type: js | css
     commands?: string[]; // type: image

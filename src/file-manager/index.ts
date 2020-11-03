@@ -798,7 +798,7 @@ const FileManager = class extends Module implements IFileManager {
                             if (!Compress.withinSizeRange(filepath, value)) {
                                 continue;
                             }
-                            const resizeData = Image.parseResizeMode(value);
+                            const resizeData = Image.parseResize(value);
                             const cropData = Image.parseCrop(value);
                             const opacityData = Image.parseOpacity(value);
                             const rotationData = Image.parseRotation(value);
@@ -834,7 +834,7 @@ const FileManager = class extends Module implements IFileManager {
                                         if (cropData) {
                                             img = Image.crop(img, cropData);
                                         }
-                                        if (opacityData !== undefined) {
+                                        if (opacityData !== 1) {
                                             img = Image.opacity(img, opacityData);
                                         }
                                         if (rotationData) {
@@ -907,7 +907,7 @@ const FileManager = class extends Module implements IFileManager {
                                         if (cropData) {
                                             img = Image.crop(img, cropData);
                                         }
-                                        if (opacityData !== undefined) {
+                                        if (opacityData !== 1) {
                                             img = Image.opacity(img, opacityData);
                                         }
                                         if (rotationData) {
@@ -990,8 +990,8 @@ const FileManager = class extends Module implements IFileManager {
             this.performAsyncTask();
             const jpg = filepath + (jpeg.condition?.includes('%') ? '.jpg' : '');
             jimp.read(filepath)
-                .then(image => {
-                    image.quality(jpeg.level ?? Image.jpegQuality).write(jpg, err => {
+                .then(img => {
+                    img.quality(jpeg.level ?? Image.jpegQuality).write(jpg, err => {
                         if (err) {
                             this.writeFail(filepath, err);
                         }
@@ -1301,16 +1301,15 @@ const FileManager = class extends Module implements IFileManager {
                 emptyDir.add(pathname);
             }
             if (file.content) {
-                if (checkQueue(file, filepath, true)) {
-                    continue;
+                if (!checkQueue(file, filepath, true)) {
+                    this.performAsyncTask();
+                    fs.writeFile(
+                        filepath,
+                        file.content,
+                        'utf8',
+                        err => fileReceived(err)
+                    );
                 }
-                this.performAsyncTask();
-                fs.writeFile(
-                    filepath,
-                    file.content,
-                    'utf8',
-                    err => fileReceived(err)
-                );
             }
             else if (file.base64) {
                 this.performAsyncTask();
@@ -1337,47 +1336,34 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 try {
                     if (Node.isFileURI(uri)) {
-                        if (checkQueue(file, filepath)) {
-                            continue;
-                        }
-                        const stream = fs.createWriteStream(filepath);
-                        stream.on('finish', () => {
-                            if (!notFound[uri]) {
-                                processQueue(file, filepath);
-                            }
-                        });
-                        this.performAsyncTask();
-                        request(uri)
-                            .on('response', response => {
-                                const statusCode = response.statusCode;
-                                if (statusCode >= 300) {
-                                    errorRequest(file, filepath, statusCode + ' ' + response.statusMessage, stream);
+                        if (!checkQueue(file, filepath)) {
+                            const stream = fs.createWriteStream(filepath);
+                            stream.on('finish', () => {
+                                if (!notFound[uri]) {
+                                    processQueue(file, filepath);
                                 }
-                            })
-                            .on('error', err => errorRequest(file, filepath, err, stream))
-                            .pipe(stream);
+                            });
+                            this.performAsyncTask();
+                            request(uri)
+                                .on('response', response => {
+                                    const statusCode = response.statusCode;
+                                    if (statusCode >= 300) {
+                                        errorRequest(file, filepath, statusCode + ' ' + response.statusMessage, stream);
+                                    }
+                                })
+                                .on('error', err => errorRequest(file, filepath, err, stream))
+                                .pipe(stream);
+                            }
                     }
-                    else if (Node.canReadUNC() && Node.isFileUNC(uri)) {
-                        if (checkQueue(file, filepath)) {
-                            continue;
+                    else if (Node.canReadUNC() && Node.isFileUNC(uri) || Node.canReadDisk() && path.isAbsolute(uri)) {
+                        if (!checkQueue(file, filepath)) {
+                            this.performAsyncTask();
+                            fs.copyFile(
+                                uri,
+                                filepath,
+                                err => fileReceived(err)
+                            );
                         }
-                        this.performAsyncTask();
-                        fs.copyFile(
-                            uri,
-                            filepath,
-                            err => fileReceived(err)
-                        );
-                    }
-                    else if (Node.canReadDisk() && path.isAbsolute(uri)) {
-                        if (checkQueue(file, filepath)) {
-                            continue;
-                        }
-                        this.performAsyncTask();
-                        fs.copyFile(
-                            uri,
-                            filepath,
-                            err => fileReceived(err)
-                        );
                     }
                     else {
                         file.invalid = true;

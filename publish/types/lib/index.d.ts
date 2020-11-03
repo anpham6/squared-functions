@@ -93,6 +93,10 @@ declare namespace functions {
             pathname: string;
             filepath: string;
         }
+
+        type Config = StandardMap | string;
+        type ConfigOrTranspiler = Config | FunctionType<string>;
+        type PluginConfig = [string, Undef<ConfigOrTranspiler>, Config];
     }
 
     interface INode extends IModule {
@@ -128,9 +132,9 @@ declare namespace functions {
     interface IImage extends IModule {
         jpegQuality: number;
         isJpeg(filename: string, mimeType?: string, filepath?: string): boolean;
-        parseResizeMode(value: string): Undef<internal.ResizeData>;
+        parseResize(value: string): Undef<internal.ResizeData>;
         parseCrop(value: string): Undef<internal.CropData>;
-        parseOpacity(value: string): Undef<number>;
+        parseOpacity(value: string): number;
         parseRotation(value: string): Undef<internal.RotateData>;
         resize(instance: jimp, options: internal.ResizeData): jimp;
         crop(instance: jimp, options: internal.CropData): jimp;
@@ -140,10 +144,11 @@ declare namespace functions {
 
     interface IChrome extends IModule {
         modules: Undef<ChromeModules>;
-        findPlugin(data: ObjectMap<StandardMap>, name: string): [string, StandardMap | FunctionType<string>];
-        findTranspiler(config: ObjectMap<StandardMap>, name: string, category: ExternalCategory, transpileMap?: TranspileMap): [string, StandardMap | FunctionType<string>];
+        findPlugin(settings: ObjectMap<StandardMap>, name: string): internal.PluginConfig;
+        findTranspiler(settings: ObjectMap<StandardMap>, name: string, category: ExternalCategory, transpileMap?: TranspileMap): internal.PluginConfig;
         createTranspiler(value: string): Null<FunctionType<string>>;
-        setPrettierOptions(options: PrettierOptions): PrettierOptions;
+        createConfig(value: string): Undef<StandardMap | string>;
+        setPrettierOptions(options?: PrettierOptions): PrettierOptions;
         minifyHtml(format: string, value: string, transpileMap?: TranspileMap): Promise<Void<string>>;
         minifyCss(format: string, value: string, transpileMap?: TranspileMap): Promise<Void<string>>;
         minifyJs(format: string, value: string, transpileMap?: TranspileMap): Promise<Void<string>>;

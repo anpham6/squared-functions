@@ -29,7 +29,7 @@ const Image = new class extends Module implements functions.IImage {
                 return false;
         }
     }
-    parseResizeMode(value: string) {
+    parseResize(value: string) {
         const match = REGEXP_RESIZE.exec(value);
         if (match) {
             let algorithm: string = jimp.RESIZE_NEAREST_NEIGHBOR,
@@ -87,6 +87,7 @@ const Image = new class extends Module implements functions.IImage {
                 return Math.min(Math.max(opacity, 0), 1);
             }
         }
+        return 1;
     }
     parseRotation(value: string) {
         const match = REGEXP_ROTATE.exec(value);
