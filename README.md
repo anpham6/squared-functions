@@ -119,40 +119,8 @@ chrome -> html | js | css -> npm package name -> custom name
 * function closure
 
 ```javascript
-// squared.settings.yml
-chrome:
-  html:
-    prettier:
-      beautify:
-        parser: html
-        printWidth: 120
-        tabWidth: 4
-  js:
-    terser:
-      minify-example: >
-        function(context, value, config) {
-          return context.minify(value, config).code;
-        }
-      minify-example-config:
-        keep_classnames: true
-    "@babel/core":
-      es5-example: ./es5.js
-    rollup:
-      bundle: ./rollup.config.js
-      bundle-es6:
-        external:
-        - lodash
-      bundle-es6-config: ./rollup.output.config.js
-  css:
-    node-sass:
-      sass-example: >
-        function(context, value) {
-          return context.renderSync({ data: value }, functions: {});
-        }
-```
+// squared.settings.json
 
-```javascript
-// squared.settings.json (YAML configuration has higher precedence)
 {
   "chrome": {
     "html": { // built-in minifier
@@ -215,6 +183,47 @@ The same concept can be used inline anywhere using a &lt;script&gt; tag with the
         return context.transformSync(value, options).code;
     }
 </script>
+```
+
+Here is the equivalent YAML settings and when available has higher precedence than JSON settings.
+
+- [squared.settings.yml](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.yml)
+
+### Gulp
+
+Tasks can similarly be performed with Gulp when using YAML/JSON configuration to take advantage of their pre-built plugin repository. Gulp is the final stage preceding archiving or copying when file output content has been finalized.
+
+* [npm install -g gulp-cli && npm install gulp](https://gulpjs.com/docs/en/getting-started/quick-start)
+
+```javascript
+// squared.settings.json
+
+"gulp": {
+  "minify": "./gulpfile.js"
+}
+```
+
+```javascript
+- selector: head > script:nth-of-type(1)
+  type: js
+  saveAs: js/modules1.js
+  tasks:
+    - minify
+```
+
+```javascript
+// gulpfile.js
+
+const gulp = require('gulp');
+const uglify = require('gulp-uglify');
+ 
+gulp.task('minify', () => {
+  return gulp.src('*')
+    .pipe(uglify())
+    .pipe(gulp.dest('./'));
+});
+
+// NOTE: SRC and DEST always read and write to the current directory
 ```
 
 ### Bundling
@@ -326,6 +335,7 @@ interface AssetCommand extends FileModifiers {
     filename?: string; // type: html | ...image
     process?: string[]; // type: js | css
     commands?: string[]; // type: image
+    tasks?: string[];
     template?: {
         module?: string;
         identifier?: string;
@@ -334,23 +344,9 @@ interface AssetCommand extends FileModifiers {
 }
 ```
 
-```javascript
-- selector: html
-  type: html
-  filename: index.html
-  process:
-    - beautify
-- selector: .card:nth-of-type(1) img
-  type: image
-  saveTo: ../images/harbour
-  commands:
-    - png(10000,75000)(100x200^cover){90,180,270#FFFFFF}
-    - jpeg(300x100^contain){90,180,270#FFFFFF}
-```
-
-- [bundle.html](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.html)
 - [bundle.yml](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.yml)
 - [bundle.json](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.json)
+- [bundle.html](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.html)
 
 ```javascript
 squared.saveAs('bundle.zip', { configUri: 'http://localhost:3000/chrome/bundle.yml' });

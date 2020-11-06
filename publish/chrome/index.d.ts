@@ -1,6 +1,6 @@
-import type { IChrome } from '../types/lib';
+import type { ChromeConstructor } from '../types/lib';
 
-declare const Chrome: IChrome;
+declare const Chrome: ChromeConstructor;
 
 export = Chrome;
 export as namespace Chrome;

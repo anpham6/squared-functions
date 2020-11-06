@@ -1,5 +1,6 @@
 import type { Response } from 'express';
 
+import child_process = require('child_process');
 import path = require('path');
 import util = require('util');
 import fs = require('fs-extra');
@@ -16,48 +17,32 @@ import Compress from '../compress';
 import Image from '../image';
 import Chrome from '../chrome';
 
+type Settings = functions.Settings;
+type TranspileMap = functions.TranspileMap;
+type DataMap = functions.chrome.DataMap;
 type ExpressAsset = functions.ExpressAsset;
 type IFileManager = functions.IFileManager;
-type Settings = functions.Settings;
-type TranspileMap = functions.TranspileMap
-type DataMap = functions.chrome.DataMap;
-type Exclusions = functions.squared.base.Exclusions;
+type IChrome = functions.IChrome;
 type FileOutput = functions.internal.FileOutput;
+type Exclusions = functions.squared.base.Exclusions;
 
-type WriteTask = (file: string, data: any) => Promise<void>;
+interface GulpTask {
+    task: string;
+    origDir: string;
+    tempDir: string;
+    data: GulpData;
+}
 
-const readFile = util.promisify(fs.readFile);
-const appendFile = util.promisify(fs.appendFile) as WriteTask;
-const writeFile = util.promisify(fs.writeFile) as WriteTask;
+interface GulpData {
+    gulpfile: string;
+    items: string[];
+}
+
+const exec = util.promisify(child_process.exec);
 
 const FileManager = class extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {
-        if (!ignorePermissions) {
-            const {
-                disk_read,
-                disk_write,
-                unc_read,
-                unc_write
-            } = value;
-            if (disk_read === true || disk_read === 'true') {
-                Node.enableDiskRead();
-            }
-            if (disk_write === true || disk_write === 'true') {
-                Node.enableDiskWrite();
-            }
-            if (unc_read === true || unc_read === 'true') {
-                Node.enableUNCRead();
-            }
-            if (unc_write === true || unc_write === 'true') {
-                Node.enableUNCWrite();
-            }
-        }
-        const {
-            gzip_level,
-            brotli_quality,
-            jpeg_quality,
-            tinypng_api_key
-        } = value;
+        const { gzip_level, brotli_quality, jpeg_quality, tinypng_api_key } = value;
         const gzip = parseInt(gzip_level as string);
         const brotli = parseInt(brotli_quality as string);
         const jpeg = parseInt(jpeg_quality as string);
@@ -78,7 +63,21 @@ const FileManager = class extends Module implements IFileManager {
                 }
             });
         }
-        Chrome.modules = value.chrome;
+        if (!ignorePermissions) {
+            const { disk_read, disk_write, unc_read, unc_write } = value;
+            if (disk_read === true || disk_read === 'true') {
+                Node.enableDiskRead();
+            }
+            if (disk_write === true || disk_write === 'true') {
+                Node.enableDiskWrite();
+            }
+            if (unc_read === true || unc_read === 'true') {
+                Node.enableUNCRead();
+            }
+            if (unc_write === true || unc_write === 'true') {
+                Node.enableUNCWrite();
+            }
+        }
     }
 
     public static moduleNode() {
@@ -93,19 +92,19 @@ const FileManager = class extends Module implements IFileManager {
         return Image;
     }
 
-    public static moduleChrome() {
-        return Chrome;
-    }
-
-    public static checkPermissions(res: Response, dirname: string) {
+    public static checkPermissions(dirname: string, res?: Response) {
         if (Node.isDirectoryUNC(dirname)) {
             if (!Node.canWriteUNC()) {
-                res.json({ application: 'OPTION: --unc-write', system: 'Writing to UNC shares is not enabled.' });
+                if (res) {
+                    res.json({ application: 'OPTION: --unc-write', system: 'Writing to UNC shares is not enabled.' });
+                }
                 return false;
             }
         }
         else if (!Node.canWriteDisk()) {
-            res.json({ application: 'OPTION: --disk-write', system: 'Writing to disk is not enabled.' });
+            if (res) {
+                res.json({ application: 'OPTION: --disk-write', system: 'Writing to disk is not enabled.' });
+            }
             return false;
         }
         try {
@@ -117,7 +116,9 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
         catch (system) {
-            res.json({ application: `DIRECTORY: ${dirname}`, system });
+            if (res) {
+                res.json({ application: `DIRECTORY: ${dirname}`, system });
+            }
             return false;
         }
         return true;
@@ -128,6 +129,8 @@ const FileManager = class extends Module implements IFileManager {
     public cleared = false;
     public emptyDirectory = false;
     public productionRelease = false;
+    public Gulp?: StringMap;
+    public Chrome?: IChrome;
     public readonly files = new Set<string>();
     public readonly filesQueued = new Set<string>();
     public readonly filesToRemove = new Set<string>();
@@ -147,16 +150,28 @@ const FileManager = class extends Module implements IFileManager {
         this.dataMap = assets[0].dataMap;
         this.postFinalize = postFinalize.bind(this);
         assets.sort((a, b) => {
-            if (a.commands && (!b.commands || a.textContent && !b.textContent)) {
+            if (a.commands && (!b.commands || a.textContent && !b.textContent) || b === this.requestMain) {
                 return -1;
             }
-            if (b.commands && (!a.commands || !a.textContent && b.textContent)) {
+            if (b.commands && (!a.commands || !a.textContent && b.textContent) || a === this.requestMain) {
                 return 1;
             }
             return 0;
         });
     }
 
+    install(name: string, ...args: any[]) {
+        switch (name) {
+            case 'chrome':
+                this.Chrome = new Chrome(...args);
+                break;
+            case 'gulp':
+                if (typeof args[0] === 'object') {
+                    this.Gulp = args[0] as StringMap;
+                }
+                break;
+        }
+    }
     add(value: string) {
         this.files.add(value.substring(this.dirname.length + 1));
     }
@@ -356,14 +371,16 @@ const FileManager = class extends Module implements IFileManager {
     }
     async appendContent(file: ExpressAsset, content: string, outputOnly?: boolean) {
         const filepath = file.filepath || this.getFileOutput(file).filepath;
-        if (filepath && file.bundleIndex !== undefined) {
+        const bundleIndex = file.bundleIndex;
+        if (filepath && bundleIndex !== undefined && bundleIndex !== -1) {
             const { mimeType, format } = file;
             if (mimeType) {
+                const dataMap = this.dataMap;
                 if (mimeType.endsWith('text/css')) {
-                    if (!file.preserve) {
-                        const unusedStyles = this.dataMap?.unusedStyles;
-                        if (unusedStyles) {
-                            const result = Chrome.removeCss(content, unusedStyles);
+                    if (!file.preserve && dataMap) {
+                        const unusedStyles = dataMap.unusedStyles;
+                        if (unusedStyles && this.Chrome) {
+                            const result = this.Chrome.removeCss(content, unusedStyles);
                             if (result) {
                                 content = result;
                             }
@@ -376,8 +393,8 @@ const FileManager = class extends Module implements IFileManager {
                         }
                     }
                 }
-                if (format) {
-                    const result = await Chrome.formatContent(mimeType, format, content, this.dataMap?.transpileMap);
+                if (format && this.Chrome) {
+                    const result = await this.Chrome.formatContent(mimeType, format, content, dataMap && dataMap.transpileMap);
                     if (result) {
                         content = result;
                     }
@@ -387,11 +404,11 @@ const FileManager = class extends Module implements IFileManager {
             if (trailing) {
                 content += trailing;
             }
-            if (outputOnly || file.bundleIndex === 0) {
+            if (outputOnly || bundleIndex === 0) {
                 return Promise.resolve(content);
             }
             const items = this.contentToAppend.get(filepath) || [];
-            items.splice(file.bundleIndex - 1, 0, content);
+            items.splice(bundleIndex - 1, 0, content);
             this.contentToAppend.set(filepath, items);
         }
         return Promise.resolve('');
@@ -410,8 +427,8 @@ const FileManager = class extends Module implements IFileManager {
                 let value = item.value;
                 if (mimeType) {
                     if (mimeType.endsWith('text/css')) {
-                        if (unusedStyles && !item.preserve) {
-                            const result = Chrome.removeCss(value, unusedStyles);
+                        if (unusedStyles && !item.preserve && this.Chrome) {
+                            const result = this.Chrome.removeCss(value, unusedStyles);
                             if (result) {
                                 value = result;
                             }
@@ -423,8 +440,8 @@ const FileManager = class extends Module implements IFileManager {
                             }
                         }
                     }
-                    if (item.format) {
-                        const result = await Chrome.formatContent(mimeType, item.format, value, transpileMap);
+                    if (item.format && this.Chrome) {
+                        const result = await this.Chrome.formatContent(mimeType, item.format, value, transpileMap);
                         if (result) {
                             output += '\n' + result;
                             continue;
@@ -459,33 +476,33 @@ const FileManager = class extends Module implements IFileManager {
                     if (uri === '~') {
                         continue;
                     }
-                    const segment = match[0];
-                    const script = match[2].toLowerCase() === 'script';
                     const location = this.getAbsoluteUrl(uri, baseUri);
                     if (items[2] && items[2].includes('inline') && !saved.has(location)) {
                         saved.add(location);
-                        continue;
-                    }
-                    if (saved.has(location) || match[4] === 'export' && new RegExp(`<${script ? 'script' : 'link'}[^>]+?(?:${script ? 'src' : 'href'}=(["'])${location}\\1|data-chrome-file="saveAs:${location}[:"])[^>]*>`, 'i').test(html)) {
-                        source = source.replace(segment, '');
-                    }
-                    else if (match[4] === 'save') {
-                        const content = segment.replace(match[3], '');
-                        const src = new RegExp(`\\s+${script ? 'src' : 'href'}="(?:[^"]|\\\\")+"`, 'i').exec(content) || new RegExp(`\\s+${script ? 'src' : 'href'}='(?:[^']|\\\\')+'`, 'i').exec(content);
-                        if (src) {
-                            source = source.replace(segment, content.replace(src[0], `${script ? ' src' : ' href'}="${location}"`));
-                            saved.add(location);
-                        }
                     }
                     else {
-                        source = source.replace(segment, match[1] + getOuterHTML(script, location));
-                        saved.add(location);
+                        const script = match[2].toLowerCase() === 'script';
+                        if (saved.has(location) || match[4] === 'export' && new RegExp(`<${script ? 'script' : 'link'}[^>]+?(?:${script ? 'src' : 'href'}=(["'])${location}\\1|data-chrome-file="saveAs:${location}[:"])[^>]*>`, 'i').test(html)) {
+                            source = source.replace(match[0], '');
+                        }
+                        else if (match[4] === 'save') {
+                            const content = match[0].replace(match[3], '');
+                            const src = new RegExp(`\\s+${script ? 'src' : 'href'}="(?:[^"]|\\\\")+"`, 'i').exec(content) || new RegExp(`\\s+${script ? 'src' : 'href'}='(?:[^']|\\\\')+'`, 'i').exec(content);
+                            if (src) {
+                                source = source.replace(match[0], content.replace(src[0], `${script ? ' src' : ' href'}="${location}"`));
+                                saved.add(location);
+                            }
+                        }
+                        else {
+                            source = source.replace(match[0], match[1] + getOuterHTML(script, location));
+                            saved.add(location);
+                        }
                     }
                 }
                 html = source;
                 pattern = /(\s*)<(script|style)[^>]*>([\s\S]*?)<\/\2>\n*/ig;
                 for (const item of assets) {
-                    if (item.invalid) {
+                    if (item.invalid && !item.exclude) {
                         continue;
                     }
                     const { textContent, trailingContent } = item;
@@ -530,13 +547,10 @@ const FileManager = class extends Module implements IFileManager {
                                 replaceWith = getOuterHTML(item.mimeType === 'text/javascript', this.getFullUri(item));
                                 replaceTry();
                             }
-                            else if (bundleIndex !== undefined || item.exclude) {
+                            else if (item.exclude || bundleIndex !== undefined) {
                                 source = source.replace(new RegExp(`\\s*${escapeRegexp(textContent)}\\n*`), '');
                                 if (replacing === source) {
                                     source = source.replace(new RegExp(`\\s*${escapeRegexp(formattedTag())}\\n*`), '');
-                                }
-                                if (item.exclude) {
-                                    item.invalid = true;
                                 }
                             }
                             replaceMinify();
@@ -558,12 +572,9 @@ const FileManager = class extends Module implements IFileManager {
                     if (item.invalid || item === file) {
                         continue;
                     }
+                    let replaced: Undef<string>;
                     if (item.base64) {
-                        const replaced = this.replacePath(source, item.base64.replace(/\+/g, '\\+'), this.getFullUri(item), true);
-                        if (replaced) {
-                            source = replaced;
-                            html = source;
-                        }
+                        replaced = this.replacePath(source, item.base64.replace(/\+/g, '\\+'), this.getFullUri(item), true);
                     }
                     else if (item.uri && !item.content) {
                         let value = this.getFullUri(item);
@@ -576,24 +587,30 @@ const FileManager = class extends Module implements IFileManager {
                             }
                         }
                         item.mimeType ||= mime.lookup(value).toString();
-                        if (item.format === 'base64' && item.mimeType.startsWith('image/')) {
-                            value = uuid.v4();
-                            item.toBase64 = value;
-                        }
-                        let textContent = item.textContent;
-                        if (textContent && item.mimeType.startsWith('image/')) {
-                            textContent = textContent.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/\w+>)?\s*$/, '');
-                            const replaced = this.replacePath(textContent, item.uri, value);
-                            if (replaced) {
-                                source = source.replace(textContent, replaced);
+                        if (item.mimeType.startsWith('image/')) {
+                            if (item.format === 'base64') {
+                                value = uuid.v4();
+                                item.toBase64 = value;
+                            }
+                            let textContent = item.textContent;
+                            if (textContent) {
+                                textContent = textContent.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/\w+>)?\s*$/, '');
+                                replaced = this.replacePath(textContent, item.uri, value);
+                                if (replaced) {
+                                    const result = source.replace(textContent, replaced);
+                                    if (result !== source) {
+                                        source = result;
+                                        html = result;
+                                        continue;
+                                    }
+                                    replaced = '';
+                                }
                             }
                         }
-                        else {
-                            const replaced = this.replacePath(source, item.uri, value);
-                            if (replaced) {
-                                source = replaced;
-                            }
-                        }
+                        replaced ||= this.replacePath(source, item.uri, value);
+                    }
+                    if (replaced) {
+                        source = replaced;
                         html = source;
                     }
                 }
@@ -602,13 +619,13 @@ const FileManager = class extends Module implements IFileManager {
                     .replace(/\s*<script[^>]*?data-chrome-template="([^"]|\\")+?"[^>]*>[\s\S]*?<\/script>\n*/ig, '')
                     .replace(/\s*<(script|link)[^>]+?data-chrome-file="exclude"[^>]*>\n*/ig, '')
                     .replace(/\s+data-(?:use|chrome-[\w-]+)="([^"]|\\")+?"/g, '');
-                fs.writeFileSync(filepath, format && await Chrome.minifyHtml(format, source, transpileMap) || source);
+                fs.writeFileSync(filepath, format && this.Chrome && await this.Chrome.minifyHtml(format, source, transpileMap) || source);
                 break;
             }
             case 'text/html':
             case 'application/xhtml+xml': {
-                if (format) {
-                    const result = await Chrome.minifyHtml(format, fs.readFileSync(filepath, 'utf8'), transpileMap);
+                if (format && this.Chrome) {
+                    const result = await this.Chrome.minifyHtml(format, fs.readFileSync(filepath, 'utf8'), transpileMap);
                     if (result) {
                         fs.writeFileSync(filepath, result);
                     }
@@ -633,8 +650,8 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 const content = fs.readFileSync(filepath, 'utf8');
                 let source: Undef<string>;
-                if (unusedStyles) {
-                    const result = Chrome.removeCss(content, unusedStyles);
+                if (unusedStyles && this.Chrome) {
+                    const result = this.Chrome.removeCss(content, unusedStyles);
                     if (result) {
                         source = result;
                     }
@@ -645,8 +662,8 @@ const FileManager = class extends Module implements IFileManager {
                         source = result;
                     }
                 }
-                if (format) {
-                    const result = await Chrome.minifyCss(format, source || content, transpileMap);
+                if (format && this.Chrome) {
+                    const result = await this.Chrome.minifyCss(format, source || content, transpileMap);
                     if (result) {
                         source = result;
                     }
@@ -685,8 +702,8 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 const content = fs.readFileSync(filepath, 'utf8');
                 let source: Undef<string>;
-                if (format) {
-                    const result = await Chrome.minifyJs(format, content, transpileMap);
+                if (format && this.Chrome) {
+                    const result = await this.Chrome.minifyJs(format, content, transpileMap);
                     if (result) {
                         source = result;
                     }
@@ -802,26 +819,26 @@ const FileManager = class extends Module implements IFileManager {
                             const cropData = Image.parseCrop(value);
                             const opacityData = Image.parseOpacity(value);
                             const rotationData = Image.parseRotation(value);
-                            let image = filepath;
+                            let output = filepath;
                             const setImagePath = (extension: string, saveAs?: string) => {
                                 if (mimeType.endsWith('/' + extension)) {
                                     if (!value.includes('@')) {
                                         let i = 1;
                                         do {
-                                            image = this.replaceExtension(filepath, '__copy__.' + (i > 1 ? `(${i}).` : '') + (saveAs || extension));
+                                            output = this.replaceExtension(filepath, '__copy__.' + (i > 1 ? `(${i}).` : '') + (saveAs || extension));
                                         }
-                                        while (this.filesQueued.has(image) && ++i);
-                                        fs.copyFileSync(filepath, image);
+                                        while (this.filesQueued.has(output) && ++i);
+                                        fs.copyFileSync(filepath, output);
                                     }
                                 }
                                 else {
                                     let i = 1;
                                     do {
-                                        image = this.replaceExtension(filepath, (i > 1 ? `(${i}).` : '') + (saveAs || extension));
+                                        output = this.replaceExtension(filepath, (i > 1 ? `(${i}).` : '') + (saveAs || extension));
                                     }
-                                    while (this.filesQueued.has(image) && ++i);
+                                    while (this.filesQueued.has(output) && ++i);
                                 }
-                                this.filesQueued.add(image);
+                                this.filesQueued.add(output);
                             };
                             if (value.startsWith('png')) {
                                 this.performAsyncTask();
@@ -838,20 +855,20 @@ const FileManager = class extends Module implements IFileManager {
                                             img = Image.opacity(img, opacityData);
                                         }
                                         if (rotationData) {
-                                            img = Image.rotate(img, rotationData, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                                            img = Image.rotate(img, rotationData, output, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
                                         }
-                                        img.write(image, err => {
+                                        img.write(output, err => {
                                             if (err) {
                                                 this.completeAsyncTask();
-                                                this.writeFail(image, err);
+                                                this.writeFail(output, err);
                                             }
                                             else {
-                                                afterConvert(image, value);
+                                                afterConvert(output, value);
                                                 if (Compress.findCompress(file.compress)) {
-                                                    compressImage(image);
+                                                    compressImage(output);
                                                 }
                                                 else {
-                                                    this.completeAsyncTask(filepath !== image ? image : '');
+                                                    this.completeAsyncTask(filepath !== output ? output : '');
                                                 }
                                             }
                                         });
@@ -873,20 +890,20 @@ const FileManager = class extends Module implements IFileManager {
                                             img = Image.crop(img, cropData);
                                         }
                                         if (rotationData) {
-                                            img = Image.rotate(img, rotationData, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                                            img = Image.rotate(img, rotationData, output, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
                                         }
-                                        img.write(image, err => {
+                                        img.write(output, err => {
                                             if (err) {
                                                 this.completeAsyncTask();
-                                                this.writeFail(image, err);
+                                                this.writeFail(output, err);
                                             }
                                             else {
-                                                afterConvert(image, value);
+                                                afterConvert(output, value);
                                                 if (Compress.findCompress(file.compress)) {
-                                                    compressImage(image);
+                                                    compressImage(output);
                                                 }
                                                 else {
-                                                    this.completeAsyncTask(filepath !== image ? image : '');
+                                                    this.completeAsyncTask(filepath !== output ? output : '');
                                                 }
                                             }
                                         });
@@ -911,16 +928,16 @@ const FileManager = class extends Module implements IFileManager {
                                             img = Image.opacity(img, opacityData);
                                         }
                                         if (rotationData) {
-                                            img = Image.rotate(img, rotationData, image, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                                            img = Image.rotate(img, rotationData, output, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
                                         }
-                                        img.write(image, err => {
+                                        img.write(output, err => {
                                             if (err) {
                                                 this.completeAsyncTask();
-                                                this.writeFail(image, err);
+                                                this.writeFail(output, err);
                                             }
                                             else {
-                                                afterConvert(image, value);
-                                                this.completeAsyncTask(filepath !== image ? image : '');
+                                                afterConvert(output, value);
+                                                this.completeAsyncTask(filepath !== output ? output : '');
                                             }
                                         });
                                     })
@@ -1214,6 +1231,9 @@ const FileManager = class extends Module implements IFileManager {
                             }
                             return;
                         }
+                        else {
+                            delete appending[filepath];
+                        }
                     }
                 }
                 if (this.getFileSize(filepath)) {
@@ -1240,7 +1260,7 @@ const FileManager = class extends Module implements IFileManager {
         const errorRequest = (file: ExpressAsset, filepath: string, message: Error | string, stream?: fs.WriteStream) => {
             const uri = file.uri!;
             if (!notFound[uri]) {
-                if (appending[filepath]?.length) {
+                if (appending[filepath]) {
                     processQueue(file, filepath);
                 }
                 else {
@@ -1261,10 +1281,7 @@ const FileManager = class extends Module implements IFileManager {
             delete processing[filepath];
         };
         for (const file of assets) {
-            if (file.exclude) {
-                continue;
-            }
-            if (exclusions && !this.validate(file, exclusions)) {
+            if (file.exclude || exclusions && !this.validate(file, exclusions)) {
                 file.invalid = true;
                 continue;
             }
@@ -1273,7 +1290,7 @@ const FileManager = class extends Module implements IFileManager {
                 if (err) {
                     file.invalid = true;
                 }
-                if (!err || appending[filepath]?.length) {
+                if (!err || appending[filepath]) {
                     processQueue(file, filepath);
                 }
                 else {
@@ -1378,7 +1395,7 @@ const FileManager = class extends Module implements IFileManager {
         this.performFinalize();
     }
     async finalizeAssets() {
-        let tasks: Promise<void>[] = [];
+        let tasks: Promise<unknown>[] = [];
         for (const [filepath, content] of this.contentToAppend.entries()) {
             let output = '';
             for (const value of content) {
@@ -1386,26 +1403,29 @@ const FileManager = class extends Module implements IFileManager {
                     output += '\n' + value;
                 }
             }
-            tasks.push((fs.existsSync(filepath) ? appendFile : writeFile)(filepath, output));
+            if (fs.existsSync(filepath)) {
+                tasks.push(fs.appendFile(filepath, output));
+            }
+            else {
+                tasks.push(fs.writeFile(filepath, output));
+            }
         }
         if (tasks.length) {
-            await Promise.all(tasks);
+            await Promise.all(tasks).catch(err => Node.writeFail('Finalize: Append content', err));
             tasks = [];
         }
         const inlineMap: StringMap = {};
+        const base64Map: StringMap = {};
         const contentMap: StringMap = {};
         for (const item of this.assets) {
-            if (!item.invalid) {
-                const inlineContent = item.inlineContent;
-                if (inlineContent && inlineContent.startsWith('<!--')) {
-                    tasks.push(
-                        readFile(item.filepath!).then((data: Buffer) => {
-                            inlineMap[inlineContent] = data.toString('utf-8').trim();
-                            item.invalid = true;
-                            item.originalName = '';
-                        })
-                    );
-                }
+            if (item.inlineContent && item.inlineContent.startsWith('<!--') && !item.invalid) {
+                tasks.push(
+                    fs.readFile(item.filepath!).then((data: Buffer) => {
+                        inlineMap[item.inlineContent!] = data.toString('utf-8').trim();
+                        item.invalid = true;
+                        item.originalName = '';
+                    })
+                );
             }
         }
         if (tasks.length) {
@@ -1425,13 +1445,14 @@ const FileManager = class extends Module implements IFileManager {
                             fs.writeFileSync(filepath, content);
                         }
                     }
-                });
+                })
+                .catch(err => Node.writeFail('Finalize: Inline content', err));
             }
             tasks = [];
         }
         for (const [file, output] of this.filesToCompare) {
-            const originalPath = file.filepath!;
-            let minFile = originalPath,
+            const filepath = file.filepath!;
+            let minFile = filepath,
                 minSize = this.getFileSize(minFile);
             for (const other of output) {
                 const size = this.getFileSize(other);
@@ -1444,7 +1465,7 @@ const FileManager = class extends Module implements IFileManager {
                     this.filesToRemove.add(other);
                 }
             }
-            if (minFile !== originalPath) {
+            if (minFile !== filepath) {
                 this.replace(file, minFile);
             }
         }
@@ -1459,14 +1480,13 @@ const FileManager = class extends Module implements IFileManager {
                 this.writeFail(value, err);
             }
         }
-        const base64Map: StringMap = {};
         for (const item of this.assets) {
             if (!item.invalid && item.toBase64) {
                 const filepath = item.filepath!;
                 const mimeType = mime.lookup(filepath).toString();
                 if (mimeType.startsWith('image/')) {
                     tasks.push(
-                        readFile(filepath).then((data: Buffer) => {
+                        fs.readFile(filepath).then((data: Buffer) => {
                             base64Map[item.toBase64!] = `data:${mimeType};base64,${data.toString('base64')}`;
                             item.originalName = '';
                             item.invalid = true;
@@ -1476,7 +1496,7 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks);
+            await Promise.all(tasks).catch(err => Node.writeFail('Finalize: Read base64', err));
             tasks = [];
         }
         const replaced = this.assets.filter(item => item.originalName);
@@ -1508,13 +1528,85 @@ const FileManager = class extends Module implements IFileManager {
                             }
                         case '@text/css':
                         case '&text/css':
-                            tasks.push(readFile(filepath).then((data: Buffer) => replaceContent(data.toString('utf-8'))));
+                            tasks.push(fs.readFile(filepath).then((data: Buffer) => replaceContent(data.toString('utf-8'))));
                             break;
                     }
                 }
             }
         }
-        return tasks.length ? Promise.all(tasks) : Promise.resolve([]);
+        if (tasks.length) {
+            await Promise.all(tasks).catch(err => Node.writeFail('Finalize: Replace content', err));
+            tasks = [];
+        }
+        if (this.Gulp) {
+            const taskMap: ObjectMap<Map<string, GulpData>> = {};
+            for (const item of this.assets) {
+                if (item.tasks && !item.invalid) {
+                    for (const task of item.tasks) {
+                        const gulpfile = path.resolve(this.Gulp[task]!);
+                        if (fs.existsSync(gulpfile)) {
+                            const origDir = path.dirname(item.filepath!);
+                            const data = (taskMap[task] ||= new Map<string, GulpData>()).get(origDir) || { gulpfile, items: [] };
+                            data.items.push(item.filepath!);
+                            taskMap[task].set(origDir, data);
+                        }
+                    }
+                }
+            }
+            for (const task in taskMap) {
+                for (const [origDir, data] of taskMap[task]) {
+                    tasks.push(new Promise((resolve, reject) => {
+                        try {
+                            const tempDir = process.cwd() + path.sep + 'temp' + path.sep + uuid.v4();
+                            fs.mkdirpSync(tempDir);
+                            for (const file of data.items) {
+                                fs.copyFileSync(file, path.join(tempDir, path.basename(file)));
+                            }
+                            resolve({ task, origDir, tempDir, data });
+                        }
+                        catch (err) {
+                            reject(err);
+                        }
+                    }));
+                }
+            }
+            if (tasks.length) {
+                const result = (await Promise.all(tasks).catch(err => Node.writeFail('Gulp: Copy to temp directory', err))) as GulpTask[] | void;
+                tasks = [];
+                if (result) {
+                    for (const item of result) {
+                        const { task, origDir, tempDir, data } = item;
+                        tasks.push(new Promise(resolve => {
+                            exec(`gulp ${task} --gulpfile "${data.gulpfile}" --cwd "${tempDir}"`, { cwd: process.cwd() }).then(() => {
+                                for (const file of data.items) {
+                                    try {
+                                        fs.unlinkSync(file);
+                                        this.delete(file);
+                                    }
+                                    catch {
+                                    }
+                                }
+                                for (const file of fs.readdirSync(tempDir)) {
+                                    try {
+                                        const filepath = path.join(origDir, path.basename(file));
+                                        fs.moveSync(path.join(tempDir, file), filepath, { overwrite: true });
+                                        this.add(filepath);
+                                    }
+                                    catch {
+                                    }
+                                }
+                                resolve();
+                            })
+                            .catch(err => {
+                                this.writeFail('Gulp: exec', err);
+                                resolve();
+                            });
+                        }));
+                    }
+                }
+            }
+        }
+        return tasks.length ? Promise.all(tasks).catch(err => Node.writeFail('Gulp: Copy to original directory', err)) : Promise.resolve();
     }
 };
 

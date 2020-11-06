@@ -1,6 +1,6 @@
 {
   "name": "@squared-functions/chrome",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Chrome functions for squared-functions",
   "main": "index.js",
   "types": "index.d.ts",
@@ -16,7 +16,7 @@
   "homepage": "https://github.com/anpham6/squared-functions#readme",
   "dependencies": {
     "@squared-functions/module": "^0.3.2",
-    "@squared-functions/types": "^0.3.7",
+    "@squared-functions/types": "^0.3.8",
     "chalk": "^4.1.0",
     "fs-extra": "^9.0.1",
     "uuid": "^8.3.1"

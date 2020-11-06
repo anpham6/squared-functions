@@ -53,6 +53,7 @@ declare namespace functions {
             rootDir?: string;
             moveTo?: string;
             format?: string;
+            tasks?: string[];
             preserve?: boolean;
             inlineContent?: string;
             exclude?: boolean;
@@ -143,9 +144,9 @@ declare namespace functions {
     }
 
     interface IChrome extends IModule {
-        modules: Undef<ChromeModules>;
-        findPlugin(settings: ObjectMap<StandardMap>, name: string): internal.PluginConfig;
-        findTranspiler(settings: ObjectMap<StandardMap>, name: string, category: ExternalCategory, transpileMap?: TranspileMap): internal.PluginConfig;
+        modules?: ChromeModules;
+        findPlugin(settings: Undef<ObjectMap<StandardMap>>, name: string): internal.PluginConfig;
+        findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory, transpileMap?: TranspileMap): internal.PluginConfig;
         createTranspiler(value: string): Null<FunctionType<string>>;
         createConfig(value: string): Undef<StandardMap | string>;
         setPrettierOptions(options?: PrettierOptions): PrettierOptions;
@@ -156,12 +157,20 @@ declare namespace functions {
         removeCss(source: string, styles: string[]): Undef<string>;
     }
 
+    interface ChromeConstructor {
+        new(modules?: ChromeModules): IChrome;
+    }
+
+    const Chrome: ChromeConstructor;
+
     interface IFileManager extends IModule {
         serverRoot: string;
         delayed: number;
         cleared: boolean;
         emptyDirectory: boolean;
         productionRelease: boolean;
+        Gulp?: StringMap;
+        Chrome?: IChrome;
         readonly files: Set<string>;
         readonly filesQueued: Set<string>;
         readonly filesToRemove: Set<string>;
@@ -171,6 +180,7 @@ declare namespace functions {
         readonly assets: ExpressAsset[];
         readonly postFinalize: (this: IFileManager) => void;
         readonly requestMain?: ExpressAsset;
+        install(name: string, ...args: any[]): void;
         add(value: string): void;
         delete(value: string): void;
         performAsyncTask(): void;
@@ -194,16 +204,15 @@ declare namespace functions {
         compressFile(assets: ExpressAsset[], file: ExpressAsset, filepath: string, cached?: boolean): void;
         writeBuffer(assets: ExpressAsset[], file: ExpressAsset, filepath: string, cached?: boolean): void;
         processAssets(): void;
-        finalizeAssets(release: boolean): Promise<void[]>;
+        finalizeAssets(release: boolean): Promise<unknown>;
     }
 
     interface FileManagerConstructor {
-        checkPermissions(res: Response, dirname: string): boolean;
+        checkPermissions(dirname: string, res?: Response): boolean;
         loadSettings(value: Settings, ignorePermissions?: boolean): void;
         moduleNode(): INode;
         moduleCompress(): ICompress;
         moduleImage(): IImage;
-        moduleChrome(): IChrome;
         new(dirname: string, assets: ExpressAsset[], postFinalize: (this: IFileManager) => void, productionRelease?: boolean): IFileManager;
     }
 
@@ -239,6 +248,7 @@ declare namespace functions {
         env?: string;
         port?: StringMap;
         routing?: Routing;
+        gulp?: StringMap;
         chrome?: ChromeModules;
     }
 

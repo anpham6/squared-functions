@@ -16,8 +16,10 @@ type PluginConfig = functions.internal.PluginConfig;
 
 const validLocalPath = (value: string) => /^\.?\.[\\/]/.test(value);
 
-const Chrome = new class extends Module implements functions.IChrome {
-    public modules: Undef<ChromeModules>;
+const Chrome = class extends Module implements functions.IChrome {
+    constructor(public modules?: ChromeModules) {
+        super();
+    }
 
     createOptions(value: Undef<ConfigOrTranspiler>): Undef<ConfigOrTranspiler> {
         if (typeof value === 'string') {
@@ -34,22 +36,24 @@ const Chrome = new class extends Module implements functions.IChrome {
         }
         return value;
     }
-    findPlugin(settings: ObjectMap<StandardMap>, value: string): PluginConfig {
-        for (const name in settings) {
-            const data = settings[name];
-            for (const plugin in data) {
-                if (plugin === value) {
-                    const options = this.createOptions(data[plugin]);
-                    const config = this.createConfig(data[plugin + '-config']);
-                    if (options || config) {
-                        return [name, options, config];
+    findPlugin(settings: Undef<ObjectMap<StandardMap>>, value: string): PluginConfig {
+        if (settings) {
+            for (const name in settings) {
+                const data = settings[name];
+                for (const plugin in data) {
+                    if (plugin === value) {
+                        const options = this.createOptions(data[plugin]);
+                        const config = this.createConfig(data[plugin + '-config']);
+                        if (options || config) {
+                            return [name, options, config];
+                        }
                     }
                 }
             }
         }
         return ([] as unknown) as PluginConfig;
     }
-    findTranspiler(settings: ObjectMap<StandardMap>, value: string, category: ExternalCategory, transpileMap?: TranspileMap): PluginConfig {
+    findTranspiler(settings: Undef<ObjectMap<StandardMap>>, value: string, category: ExternalCategory, transpileMap?: TranspileMap): PluginConfig {
         if (transpileMap && this.modules?.eval_text_template) {
             const data = transpileMap[category];
             for (const name in data) {
@@ -421,7 +425,7 @@ const Chrome = new class extends Module implements functions.IChrome {
         }
         return output;
     }
-}();
+};
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = Chrome;

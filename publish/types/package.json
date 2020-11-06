@@ -1,6 +1,6 @@
 {
   "name": "@squared-functions/types",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "description": "Type definitions for squared-functions",
   "types": "lib/index.d.ts",
   "repository": {
