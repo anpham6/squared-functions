@@ -7,7 +7,7 @@ const Module = class implements functions.IModule {
     public patch: number;
 
     constructor() {
-        [this.major, this.minor, this.patch] = process.version.substring(1).split('.').map(value => parseInt(value));
+        [this.major, this.minor, this.patch] = process.version.substring(1).split('.').map(value => +value);
     }
 
     checkVersion(major: number, minor: number, patch = 0) {
@@ -32,6 +32,10 @@ const Module = class implements functions.IModule {
         catch {
         }
         return 0;
+    }
+    replaceExtension(value: string, ext: string) {
+        const index = value.lastIndexOf('.');
+        return (index !== -1 ?value.substring(0, index) : value) + '.' + ext;
     }
     writeFail(description: string, message: unknown) {
         console.log(`${chalk.bgRed.bold.white('FAIL')}: ${description} (${message as string})`);

@@ -46,7 +46,7 @@ const Compress = new class extends Module implements functions.ICompress {
     }
     parseSizeRange(value: string): [number, number] {
         const match = /\(\s*(\d+)\s*,\s*(\d+|\*)\s*\)/.exec(value);
-        return match ? [parseInt(match[1]), match[2] === '*' ? Infinity : parseInt(match[2])] : [0, Infinity];
+        return match ? [+match[1], match[2] === '*' ? Infinity : +match[2]] : [0, Infinity];
     }
     withinSizeRange(filepath: string, value: Undef<string>) {
         if (value) {

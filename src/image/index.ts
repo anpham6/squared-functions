@@ -12,7 +12,7 @@ const REGEXP_CROP = /\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*\|\s*(\d+)\s*x\s*(\d+)\s
 const REGEXP_ROTATE = /\{\s*([\d\s,]+)(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\}/;
 const REGEXP_OPACITY = /\|\s*([\d.]+)\s*\|/;
 
-const parseHexDecimal = (value: Undef<string>) => value ? parseInt('0x' + value.padEnd(8, 'F')) : null;
+const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : null;
 
 const Image = new class extends Module implements functions.IImage {
     public jpegQuality = 100;
@@ -70,34 +70,25 @@ const Image = new class extends Module implements functions.IImage {
                     align |= jimp.VERTICAL_ALIGN_BOTTOM;
                     break;
             }
-            return { width: match[1] === 'auto' ? Infinity : parseInt(match[1]), height: match[2] === 'auto' ? Infinity : parseInt(match[2]), mode: match[4] || 'resize', algorithm, align, color: parseHexDecimal(match[7]) } as ResizeData;
+            return { width: match[1] === 'auto' ? Infinity : +match[1], height: match[2] === 'auto' ? Infinity : +match[2], mode: match[4] || 'resize', algorithm, align, color: parseHexDecimal(match[7]) } as ResizeData;
         }
     }
     parseCrop(value: string) {
         const match = REGEXP_CROP.exec(value);
         if (match) {
-            return { x: parseInt(match[1]), y: parseInt(match[2]), width: parseInt(match[3]), height: parseInt(match[4]) } as CropData;
+            return { x: +match[1], y: +match[2], width: +match[3], height: +match[4] } as CropData;
         }
     }
     parseOpacity(value: string) {
         const match = REGEXP_OPACITY.exec(value);
-        if (match) {
-            const opacity = parseFloat(match[1]);
-            if (!isNaN(opacity)) {
-                return Math.min(Math.max(opacity, 0), 1);
-            }
-        }
-        return 1;
+        return match ? Math.min(Math.max(+match[1], 0), 1) : 1;
     }
     parseRotation(value: string) {
         const match = REGEXP_ROTATE.exec(value);
         if (match) {
             const result = new Set<number>();
             for (const segment of match[1].split(',')) {
-                const angle = parseInt(segment);
-                if (!isNaN(angle)) {
-                    result.add(angle);
-                }
+                result.add(+segment);
             }
             if (result.size) {
                 return { values: Array.from(result), color: parseHexDecimal(match[2]) } as RotateData;

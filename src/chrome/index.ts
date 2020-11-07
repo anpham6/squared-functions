@@ -16,15 +16,13 @@ type PluginConfig = functions.internal.PluginConfig;
 
 const validLocalPath = (value: string) => /^\.?\.[\\/]/.test(value);
 
-const Chrome = class extends Module implements functions.IChrome {
-    constructor(public modules?: ChromeModules) {
-        super();
-    }
+const Chrome = new class extends Module implements functions.IChrome {
+    public modules: ChromeModules = {};
 
     createOptions(value: Undef<ConfigOrTranspiler>): Undef<ConfigOrTranspiler> {
         if (typeof value === 'string') {
             value = value.trim();
-            if (this.modules?.eval_function) {
+            if (this.modules.eval_function) {
                 const transpiler = this.createTranspiler(value);
                 if (transpiler) {
                     return transpiler;
@@ -54,7 +52,7 @@ const Chrome = class extends Module implements functions.IChrome {
         return ([] as unknown) as PluginConfig;
     }
     findTranspiler(settings: Undef<ObjectMap<StandardMap>>, value: string, category: ExternalCategory, transpileMap?: TranspileMap): PluginConfig {
-        if (transpileMap && this.modules?.eval_text_template) {
+        if (transpileMap && this.modules.eval_text_template) {
             const data = transpileMap[category];
             for (const name in data) {
                 const item = data[name][value];
@@ -99,7 +97,7 @@ const Chrome = class extends Module implements functions.IChrome {
         }
         return value || {};
     }
-    setPrettierOptions(options: PrettierOptions = {}): PrettierOptions {
+    setPrettierOptions(options: PrettierOptions): PrettierOptions {
         switch (options.parser) {
             case 'babel':
             case 'babel-flow':
@@ -142,7 +140,7 @@ const Chrome = class extends Module implements functions.IChrome {
         return options;
     }
     async minifyHtml(format: string, value: string, transpileMap?: TranspileMap) {
-        const html = this.modules?.html;
+        const html = this.modules.html;
         if (html) {
             let valid: Undef<boolean>;
             const formatters = format.split('+');
@@ -190,7 +188,7 @@ const Chrome = class extends Module implements functions.IChrome {
                         }
                     }
                     catch (err) {
-                        this.writeFail(`${chalk.yellow('Install required')} -> ${chalk.bold(`[npm i ${name}]`)}`, err);
+                        this.writeFail(`${chalk.yellow('Install required?')} ${chalk.bold(`[npm i ${name}]`)}`, err);
                     }
                 }
             }
@@ -201,7 +199,7 @@ const Chrome = class extends Module implements functions.IChrome {
         return Promise.resolve();
     }
     async minifyCss(format: string, value: string, transpileMap?: TranspileMap) {
-        const css = this.modules?.css;
+        const css = this.modules.css;
         if (css) {
             let valid: Undef<boolean>;
             const formatters = format.split('+');
@@ -249,7 +247,7 @@ const Chrome = class extends Module implements functions.IChrome {
                         }
                     }
                     catch (err) {
-                        this.writeFail(`${chalk.yellow('Install required')} -> ${chalk.bold(`[npm i ${name}]`)}`, err);
+                        this.writeFail(`${chalk.yellow('Install required?')} ${chalk.bold(`[npm i ${name}]`)}`, err);
                     }
                 }
             }
@@ -260,7 +258,7 @@ const Chrome = class extends Module implements functions.IChrome {
         return Promise.resolve();
     }
     async minifyJs(format: string, value: string, transpileMap?: TranspileMap) {
-        const js = this.modules?.js;
+        const js = this.modules.js;
         if (js) {
             const formatters = format.split('+');
             let modified: Undef<boolean>;
@@ -334,11 +332,12 @@ const Chrome = class extends Module implements functions.IChrome {
                                         }
                                     };
                                     if (typeof custom === 'string') {
-                                        if (path.isAbsolute(custom)) {
-                                            await require('rollup/dist/loadConfigFile')(path.resolve(custom), es)
-                                                .then(async (configuration: StandardMap) => {
-                                                    configuration.warnings.flush();
-                                                    for (const rollupOptions of configuration.options as MergedRollupOptions[]) {
+                                        const filepath = path.resolve(custom);
+                                        if (fs.existsSync(filepath)) {
+                                            await require('rollup/dist/loadConfigFile')(filepath, es)
+                                                .then(async (merged: StandardMap) => {
+                                                    merged.warnings.flush();
+                                                    for (const rollupOptions of merged.options as MergedRollupOptions[]) {
                                                         rollupOptions.input = inputFile;
                                                         const bundle = await rollup.rollup(rollupOptions) as RollupBuild;
                                                         for (const item of rollupOptions.output) {
@@ -367,7 +366,7 @@ const Chrome = class extends Module implements functions.IChrome {
                         }
                     }
                     catch (err) {
-                        this.writeFail(`${chalk.yellow('Install required')} -> ${chalk.bold(`[npm i ${name}]`)}`, err);
+                        this.writeFail(`${chalk.yellow('Install required?')} ${chalk.bold(`[npm i ${name}]`)}`, err);
                     }
                 }
             }
@@ -391,19 +390,16 @@ const Chrome = class extends Module implements functions.IChrome {
     }
     removeCss(source: string, styles: string[]) {
         let output: Undef<string>,
-            modified: Undef<boolean>,
             pattern: Undef<RegExp>,
             match: Null<RegExpExecArray>;
         for (let value of styles) {
             value = value.replace(/\./g, '\\.');
-            pattern = new RegExp(`^\\s*${value}\\s*\\{[\\s\\S]*?\\}\\n*`, 'gm');
+            pattern = new RegExp(`^\\s*${value}\\s*\\{[^}]*\\}\\n*`, 'gm');
             while (match = pattern.exec(source)) {
                 output = (output || source).replace(match[0], '');
-                modified = true;
             }
-            if (modified) {
-                source = output!;
-                modified = false;
+            if (output) {
+                source = output;
             }
             pattern = new RegExp(`^[^,]*(,?\\s*${value}\\s*[,{](\\s*)).*?\\{?`, 'gm');
             while (match = pattern.exec(source)) {
@@ -416,16 +412,14 @@ const Chrome = class extends Module implements functions.IChrome {
                     replaceWith = ', ';
                 }
                 output = (output || source).replace(match[0], match[0].replace(segment, replaceWith));
-                modified = true;
             }
-            if (modified) {
-                source = output!;
-                modified = false;
+            if (output) {
+                source = output;
             }
         }
         return output;
     }
-};
+}();
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = Chrome;

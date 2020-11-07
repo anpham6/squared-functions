@@ -115,6 +115,7 @@ declare namespace functions {
         fromSameOrigin(value: string, other: string): boolean;
         parsePath(value: string): Undef<string>;
         resolvePath(value: string, href: string, hostname?: boolean): Undef<string>;
+        toPosixPath(value: string): string;
     }
 
     interface ICompress extends IModule {
@@ -149,7 +150,7 @@ declare namespace functions {
         findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory, transpileMap?: TranspileMap): internal.PluginConfig;
         createTranspiler(value: string): Null<FunctionType<string>>;
         createConfig(value: string): Undef<StandardMap | string>;
-        setPrettierOptions(options?: PrettierOptions): PrettierOptions;
+        setPrettierOptions(options: PrettierOptions): PrettierOptions;
         minifyHtml(format: string, value: string, transpileMap?: TranspileMap): Promise<Void<string>>;
         minifyCss(format: string, value: string, transpileMap?: TranspileMap): Promise<Void<string>>;
         minifyJs(format: string, value: string, transpileMap?: TranspileMap): Promise<Void<string>>;
@@ -187,22 +188,22 @@ declare namespace functions {
         removeAsyncTask(): void;
         completeAsyncTask(filepath?: string): void;
         performFinalize(): void;
+        getHtmlPages(modified?: boolean): ExpressAsset[];
+        getAbsoluteUrl(value: string, href: string): string;
+        replacePath(source: string, segment: string, value: string, base64?: boolean): Undef<string>;
+        escapePathSeparator(value: string): string;
         replace(file: ExpressAsset, replaceWith: string): void;
         validate(file: ExpressAsset, exclusions: squared.base.Exclusions): boolean;
-        getHtmlPages(modified?: boolean): ExpressAsset[];
         getFileOutput(file: ExpressAsset): internal.FileOutput;
         getRelativeUrl(file: ExpressAsset, url: string): Undef<string>;
-        getAbsoluteUrl(value: string, href: string): string;
         getFullUri(file: ExpressAsset, filename?: string): string;
-        replacePath(source: string, segment: string, value: string, base64?: boolean): Undef<string>;
-        normalizePath(value: string): string;
-        replaceExtension(value: string, ext: string): string;
-        getTrailingContent(file: ExpressAsset): Promise<string>;
-        appendContent(file: ExpressAsset, content: string, outputOnly?: boolean): Promise<string>;
-        transformBuffer(assets: ExpressAsset[], file: ExpressAsset, filepath: string): Promise<void>;
+        getUTF8String(file: ExpressAsset, filepath?: string): string;
         transformCss(file: ExpressAsset, content: string): Undef<string>;
-        compressFile(assets: ExpressAsset[], file: ExpressAsset, filepath: string, cached?: boolean): void;
-        writeBuffer(assets: ExpressAsset[], file: ExpressAsset, filepath: string, cached?: boolean): void;
+        appendContent(file: ExpressAsset, content: string, outputOnly?: boolean): Promise<string>;
+        getTrailingContent(file: ExpressAsset): Promise<string>;
+        transformBuffer(file: ExpressAsset, filepath: string): Promise<void>;
+        compressFile(file: ExpressAsset, filepath: string, cached?: boolean): void;
+        writeBuffer(file: ExpressAsset, filepath: string, cached?: boolean): void;
         processAssets(): void;
         finalizeAssets(release: boolean): Promise<unknown>;
     }
@@ -224,6 +225,7 @@ declare namespace functions {
         readonly patch: number;
         checkVersion(major: number, minor: number, patch?: number): boolean;
         getFileSize(filepath: string): number;
+        replaceExtension(value: string, ext: string): string;
         writeFail(description: string, message: unknown): void;
     }
 
@@ -292,9 +294,11 @@ declare namespace functions {
         dataMap?: chrome.DataMap;
         exclusions?: squared.base.Exclusions;
         filepath?: string;
-        originalName?: string;
-        toBase64?: string;
         invalid?: boolean;
+        buffer?: Buffer;
+        sourceUTF8?: string;
+        inlineBase64?: string;
+        originalName?: string;
     }
 }
 

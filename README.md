@@ -3,11 +3,11 @@
 These are some of the available options when creating archives or copying files with squared 2.1.
 
 ```javascript
-// NOTE: zip | tar | gz/tgz | br
+// NOTE: format: zip | tar | gz/tgz | compress: gz | br
 
 squared.settings.outputArchiveFormat = 'tar'; // default format "zip"
 
-squared.saveAs('archive1', {
+squared.saveAs('archive1', { // OR: archive1.gz
     format: 'gz',
     assets: [
         {
@@ -79,7 +79,7 @@ const options = {
 };
 ```
 
-TinyPNG <https://tinypng.com/developers> is used for compression and supports only PNG and JPEG.
+[TinyPNG](https://tinypng.com/developers) is used for compression and supports only PNG and JPEG.
 
 ### CHROME: Saving web page assets
 
@@ -160,12 +160,8 @@ chrome -> html | js | css -> npm package name -> custom name
 ```
 
 ```javascript
-// .babelrc
-{
-  "presets": ["@babel/preset-env"]
-}
-
 // es5.js
+
 function (context, value, config /* optional: "@babel/core-config" */) {
     const options = { presets: ['@babel/preset-env'] }; // <https://babeljs.io/docs/en/options>
     return context.transformSync(value, options).code;
@@ -191,7 +187,7 @@ Here is the equivalent YAML settings and when available has higher precedence th
 
 ### Gulp
 
-Tasks can similarly be performed with Gulp when using YAML/JSON configuration to take advantage of their pre-built plugin repository. Gulp is the final stage preceding archiving or copying when file output content has been finalized.
+Tasks can similarly be performed with Gulp when using YAML/JSON configuration to take advantage of their pre-built plugin repository. Gulp is the final stage preceding archiving or copying after file content has been finalized.
 
 * [npm install -g gulp-cli && npm install gulp](https://gulpjs.com/docs/en/getting-started/quick-start)
 
@@ -206,9 +202,13 @@ Tasks can similarly be performed with Gulp when using YAML/JSON configuration to
 ```javascript
 - selector: head > script:nth-of-type(1)
   type: js
-  saveAs: js/modules1.js
   tasks:
     - minify
+    - beautify
+```
+
+```xml
+<script data-chrome-tasks="minify+beautify" src="/common/system.js"></script>
 ```
 
 ```javascript
@@ -223,8 +223,10 @@ gulp.task('minify', () => {
     .pipe(gulp.dest('./'));
 });
 
-// NOTE: SRC and DEST always read and write to the current directory
+// NOTE: SRC (temp) and DEST (original) always read and write to the current directory
 ```
+
+Renaming files with Gulp is not recommended. It is better to use the "saveAs" or "filename" attributes when the asset is part of the HTML page.
 
 ### Bundling
 
@@ -248,24 +250,19 @@ The entire page can similarly be transformed as a group using the "saveAs" attri
 ```javascript
 const options = {
     saveAs: { // All attributes are optional
-        html: { filename: 'index.html', format: 'beautify' }
+        html: { filename: 'index.html', format: 'beautify' },
         script: { pathname: '../js', filename: 'bundle.js', format: 'es5+es5-minify' },
         link: { pathname: 'css', filename: 'bundle.css', preserve: true, inline: true },
         image: { format: 'base64' },
         base64: { format: 'png' }
-    },
-    transforms: [
-        { id: 'image1', pathname: '../images/harbour', filename: 'image1.png' commands: ['png@(10000,75000)(800x600[bezier]^contain[right|bottom])'], compress: true },
-        { id: 'image2', base64: true }
-    ]
+    }
 };
 ```
 
 There are a few ways to save the entire page or portions using the system methods.
 
 ```javascript
-squared.saveAs('index', { // default is false
-    format: 'zip', // optional
+squared.saveAs('index.zip', { // default is false
     removeUnusedStyles: true, // Use only when you are not switching classnames with JavaScript
     productionRelease: true, // Ignore local url rewriting and load assets using absolute paths
     preserveCrossOrigin: true // Ignore downloading a local copy of assets hosted on other domains
@@ -274,16 +271,14 @@ squared.saveAs('index', { // default is false
 
 The file action commands (save | saveAs | copyTo | appendTo) should only be used one at a time in the Chrome framework. Calling multiple consecutively may conflict if you do not use async/await.
 
-### saveTo command
-
-```xml
-saveTo: directory (~same) :: transformations? (~image) :: compress?|base64? (image)
-```
+### Command: saveTo
 
 You can use images commands with saveTo on any element when the image is the primary display output. Encoding with base64 is also available using the "::base64" commmand as the third argument.
 
 ```xml
-<!-- NOTE (saveTo): img | video | audio | source | track | object | embed | iframe -->
+<!-- NOTE: img | video | audio | source | track | object | embed | iframe -->
+
+saveTo: directory (~same) :: transformations? (~image) :: compress?|base64? (image)
 
 <img
     id="image1"
