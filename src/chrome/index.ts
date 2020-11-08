@@ -14,6 +14,49 @@ type ExternalCategory = functions.ExternalCategory;
 type ConfigOrTranspiler = functions.internal.ConfigOrTranspiler;
 type PluginConfig = functions.internal.PluginConfig;
 
+function setPrettierOptions(options: PrettierOptions): PrettierOptions {
+    switch (options.parser) {
+        case 'babel':
+        case 'babel-flow':
+        case 'babel-ts':
+        case 'json':
+        case 'json-5':
+        case 'json-stringify':
+            options.plugins = [require('prettier/parser-babel')];
+            break;
+        case 'css':
+        case 'scss':
+        case 'less':
+            options.plugins = [require('prettier/parser-postcss')];
+            break;
+        case 'flow':
+            options.plugins = [require('prettier/parser-flow')];
+            break;
+        case 'html':
+        case 'angular':
+        case 'lwc':
+        case 'vue':
+            options.plugins = [require('prettier/parser-html')];
+            break;
+        case 'graphql':
+            options.plugins = [require('prettier/parser-graphql')];
+            break;
+        case 'markdown':
+            options.plugins = [require('prettier/parser-markdown')];
+            break;
+        case 'typescript':
+            options.plugins = [require('prettier/parser-typescript')];
+            break;
+        case 'yaml':
+            options.plugins = [require('prettier/parser-yaml')];
+            break;
+        default:
+            options.plugins = [];
+            break;
+    }
+    return options;
+}
+
 const validLocalPath = (value: string) => /^\.?\.[\\/]/.test(value);
 
 const Chrome = new class extends Module implements functions.IChrome {
@@ -97,48 +140,6 @@ const Chrome = new class extends Module implements functions.IChrome {
         }
         return value || {};
     }
-    setPrettierOptions(options: PrettierOptions): PrettierOptions {
-        switch (options.parser) {
-            case 'babel':
-            case 'babel-flow':
-            case 'babel-ts':
-            case 'json':
-            case 'json-5':
-            case 'json-stringify':
-                options.plugins = [require('prettier/parser-babel')];
-                break;
-            case 'css':
-            case 'scss':
-            case 'less':
-                options.plugins = [require('prettier/parser-postcss')];
-                break;
-            case 'flow':
-                options.plugins = [require('prettier/parser-flow')];
-                break;
-            case 'html':
-            case 'angular':
-            case 'lwc':
-            case 'vue':
-                options.plugins = [require('prettier/parser-html')];
-                break;
-            case 'graphql':
-                options.plugins = [require('prettier/parser-graphql')];
-                break;
-            case 'markdown':
-                options.plugins = [require('prettier/parser-markdown')];
-                break;
-            case 'typescript':
-                options.plugins = [require('prettier/parser-typescript')];
-                break;
-            case 'yaml':
-                options.plugins = [require('prettier/parser-yaml')];
-                break;
-            default:
-                options.plugins = [];
-                break;
-        }
-        return options;
-    }
     async minifyHtml(format: string, value: string, transpileMap?: TranspileMap) {
         const html = this.modules.html;
         if (html) {
@@ -162,7 +163,7 @@ const Chrome = new class extends Module implements functions.IChrome {
                             const options = typeof custom === 'object' ? { ...custom } : typeof config === 'object' ? config : {};
                             switch (name) {
                                 case 'prettier': {
-                                    const result: Undef<string> = require('prettier').format(value, this.setPrettierOptions(options));
+                                    const result: Undef<string> = require('prettier').format(value, setPrettierOptions(options));
                                     if (result) {
                                         if (i === length - 1) {
                                             return Promise.resolve(result);
@@ -221,7 +222,7 @@ const Chrome = new class extends Module implements functions.IChrome {
                             const options = typeof custom === 'object' ? { ...custom } : typeof config === 'object' ? config : {};
                             switch (name) {
                                 case 'prettier': {
-                                    const result: Undef<string> = require('prettier').format(value, this.setPrettierOptions(options));
+                                    const result: Undef<string> = require('prettier').format(value, setPrettierOptions(options));
                                     if (result) {
                                         if (i === length - 1) {
                                             return Promise.resolve(result);
@@ -291,7 +292,7 @@ const Chrome = new class extends Module implements functions.IChrome {
                                     break;
                                 }
                                 case 'prettier': {
-                                    const result: Undef<string> = require('prettier').format(value, this.setPrettierOptions(options));
+                                    const result: Undef<string> = require('prettier').format(value, setPrettierOptions(options));
                                     if (result) {
                                         if (i === length - 1) {
                                             return Promise.resolve(result);

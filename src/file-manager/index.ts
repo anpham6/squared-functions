@@ -137,14 +137,14 @@ const FileManager = class extends Module implements IFileManager {
     public readonly filesToRemove = new Set<string>();
     public readonly filesToCompare = new Map<ExpressAsset, string[]>();
     public readonly contentToAppend = new Map<string, string[]>();
-    public readonly postFinalize: (this: IFileManager) => void;
+    public readonly postFinalize: FunctionType<Promise<unknown[]>>;
     public readonly requestMain?: ExpressAsset;
     public readonly dataMap?: DataMap;
 
     constructor(
         public readonly dirname: string,
         public readonly assets: ExpressAsset[],
-        postFinalize: (this: IFileManager) => void)
+        postFinalize: FunctionType<Promise<unknown[]>>)
     {
         super();
         this.requestMain = assets.find(item => item.basePath);
@@ -1410,7 +1410,6 @@ const FileManager = class extends Module implements IFileManager {
                 const setContent = (value: string) => {
                     inlineMap[item.inlineContent!] = value.trim();
                     item.invalid = true;
-                    item.originalName = '';
                 };
                 if (item.sourceUTF8 || item.buffer) {
                     setContent(this.getUTF8String(item));
@@ -1473,12 +1472,11 @@ const FileManager = class extends Module implements IFileManager {
         for (const item of this.assets) {
             if (item.inlineBase64 && !item.invalid) {
                 const filepath = item.filepath!;
-                const mimeType = item.mimeType || mime.lookup(filepath).toString();
+                const mimeType = mime.lookup(filepath).toString();
                 if (mimeType.startsWith('image/')) {
                     tasks.push(
                         fs.readFile(filepath).then((data: Buffer) => {
                             base64Map[item.inlineBase64!] = `data:${mimeType};base64,${data.toString('base64')}`;
-                            item.originalName = '';
                             item.invalid = true;
                         })
                     );
@@ -1489,7 +1487,8 @@ const FileManager = class extends Module implements IFileManager {
             await Promise.all(tasks).catch(err => Node.writeFail('Finalize: Read base64', err));
             tasks = [];
         }
-        const replaced = this.assets.filter(item => item.originalName);
+        const assets = this.assets.filter(item => !item.invalid);
+        const replaced = assets.filter(item => item.originalName);
         if (replaced.length || Object.keys(base64Map) || this.productionRelease) {
             const replaceContent = (file: ExpressAsset, value: string) => {
                 for (const id in base64Map) {
@@ -1499,25 +1498,23 @@ const FileManager = class extends Module implements IFileManager {
                     value = value.replace(new RegExp(this.escapePathSeparator(this.getFullUri(asset, asset.originalName)), 'g'), this.getFullUri(asset));
                 }
                 if (this.productionRelease) {
-                    value = value.replace(/(\.\.\/)*__serverroot__/g, '');
+                    value = value.replace(new RegExp(`(\\.\\./)*${this.serverRoot}`, 'g'), '');
                 }
                 file.sourceUTF8 = value;
             };
-            for (const item of this.assets) {
-                if (!item.invalid) {
-                    switch (item.mimeType) {
-                        case '@text/html':
-                        case '@application/xhtml+xml':
-                        case '@text/css':
-                        case '&text/css':
-                            if (item.sourceUTF8 || item.buffer) {
-                                replaceContent(item, this.getUTF8String(item));
-                            }
-                            else {
-                                tasks.push(fs.readFile(item.filepath!, 'utf8').then(data => replaceContent(item, data)));
-                            }
-                            break;
-                    }
+            for (const item of assets) {
+                switch (item.mimeType) {
+                    case '@text/html':
+                    case '@application/xhtml+xml':
+                    case '@text/css':
+                    case '&text/css':
+                        if (item.sourceUTF8 || item.buffer) {
+                            replaceContent(item, this.getUTF8String(item));
+                        }
+                        else {
+                            tasks.push(fs.readFile(item.filepath!, 'utf8').then(data => replaceContent(item, data)));
+                        }
+                        break;
                 }
             }
         }
@@ -1525,8 +1522,8 @@ const FileManager = class extends Module implements IFileManager {
             await Promise.all(tasks).catch(err => Node.writeFail('Finalize: Replace UTF-8', err));
             tasks = [];
         }
-        for (const item of this.assets) {
-            if (item.sourceUTF8 && !item.invalid) {
+        for (const item of assets) {
+            if (item.sourceUTF8) {
                 tasks.push(fs.writeFile(item.filepath!, item.sourceUTF8, 'utf8'));
             }
         }
@@ -1537,8 +1534,8 @@ const FileManager = class extends Module implements IFileManager {
         if (this.Gulp) {
             const taskMap = new Map<string, Map<string, GulpData>>();
             const origMap = new Map<string, string[]>();
-            for (const item of this.assets) {
-                if (item.tasks && !item.invalid) {
+            for (const item of assets) {
+                if (item.tasks) {
                     const origDir = path.dirname(item.filepath!);
                     const scheduled = new Set<string>();
                     for (const task of item.tasks) {
@@ -1658,7 +1655,10 @@ const FileManager = class extends Module implements IFileManager {
                 }
             });
         }
-        return tasks.length ? Promise.all(tasks).catch(err => Node.writeFail('Gulp: Finalize', err)) : Promise.resolve();
+        return Promise.all(tasks).catch(err => {
+            Node.writeFail('Gulp: Finalize', err);
+            return err;
+        });
     }
 };
 

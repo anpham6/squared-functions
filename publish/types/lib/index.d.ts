@@ -3,7 +3,6 @@
 import type { Response } from 'express';
 import type { CorsOptions } from 'cors';
 import type { WriteStream } from 'fs';
-import type { Options as PrettierOptions } from 'prettier';
 import type * as jimp from 'jimp';
 
 declare namespace functions {
@@ -150,7 +149,6 @@ declare namespace functions {
         findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory, transpileMap?: TranspileMap): internal.PluginConfig;
         createTranspiler(value: string): Null<FunctionType<string>>;
         createConfig(value: string): Undef<StandardMap | string>;
-        setPrettierOptions(options: PrettierOptions): PrettierOptions;
         minifyHtml(format: string, value: string, transpileMap?: TranspileMap): Promise<Void<string>>;
         minifyCss(format: string, value: string, transpileMap?: TranspileMap): Promise<Void<string>>;
         minifyJs(format: string, value: string, transpileMap?: TranspileMap): Promise<Void<string>>;
@@ -179,7 +177,7 @@ declare namespace functions {
         readonly contentToAppend: Map<string, string[]>;
         readonly dirname: string;
         readonly assets: ExpressAsset[];
-        readonly postFinalize: (this: IFileManager) => void;
+        readonly postFinalize: FunctionType<Promise<unknown[]>>;
         readonly requestMain?: ExpressAsset;
         install(name: string, ...args: any[]): void;
         add(value: string): void;
@@ -205,7 +203,7 @@ declare namespace functions {
         compressFile(file: ExpressAsset, filepath: string, cached?: boolean): void;
         writeBuffer(file: ExpressAsset, filepath: string, cached?: boolean): void;
         processAssets(): void;
-        finalizeAssets(release: boolean): Promise<unknown>;
+        finalizeAssets(): Promise<unknown[]>;
     }
 
     interface FileManagerConstructor {
@@ -214,7 +212,7 @@ declare namespace functions {
         moduleNode(): INode;
         moduleCompress(): ICompress;
         moduleImage(): IImage;
-        new(dirname: string, assets: ExpressAsset[], postFinalize: (this: IFileManager) => void, productionRelease?: boolean): IFileManager;
+        new(dirname: string, assets: ExpressAsset[], postFinalize: FunctionType<Promise<unknown[]>>, productionRelease?: boolean): IFileManager;
     }
 
     const FileManager: FileManagerConstructor;
