@@ -1,6 +1,6 @@
 {
   "name": "squared-functions",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "description": "Parent folder for @squared-functions packages.",
   "scripts": {
     "dev": "tsc -outDir ../squared/node_modules/@squared-functions",

@@ -1,6 +1,6 @@
 {
   "name": "@squared-functions/file-manager",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "description": "File Manager functions for squared-functions",
   "main": "index.js",
   "types": "index.d.ts",
@@ -20,7 +20,7 @@
     "@squared-functions/image": "^0.3.6",
     "@squared-functions/module": "^0.3.3",
     "@squared-functions/node": "^0.3.3",
-    "@squared-functions/types": "^0.3.9",
+    "@squared-functions/types": "^0.3.10",
     "chalk": "^4.1.0",
     "escape-string-regexp": "4.0.0",
     "fs-extra": "^9.0.1",

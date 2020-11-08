@@ -137,14 +137,14 @@ const FileManager = class extends Module implements IFileManager {
     public readonly filesToRemove = new Set<string>();
     public readonly filesToCompare = new Map<ExpressAsset, string[]>();
     public readonly contentToAppend = new Map<string, string[]>();
-    public readonly postFinalize: FunctionType<Promise<unknown[]>>;
+    public readonly postFinalize: FunctionType<void>;
     public readonly requestMain?: ExpressAsset;
     public readonly dataMap?: DataMap;
 
     constructor(
         public readonly dirname: string,
         public readonly assets: ExpressAsset[],
-        postFinalize: FunctionType<Promise<unknown[]>>)
+        postFinalize: FunctionType<void>)
     {
         super();
         this.requestMain = assets.find(item => item.basePath);

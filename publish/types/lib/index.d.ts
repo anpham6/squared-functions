@@ -177,7 +177,7 @@ declare namespace functions {
         readonly contentToAppend: Map<string, string[]>;
         readonly dirname: string;
         readonly assets: ExpressAsset[];
-        readonly postFinalize: FunctionType<Promise<unknown[]>>;
+        readonly postFinalize: FunctionType<void>;
         readonly requestMain?: ExpressAsset;
         install(name: string, ...args: any[]): void;
         add(value: string): void;
@@ -212,7 +212,7 @@ declare namespace functions {
         moduleNode(): INode;
         moduleCompress(): ICompress;
         moduleImage(): IImage;
-        new(dirname: string, assets: ExpressAsset[], postFinalize: FunctionType<Promise<unknown[]>>, productionRelease?: boolean): IFileManager;
+        new(dirname: string, assets: ExpressAsset[], postFinalize: FunctionType<void>, productionRelease?: boolean): IFileManager;
     }
 
     const FileManager: FileManagerConstructor;
