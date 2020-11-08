@@ -505,7 +505,7 @@ const FileManager = class extends Module implements IFileManager {
             case '@text/html':
             case '@application/xhtml+xml': {
                 const minifySpace = (value: string) => value.replace(/(\s+|\/)/g, '');
-                const getOuterHTML = (script: boolean, value: string) => script ? `<script type="text/javascript" src="${value}"></script>` : `<link rel="stylesheet" type="text/css" href="${value}" />`;
+                const getOuterHTML = (css: boolean, value: string) => css ? `<link rel="stylesheet" href="${value}" />` : `<script src="${value}"></script>`;
                 const baseUri = file.uri!;
                 const saved = new Set<string>();
                 let html = this.getUTF8String(file, filepath),
@@ -529,14 +529,14 @@ const FileManager = class extends Module implements IFileManager {
                         }
                         else if (match[4] === 'save') {
                             const content = match[0].replace(match[3], '');
-                            const src = new RegExp(`\\s+${script ? 'src' : 'href'}="(?:[^"]|\\\\")+"`, 'i').exec(content) || new RegExp(`\\s+${script ? 'src' : 'href'}='(?:[^']|\\\\')+'`, 'i').exec(content);
+                            const src = new RegExp(`\\s+${script ? 'src' : 'href'}="(?:[^"]|\\\\")+?"`, 'i').exec(content) || new RegExp(`\\s+${script ? 'src' : 'href'}='(?:[^']|\\\\')+?'`, 'i').exec(content);
                             if (src) {
                                 source = source.replace(match[0], content.replace(src[0], `${script ? ' src' : ' href'}="${location}"`));
                                 saved.add(location);
                             }
                         }
                         else {
-                            source = source.replace(match[0], match[1] + getOuterHTML(script, location));
+                            source = source.replace(match[0], match[1] + getOuterHTML(!script, location));
                             saved.add(location);
                         }
                     }
@@ -549,9 +549,11 @@ const FileManager = class extends Module implements IFileManager {
                     }
                     const { textContent, trailingContent } = item;
                     if (textContent) {
-                        const { bundleIndex, inlineContent } = item;
+                        const { bundleIndex, inlineContent, attributes = [] } = item;
                         const replacing = source;
-                        let replaceWith = '';
+                        let output = '',
+                            replaceWith = '';
+                        const getAttribute = (name: string, value?: Null<string>) => value !== undefined ? name + (value !== null ? `="${value}"` : '') : '';
                         const formattedTag = () => textContent.replace(/">$/, '" />');
                         const replaceTry = () => {
                             source = source.replace(textContent, replaceWith);
@@ -571,10 +573,11 @@ const FileManager = class extends Module implements IFileManager {
                                     }
                                 }
                             }
+                            html = source;
                         };
                         if (inlineContent) {
                             const id = `<!-- ${uuid.v4()} -->`;
-                            replaceWith = `<${inlineContent}>${id}</${inlineContent}>`;
+                            replaceWith = `<${inlineContent}${attributes ? attributes.map(({ name, value }) => getAttribute(name, value)).join('') : ''}>${id}</${inlineContent}>`;
                             replaceTry();
                             replaceMinify();
                             if (replacing !== source) {
@@ -584,20 +587,37 @@ const FileManager = class extends Module implements IFileManager {
                                 }
                             }
                         }
-                        else {
-                            if (!item.exclude && (bundleIndex === 0 || bundleIndex === -1)) {
-                                replaceWith = getOuterHTML(item.mimeType === 'text/javascript', this.getFullUri(item));
-                                replaceTry();
-                            }
-                            else if (item.exclude || bundleIndex !== undefined) {
-                                source = source.replace(new RegExp(`\\s*${escapeRegexp(textContent)}\\n*`), '');
-                                if (replacing === source) {
-                                    source = source.replace(new RegExp(`\\s*${escapeRegexp(formattedTag())}\\n*`), '');
-                                }
+                        else if (bundleIndex === 0 || bundleIndex === -1) {
+                            output = getOuterHTML(/^\s*<link\b/i.test(textContent) || !!item.mimeType?.endsWith('/css'), this.getFullUri(item));
+                        }
+                        else if (item.exclude || bundleIndex !== undefined) {
+                            source = source.replace(new RegExp(`\\s*${escapeRegexp(textContent)}\\n*`), '');
+                            if (replacing === source) {
+                                source = source.replace(new RegExp(`\\s*${escapeRegexp(formattedTag())}\\n*`), '');
                             }
                             replaceMinify();
+                            continue;
                         }
-                        html = source;
+                        if (attributes.length || output) {
+                            output ||= textContent;
+                            for (const { name, value } of attributes) {
+                                match = new RegExp(`(\\s*)${name}(?:=(?:"([^"]|\\")*?"|'([^']|\\')*?')|\b)`).exec(output);
+                                if (match) {
+                                    output = output.replace(match[0], value !== undefined ? (match[1] ? ' ' : '') + getAttribute(name, value) : '');
+                                }
+                                else if (value !== undefined) {
+                                    match = /^(\s*)<([\w-]+)(\s*)/.exec(output);
+                                    if (match) {
+                                        output = output.replace(match[0], match[1] + '<' + match[2] + ' ' + getAttribute(name, value) + (match[3] ? ' ' : ''));
+                                    }
+                                }
+                            }
+                            if (output !== textContent) {
+                                replaceWith = output;
+                                replaceTry();
+                                replaceMinify();
+                            }
+                        }
                     }
                     if (trailingContent) {
                         pattern.lastIndex = 0;
@@ -1130,9 +1150,8 @@ const FileManager = class extends Module implements IFileManager {
             return false;
         };
         const processQueue = async (file: ExpressAsset, filepath: string, bundleMain?: ExpressAsset) => {
-            const bundleIndex = file.bundleIndex;
-            if (bundleIndex !== undefined) {
-                if (bundleIndex === 0) {
+            if (file.bundleIndex !== undefined) {
+                if (file.bundleIndex === 0) {
                     let content = this.getUTF8String(file, filepath);
                     if (content) {
                         content = await this.appendContent(file, filepath, content, 0);
@@ -1158,67 +1177,65 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 const items = appending[filepath];
                 if (items) {
-                    while (items.length) {
-                        const queue = items.shift();
-                        if (queue) {
-                            const uri = queue.uri;
-                            const verifyBundle = async (value: string) => {
-                                if (bundleMain) {
-                                    return this.appendContent(queue, filepath, value, queue.bundleIndex!);
-                                }
-                                if (value) {
-                                    queue.sourceUTF8 = await this.appendContent(queue, filepath, value, 0) || value;
-                                    queue.invalid = false;
-                                    bundleMain = queue;
+                    let queue: Undef<ExpressAsset>;
+                    while (!queue && items.length) {
+                        queue = items.shift();
+                    }
+                    if (queue) {
+                        const uri = queue.uri;
+                        const verifyBundle = async (value: string) => {
+                            if (bundleMain) {
+                                return this.appendContent(queue!, filepath, value, queue!.bundleIndex!);
+                            }
+                            if (value) {
+                                queue!.sourceUTF8 = await this.appendContent(queue!, filepath, value, 0) || value;
+                                queue!.invalid = false;
+                                bundleMain = queue;
+                            }
+                            else {
+                                queue!.invalid = true;
+                            }
+                            return Promise.resolve();
+                        };
+                        const resumeQueue = () => processQueue(queue!, filepath, bundleMain);
+                        if (queue.content) {
+                            verifyBundle(queue.content).then(resumeQueue);
+                        }
+                        else if (uri) {
+                            request(uri, (err, response) => {
+                                if (err) {
+                                    notFound[uri] = true;
+                                    queue!.invalid = true;
+                                    this.writeFail(uri, err);
+                                    resumeQueue();
                                 }
                                 else {
-                                    queue.invalid = true;
-                                }
-                                return Promise.resolve();
-                            };
-                            const resumeQueue = () => processQueue(queue, filepath, bundleMain);
-                            if (queue.content) {
-                                verifyBundle(queue.content).then(resumeQueue);
-                            }
-                            else if (uri) {
-                                request(uri, (err, response) => {
-                                    if (err) {
+                                    const statusCode = response.statusCode;
+                                    if (statusCode >= 300) {
                                         notFound[uri] = true;
-                                        queue.invalid = true;
-                                        this.writeFail(uri, err);
+                                        queue!.invalid = true;
+                                        this.writeFail(uri, statusCode + ' ' + response.statusMessage);
                                         resumeQueue();
                                     }
                                     else {
-                                        const statusCode = response.statusCode;
-                                        if (statusCode >= 300) {
-                                            notFound[uri] = true;
-                                            queue.invalid = true;
-                                            this.writeFail(uri, statusCode + ' ' + response.statusMessage);
-                                            resumeQueue();
-                                        }
-                                        else {
-                                            verifyBundle(response.body).then(resumeQueue);
-                                        }
+                                        verifyBundle(response.body).then(resumeQueue);
                                     }
-                                });
-                            }
-                            else {
-                                resumeQueue();
-                            }
-                            return;
+                                }
+                            });
                         }
                         else {
-                            delete appending[filepath];
+                            resumeQueue();
                         }
+                        return;
                     }
                 }
-                if (this.getFileSize(filepath)) {
+                if (bundleMain || !file.invalid) {
                     this.compressFile(bundleMain || file, filepath);
                 }
                 else {
-                    (bundleMain || file).invalid = true;
                     this.completeAsyncTask();
                 }
+                delete appending[filepath];
             }
             else if (Array.isArray(processing[filepath])) {
                 completed.push(filepath);
@@ -1537,8 +1554,8 @@ const FileManager = class extends Module implements IFileManager {
                 if (item.tasks) {
                     const origDir = path.dirname(item.filepath!);
                     const scheduled = new Set<string>();
-                    for (const task of item.tasks) {
-                        if (!scheduled.has(task) && this.Gulp[task]) {
+                    for (let task of item.tasks) {
+                        if (!scheduled.has(task = task.trim()) && this.Gulp[task]) {
                             const gulpfile = path.resolve(this.Gulp[task]!);
                             if (fs.existsSync(gulpfile)) {
                                 if (!taskMap.has(task)) {

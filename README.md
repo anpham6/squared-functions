@@ -5,7 +5,7 @@ These are some of the available options when creating archives or copying files 
 ```javascript
 // NOTE: format: zip | tar | gz/tgz | compress: gz | br
 
-squared.settings.outputArchiveFormat = 'tar'; // default format "zip"
+squared.settings.outputArchiveFormat = 'tar'; // Default: "zip"
 
 squared.saveAs('archive1', { // OR: archive1.gz
     format: 'gz',
@@ -17,7 +17,9 @@ squared.saveAs('archive1', { // OR: archive1.gz
             compress: [{ format: 'gz', level: 9 }, { format: 'br' }]
         }
     ],
-    exclusions: { // All attributes are optional
+
+    // All attributes are optional
+    exclusions: {
         pathname: ['app/build', 'app/libs'],
         filename: ['ic_launcher_foreground.xml'],
         extension: ['iml', 'pro'],
@@ -81,6 +83,67 @@ const options = {
 
 [TinyPNG](https://tinypng.com/developers) is used for compression and supports only PNG and JPEG.
 
+### Gulp
+
+Tasks can be performed with Gulp to take advantage of their pre-built plugin repository. Gulp is the final stage preceding archiving or copying after file content has been downloaded and transformed.
+
+* [npm install -g gulp-cli && npm install gulp](https://gulpjs.com/docs/en/getting-started/quick-start)
+
+```javascript
+// squared.settings.json
+
+"gulp": {
+  "compress": "./gulpfile.js",
+  "minify": "./gulpfile.js"
+}
+
+// ANDROID
+const options = {
+    assets: [
+        {
+            pathname: 'images',
+            filename: 'pencil.png',
+            mimeType: 'image/png',
+            tasks: ['compress'],
+            uri: 'http://localhost:3000/common/images/pencil.png'
+        }
+    ]
+};
+
+// CHROME: YAML configuration
+- selector: head > script:nth-of-type(1)
+  type: js
+  tasks:
+    - minify
+    - beautify
+```
+
+```xml
+<!-- ANDROID -->
+<img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg" data-android-tasks="compress" />
+
+
+<!-- CHROME -->
+<script src="/common/system.js" data-chrome-tasks="minify+beautify"></script>
+```
+
+```javascript
+// gulpfile.js
+
+const gulp = require('gulp');
+const uglify = require('gulp-uglify');
+ 
+gulp.task('minify', () => {
+  return gulp.src('*')
+    .pipe(uglify())
+    .pipe(gulp.dest('./'));
+});
+
+// NOTE: SRC (temp) and DEST (original) always read and write to the current directory
+```
+
+Renaming files with Gulp is not recommended. It is better to use the "saveAs" or "filename" attributes when the asset is part of the HTML page.
+
 ### CHROME: Saving web page assets
 
 Bundling options are available with these HTML tag names.
@@ -88,6 +151,45 @@ Bundling options are available with these HTML tag names.
 * saveAs: html + script + link
 * exportAs: script + style
 * exclude: script + link + style
+
+Files with the same path and filename will automatically create a bundle assuming there are no conflicts in call ordering.
+
+```javascript
+- selector: head > script:nth-of-type(2), head > script:nth-of-type(3)
+  type: js
+  saveAs: js/modules2.js
+```
+
+JS and CSS files can be bundled together with the "saveAs" or "exportAs" action. Multiple transformations per asset can be chained using the "+" symbol. The "preserve" command will prevent unused styles from being deleted.
+
+```xml
+<link data-chrome-file="saveAs:css/prod.css::beautify::preserve|inline" rel="stylesheet" href="css/dev.css" />
+<style data-chrome-file="exportAs:css/prod.css::minify+beautify">
+    body {
+        font: 1em/1.4 Helvetica, Arial, sans-serif;
+        background-color: #fafafa;
+    }
+</style>
+<script data-chrome-file="saveAs:js/bundle1.js::minify" src="/dist/squared.js"></script>
+<script data-chrome-file="saveAs:js/bundle1.js::minify" src="/dist/squared.base.js"></script>
+<script data-chrome-file="saveAs:js/bundle2.js" src="/dist/chrome.framework.js"></script>
+```
+
+### Raw assets: saveTo command
+
+You can use images commands with saveTo on any element when the image is the primary display output. Encoding with base64 is also available using the "::base64" commmand as the third argument.
+
+```xml
+<!-- NOTE: img | video | audio | source | track | object | embed | iframe -->
+
+saveTo: directory (~same) :: transformations? (~image) :: compress?|base64? (image)
+
+<img
+    src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg"
+    data-chrome-file="saveTo:../images/harbour::png@(10000,75000)(800x600[bezier]^contain[right|bottom])::base64|compress" /> <!-- "saveTo:~::~::base64" -->
+```
+
+### Built-In plugins
 
 JS and CSS files can be optimized further using these settings (node-express):
 
@@ -185,128 +287,41 @@ Here is the equivalent YAML settings and when available has higher precedence th
 
 - [squared.settings.yml](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.yml)
 
-### Gulp
+### Modifying content attributes
 
-Tasks can similarly be performed with Gulp when using YAML/JSON configuration to take advantage of their pre-built plugin repository. Gulp is the final stage preceding archiving or copying after file content has been finalized.
+There are possible scenarios when a transformation may cause an asset type to change into another format.
 
-* [npm install -g gulp-cli && npm install gulp](https://gulpjs.com/docs/en/getting-started/quick-start)
+```xml
+<!-- Before -->
 
-```javascript
-// squared.settings.json
-
-"gulp": {
-  "minify": "./gulpfile.js"
-}
+<link id="sass-example" rel="alternate" type="text/plain" href="css/dev.sass" />
 ```
 
 ```javascript
-- selector: head > script:nth-of-type(1)
-  type: js
-  tasks:
-    - minify
-    - beautify
+- selector: #sass-example
+  type: css
+  filename: prod.css
+  attributes:
+    - name: id
+    - name: rel
+      value: stylesheet
+    - name: type
+      value: text/css
+    - name: title
+      value: ""
+    - name: disabled
+      value: null
+  process:
+    - node-sass
 ```
 
 ```xml
-<script data-chrome-tasks="minify+beautify" src="/common/system.js"></script>
+<!-- After -->
+
+<link rel="stylesheet" type="text/css" title="" disabled href="css/prod.css" />
 ```
 
-```javascript
-// gulpfile.js
-
-const gulp = require('gulp');
-const uglify = require('gulp-uglify');
- 
-gulp.task('minify', () => {
-  return gulp.src('*')
-    .pipe(uglify())
-    .pipe(gulp.dest('./'));
-});
-
-// NOTE: SRC (temp) and DEST (original) always read and write to the current directory
-```
-
-Renaming files with Gulp is not recommended. It is better to use the "saveAs" or "filename" attributes when the asset is part of the HTML page.
-
-### Bundling
-
-JS and CSS files can be bundled together with the "saveAs" or "exportAs" action. Multiple transformations per asset can be chained using the "+" symbol. The "preserve" command will prevent unused styles from being deleted.
-
-```xml
-<link data-chrome-file="saveAs:css/prod.css::beautify::preserve|inline" rel="stylesheet" href="css/dev.css" />
-<style data-chrome-file="exportAs:css/prod.css::minify+beautify">
-    body {
-        font: 1em/1.4 Helvetica, Arial, sans-serif;
-        background-color: #fafafa;
-    }
-</style>
-<script data-chrome-file="saveAs:js/bundle1.js::minify" src="/dist/squared.js"></script>
-<script data-chrome-file="saveAs:js/bundle1.js::minify" src="/dist/squared.base.js"></script>
-<script data-chrome-file="saveAs:js/bundle2.js" src="/dist/chrome.framework.js"></script>
-```
-
-The entire page can similarly be transformed as a group using the "saveAs" attribute in options. Extension plugins will still be applied to any qualified assets.
-
-```javascript
-const options = {
-    saveAs: { // All attributes are optional
-        html: { filename: 'index.html', format: 'beautify' },
-        script: { pathname: '../js', filename: 'bundle.js', format: 'es5+es5-minify' },
-        link: { pathname: 'css', filename: 'bundle.css', preserve: true, inline: true },
-        image: { format: 'base64' },
-        base64: { format: 'png' }
-    }
-};
-```
-
-There are a few ways to save the entire page or portions using the system methods.
-
-```javascript
-squared.saveAs('index.zip', { // default is false
-    removeUnusedStyles: true, // Use only when you are not switching classnames with JavaScript
-    productionRelease: true, // Ignore local url rewriting and load assets using absolute paths
-    preserveCrossOrigin: true // Ignore downloading a local copy of assets hosted on other domains
-}); 
-```
-
-The file action commands (save | saveAs | copyTo | appendTo) should only be used one at a time in the Chrome framework. Calling multiple consecutively may conflict if you do not use async/await.
-
-### Command: saveTo
-
-You can use images commands with saveTo on any element when the image is the primary display output. Encoding with base64 is also available using the "::base64" commmand as the third argument.
-
-```xml
-<!-- NOTE: img | video | audio | source | track | object | embed | iframe -->
-
-saveTo: directory (~same) :: transformations? (~image) :: compress?|base64? (image)
-
-<img
-    id="image1"
-    src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg"
-    data-chrome-file="saveTo:../images/harbour::png@(10000,75000)(800x600[bezier]^contain[right|bottom])::base64|compress" /> <!-- "saveTo:~::~::base64" -->
-```
-
-### Asset exclusion
-
-You can exclude unnecessary processing files using the dataset attribute in &lt;script|link|style&gt; tags.
-
-```xml
-<script data-chrome-file="exclude" src="/dist/squared.js"></script>
-<script data-chrome-file="exclude" src="/dist/squared.base.js"></script>
-<script data-chrome-file="exclude" src="/dist/chrome.framework.js"></script>
-<script data-chrome-file="exclude">
-    squared.setFramework(chrome);
-    squared.save();
-</script>
-```
-
-You can similarly prevent an asset from being downloaded or transformed using the "ignore" command.
-
-```xml
-<iframe src="https://www.google.com/maps" data-chrome-file="ignore" />
-```
-
-### YAML/JSON configuration
+### External configuration
 
 YAML (yml/yaml) configuration is optional and is provided for those who prefer to separate the bundling and transformations from the HTML. Any assets inside the configuration file will override any settings either inline or from JavaScript. You can also use the equivalent in JSON (json/js) for configuring as well.
 
@@ -331,6 +346,7 @@ interface AssetCommand extends FileModifiers {
     process?: string[]; // type: js | css
     commands?: string[]; // type: image
     tasks?: string[];
+    attributes?: { name: string, value?: string }[],
     template?: {
         module?: string;
         identifier?: string;
@@ -350,6 +366,47 @@ squared.saveAs('bundle.zip', { configUri: 'http://localhost:3000/chrome/bundle.y
 Here is the equivalent page with "data-chrome-file" using only inline commands.
 
 - [bundle_inline.html](https://github.com/anpham6/squared/blob/master/html/chrome/bundle_inline.html)
+
+### Options: Production / saveAs
+
+The entire page can similarly be transformed as a group using the "saveAs" attribute in options.
+
+```javascript
+squared.saveAs('index.zip', {
+    removeUnusedStyles: false, // Use only when you are not switching classnames with JavaScript
+    productionRelease: false, // Ignore local url rewriting and load assets using absolute paths
+    preserveCrossOrigin: false, // Ignore downloading a local copy of assets hosted on other domains
+
+    // All attributes are optional
+    saveAs: {
+        html: { filename: 'index.html', format: 'beautify', attributes: [{ name: 'lang', value: 'en' }] },
+        script: { pathname: '../js', filename: 'bundle.js', format: 'es5+es5-minify' },
+        link: { pathname: 'css', filename: 'bundle.css', preserve: true, inline: true },
+        image: { base64: true },
+        base64: { format: 'png' }
+    }
+}); 
+```
+
+### Asset exclusion
+
+You can exclude unnecessary processing files using the dataset attribute in &lt;script|link|style&gt; tags.
+
+```xml
+<script data-chrome-file="exclude" src="/dist/squared.js"></script>
+<script data-chrome-file="exclude" src="/dist/squared.base.js"></script>
+<script data-chrome-file="exclude" src="/dist/chrome.framework.js"></script>
+<script data-chrome-file="exclude">
+    squared.setFramework(chrome);
+    squared.save();
+</script>
+```
+
+You can similarly prevent an asset from being downloaded or transformed using the "ignore" command.
+
+```xml
+<iframe src="https://www.google.com/maps" data-chrome-file="ignore" />
+```
 
 ### LICENSE
 

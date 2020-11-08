@@ -1,11 +1,11 @@
 {
   "compilerOptions": {
-    "target": "es2017",
+    "target": "es2018",
     "module": "CommonJS",
     "moduleResolution": "node",
     "outDir": "./build",
     "inlineSourceMap": false,
-    "lib": ["es2017"],
+    "lib": ["es2018"],
     "noUnusedLocals": true,
     "preserveConstEnums": false,
     "alwaysStrict": true,

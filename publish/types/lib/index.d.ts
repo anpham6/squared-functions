@@ -53,6 +53,7 @@ declare namespace functions {
             moveTo?: string;
             format?: string;
             tasks?: string[];
+            attributes?: AttributeValue[];
             preserve?: boolean;
             inlineContent?: string;
             exclude?: boolean;
@@ -60,6 +61,11 @@ declare namespace functions {
             bundleIndex?: number;
             trailingContent?: FormattableContent[];
             textContent?: string;
+        }
+
+        interface AttributeValue {
+            name: string;
+            value?: Null<string>;
         }
 
         interface FormattableContent {

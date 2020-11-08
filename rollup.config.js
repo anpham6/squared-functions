@@ -1,14 +1,3 @@
-import prettier from 'rollup-plugin-prettier';
-
-const prettier_options = {
-    parser: 'babel',
-    printWidth: 120,
-    tabWidth: 4,
-    singleQuote: true,
-    quoteProps: 'preserve',
-    arrowParens: 'avoid'
-};
-
 export default [
     {
         input: './build/chrome/index.js',
@@ -19,9 +8,7 @@ export default [
             strict: false,
             banner: `/* @squared-functions/chrome ${require('./publish/chrome/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
         },
-        plugins: [
-            prettier(prettier_options)
-        ]
+        plugins: []
     },
     {
         input: './build/compress/index.js',
@@ -32,9 +19,7 @@ export default [
             strict: false,
             banner: `/* @squared-functions/compress ${require('./publish/compress/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
         },
-        plugins: [
-            prettier(prettier_options)
-        ]
+        plugins: []
     },
     {
         input: './build/file-manager/index.js',
@@ -45,9 +30,7 @@ export default [
             strict: false,
             banner: `/* @squared-functions/file-manager ${require('./publish/file-manager/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
         },
-        plugins: [
-            prettier(prettier_options)
-        ]
+        plugins: []
     },
     {
         input: './build/image/index.js',
@@ -58,9 +41,7 @@ export default [
             strict: false,
             banner: `/* @squared-functions/image ${require('./publish/image/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
         },
-        plugins: [
-            prettier(prettier_options)
-        ]
+        plugins: []
     },
     {
         input: './build/module/index.js',
@@ -71,9 +52,7 @@ export default [
             strict: false,
             banner: `/* @squared-functions/module ${require('./publish/module/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
         },
-        plugins: [
-            prettier(prettier_options)
-        ]
+        plugins: []
     },
     {
         input: './build/node/index.js',
@@ -84,8 +63,6 @@ export default [
             strict: false,
             banner: `/* @squared-functions/node ${require('./publish/node/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
         },
-        plugins: [
-            prettier(prettier_options)
-        ]
+        plugins: []
     }
 ];
