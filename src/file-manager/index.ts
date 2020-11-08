@@ -415,48 +415,44 @@ const FileManager = class extends Module implements IFileManager {
             return output;
         }
     }
-    async appendContent(file: ExpressAsset, content: string, outputOnly?: boolean) {
-        const filepath = file.filepath || this.getFileOutput(file).filepath;
-        const bundleIndex = file.bundleIndex;
-        if (filepath && bundleIndex !== undefined && bundleIndex !== -1) {
-            const { mimeType, format } = file;
-            if (mimeType) {
-                const dataMap = this.dataMap;
-                if (mimeType.endsWith('text/css')) {
-                    if (!file.preserve && dataMap) {
-                        const unusedStyles = dataMap.unusedStyles;
-                        if (unusedStyles) {
-                            const result = Chrome.removeCss(content, unusedStyles);
-                            if (result) {
-                                content = result;
-                            }
-                        }
-                    }
-                    if (mimeType[0] === '@') {
-                        const result = this.transformCss(file, content);
+    async appendContent(file: ExpressAsset, filepath: string, content: string, bundleIndex: number) {
+        const { mimeType, format } = file;
+        if (mimeType) {
+            const dataMap = this.dataMap;
+            if (mimeType.endsWith('text/css')) {
+                if (!file.preserve && dataMap) {
+                    const unusedStyles = dataMap.unusedStyles;
+                    if (unusedStyles) {
+                        const result = Chrome.removeCss(content, unusedStyles);
                         if (result) {
                             content = result;
                         }
                     }
                 }
-                if (format) {
-                    const result = await Chrome.formatContent(mimeType, format, content, dataMap && dataMap.transpileMap);
+                if (mimeType[0] === '@') {
+                    const result = this.transformCss(file, content);
                     if (result) {
                         content = result;
                     }
                 }
             }
-            const trailing = await this.getTrailingContent(file);
-            if (trailing) {
-                content += trailing;
+            if (format) {
+                const result = await Chrome.formatContent(mimeType, format, content, dataMap && dataMap.transpileMap);
+                if (result) {
+                    content = result;
+                }
             }
-            if (outputOnly || bundleIndex === 0) {
-                return Promise.resolve(content);
-            }
-            const items = this.contentToAppend.get(filepath) || [];
-            items.splice(bundleIndex - 1, 0, content);
-            this.contentToAppend.set(filepath, items);
         }
+        const trailing = await this.getTrailingContent(file);
+        if (trailing) {
+            content += trailing;
+        }
+        if (bundleIndex === 0) {
+            return Promise.resolve(content);
+        }
+        const items = this.contentToAppend.get(filepath) || [];
+        items[bundleIndex - 1] = content;
+        this.contentToAppend.set(filepath, items);
         return Promise.resolve('');
     }
     async getTrailingContent(file: ExpressAsset) {
@@ -589,7 +585,7 @@ const FileManager = class extends Module implements IFileManager {
                             }
                         }
                         else {
-                            if (!item.exclude && (bundleIndex === 0 || bundleIndex === -1 || bundleIndex === Infinity)) {
+                            if (!item.exclude && (bundleIndex === 0 || bundleIndex === -1)) {
                                 replaceWith = getOuterHTML(item.mimeType === 'text/javascript', this.getFullUri(item));
                                 replaceTry();
                             }
@@ -1135,20 +1131,28 @@ const FileManager = class extends Module implements IFileManager {
         };
         const processQueue = async (file: ExpressAsset, filepath: string, bundleMain?: ExpressAsset) => {
             const bundleIndex = file.bundleIndex;
-            if (bundleIndex !== undefined && bundleIndex !== -1) {
+            if (bundleIndex !== undefined) {
                 if (bundleIndex === 0) {
-                    if (this.getFileSize(filepath) && !file.invalid) {
-                        const content = await this.appendContent(file, this.getUTF8String(file, filepath), true);
+                    let content = this.getUTF8String(file, filepath);
+                    if (content) {
+                        content = await this.appendContent(file, filepath, content, 0);
                         if (content) {
                             file.sourceUTF8 = content;
                         }
+                        file.invalid = false;
+                        bundleMain = file;
                     }
                     else {
-                        file.invalid = true;
-                        const content = await this.getTrailingContent(file);
+                        content = await this.getTrailingContent(file);
                         if (content) {
                             file.sourceUTF8 = content;
                             file.invalid = false;
+                            bundleMain = file;
+                        }
+                        else {
+                            delete file.sourceUTF8;
+                            file.bundleIndex = -1;
+                            file.invalid = true;
                         }
                     }
                 }
@@ -1159,17 +1163,12 @@ const FileManager = class extends Module implements IFileManager {
                         if (queue) {
                             const uri = queue.uri;
                             const verifyBundle = async (value: string) => {
-                                if (bundleMain && !bundleMain.invalid) {
-                                    return this.appendContent(queue, value);
+                                if (bundleMain) {
+                                    return this.appendContent(queue, filepath, value, queue.bundleIndex!);
                                 }
-                                const content = await this.appendContent(queue, value, true);
-                                if (content) {
-                                    queue.sourceUTF8 = content;
-                                    queue.bundleIndex = 0;
-                                    if (bundleMain) {
-                                        delete bundleMain.sourceUTF8;
-                                        delete bundleMain.bundleIndex;
-                                    }
+                                if (value) {
+                                    queue.sourceUTF8 = await this.appendContent(queue, filepath, value, 0) || value;
+                                    queue.invalid = false;
                                     bundleMain = queue;
                                 }
                                 else {
@@ -1177,7 +1176,7 @@ const FileManager = class extends Module implements IFileManager {
                                 }
                                 return Promise.resolve();
                             };
-                            const resumeQueue = () => processQueue(queue, filepath, bundleMain && !bundleMain.invalid ? bundleMain : undefined);
+                            const resumeQueue = () => processQueue(queue, filepath, bundleMain);
                             if (queue.content) {
                                 verifyBundle(queue.content).then(resumeQueue);
                             }
@@ -1381,7 +1380,7 @@ const FileManager = class extends Module implements IFileManager {
     }
     async finalizeAssets() {
         let tasks: Promise<unknown>[] = [];
-        for (const [filepath, content] of this.contentToAppend.entries()) {
+        for (const [filepath, content] of this.contentToAppend) {
             let output = '';
             for (const value of content) {
                 if (value) {

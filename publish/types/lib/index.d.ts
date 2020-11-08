@@ -197,7 +197,7 @@ declare namespace functions {
         getFullUri(file: ExpressAsset, filename?: string): string;
         getUTF8String(file: ExpressAsset, filepath?: string): string;
         transformCss(file: ExpressAsset, content: string): Undef<string>;
-        appendContent(file: ExpressAsset, content: string, outputOnly?: boolean): Promise<string>;
+        appendContent(file: ExpressAsset, filepath: string, content: string, bundleIndex: number): Promise<string>;
         getTrailingContent(file: ExpressAsset): Promise<string>;
         transformBuffer(file: ExpressAsset, filepath: string): Promise<void>;
         compressFile(file: ExpressAsset, filepath: string, cached?: boolean): void;
