@@ -25,11 +25,6 @@ declare namespace functions {
                 compress?: CompressFormat[];
             }
 
-            interface Exclusions extends Partial<LocationUri> {
-                extension?: string[];
-                pattern?: string[];
-            }
-
             interface CompressFormat {
                 format: string;
                 level?: number;
@@ -61,6 +56,7 @@ declare namespace functions {
             bundleIndex?: number;
             trailingContent?: FormattableContent[];
             textContent?: string;
+            dataMap?: DataMap;
         }
 
         interface AttributeValue {
@@ -197,7 +193,6 @@ declare namespace functions {
         replacePath(source: string, segment: string, value: string, base64?: boolean): Undef<string>;
         escapePathSeparator(value: string): string;
         replace(file: ExpressAsset, replaceWith: string): void;
-        validate(file: ExpressAsset, exclusions: squared.base.Exclusions): boolean;
         getFileOutput(file: ExpressAsset): internal.FileOutput;
         getRelativeUrl(file: ExpressAsset, url: string): Undef<string>;
         getFullUri(file: ExpressAsset, filename?: string): string;
@@ -295,8 +290,6 @@ declare namespace functions {
     }
 
     interface ExpressAsset extends squared.base.FileAsset, chrome.ChromeAsset {
-        dataMap?: chrome.DataMap;
-        exclusions?: squared.base.Exclusions;
         filepath?: string;
         invalid?: boolean;
         buffer?: Buffer;

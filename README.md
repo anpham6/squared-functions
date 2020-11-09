@@ -18,17 +18,18 @@ squared.saveAs('archive1', { // OR: archive1.gz
         }
     ],
 
-    // All attributes are optional
+    // All attributes are optional (case-sensitive except extension)
     exclusions: {
+        glob: ['**/*.zip'],
         pathname: ['app/build', 'app/libs'],
         filename: ['ic_launcher_foreground.xml'],
         extension: ['iml', 'pro'],
-        pattern: ['outputs', 'grad.+\\.', '\\.git']
+        pattern: ['output', /grad.+?\./i, '\\.git']
     }
 });
 ```
 
-Image conversion can be achieved using the mimeType property in a RequestAsset object. The supported formats are:
+Image conversion can be achieved using the mimeType property in a FileAsset object. The supported formats are:
 
 * png - r/w
 * jpeg - r/w
@@ -93,11 +94,19 @@ Tasks can be performed with Gulp to take advantage of their pre-built plugin rep
 // squared.settings.json
 
 "gulp": {
-  "compress": "./gulpfile.js",
   "minify": "./gulpfile.js"
+  "beautify": "./gulpfile.js",
+  "compress": "./gulpfile.js"
 }
 
-// ANDROID
+// chrome
+- selector: head > script:nth-of-type(1)
+  type: js
+  tasks:
+    - minify
+    - beautify
+
+// android
 const options = {
     assets: [
         {
@@ -109,22 +118,14 @@ const options = {
         }
     ]
 };
-
-// CHROME: YAML configuration
-- selector: head > script:nth-of-type(1)
-  type: js
-  tasks:
-    - minify
-    - beautify
 ```
 
 ```xml
-<!-- ANDROID -->
-<img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg" data-android-tasks="compress" />
-
-
-<!-- CHROME -->
+<!-- chrome -->
 <script src="/common/system.js" data-chrome-tasks="minify+beautify"></script>
+
+<!-- android -->
+<img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg" data-android-tasks="compress" />
 ```
 
 ```javascript
@@ -292,8 +293,7 @@ Here is the equivalent YAML settings and when available has higher precedence th
 There are possible scenarios when a transformation may cause an asset type to change into another format.
 
 ```xml
-<!-- Before -->
-
+<!-- before -->
 <link id="sass-example" rel="alternate" type="text/plain" href="css/dev.sass" />
 ```
 
@@ -316,8 +316,7 @@ There are possible scenarios when a transformation may cause an asset type to ch
 ```
 
 ```xml
-<!-- After -->
-
+<!-- after -->
 <link rel="stylesheet" type="text/css" title="" disabled href="css/prod.css" />
 ```
 

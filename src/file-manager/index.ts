@@ -22,7 +22,6 @@ type DataMap = functions.chrome.DataMap;
 type ExpressAsset = functions.ExpressAsset;
 type IFileManager = functions.IFileManager;
 type FileOutput = functions.internal.FileOutput;
-type Exclusions = functions.squared.base.Exclusions;
 
 interface GulpData {
     gulpfile: string;
@@ -270,45 +269,6 @@ const FileManager = class extends Module implements IFileManager {
                 this.add(replaceWith);
             }
         }
-    }
-    validate(file: ExpressAsset, exclusions: Exclusions) {
-        const pathname = file.pathname.replace(/[\\/]$/, '');
-        const filename = file.filename;
-        const winOS = path.sep === '/' ? '' : 'i';
-        if (exclusions.pathname) {
-            for (const value of exclusions.pathname) {
-                const directory = this.escapePathSeparator(value.trim()).replace(/[\\/]$/, '');
-                if (new RegExp(`^${directory}$`, winOS).test(pathname) || new RegExp(`^${directory}[\\\\/]`, winOS).test(pathname)) {
-                    return false;
-                }
-            }
-        }
-        if (exclusions.filename) {
-            for (const value of exclusions.filename) {
-                if (value === filename || winOS && value.toLowerCase() === filename.toLowerCase()) {
-                    return false;
-                }
-            }
-        }
-        if (exclusions.extension) {
-            const ext = path.extname(filename).substring(1).toLowerCase();
-            for (const value of exclusions.extension) {
-                if (ext === value.toLowerCase()) {
-                    return false;
-                }
-            }
-        }
-        if (exclusions.pattern) {
-            const filepath = path.join(pathname, filename);
-            const filepath_opposing = winOS ? Node.toPosixPath(filepath) : filepath.replace(/\//g, '\\');
-            for (const value of exclusions.pattern) {
-                const pattern = new RegExp(value);
-                if (pattern.test(filepath) || pattern.test(filepath_opposing)) {
-                    return false;
-                }
-            }
-        }
-        return true;
     }
     getFileOutput(file: ExpressAsset): FileOutput {
         const pathname = path.join(this.dirname, file.moveTo || '', file.pathname);
@@ -1120,7 +1080,6 @@ const FileManager = class extends Module implements IFileManager {
         const processing: ObjectMap<ExpressAsset[]> = {};
         const appending: ObjectMap<ExpressAsset[]> = {};
         const completed: string[] = [];
-        const exclusions = this.assets[0].exclusions;
         const checkQueue = (file: ExpressAsset, filepath: string, content?: boolean) => {
             const bundleIndex = file.bundleIndex;
             if (bundleIndex !== undefined && bundleIndex !== -1) {
@@ -1274,7 +1233,7 @@ const FileManager = class extends Module implements IFileManager {
             delete processing[filepath];
         };
         for (const file of this.assets) {
-            if (file.exclude || exclusions && !this.validate(file, exclusions)) {
+            if (file.exclude) {
                 file.invalid = true;
                 continue;
             }

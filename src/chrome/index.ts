@@ -14,7 +14,7 @@ type ExternalCategory = functions.ExternalCategory;
 type ConfigOrTranspiler = functions.internal.ConfigOrTranspiler;
 type PluginConfig = functions.internal.PluginConfig;
 
-function setPrettierOptions(options: PrettierOptions): PrettierOptions {
+function setPrettierParser(options: PrettierOptions): PrettierOptions {
     switch (options.parser) {
         case 'babel':
         case 'babel-flow':
@@ -51,7 +51,7 @@ function setPrettierOptions(options: PrettierOptions): PrettierOptions {
             options.plugins = [require('prettier/parser-yaml')];
             break;
         default:
-            options.plugins = [];
+            options.plugins ||= [];
             break;
     }
     return options;
@@ -163,7 +163,7 @@ const Chrome = new class extends Module implements functions.IChrome {
                             const options = typeof custom === 'object' ? { ...custom } : typeof config === 'object' ? config : {};
                             switch (name) {
                                 case 'prettier': {
-                                    const result: Undef<string> = require('prettier').format(value, setPrettierOptions(options));
+                                    const result: Undef<string> = require('prettier').format(value, setPrettierParser(options));
                                     if (result) {
                                         if (i === length - 1) {
                                             return Promise.resolve(result);
@@ -222,7 +222,7 @@ const Chrome = new class extends Module implements functions.IChrome {
                             const options = typeof custom === 'object' ? { ...custom } : typeof config === 'object' ? config : {};
                             switch (name) {
                                 case 'prettier': {
-                                    const result: Undef<string> = require('prettier').format(value, setPrettierOptions(options));
+                                    const result: Undef<string> = require('prettier').format(value, setPrettierParser(options));
                                     if (result) {
                                         if (i === length - 1) {
                                             return Promise.resolve(result);
@@ -292,7 +292,7 @@ const Chrome = new class extends Module implements functions.IChrome {
                                     break;
                                 }
                                 case 'prettier': {
-                                    const result: Undef<string> = require('prettier').format(value, setPrettierOptions(options));
+                                    const result: Undef<string> = require('prettier').format(value, setPrettierParser(options));
                                     if (result) {
                                         if (i === length - 1) {
                                             return Promise.resolve(result);
