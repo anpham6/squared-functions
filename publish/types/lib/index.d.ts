@@ -8,6 +8,7 @@ import type * as jimp from 'jimp';
 declare namespace functions {
     type BoolString = boolean | string;
     type ExternalCategory = "html" | "css" | "js";
+    type ImageOutputFormat = "png" | "jpeg" | "bmp";
 
     namespace squared {
         namespace base {
@@ -126,7 +127,7 @@ declare namespace functions {
         createWriteStreamAsGzip(source: string, filepath: string, level?: number): WriteStream;
         createWriteStreamAsBrotli(source: string, filepath: string, quality?: number, mimeType?: string): WriteStream;
         findFormat(compress: Undef<squared.base.CompressFormat[]>, format: string): Undef<squared.base.CompressFormat>;
-        findCompress(compress: Undef<squared.base.CompressFormat[]>): Undef<squared.base.CompressFormat>;
+        hasImageService(): boolean;
         removeFormat(compress: Undef<squared.base.CompressFormat[]>, format: string): void;
         parseSizeRange(value: string): [number, number];
         withinSizeRange(filepath: string, value: Undef<string>): boolean;
@@ -134,6 +135,8 @@ declare namespace functions {
 
     interface IImage extends IModule {
         jpegQuality: number;
+        usingJpegCompress(filepath: string, output: string, quality?: number, callback?: () => void): void;
+        usingJimp(file: ExpressAsset, filepath: string, compress: Undef<squared.base.CompressFormat>, command?: string): void;
         isJpeg(filename: string, mimeType?: string, filepath?: string): boolean;
         parseResize(value: string): Undef<internal.ResizeData>;
         parseCrop(value: string): Undef<internal.CropData>;
@@ -180,7 +183,7 @@ declare namespace functions {
         readonly dirname: string;
         readonly assets: ExpressAsset[];
         readonly postFinalize: FunctionType<void>;
-        readonly requestMain?: ExpressAsset;
+        readonly baseAsset?: ExpressAsset;
         install(name: string, ...args: any[]): void;
         add(value: string): void;
         delete(value: string): void;
@@ -197,6 +200,9 @@ declare namespace functions {
         getRelativeUrl(file: ExpressAsset, url: string): Undef<string>;
         getFullUri(file: ExpressAsset, filename?: string): string;
         getUTF8String(file: ExpressAsset, filepath?: string): string;
+        newImage(filepath: string, mimeType: string, ouputType: ImageOutputFormat, command: string, saveAs?: string): string;
+        compressImage(filepath: string, output: string): void;
+        replaceImage(file: ExpressAsset, filepath: string, output: string, command: string): void;
         transformCss(file: ExpressAsset, content: string): Undef<string>;
         appendContent(file: ExpressAsset, filepath: string, content: string, bundleIndex: number): Promise<string>;
         getTrailingContent(file: ExpressAsset): Promise<string>;

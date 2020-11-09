@@ -39,10 +39,8 @@ const Compress = new class extends Module implements functions.ICompress {
             }
         }
     }
-    findCompress(compress: Undef<CompressFormat[]>) {
-        if (this.tinifyApiKey) {
-            return this.findFormat(compress, 'png');
-        }
+    hasImageService() {
+        return this.tinifyApiKey !== '';
     }
     parseSizeRange(value: string): [number, number] {
         const match = /\(\s*(\d+)\s*,\s*(\d+|\*)\s*\)/.exec(value);

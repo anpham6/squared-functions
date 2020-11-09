@@ -5,7 +5,6 @@ import path = require('path');
 import fs = require('fs-extra');
 import request = require('request');
 import uuid = require('uuid');
-import jimp = require('jimp');
 import mime = require('mime-types');
 import escapeRegexp = require('escape-string-regexp');
 import tinify = require('tinify');
@@ -21,6 +20,7 @@ type TranspileMap = functions.TranspileMap;
 type DataMap = functions.chrome.DataMap;
 type ExpressAsset = functions.ExpressAsset;
 type IFileManager = functions.IFileManager;
+type ImageOutputFormat = functions.ImageOutputFormat;
 type FileOutput = functions.internal.FileOutput;
 
 interface GulpData {
@@ -137,7 +137,7 @@ const FileManager = class extends Module implements IFileManager {
     public readonly filesToCompare = new Map<ExpressAsset, string[]>();
     public readonly contentToAppend = new Map<string, string[]>();
     public readonly postFinalize: FunctionType<void>;
-    public readonly requestMain?: ExpressAsset;
+    public readonly baseAsset?: ExpressAsset;
     public readonly dataMap?: DataMap;
 
     constructor(
@@ -146,14 +146,14 @@ const FileManager = class extends Module implements IFileManager {
         postFinalize: FunctionType<void>)
     {
         super();
-        this.requestMain = assets.find(item => item.basePath);
+        this.baseAsset = assets.find(item => item.basePath);
         this.dataMap = assets[0].dataMap;
         this.postFinalize = postFinalize.bind(this);
         assets.sort((a, b) => {
-            if (a.commands && (!b.commands || a.textContent && !b.textContent) || b === this.requestMain) {
+            if (a.commands && (!b.commands || a.textContent && !b.textContent) || b === this.baseAsset) {
                 return -1;
             }
-            if (b.commands && (!a.commands || !a.textContent && b.textContent) || a === this.requestMain) {
+            if (b.commands && (!a.commands || !a.textContent && b.textContent) || a === this.baseAsset) {
                 return 1;
             }
             return 0;
@@ -286,9 +286,9 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
         if (asset && asset.uri) {
-            const { serverRoot, requestMain } = this;
-            if (requestMain) {
-                origin = Node.resolvePath(path.join(file.moveTo !== serverRoot && file.rootDir || '', file.pathname, file.filename), requestMain.uri!);
+            const { serverRoot, baseAsset } = this;
+            if (baseAsset) {
+                origin = Node.resolvePath(path.join(file.moveTo !== serverRoot && file.rootDir || '', file.pathname, file.filename), baseAsset.uri!);
             }
             if (origin && Node.fromSameOrigin(origin, asset.uri)) {
                 const rootDir = asset.rootDir;
@@ -297,8 +297,8 @@ const FileManager = class extends Module implements IFileManager {
                     if (file.moveTo === serverRoot) {
                         return Node.toPosixPath(path.join(asset.pathname, asset.filename));
                     }
-                    else if (requestMain) {
-                        const mainUri = requestMain.uri!;
+                    else if (baseAsset) {
+                        const mainUri = baseAsset.uri!;
                         if (Node.fromSameOrigin(origin, mainUri)) {
                             const [originDir] = this.getRootDirectory(baseDir + '/' + file.filename, Node.parsePath(mainUri)!);
                             return '../'.repeat(originDir.length - 1) + this.getFullUri(asset);
@@ -328,7 +328,7 @@ const FileManager = class extends Module implements IFileManager {
     }
     transformCss(file: ExpressAsset, content: string) {
         const baseUrl = file.uri!;
-        if (this.requestMain && Node.fromSameOrigin(this.requestMain.uri!, baseUrl)) {
+        if (this.baseAsset && Node.fromSameOrigin(this.baseAsset.uri!, baseUrl)) {
             const assets = this.assets;
             for (const item of assets) {
                 if (item.base64 && item.uri && !item.invalid) {
@@ -352,7 +352,7 @@ const FileManager = class extends Module implements IFileManager {
                         output = (output || content).replace(match[0], `url(${location})`);
                     }
                     else {
-                        location = Node.resolvePath(url, this.requestMain.uri!);
+                        location = Node.resolvePath(url, this.baseAsset.uri!);
                         if (location) {
                             const asset = assets.find(item => item.uri === location && !item.invalid);
                             if (asset) {
@@ -740,223 +740,17 @@ const FileManager = class extends Module implements IFileManager {
             }
             default:
                 if (mimeType.startsWith('image/')) {
-                    const afterConvert = (transformed: string, condition: string) => {
-                        if (filepath !== transformed) {
-                            if (condition.includes('@')) {
-                                this.replace(file, transformed);
-                            }
-                            else if (condition.includes('%')) {
-                                if (this.filesToCompare.has(file)) {
-                                    this.filesToCompare.get(file)!.push(transformed);
-                                }
-                                else {
-                                    this.filesToCompare.set(file, [transformed]);
-                                }
-                            }
-                        }
-                    };
-                    const compressImage = (location: string) => {
-                        try {
-                            tinify.fromBuffer(fs.readFileSync(location)).toBuffer((err, resultData) => {
-                                if (!err && resultData) {
-                                    fs.writeFileSync(location, resultData);
-                                }
-                                this.completeAsyncTask(filepath !== location ? location : '');
-                            });
-                        }
-                        catch (err) {
-                            this.completeAsyncTask(filepath !== location ? location : '');
-                            this.writeFail(location, err);
-                            tinify.validate();
-                        }
-                    };
+                    let compress = Compress.hasImageService() ? Compress.findFormat(file.compress, 'png') : undefined;
+                    if (compress && !Compress.withinSizeRange(filepath, compress.condition)) {
+                        compress = undefined;
+                    }
                     if (mimeType === 'image/unknown') {
-                        this.performAsyncTask();
-                        jimp.read(filepath)
-                            .then(img => {
-                                const unknownType = img.getMIME();
-                                switch (unknownType) {
-                                    case jimp.MIME_PNG:
-                                    case jimp.MIME_JPEG:
-                                    case jimp.MIME_BMP:
-                                    case jimp.MIME_GIF:
-                                    case jimp.MIME_TIFF:
-                                        try {
-                                            const renameTo = this.replaceExtension(filepath, unknownType.split('/')[1]);
-                                            fs.renameSync(filepath, renameTo);
-                                            afterConvert(renameTo, '@');
-                                            if ((unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG) && Compress.findCompress(file.compress)) {
-                                                compressImage(renameTo);
-                                            }
-                                            else {
-                                                this.completeAsyncTask(renameTo);
-                                            }
-                                        }
-                                        catch (err) {
-                                            this.completeAsyncTask();
-                                            this.writeFail(filepath, err);
-                                        }
-                                        break;
-                                    default: {
-                                        const png = this.replaceExtension(filepath, 'png');
-                                        img.write(png, err => {
-                                            if (err) {
-                                                this.completeAsyncTask();
-                                                this.writeFail(png, err);
-                                            }
-                                            else {
-                                                afterConvert(png, '@');
-                                                if (Compress.findCompress(file.compress)) {
-                                                    compressImage(png);
-                                                }
-                                                else {
-                                                    this.completeAsyncTask(png);
-                                                }
-                                            }
-                                        });
-                                    }
-                                }
-                            })
-                            .catch(err => {
-                                this.completeAsyncTask();
-                                this.writeFail(filepath, err);
-                            });
+                        Image.usingJimp.call(this, file, filepath, compress);
                     }
                     else if (file.commands) {
-                        for (const value of file.commands) {
-                            if (!Compress.withinSizeRange(filepath, value)) {
-                                continue;
-                            }
-                            const resizeData = Image.parseResize(value);
-                            const cropData = Image.parseCrop(value);
-                            const opacityData = Image.parseOpacity(value);
-                            const rotationData = Image.parseRotation(value);
-                            let output = filepath;
-                            const setImagePath = (extension: string, saveAs?: string) => {
-                                if (mimeType.endsWith('/' + extension)) {
-                                    if (!value.includes('@')) {
-                                        let i = 1;
-                                        do {
-                                            output = this.replaceExtension(filepath, '__copy__.' + (i > 1 ? `(${i}).` : '') + (saveAs || extension));
-                                        }
-                                        while (this.filesQueued.has(output) && ++i);
-                                        fs.copyFileSync(filepath, output);
-                                    }
-                                }
-                                else {
-                                    let i = 1;
-                                    do {
-                                        output = this.replaceExtension(filepath, (i > 1 ? `(${i}).` : '') + (saveAs || extension));
-                                    }
-                                    while (this.filesQueued.has(output) && ++i);
-                                }
-                                this.filesQueued.add(output);
-                            };
-                            if (value.startsWith('png')) {
-                                this.performAsyncTask();
-                                jimp.read(filepath)
-                                    .then(img => {
-                                        setImagePath('png');
-                                        if (resizeData) {
-                                            img = Image.resize(img, resizeData);
-                                        }
-                                        if (cropData) {
-                                            img = Image.crop(img, cropData);
-                                        }
-                                        if (opacityData !== 1) {
-                                            img = Image.opacity(img, opacityData);
-                                        }
-                                        if (rotationData) {
-                                            img = Image.rotate(img, rotationData, output, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
-                                        }
-                                        img.write(output, err => {
-                                            if (err) {
-                                                this.completeAsyncTask();
-                                                this.writeFail(output, err);
-                                            }
-                                            else {
-                                                afterConvert(output, value);
-                                                if (Compress.findCompress(file.compress)) {
-                                                    compressImage(output);
-                                                }
-                                                else {
-                                                    this.completeAsyncTask(filepath !== output ? output : '');
-                                                }
-                                            }
-                                        });
-                                    })
-                                    .catch(err => {
-                                        this.completeAsyncTask();
-                                        this.writeFail(filepath, err);
-                                    });
-                            }
-                            else if (value.startsWith('jpeg')) {
-                                this.performAsyncTask();
-                                jimp.read(filepath)
-                                    .then(img => {
-                                        setImagePath('jpeg', 'jpg');
-                                        if (resizeData) {
-                                            img = Image.resize(img, resizeData);
-                                        }
-                                        if (cropData) {
-                                            img = Image.crop(img, cropData);
-                                        }
-                                        if (rotationData) {
-                                            img = Image.rotate(img, rotationData, output, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
-                                        }
-                                        img.write(output, err => {
-                                            if (err) {
-                                                this.completeAsyncTask();
-                                                this.writeFail(output, err);
-                                            }
-                                            else {
-                                                afterConvert(output, value);
-                                                if (Compress.findCompress(file.compress)) {
-                                                    compressImage(output);
-                                                }
-                                                else {
-                                                    this.completeAsyncTask(filepath !== output ? output : '');
-                                                }
-                                            }
-                                        });
-                                    })
-                                    .catch(err => {
-                                        this.completeAsyncTask();
-                                        this.writeFail(filepath, err);
-                                    });
-                            }
-                            else if (value.startsWith('bmp')) {
-                                this.performAsyncTask();
-                                jimp.read(filepath)
-                                    .then(img => {
-                                        setImagePath('bmp');
-                                        if (resizeData) {
-                                            img = Image.resize(img, resizeData);
-                                        }
-                                        if (cropData) {
-                                            img = Image.crop(img, cropData);
-                                        }
-                                        if (opacityData !== 1) {
-                                            img = Image.opacity(img, opacityData);
-                                        }
-                                        if (rotationData) {
-                                            img = Image.rotate(img, rotationData, output, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
-                                        }
-                                        img.write(output, err => {
-                                            if (err) {
-                                                this.completeAsyncTask();
-                                                this.writeFail(output, err);
-                                            }
-                                            else {
-                                                afterConvert(output, value);
-                                                this.completeAsyncTask(filepath !== output ? output : '');
-                                            }
-                                        });
-                                    })
-                                    .catch(err => {
-                                        this.completeAsyncTask();
-                                        this.writeFail(filepath, err);
-                                    });
+                        for (const command of file.commands) {
+                            if (Compress.withinSizeRange(filepath, command)) {
+                                Image.usingJimp.call(this, file, filepath, compress, command);
                             }
                         }
                     }
@@ -1016,43 +810,69 @@ const FileManager = class extends Module implements IFileManager {
             });
         };
         if (jpeg && Compress.withinSizeRange(filepath, jpeg.condition)) {
-            this.performAsyncTask();
-            const jpg = filepath + (jpeg.condition?.includes('%') ? '.jpg' : '');
-            jimp.read(filepath)
-                .then(img => {
-                    img.quality(jpeg.level ?? Image.jpegQuality).write(jpg, err => {
-                        if (err) {
-                            this.writeFail(filepath, err);
-                        }
-                        else if (jpg !== filepath) {
-                            try {
-                                if (this.getFileSize(jpg) >= this.getFileSize(filepath)) {
-                                    fs.unlinkSync(jpg);
-                                }
-                                else {
-                                    fs.renameSync(jpg, filepath);
-                                }
-                            }
-                            catch {
-                            }
-                        }
-                        this.completeAsyncTask();
-                        resumeThread();
-                    });
-                })
-                .catch(err => {
-                    this.writeFail(filepath, err);
-                    this.completeAsyncTask();
-                    resumeThread();
-                });
+            Image.usingJpegCompress.call(this, filepath, filepath + (jpeg.condition?.includes('%') ? '.jpg' : ''), jpeg.level, resumeThread.bind(this));
         }
         else {
             resumeThread();
         }
     }
+    newImage(filepath: string, mimeType: string, outputType: ImageOutputFormat, command: string, saveAs?: string) {
+        let output = '';
+        if (mimeType.endsWith('/' + outputType)) {
+            if (!command.includes('@')) {
+                let i = 1;
+                do {
+                    output = this.replaceExtension(filepath, '__copy__.' + (i > 1 ? `(${i}).` : '') + (saveAs || outputType));
+                }
+                while (this.filesQueued.has(output) && ++i);
+                fs.copyFileSync(filepath, output);
+            }
+        }
+        else {
+            let i = 1;
+            do {
+                output = this.replaceExtension(filepath, (i > 1 ? `(${i}).` : '') + (saveAs || outputType));
+            }
+            while (this.filesQueued.has(output) && ++i);
+        }
+        if (output) {
+            this.filesQueued.add(output);
+        }
+        return output || filepath;
+    }
+    compressImage(filepath: string, output: string) {
+        try {
+            tinify.fromBuffer(fs.readFileSync(output)).toBuffer((err, resultData) => {
+                if (!err && resultData) {
+                    fs.writeFileSync(output, resultData);
+                }
+                this.completeAsyncTask(filepath !== output ? output : '');
+            });
+        }
+        catch (err) {
+            this.completeAsyncTask(filepath !== output ? output : '');
+            this.writeFail(output, err);
+            tinify.validate();
+        }
+    }
+    replaceImage(file: ExpressAsset, filepath: string, output: string, command: string) {
+        if (filepath !== output) {
+            if (command.includes('@')) {
+                this.replace(file, output);
+            }
+            else if (command.includes('%')) {
+                if (this.filesToCompare.has(file)) {
+                    this.filesToCompare.get(file)!.push(output);
+                }
+                else {
+                    this.filesToCompare.set(file, [output]);
+                }
+            }
+        }
+    }
     writeBuffer(file: ExpressAsset, filepath: string, cached?: boolean) {
-        const png = Compress.findCompress(file.compress);
-        if (png && Compress.withinSizeRange(filepath, png.condition)) {
+        const png = Compress.findFormat(file.compress, 'png');
+        if (Compress.hasImageService() && png && Compress.withinSizeRange(filepath, png.condition)) {
             try {
                 tinify.fromBuffer(fs.readFileSync(filepath)).toBuffer((err, resultData) => {
                     if (!err && resultData) {

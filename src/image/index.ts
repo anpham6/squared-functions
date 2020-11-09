@@ -1,11 +1,15 @@
 import path = require('path');
+import fs = require('fs');
 import jimp = require('jimp');
 
 import Module from '../module';
 
+type IFileManager = functions.IFileManager;
+type ExpressAsset = functions.ExpressAsset;
 type ResizeData = functions.internal.ResizeData;
 type CropData = functions.internal.CropData;
 type RotateData = functions.internal.RotateData;
+type CompressFormat = functions.squared.base.CompressFormat;
 
 const REGEXP_RESIZE = /\(\s*(\d+|auto)\s*x\s*(\d+|auto)(?:\s*\[\s*(bilinear|bicubic|hermite|bezier)\s*\])?(?:\s*^\s*(contain|cover|scale)(?:\s*\[\s*(left|center|right)?(?:\s*\|?\s*(top|middle|bottom))?\s*\])?)?(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\)/;
 const REGEXP_CROP = /\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*\|\s*(\d+)\s*x\s*(\d+)\s*\)/;
@@ -17,8 +21,211 @@ const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(
 const Image = new class extends Module implements functions.IImage {
     public jpegQuality = 100;
 
+    usingJpegCompress(this: IFileManager, filepath: string, output: string, quality?: number, callback?: () => void) {
+        if (callback) {
+            this.performAsyncTask();
+        }
+        jimp.read(filepath)
+            .then(img => {
+                img.quality(quality ?? Image.jpegQuality).write(output, err => {
+                    if (err) {
+                        this.writeFail(filepath, err);
+                    }
+                    else if (output !== filepath) {
+                        try {
+                            if (this.getFileSize(output) >= this.getFileSize(filepath)) {
+                                fs.unlinkSync(output);
+                            }
+                            else {
+                                fs.renameSync(output, filepath);
+                            }
+                        }
+                        catch {
+                        }
+                    }
+                    if (callback) {
+                        this.completeAsyncTask();
+                        callback();
+                    }
+                });
+            })
+            .catch(err => {
+                this.writeFail(filepath, err);
+                if (callback) {
+                    this.completeAsyncTask();
+                    callback();
+                }
+            });
+    }
+    usingJimp(this: IFileManager, file: ExpressAsset, filepath: string, compress: Undef<CompressFormat>, command = '') {
+        const mimeType = file.mimeType!;
+        if (!command || mimeType === 'image/unknown') {
+            this.performAsyncTask();
+            jimp.read(filepath)
+                .then(img => {
+                    const unknownType = img.getMIME();
+                    switch (unknownType) {
+                        case jimp.MIME_PNG:
+                        case jimp.MIME_JPEG:
+                        case jimp.MIME_BMP:
+                        case jimp.MIME_GIF:
+                        case jimp.MIME_TIFF:
+                            try {
+                                const renameTo = this.replaceExtension(filepath, unknownType.split('/')[1]);
+                                fs.renameSync(filepath, renameTo);
+                                this.replaceImage(file, filepath, renameTo, '@');
+                                if ((unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG) && compress) {
+                                    this.compressImage(filepath, renameTo);
+                                }
+                                else {
+                                    this.completeAsyncTask(renameTo);
+                                }
+                            }
+                            catch (err) {
+                                this.completeAsyncTask();
+                                this.writeFail(filepath, err);
+                            }
+                            break;
+                        default: {
+                            const png = this.replaceExtension(filepath, 'png');
+                            img.write(png, err => {
+                                if (err) {
+                                    this.completeAsyncTask();
+                                    this.writeFail(png, err);
+                                }
+                                else {
+                                    this.replaceImage(file, filepath, png, '@');
+                                    if (compress) {
+                                        this.compressImage(filepath, png);
+                                    }
+                                    else {
+                                        this.completeAsyncTask(png);
+                                    }
+                                }
+                            });
+                        }
+                    }
+                })
+                .catch(err => {
+                    this.completeAsyncTask();
+                    this.writeFail(filepath, err);
+                });
+        }
+        else {
+            const resizeData = Image.parseResize(command = command.trim());
+            const cropData = Image.parseCrop(command);
+            const opacityData = Image.parseOpacity(command);
+            const rotationData = Image.parseRotation(command);
+            if (command.startsWith('png')) {
+                this.performAsyncTask();
+                jimp.read(filepath)
+                    .then(img => {
+                        const output = this.newImage(filepath, mimeType, 'png', command);
+                        if (resizeData) {
+                            img = Image.resize(img, resizeData);
+                        }
+                        if (cropData) {
+                            img = Image.crop(img, cropData);
+                        }
+                        if (opacityData !== 1) {
+                            img = Image.opacity(img, opacityData);
+                        }
+                        if (rotationData) {
+                            img = Image.rotate(img, rotationData, output, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                        }
+                        img.write(output, err => {
+                            if (err) {
+                                this.completeAsyncTask();
+                                this.writeFail(output, err);
+                            }
+                            else {
+                                this.replaceImage(file, filepath, output, command);
+                                if (compress) {
+                                    this.compressImage(filepath, output);
+                                }
+                                else {
+                                    this.completeAsyncTask(filepath !== output ? output : '');
+                                }
+                            }
+                        });
+                    })
+                    .catch(err => {
+                        this.completeAsyncTask();
+                        this.writeFail(filepath, err);
+                    });
+            }
+            else if (command.startsWith('jpeg')) {
+                this.performAsyncTask();
+                jimp.read(filepath)
+                    .then(img => {
+                        const output = this.newImage(filepath, mimeType, 'jpeg', command, 'jpg');
+                        if (resizeData) {
+                            img = Image.resize(img, resizeData);
+                        }
+                        if (cropData) {
+                            img = Image.crop(img, cropData);
+                        }
+                        if (rotationData) {
+                            img = Image.rotate(img, rotationData, output, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                        }
+                        img.write(output, err => {
+                            if (err) {
+                                this.completeAsyncTask();
+                                this.writeFail(output, err);
+                            }
+                            else {
+                                this.replaceImage(file, filepath, output, command);
+                                if (compress) {
+                                    this.compressImage(filepath, output);
+                                }
+                                else {
+                                    this.completeAsyncTask(filepath !== output ? output : '');
+                                }
+                            }
+                        });
+                    })
+                    .catch(err => {
+                        this.completeAsyncTask();
+                        this.writeFail(filepath, err);
+                    });
+            }
+            else if (command.startsWith('bmp')) {
+                this.performAsyncTask();
+                jimp.read(filepath)
+                    .then(img => {
+                        const output = this.newImage(filepath, mimeType, 'bmp', command);
+                        if (resizeData) {
+                            img = Image.resize(img, resizeData);
+                        }
+                        if (cropData) {
+                            img = Image.crop(img, cropData);
+                        }
+                        if (opacityData !== 1) {
+                            img = Image.opacity(img, opacityData);
+                        }
+                        if (rotationData) {
+                            img = Image.rotate(img, rotationData, output, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                        }
+                        img.write(output, err => {
+                            if (err) {
+                                this.completeAsyncTask();
+                                this.writeFail(output, err);
+                            }
+                            else {
+                                this.replaceImage(file, filepath, output, command);
+                                this.completeAsyncTask(filepath !== output ? output : '');
+                            }
+                        });
+                    })
+                    .catch(err => {
+                        this.completeAsyncTask();
+                        this.writeFail(filepath, err);
+                    });
+            }
+        }
+    }
     isJpeg(filename: string, mimeType?: string, filepath?: string) {
-        if (mimeType && mimeType.endsWith('image/jpeg')) {
+        if (mimeType === 'image/jpeg') {
             return true;
         }
         switch (path.extname(filepath || filename).toLowerCase()) {

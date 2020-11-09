@@ -96,7 +96,7 @@ Tasks can be performed with Gulp to take advantage of their pre-built plugin rep
 "gulp": {
   "minify": "./gulpfile.js"
   "beautify": "./gulpfile.js",
-  "compress": "./gulpfile.js"
+  "compress": "./gulpfile.android.js"
 }
 
 // chrome
@@ -161,7 +161,20 @@ Files with the same path and filename will automatically create a bundle assumin
   saveAs: js/modules2.js
 ```
 
-JS and CSS files can be bundled together with the "saveAs" or "exportAs" action. Multiple transformations per asset can be chained using the "+" symbol. The "preserve" command will prevent unused styles from being deleted.
+JS and CSS files can be bundled together with the "saveAs" or "exportAs" action. Multiple transformations per asset can be chained using the "+" symbol. Whitespace can be used between anything for readability.
+
+```xml
+Separator : ::
+
+Same (1-2): ~
+Chain  (2): +
+Option (3): |
+```
+
+* preserve - Prevent unused styles from being deleted (css)
+* inline - Content is extracted and rendered inline with &lt;script&gt; or &lt;style&gt; (js/css)
+* compress - TinyPNG service is used to compress PNG or JPEG (image)
+* base64 - Content is rendered inline with base64 encoding (image)
 
 ```xml
 <link data-chrome-file="saveAs:css/prod.css::beautify::preserve|inline" rel="stylesheet" href="css/dev.css" />
@@ -178,16 +191,15 @@ JS and CSS files can be bundled together with the "saveAs" or "exportAs" action.
 
 ### Raw assets: saveTo command
 
-You can use images commands with saveTo on any element when the image is the primary display output. Encoding with base64 is also available using the "::base64" commmand as the third argument.
+You can use images commands with saveTo (directory) on any element when the image is the primary display output. Encoding with base64 is also available using the "::base64" commmand as the third argument. Transformations are given arbitrary filenames and the original file is preserved.
 
 ```xml
 <!-- NOTE: img | video | audio | source | track | object | embed | iframe -->
 
-saveTo: directory (~same) :: transformations? (~image) :: compress?|base64? (image)
+<img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg"
+     data-chrome-file="saveTo: ../images/harbour :: png(10000,75000)(800x600[bezier]^contain[right|bottom]) :: compress|base64" />
 
-<img
-    src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg"
-    data-chrome-file="saveTo:../images/harbour::png@(10000,75000)(800x600[bezier]^contain[right|bottom])::base64|compress" /> <!-- "saveTo:~::~::base64" -->
+<!-- "saveTo:~::~::base64" -->
 ```
 
 ### Built-In plugins
