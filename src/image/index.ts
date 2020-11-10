@@ -1,14 +1,18 @@
 import fs = require('fs');
 import jimp = require('jimp');
+import mime = require('mime-types');
 
 import Module from '../module';
 
+type CompressFormat = functions.squared.base.CompressFormat;
+
 type IFileManager = functions.IFileManager;
+type FileManagerWriteImageCallback = functions.FileManagerWriteImageCallback;
 type ExpressAsset = functions.ExpressAsset;
+
 type ResizeData = functions.internal.ResizeData;
 type CropData = functions.internal.CropData;
 type RotateData = functions.internal.RotateData;
-type CompressFormat = functions.squared.base.CompressFormat;
 
 const REGEXP_RESIZE = /\(\s*(\d+|auto)\s*x\s*(\d+|auto)(?:\s*\[\s*(bilinear|bicubic|hermite|bezier)\s*\])?(?:\s*^\s*(contain|cover|scale)(?:\s*\[\s*(left|center|right)?(?:\s*\|?\s*(top|middle|bottom))?\s*\])?)?(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\)/;
 const REGEXP_CROP = /\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*\|\s*(\d+)\s*x\s*(\d+)\s*\)/;
@@ -17,10 +21,111 @@ const REGEXP_OPACITY = /\|\s*([\d.]+)\s*\|/;
 
 const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : null;
 
+class JimpProxy implements functions.ImageProxy<jimp> {
+    public resizeData?: ResizeData;
+    public cropData?: CropData;
+    public rotateData?: RotateData;
+    public qualityValue = NaN;
+    public opacityValue = NaN;
+    public errorHandler?: (err: Error) => void;
+
+    constructor(public instance: jimp, public filepath: string, public command = '') {
+        if (command) {
+            this.resizeData = Image.parseResize(command);
+            this.cropData = Image.parseCrop(command);
+            this.rotateData = Image.parseRotation(command);
+            this.qualityValue = Image.parseQuality(command);
+            this.opacityValue = Image.parseOpacity(command);
+        }
+    }
+
+    crop() {
+        const cropData = this.cropData;
+        if (cropData) {
+            this.instance = this.instance.crop(cropData.x, cropData.y, cropData.width, cropData.height);
+        }
+    }
+    opacity() {
+        if (!isNaN(this.opacityValue)) {
+            this.instance = this.instance.opacity(this.opacityValue);
+        }
+    }
+    quality() {
+        if (!isNaN(this.qualityValue)) {
+            this.instance = this.instance.quality(this.qualityValue);
+        }
+    }
+    resize() {
+        const resizeData = this.resizeData;
+        if (resizeData) {
+            const { width, height, color } = resizeData;
+            if (color !== null) {
+                this.instance = this.instance.background(color);
+            }
+            switch (resizeData.mode) {
+                case 'contain':
+                    this.instance = this.instance.contain(width, height, resizeData.align);
+                    break;
+                case 'cover':
+                    this.instance = this.instance.cover(width, height, resizeData.align);
+                    break;
+                case 'scale':
+                    this.instance = this.instance.scaleToFit(width, height);
+                    break;
+                default:
+                    this.instance = this.instance.resize(width === Infinity ? jimp.AUTO : width, height === Infinity ? jimp.AUTO : height, resizeData.algorithm);
+                    break;
+            }
+        }
+    }
+    rotate(preRotate?: () => void, postWrite?: (result?: unknown) => void) {
+        const rotateData = this.rotateData;
+        if (rotateData) {
+            const { values, color } = rotateData;
+            if (color !== null) {
+                this.instance = this.instance.background(color);
+            }
+            const deg = values[0];
+            for (let i = 1, length = values.length; i < length; ++i) {
+                const value = values[i];
+                if (preRotate) {
+                    preRotate();
+                }
+                const img = this.instance.clone().rotate(value);
+                const index = this.filepath.lastIndexOf('.');
+                let output = this.filepath.substring(0, index) + '.' + value + this.filepath.substring(index);
+                img.write(output, err => {
+                    if (err) {
+                        Image.writeFail(output, err);
+                        output = '';
+                    }
+                    if (postWrite) {
+                        postWrite(output);
+                    }
+                });
+            }
+            if (deg) {
+                this.instance = this.instance.rotate(deg);
+            }
+        }
+    }
+    write(output: string, file?: ExpressAsset, compress?: CompressFormat, callback?: FileManagerWriteImageCallback) {
+        this.instance.write(output, err => {
+            if (file && callback) {
+                callback(file, this.filepath, output, this.command, compress, err);
+            }
+            else if (err && this.errorHandler) {
+                this.errorHandler(err);
+            }
+        });
+    }
+}
+
 const Image = new class extends Module implements functions.IImage {
-    usingJimp(this: IFileManager, file: ExpressAsset, filepath: string, compress: Undef<CompressFormat>, command = '') {
-        const mimeType = file.mimeType!;
-        if (!command || mimeType === 'image/unknown') {
+    using(this: IFileManager, file: ExpressAsset, filepath: string, compress?: CompressFormat, command = '') {
+        command = command.trim();
+        const mimeType = file.mimeType || mime.lookup(filepath);
+        if (!command || !mimeType || mimeType === 'image/unknown') {
             this.performAsyncTask();
             jimp.read(filepath)
                 .then(img => {
@@ -32,15 +137,9 @@ const Image = new class extends Module implements functions.IImage {
                         case jimp.MIME_GIF:
                         case jimp.MIME_TIFF:
                             try {
-                                const renameTo = this.replaceExtension(filepath, unknownType.split('/')[1]);
-                                fs.renameSync(filepath, renameTo);
-                                this.replaceImage(file, filepath, renameTo, '@');
-                                if ((unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG) && compress) {
-                                    this.compressImage(filepath, renameTo);
-                                }
-                                else {
-                                    this.completeAsyncTask(renameTo);
-                                }
+                                const output = this.replaceExtension(filepath, unknownType.split('/')[1]);
+                                fs.renameSync(filepath, output);
+                                this.writeImage(file, filepath, output, '@', unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG ? compress : undefined);
                             }
                             catch (err) {
                                 this.completeAsyncTask();
@@ -48,22 +147,9 @@ const Image = new class extends Module implements functions.IImage {
                             }
                             break;
                         default: {
-                            const png = this.replaceExtension(filepath, 'png');
-                            img.write(png, err => {
-                                if (err) {
-                                    this.completeAsyncTask();
-                                    this.writeFail(png, err);
-                                }
-                                else {
-                                    this.replaceImage(file, filepath, png, '@');
-                                    if (compress) {
-                                        this.compressImage(filepath, png);
-                                    }
-                                    else {
-                                        this.completeAsyncTask(png);
-                                    }
-                                }
-                            });
+                            const output = this.replaceExtension(filepath, 'png');
+                            const proxy = new JimpProxy(img, filepath, '@');
+                            proxy.write(output, file, compress, this.writeImage.bind(this));
                         }
                     }
                 })
@@ -73,115 +159,36 @@ const Image = new class extends Module implements functions.IImage {
                 });
         }
         else {
-            const resizeData = Image.parseResize(command = command.trim());
-            const cropData = Image.parseCrop(command);
-            const rotationData = Image.parseRotation(command);
+            let jimpType: Undef<string>,
+                saveAs: Undef<string>;
             if (command.startsWith('png')) {
-                this.performAsyncTask();
-                jimp.read(filepath)
-                    .then(img => {
-                        const output = this.newImage(filepath, mimeType, 'png', command);
-                        const opacity = Image.parseOpacity(command);
-                        if (resizeData) {
-                            img = Image.resize(img, resizeData);
-                        }
-                        if (cropData) {
-                            img = Image.crop(img, cropData);
-                        }
-                        if (!isNaN(opacity)) {
-                            img = Image.opacity(img, opacity);
-                        }
-                        if (rotationData) {
-                            img = Image.rotate(img, rotationData, output, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
-                        }
-                        img.write(output, err => {
-                            if (err) {
-                                this.completeAsyncTask();
-                                this.writeFail(output, err);
-                            }
-                            else {
-                                this.replaceImage(file, filepath, output, command);
-                                if (compress) {
-                                    this.compressImage(filepath, output);
-                                }
-                                else {
-                                    this.completeAsyncTask(filepath !== output ? output : '');
-                                }
-                            }
-                        });
-                    })
-                    .catch(err => {
-                        this.completeAsyncTask();
-                        this.writeFail(filepath, err);
-                    });
+                jimpType = 'image/png';
+                saveAs = 'png';
             }
             else if (command.startsWith('jpeg')) {
-                this.performAsyncTask();
-                jimp.read(filepath)
-                    .then(img => {
-                        const output = this.newImage(filepath, mimeType, 'jpeg', command, 'jpg');
-                        const quality = Image.parseQuality(command);
-                        if (resizeData) {
-                            img = Image.resize(img, resizeData);
-                        }
-                        if (cropData) {
-                            img = Image.crop(img, cropData);
-                        }
-                        if (!isNaN(quality)) {
-                            img = Image.quality(img, quality);
-                        }
-                        if (rotationData) {
-                            img = Image.rotate(img, rotationData, output, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
-                        }
-                        img.write(output, err => {
-                            if (err) {
-                                this.completeAsyncTask();
-                                this.writeFail(output, err);
-                            }
-                            else {
-                                this.replaceImage(file, filepath, output, command);
-                                if (compress) {
-                                    this.compressImage(filepath, output);
-                                }
-                                else {
-                                    this.completeAsyncTask(filepath !== output ? output : '');
-                                }
-                            }
-                        });
-                    })
-                    .catch(err => {
-                        this.completeAsyncTask();
-                        this.writeFail(filepath, err);
-                    });
+                jimpType = 'image/jpeg';
+                saveAs = 'jpg';
             }
             else if (command.startsWith('bmp')) {
+                jimpType = 'image/bmp';
+                saveAs = 'bmp';
+            }
+            if (jimpType && saveAs) {
                 this.performAsyncTask();
                 jimp.read(filepath)
                     .then(img => {
-                        const output = this.newImage(filepath, mimeType, 'bmp', command);
-                        const opacity = Image.parseOpacity(command);
-                        if (resizeData) {
-                            img = Image.resize(img, resizeData);
-                        }
-                        if (cropData) {
-                            img = Image.crop(img, cropData);
-                        }
-                        if (!isNaN(opacity)) {
-                            img = Image.opacity(img, opacity);
-                        }
-                        if (rotationData) {
-                            img = Image.rotate(img, rotationData, output, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
-                        }
-                        img.write(output, err => {
-                            if (err) {
-                                this.completeAsyncTask();
-                                this.writeFail(output, err);
-                            }
-                            else {
-                                this.replaceImage(file, filepath, output, command);
-                                this.completeAsyncTask(filepath !== output ? output : '');
-                            }
-                        });
+                        const proxy = new JimpProxy(img, filepath, command);
+                        proxy.resize();
+                        proxy.crop();
+                        proxy.quality();
+                        proxy.opacity();
+                        proxy.rotate(this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                        proxy.write(
+                            this.newImage(filepath, mimeType, jimpType!, saveAs!, command),
+                            file,
+                            compress,
+                            this.writeImage.bind(this)
+                        );
                     })
                     .catch(err => {
                         this.completeAsyncTask();
@@ -271,57 +278,6 @@ const Image = new class extends Module implements functions.IImage {
                 return { values: Array.from(result), color: parseHexDecimal(match[2]) } as RotateData;
             }
         }
-    }
-    crop(instance: jimp, options: CropData) {
-        return instance.crop(options.x, options.y, options.width, options.height);
-    }
-    opacity(instance: jimp, value: number) {
-        return instance.opacity(value);
-    }
-    quality(instance: jimp, value: number) {
-        return instance.quality(value);
-    }
-    resize(instance: jimp, options: ResizeData) {
-        const { width, height, color } = options;
-        if (color !== null) {
-            instance.background(color);
-        }
-        switch (options.mode) {
-            case 'contain':
-                return instance.contain(width, height, options.align);
-            case 'cover':
-                return instance.cover(width, height, options.align);
-            case 'scale':
-                return instance.scaleToFit(width, height);
-            default:
-                return instance.resize(width === Infinity ? jimp.AUTO : width, height === Infinity ? jimp.AUTO : height, options.algorithm);
-        }
-    }
-    rotate(instance: jimp, options: RotateData, filepath: string, preRotate?: () => void, postWrite?: (result?: unknown) => void) {
-        const { values, color } = options;
-        if (color !== null) {
-            instance.background(color);
-        }
-        const deg = values[0];
-        for (let i = 1, length = values.length; i < length; ++i) {
-            const value = values[i];
-            if (preRotate) {
-                preRotate();
-            }
-            const img = instance.clone().rotate(value);
-            const index = filepath.lastIndexOf('.');
-            let output = filepath.substring(0, index) + '.' + value + filepath.substring(index);
-            img.write(output, err => {
-                if (err) {
-                    this.writeFail(output, err);
-                    output = '';
-                }
-                if (postWrite) {
-                    postWrite(output);
-                }
-            });
-        }
-        return deg ? instance.rotate(deg) : instance;
     }
 }();
 

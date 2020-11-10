@@ -3,12 +3,12 @@
 import type { Response } from 'express';
 import type { CorsOptions } from 'cors';
 import type { WriteStream } from 'fs';
-import type * as jimp from 'jimp';
 
 declare namespace functions {
     type BoolString = boolean | string;
     type ExternalCategory = "html" | "css" | "js";
     type ImageOutputFormat = "png" | "jpeg" | "bmp";
+    type FileManagerWriteImageCallback = (file: ExpressAsset, filepath: string, output: string, command: string, compress?: squared.base.CompressFormat, err?: Null<Error>) => void;
 
     namespace squared {
         namespace base {
@@ -134,17 +134,12 @@ declare namespace functions {
     }
 
     interface IImage extends IModule {
-        usingJimp(file: ExpressAsset, filepath: string, compress: Undef<squared.base.CompressFormat>, command?: string): void;
+        using(file: ExpressAsset, filepath: string, compress?: squared.base.CompressFormat, command?: string): void;
         parseResize(value: string): Undef<internal.ResizeData>;
         parseCrop(value: string): Undef<internal.CropData>;
         parseOpacity(value: string): number;
         parseQuality(value: string): number;
         parseRotation(value: string): Undef<internal.RotateData>;
-        resize(instance: jimp, options: internal.ResizeData): jimp;
-        crop(instance: jimp, options: internal.CropData): jimp;
-        opacity(instance: jimp, value: number): jimp;
-        quality(instance: jimp, value: number): jimp;
-        rotate(instance: jimp, options: internal.RotateData, filepath: string, preRotate?: () => void, postWrite?: (result?: unknown) => void): jimp;
     }
 
     interface IChrome extends IModule {
@@ -201,9 +196,10 @@ declare namespace functions {
         getUTF8String(file: ExpressAsset, filepath?: string): string;
         appendContent(file: ExpressAsset, filepath: string, content: string, bundleIndex: number): Promise<string>;
         getTrailingContent(file: ExpressAsset): Promise<string>;
-        newImage(filepath: string, mimeType: string, ouputType: ImageOutputFormat, command: string, saveAs?: string): string;
+        newImage(filepath: string, mimeType: string, ouputType: string, saveAs: string, command?: string): string;
         compressImage(filepath: string, output: string): void;
         replaceImage(file: ExpressAsset, filepath: string, output: string, command: string): void;
+        writeImage: FileManagerWriteImageCallback;
         transformCss(file: ExpressAsset, content: string): Undef<string>;
         transformBuffer(file: ExpressAsset, filepath: string): Promise<void>;
         writeBuffer(file: ExpressAsset, filepath: string): void;
@@ -238,6 +234,25 @@ declare namespace functions {
     }
 
     const Module: ModuleConstructor;
+
+    class ImageProxy<T> {
+        instance: T;
+        filepath: string
+        command: string
+        resizeData?: internal.ResizeData;
+        cropData?: internal.CropData;
+        rotateData?: internal.RotateData;
+        qualityValue: number;
+        opacityValue: number;
+        errorHandler?: (err: Error) => void;
+        resize(): void;
+        crop(): void;
+        opacity(): void;
+        quality(): void;
+        rotate(preRotate?: () => void, postWrite?: (result?: unknown) => void): void;
+        write(output: string, file?: ExpressAsset, compress?: squared.base.CompressFormat, callback?: FileManagerWriteImageCallback): void;
+        constructor(instance: T, filepath: string, command?: string);
+    }
 
     interface Settings {
         version?: string;

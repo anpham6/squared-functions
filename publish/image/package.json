@@ -17,6 +17,7 @@
   "dependencies": {
     "@squared-functions/module": "^0.3.3",
     "@squared-functions/types": "^0.3.9",
-    "jimp": "^0.16.1"
+    "jimp": "^0.16.1",
+    "mime-types": "^2.1.27"
   }
 }

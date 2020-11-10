@@ -19,8 +19,8 @@ type Settings = functions.Settings;
 type DataMap = functions.chrome.DataMap;
 type ExpressAsset = functions.ExpressAsset;
 type IFileManager = functions.IFileManager;
-type ImageOutputFormat = functions.ImageOutputFormat;
 type FileOutput = functions.internal.FileOutput;
+type CompressFormat = functions.squared.base.CompressFormat;
 
 interface GulpData {
     gulpfile: string;
@@ -732,12 +732,12 @@ const FileManager = class extends Module implements IFileManager {
                         compress = undefined;
                     }
                     if (mimeType === 'image/unknown') {
-                        Image.usingJimp.call(this, file, filepath, compress);
+                        Image.using.call(this, file, filepath, compress);
                     }
                     else if (file.commands) {
                         for (const command of file.commands) {
                             if (Compress.withinSizeRange(filepath, command)) {
-                                Image.usingJimp.call(this, file, filepath, compress, command);
+                                Image.using.call(this, file, filepath, compress, command);
                             }
                         }
                     }
@@ -746,13 +746,13 @@ const FileManager = class extends Module implements IFileManager {
         }
         return Promise.resolve();
     }
-    newImage(filepath: string, mimeType: string, outputType: ImageOutputFormat, command: string, saveAs?: string) {
+    newImage(filepath: string, mimeType: string, outputType: string, saveAs: string, command = '') {
         let output = '';
-        if (mimeType.endsWith('/' + outputType)) {
+        if (mimeType === outputType) {
             if (!command.includes('@')) {
                 let i = 1;
                 do {
-                    output = this.replaceExtension(filepath, '__copy__.' + (i > 1 ? `(${i}).` : '') + (saveAs || outputType));
+                    output = this.replaceExtension(filepath, '__copy__.' + (i > 1 ? `(${i}).` : '') + saveAs);
                 }
                 while (this.filesQueued.has(output) && ++i);
                 fs.copyFileSync(filepath, output);
@@ -761,7 +761,7 @@ const FileManager = class extends Module implements IFileManager {
         else {
             let i = 1;
             do {
-                output = this.replaceExtension(filepath, (i > 1 ? `(${i}).` : '') + (saveAs || outputType));
+                output = this.replaceExtension(filepath, (i > 1 ? `(${i}).` : '') + saveAs);
             }
             while (this.filesQueued.has(output) && ++i);
         }
@@ -797,6 +797,21 @@ const FileManager = class extends Module implements IFileManager {
                 else {
                     this.filesToCompare.set(file, [output]);
                 }
+            }
+        }
+    }
+    writeImage(file: ExpressAsset, filepath: string, output: string, command: string, compress?: CompressFormat, err?: Null<Error>) {
+        if (err) {
+            this.completeAsyncTask();
+            this.writeFail(output, err);
+        }
+        else {
+            this.replaceImage(file, filepath, output, command);
+            if (compress) {
+                this.compressImage(filepath, output);
+            }
+            else {
+                this.completeAsyncTask(filepath !== output ? output : '');
             }
         }
     }
