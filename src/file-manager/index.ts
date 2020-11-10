@@ -14,10 +14,13 @@ import Compress from '../compress';
 import Image from '../image';
 import Chrome from '../chrome';
 
-type Settings = functions.Settings;
 type DataMap = functions.chrome.DataMap;
+
+type Settings = functions.Settings;
 type ExpressAsset = functions.ExpressAsset;
 type IFileManager = functions.IFileManager;
+
+type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
 type CompressFormat = functions.squared.base.CompressFormat;
 
@@ -435,7 +438,8 @@ const FileManager = class extends Module implements IFileManager {
             return output;
         }
     }
-    async transformBuffer(file: ExpressAsset, filepath: string) {
+    async transformBuffer(data: FileData) {
+        const { file, filepath } = data;
         const { format, mimeType } = file;
         if (!mimeType || mimeType[0] === '&') {
             return Promise.resolve();
@@ -723,13 +727,14 @@ const FileManager = class extends Module implements IFileManager {
                     if (compress && !Compress.withinSizeRange(filepath, compress.condition)) {
                         compress = undefined;
                     }
+                    const callback = this.finalizeImage.bind(this);
                     if (mimeType === 'image/unknown') {
-                        Image.using.call(this, file, filepath, compress);
+                        Image.using.call(this, { data, compress, callback });
                     }
                     else if (file.commands) {
                         for (const command of file.commands) {
                             if (Compress.withinSizeRange(filepath, command)) {
-                                Image.using.call(this, file, filepath, compress, command);
+                                Image.using.call(this, { data, compress, command, callback });
                             }
                         }
                     }
@@ -738,7 +743,8 @@ const FileManager = class extends Module implements IFileManager {
         }
         return Promise.resolve();
     }
-    newImage(filepath: string, mimeType: string, outputType: string, saveAs: string, command = '') {
+    newImage(data: FileData, mimeType: string, outputType: string, saveAs: string, command = '') {
+        const filepath = data.filepath;
         let output = '';
         if (mimeType === outputType) {
             if (!command.includes('@')) {
@@ -762,7 +768,8 @@ const FileManager = class extends Module implements IFileManager {
         }
         return output || filepath;
     }
-    replaceImage(file: ExpressAsset, filepath: string, output: string, command: string) {
+    replaceImage(data: FileData, output: string, command: string) {
+        const { file, filepath } = data;
         if (filepath !== output) {
             if (command.includes('@')) {
                 this.replace(file, output);
@@ -777,33 +784,35 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
     }
-    writeBuffer(file: ExpressAsset, filepath: string) {
-        const png = Compress.hasImageService() ? Compress.findFormat(file.compress, 'png') : undefined;
+    writeBuffer(data: FileData) {
+        const filepath = data.filepath;
+        const png = Compress.hasImageService() ? Compress.findFormat(data.file.compress, 'png') : undefined;
         if (png && Compress.withinSizeRange(filepath, png.condition)) {
             try {
                 Compress.tryImage(filepath, (result: string, error: Null<Error>) => {
                     if (error) {
                         throw error;
                     }
-                    this.finalizeFile(file, result);
+                    data.filepath = result;
+                    this.finalizeFile(data);
                 });
             }
             catch (err) {
                 this.writeFail(filepath, err);
-                this.finalizeFile(file, filepath);
+                this.finalizeFile(data);
             }
         }
         else {
-            this.finalizeFile(file, filepath);
+            this.finalizeFile(data);
         }
     }
-    finalizeImage(file: ExpressAsset, filepath: string, output: string, command: string, compress?: CompressFormat, err?: Null<Error>) {
+    finalizeImage(data: FileData, output: string, command: string, compress?: CompressFormat, err?: Null<Error>) {
         if (err) {
             this.completeAsyncTask();
             this.writeFail(output, err);
         }
         else {
-            this.replaceImage(file, filepath, output, command);
+            this.replaceImage(data, output, command);
             if (compress) {
                 try {
                     Compress.tryImage(output, (result: string, error: Null<Error>) => {
@@ -823,13 +832,13 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
     }
-    finalizeFile(file: ExpressAsset, filepath: string) {
-        this.transformBuffer(file, filepath).then(() => {
-            Compress.tryFile(file, filepath, 'gz', this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+    finalizeFile(data: FileData) {
+        this.transformBuffer(data).then(() => {
+            Compress.tryFile(data, 'gz', this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
             if (Node.checkVersion(11, 7)) {
-                Compress.tryFile(file, filepath, 'br', this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                Compress.tryFile(data, 'br', this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
             }
-            this.completeAsyncTask(filepath);
+            this.completeAsyncTask(data.filepath);
         });
     }
     processAssets() {
@@ -849,7 +858,7 @@ const FileManager = class extends Module implements IFileManager {
             }
             else if (!content) {
                 if (completed.includes(filepath)) {
-                    this.writeBuffer(file, filepath);
+                    this.writeBuffer({ file, filepath });
                     return true;
                 }
                 else {
@@ -947,7 +956,7 @@ const FileManager = class extends Module implements IFileManager {
                     }
                 }
                 if (bundleMain || !file.invalid) {
-                    this.finalizeFile(bundleMain || file, filepath);
+                    this.finalizeFile({ file: bundleMain || file, filepath });
                 }
                 else {
                     this.completeAsyncTask();
@@ -958,13 +967,13 @@ const FileManager = class extends Module implements IFileManager {
                 completed.push(filepath);
                 for (const item of processing[filepath]) {
                     if (!item.invalid) {
-                        this.writeBuffer(item, filepath);
+                        this.writeBuffer({ file: item, filepath });
                     }
                 }
                 delete processing[filepath];
             }
             else {
-                this.writeBuffer(file, filepath);
+                this.writeBuffer({ file, filepath });
             }
         };
         const errorRequest = (file: ExpressAsset, filepath: string, message: Error | string, stream?: fs.WriteStream) => {
@@ -1046,7 +1055,7 @@ const FileManager = class extends Module implements IFileManager {
                     'base64',
                     err => {
                         if (!err) {
-                            this.writeBuffer(file, filepath);
+                            this.writeBuffer({ file, filepath });
                         }
                         else {
                             file.invalid = true;

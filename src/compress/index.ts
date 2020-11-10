@@ -11,6 +11,8 @@ type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTask
 type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
 type FileOutputCallback = functions.FileOutputCallback;
 
+type FileData = functions.internal.FileData;
+
 type NodeBuiltInCompressionMethod = "createWriteStreamAsGzip" | "createWriteStreamAsBrotli";
 
 const Compress = new class extends Module implements functions.ICompress {
@@ -76,9 +78,10 @@ const Compress = new class extends Module implements functions.ICompress {
         }
         return true;
     }
-    tryFile(file: functions.ExpressAsset, filepath: string, format: FileCompressFormat, preCompress?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback) {
-        const data = Compress.findFormat(file.compress, format);
-        if (data && Compress.withinSizeRange(filepath, data.condition)) {
+    tryFile(data: FileData, format: FileCompressFormat, preCompress?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback) {
+        const { file, filepath } = data;
+        const formatData = Compress.findFormat(file.compress, format);
+        if (formatData && Compress.withinSizeRange(filepath, formatData.condition)) {
             let output = `${filepath}.${format}`,
                 methodName: Undef<NodeBuiltInCompressionMethod>;
             switch (format) {
@@ -93,9 +96,9 @@ const Compress = new class extends Module implements functions.ICompress {
                 if (preCompress) {
                     preCompress();
                 }
-                Compress[methodName](filepath, output, data.level)
+                Compress[methodName](filepath, output, formatData.level)
                     .on('finish', () => {
-                        if (data.condition?.includes('%') && this.getFileSize(output) >= this.getFileSize(filepath)) {
+                        if (formatData.condition?.includes('%') && this.getFileSize(output) >= this.getFileSize(filepath)) {
                             try {
                                 fs.unlinkSync(output);
                             }

@@ -8,7 +8,7 @@ declare namespace functions {
     type BoolString = boolean | string;
     type ExternalCategory = "html" | "css" | "js";
     type FileCompressFormat = "gz" | "br";
-    type FileManagerWriteImageCallback = (file: ExpressAsset, filepath: string, output: string, command: string, compress?: squared.base.CompressFormat, err?: Null<Error>) => void;
+    type FileManagerWriteImageCallback = (data: internal.FileData, output: string, command: string, compress?: squared.base.CompressFormat, err?: Null<Error>) => void;
     type FileManagerPerformAsyncTaskCallback = () => void;
     type FileManagerCompleteAsyncTaskCallback = (filepath?: string) => void;
     type FileOutputCallback = (result: string, err?: Null<Error>) => void;
@@ -81,6 +81,13 @@ declare namespace functions {
     }
 
     namespace internal {
+        interface ImageUsingOptions {
+            data: FileData;
+            command?: string;
+            compress?: squared.base.CompressFormat;
+            callback?: FileManagerWriteImageCallback;
+        }
+
         interface RotateData {
             values: number[];
             color: Null<number>;
@@ -94,6 +101,11 @@ declare namespace functions {
         }
 
         interface CropData extends Point, Dimension {}
+
+        interface FileData {
+            file: ExpressAsset;
+            filepath: string;
+        }
 
         interface FileOutput {
             pathname: string;
@@ -134,12 +146,12 @@ declare namespace functions {
         removeFormat(compress: Undef<squared.base.CompressFormat[]>, format: string): void;
         parseSizeRange(value: string): [number, number];
         withinSizeRange(filepath: string, value: Undef<string>): boolean;
-        tryFile(file: ExpressAsset, filepath: string, format: FileCompressFormat, preCompress?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback): void;
+        tryFile(data: internal.FileData, format: FileCompressFormat, preCompress?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback): void;
         tryImage(filepath: string, callback: FileOutputCallback): void;
     }
 
     interface IImage extends IModule {
-        using(file: ExpressAsset, filepath: string, compress?: squared.base.CompressFormat, command?: string): void;
+        using(options: internal.ImageUsingOptions): void;
         parseResize(value: string): Undef<internal.ResizeData>;
         parseCrop(value: string): Undef<internal.CropData>;
         parseOpacity(value: string): number;
@@ -201,13 +213,13 @@ declare namespace functions {
         getUTF8String(file: ExpressAsset, filepath?: string): string;
         appendContent(file: ExpressAsset, filepath: string, content: string, bundleIndex: number): Promise<string>;
         getTrailingContent(file: ExpressAsset): Promise<string>;
-        newImage(filepath: string, mimeType: string, ouputType: string, saveAs: string, command?: string): string;
-        replaceImage(file: ExpressAsset, filepath: string, output: string, command: string): void;
         transformCss(file: ExpressAsset, content: string): Undef<string>;
-        transformBuffer(file: ExpressAsset, filepath: string): Promise<void>;
-        writeBuffer(file: ExpressAsset, filepath: string): void;
+        newImage(data: internal.FileData, mimeType: string, ouputType: string, saveAs: string, command?: string): string;
+        replaceImage(data: internal.FileData, output: string, command: string): void;
+        transformBuffer(data: internal.FileData): Promise<void>;
+        writeBuffer(data: internal.FileData): void;
         finalizeImage: FileManagerWriteImageCallback;
-        finalizeFile(file: ExpressAsset, filepath: string): void;
+        finalizeFile(data: internal.FileData): void;
         processAssets(): void;
         finalizeAssets(): Promise<unknown[]>;
     }
@@ -254,7 +266,7 @@ declare namespace functions {
         opacity(): void;
         quality(): void;
         rotate(preRotate?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback): void;
-        write(output: string, file?: ExpressAsset, compress?: squared.base.CompressFormat, callback?: FileManagerWriteImageCallback): void;
+        write(output: string, options?: internal.ImageUsingOptions): void;
         constructor(instance: T, filepath: string, command?: string);
     }
 

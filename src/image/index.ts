@@ -7,11 +7,12 @@ import Module from '../module';
 type CompressFormat = functions.squared.base.CompressFormat;
 
 type IFileManager = functions.IFileManager;
-type ExpressAsset = functions.ExpressAsset;
 type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTaskCallback;
 type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
 type FileManagerWriteImageCallback = functions.FileManagerWriteImageCallback;
 
+type ImageUsingOptions = functions.internal.ImageUsingOptions;
+type FileData = functions.internal.FileData;
 type ResizeData = functions.internal.ResizeData;
 type CropData = functions.internal.CropData;
 type RotateData = functions.internal.RotateData;
@@ -111,10 +112,16 @@ class JimpProxy implements functions.ImageProxy<jimp> {
             }
         }
     }
-    write(output: string, file?: ExpressAsset, compress?: CompressFormat, callback?: FileManagerWriteImageCallback) {
+    write(output: string, options?: ImageUsingOptions) {
+        let data: Undef<FileData>,
+            compress: Undef<CompressFormat>,
+            callback: Undef<FileManagerWriteImageCallback>;
+        if (options) {
+            ({ data, compress, callback } = options);
+        }
         this.instance.write(output, err => {
-            if (file && callback) {
-                callback(file, this.filepath, output, this.command, compress, err);
+            if (data && callback) {
+                callback(data, output, this.command, compress, err);
             }
             else if (err && this.errorHandler) {
                 this.errorHandler(err);
@@ -124,9 +131,10 @@ class JimpProxy implements functions.ImageProxy<jimp> {
 }
 
 const Image = new class extends Module implements functions.IImage {
-    using(this: IFileManager, file: ExpressAsset, filepath: string, compress?: CompressFormat, command = '') {
-        command = command.trim();
-        const mimeType = file.mimeType || mime.lookup(filepath);
+    using(this: IFileManager, options: ImageUsingOptions) {
+        const { data, compress, command = '' } = options;
+        const filepath = data.filepath;
+        const mimeType = data.file.mimeType || mime.lookup(filepath);
         if (!command || !mimeType || mimeType === 'image/unknown') {
             this.performAsyncTask();
             jimp.read(filepath)
@@ -141,7 +149,7 @@ const Image = new class extends Module implements functions.IImage {
                             try {
                                 const output = this.replaceExtension(filepath, unknownType.split('/')[1]);
                                 fs.renameSync(filepath, output);
-                                this.finalizeImage(file, filepath, output, '@', unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG ? compress : undefined);
+                                this.finalizeImage(data, output, '@', unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG ? compress : undefined);
                             }
                             catch (err) {
                                 this.completeAsyncTask();
@@ -151,7 +159,7 @@ const Image = new class extends Module implements functions.IImage {
                         default: {
                             const output = this.replaceExtension(filepath, 'png');
                             const proxy = new JimpProxy(img, filepath, '@');
-                            proxy.write(output, file, compress, this.finalizeImage.bind(this));
+                            proxy.write(output, options);
                         }
                     }
                 })
@@ -190,10 +198,8 @@ const Image = new class extends Module implements functions.IImage {
                         }
                         proxy.rotate(this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
                         proxy.write(
-                            this.newImage(filepath, mimeType, jimpType!, saveAs!, command),
-                            file,
-                            compress,
-                            this.finalizeImage.bind(this)
+                            this.newImage(data, mimeType, jimpType!, saveAs!, command),
+                            options
                         );
                     })
                     .catch(err => {
