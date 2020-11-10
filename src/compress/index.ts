@@ -1,15 +1,33 @@
 import fs = require('fs');
 import zlib = require('zlib');
+import tinify = require('tinify');
 
 import Module from '../module';
 
 type CompressFormat = functions.squared.base.CompressFormat;
+
+type FileCompressFormat = functions.FileCompressFormat;
+type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTaskCallback;
+type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
+type FileOutputCallback = functions.FileOutputCallback;
+
+type NodeBuiltInCompressionMethod = "createWriteStreamAsGzip" | "createWriteStreamAsBrotli";
 
 const Compress = new class extends Module implements functions.ICompress {
     public gzipLevel = 9;
     public brotliQuality = 11;
     public tinifyApiKey = '';
 
+    validate(value: Undef<string>) {
+        if (value) {
+            tinify.key = value;
+            tinify.validate(err => {
+                if (!err) {
+                    this.tinifyApiKey = value;
+                }
+            });
+        }
+    }
     createWriteStreamAsGzip(source: string, filepath: string, level?: number) {
         return fs.createReadStream(source)
             .pipe(zlib.createGzip({ level: level ?? this.gzipLevel }))
@@ -57,6 +75,60 @@ const Compress = new class extends Module implements functions.ICompress {
             }
         }
         return true;
+    }
+    tryFile(file: functions.ExpressAsset, filepath: string, format: FileCompressFormat, preCompress?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback) {
+        const data = Compress.findFormat(file.compress, format);
+        if (data && Compress.withinSizeRange(filepath, data.condition)) {
+            let output = `${filepath}.${format}`,
+                methodName: Undef<NodeBuiltInCompressionMethod>;
+            switch (format) {
+                case 'gz':
+                    methodName = 'createWriteStreamAsGzip';
+                    break;
+                case 'br':
+                    methodName = 'createWriteStreamAsBrotli';
+                    break;
+            }
+            if (methodName) {
+                if (preCompress) {
+                    preCompress();
+                }
+                Compress[methodName](filepath, output, data.level)
+                    .on('finish', () => {
+                        if (data.condition?.includes('%') && this.getFileSize(output) >= this.getFileSize(filepath)) {
+                            try {
+                                fs.unlinkSync(output);
+                            }
+                            catch {
+                            }
+                            output = '';
+                        }
+                        if (postWrite) {
+                            postWrite(output);
+                        }
+                    })
+                    .on('error', error => {
+                        this.writeFail(output, error);
+                        if (postWrite) {
+                            postWrite();
+                        }
+                    });
+            }
+        }
+    }
+    tryImage(filepath: string, callback: FileOutputCallback) {
+        try {
+            tinify.fromBuffer(fs.readFileSync(filepath)).toBuffer((err, resultData) => {
+                if (!err && resultData) {
+                    fs.writeFileSync(filepath, resultData);
+                }
+                callback(filepath, err);
+            });
+        }
+        catch (err) {
+            this.validate(this.tinifyApiKey);
+            throw err;
+        }
     }
 }();
 

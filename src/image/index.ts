@@ -7,8 +7,10 @@ import Module from '../module';
 type CompressFormat = functions.squared.base.CompressFormat;
 
 type IFileManager = functions.IFileManager;
-type FileManagerWriteImageCallback = functions.FileManagerWriteImageCallback;
 type ExpressAsset = functions.ExpressAsset;
+type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTaskCallback;
+type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
+type FileManagerWriteImageCallback = functions.FileManagerWriteImageCallback;
 
 type ResizeData = functions.internal.ResizeData;
 type CropData = functions.internal.CropData;
@@ -78,7 +80,7 @@ class JimpProxy implements functions.ImageProxy<jimp> {
             }
         }
     }
-    rotate(preRotate?: () => void, postWrite?: (result?: unknown) => void) {
+    rotate(preRotate?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback) {
         const rotateData = this.rotateData;
         if (rotateData) {
             const { values, color } = rotateData;
@@ -139,7 +141,7 @@ const Image = new class extends Module implements functions.IImage {
                             try {
                                 const output = this.replaceExtension(filepath, unknownType.split('/')[1]);
                                 fs.renameSync(filepath, output);
-                                this.writeImage(file, filepath, output, '@', unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG ? compress : undefined);
+                                this.finalizeImage(file, filepath, output, '@', unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG ? compress : undefined);
                             }
                             catch (err) {
                                 this.completeAsyncTask();
@@ -149,7 +151,7 @@ const Image = new class extends Module implements functions.IImage {
                         default: {
                             const output = this.replaceExtension(filepath, 'png');
                             const proxy = new JimpProxy(img, filepath, '@');
-                            proxy.write(output, file, compress, this.writeImage.bind(this));
+                            proxy.write(output, file, compress, this.finalizeImage.bind(this));
                         }
                     }
                 })
@@ -162,15 +164,15 @@ const Image = new class extends Module implements functions.IImage {
             let jimpType: Undef<string>,
                 saveAs: Undef<string>;
             if (command.startsWith('png')) {
-                jimpType = 'image/png';
+                jimpType = jimp.MIME_PNG;
                 saveAs = 'png';
             }
             else if (command.startsWith('jpeg')) {
-                jimpType = 'image/jpeg';
+                jimpType = jimp.MIME_JPEG;
                 saveAs = 'jpg';
             }
             else if (command.startsWith('bmp')) {
-                jimpType = 'image/bmp';
+                jimpType = jimp.MIME_BMP;
                 saveAs = 'bmp';
             }
             if (jimpType && saveAs) {
@@ -180,14 +182,18 @@ const Image = new class extends Module implements functions.IImage {
                         const proxy = new JimpProxy(img, filepath, command);
                         proxy.resize();
                         proxy.crop();
-                        proxy.quality();
-                        proxy.opacity();
+                        if (jimpType === jimp.MIME_JPEG) {
+                            proxy.quality();
+                        }
+                        else {
+                            proxy.opacity();
+                        }
                         proxy.rotate(this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
                         proxy.write(
                             this.newImage(filepath, mimeType, jimpType!, saveAs!, command),
                             file,
                             compress,
-                            this.writeImage.bind(this)
+                            this.finalizeImage.bind(this)
                         );
                     })
                     .catch(err => {

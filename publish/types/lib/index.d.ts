@@ -7,8 +7,11 @@ import type { WriteStream } from 'fs';
 declare namespace functions {
     type BoolString = boolean | string;
     type ExternalCategory = "html" | "css" | "js";
-    type ImageOutputFormat = "png" | "jpeg" | "bmp";
+    type FileCompressFormat = "gz" | "br";
     type FileManagerWriteImageCallback = (file: ExpressAsset, filepath: string, output: string, command: string, compress?: squared.base.CompressFormat, err?: Null<Error>) => void;
+    type FileManagerPerformAsyncTaskCallback = () => void;
+    type FileManagerCompleteAsyncTaskCallback = (filepath?: string) => void;
+    type FileOutputCallback = (result: string, err?: Null<Error>) => void;
 
     namespace squared {
         namespace base {
@@ -131,6 +134,8 @@ declare namespace functions {
         removeFormat(compress: Undef<squared.base.CompressFormat[]>, format: string): void;
         parseSizeRange(value: string): [number, number];
         withinSizeRange(filepath: string, value: Undef<string>): boolean;
+        tryFile(file: ExpressAsset, filepath: string, format: FileCompressFormat, preCompress?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback): void;
+        tryImage(filepath: string, callback: FileOutputCallback): void;
     }
 
     interface IImage extends IModule {
@@ -182,27 +187,26 @@ declare namespace functions {
         add(value: string): void;
         delete(value: string): void;
         replace(file: ExpressAsset, replaceWith: string): void;
-        performAsyncTask(): void;
+        performAsyncTask: FileManagerPerformAsyncTaskCallback;
         removeAsyncTask(): void;
-        completeAsyncTask(filepath?: string): void;
+        completeAsyncTask: FileManagerCompleteAsyncTaskCallback;
         performFinalize(): void;
         getHtmlPages(modified?: boolean): ExpressAsset[];
-        getAbsoluteUrl(value: string, href: string): string;
         replacePath(source: string, segment: string, value: string, base64?: boolean): Undef<string>;
         escapePathSeparator(value: string): string;
         getFileOutput(file: ExpressAsset): internal.FileOutput;
-        getRelativeUrl(file: ExpressAsset, url: string): Undef<string>;
-        getFullUri(file: ExpressAsset, filename?: string): string;
+        getRelativeUri(file: ExpressAsset, uri: string): Undef<string>;
+        getAbsoluteUri(value: string, href: string): string;
+        getFileUri(file: ExpressAsset, filename?: string): string;
         getUTF8String(file: ExpressAsset, filepath?: string): string;
         appendContent(file: ExpressAsset, filepath: string, content: string, bundleIndex: number): Promise<string>;
         getTrailingContent(file: ExpressAsset): Promise<string>;
         newImage(filepath: string, mimeType: string, ouputType: string, saveAs: string, command?: string): string;
-        compressImage(filepath: string, output: string): void;
         replaceImage(file: ExpressAsset, filepath: string, output: string, command: string): void;
-        writeImage: FileManagerWriteImageCallback;
         transformCss(file: ExpressAsset, content: string): Undef<string>;
         transformBuffer(file: ExpressAsset, filepath: string): Promise<void>;
         writeBuffer(file: ExpressAsset, filepath: string): void;
+        finalizeImage: FileManagerWriteImageCallback;
         finalizeFile(file: ExpressAsset, filepath: string): void;
         processAssets(): void;
         finalizeAssets(): Promise<unknown[]>;
@@ -249,7 +253,7 @@ declare namespace functions {
         crop(): void;
         opacity(): void;
         quality(): void;
-        rotate(preRotate?: () => void, postWrite?: (result?: unknown) => void): void;
+        rotate(preRotate?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback): void;
         write(output: string, file?: ExpressAsset, compress?: squared.base.CompressFormat, callback?: FileManagerWriteImageCallback): void;
         constructor(instance: T, filepath: string, command?: string);
     }

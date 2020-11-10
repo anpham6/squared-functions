@@ -7,7 +7,6 @@ import request = require('request');
 import uuid = require('uuid');
 import mime = require('mime-types');
 import escapeRegexp = require('escape-string-regexp');
-import tinify = require('tinify');
 
 import Module from '../module';
 import Node from '../node';
@@ -44,14 +43,7 @@ const FileManager = class extends Module implements IFileManager {
         if (!isNaN(brotli)) {
             Compress.brotliQuality = brotli;
         }
-        if (tinypng_api_key) {
-            tinify.key = tinypng_api_key;
-            tinify.validate(err => {
-                if (!err) {
-                    Compress.tinifyApiKey = tinypng_api_key;
-                }
-            });
-        }
+        Compress.validate(tinypng_api_key);
         if (!ignorePermissions) {
             const { disk_read, disk_write, unc_read, unc_write } = value;
             if (disk_read === true || disk_read === 'true') {
@@ -224,21 +216,6 @@ const FileManager = class extends Module implements IFileManager {
             }
         });
     }
-    getAbsoluteUrl(value: string, href: string) {
-        value = Node.toPosixPath(value);
-        let moveTo = '';
-        if (value[0] === '/') {
-            moveTo = this.serverRoot;
-        }
-        else if (value.startsWith('../')) {
-            moveTo = this.serverRoot;
-            value = Node.resolvePath(value, href, false) || ('/' + value.replace(/\.\.\//g, ''));
-        }
-        else if (value.startsWith('./')) {
-            return value.substring(2);
-        }
-        return moveTo + value;
-    }
     getRootDirectory(location: string, asset: string): [string[], string[]] {
         const locationDir = location.split(/[\\/]/);
         const assetDir = asset.split(/[\\/]/);
@@ -271,11 +248,11 @@ const FileManager = class extends Module implements IFileManager {
         file.filepath = filepath;
         return { pathname, filepath };
     }
-    getRelativeUrl(file: ExpressAsset, url: string) {
-        let asset = this.assets.find(item => item.uri === url),
+    getRelativeUri(file: ExpressAsset, uri: string) {
+        let asset = this.assets.find(item => item.uri === uri),
             origin = file.uri;
         if (!asset && origin) {
-            const location = Node.resolvePath(url, origin);
+            const location = Node.resolvePath(uri, origin);
             if (location) {
                 asset = this.assets.find(item => item.uri === location);
             }
@@ -296,7 +273,7 @@ const FileManager = class extends Module implements IFileManager {
                         const mainUri = baseAsset.uri!;
                         if (Node.fromSameOrigin(origin, mainUri)) {
                             const [originDir] = this.getRootDirectory(baseDir + '/' + file.filename, Node.parsePath(mainUri)!);
-                            return '../'.repeat(originDir.length - 1) + this.getFullUri(asset);
+                            return '../'.repeat(originDir.length - 1) + this.getFileUri(asset);
                         }
                     }
                 }
@@ -315,7 +292,22 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
     }
-    getFullUri(file: ExpressAsset, filename = file.filename) {
+    getAbsoluteUri(value: string, href: string) {
+        value = Node.toPosixPath(value);
+        let moveTo = '';
+        if (value[0] === '/') {
+            moveTo = this.serverRoot;
+        }
+        else if (value.startsWith('../')) {
+            moveTo = this.serverRoot;
+            value = Node.resolvePath(value, href, false) || ('/' + value.replace(/\.\.\//g, ''));
+        }
+        else if (value.startsWith('./')) {
+            return value.substring(2);
+        }
+        return moveTo + value;
+    }
+    getFileUri(file: ExpressAsset, filename = file.filename) {
         return Node.toPosixPath(path.join(file.moveTo || '', file.pathname, filename));
     }
     getUTF8String(file: ExpressAsset, filepath?: string) {
@@ -400,7 +392,7 @@ const FileManager = class extends Module implements IFileManager {
             const assets = this.assets;
             for (const item of assets) {
                 if (item.base64 && item.uri && !item.invalid) {
-                    const url = this.getRelativeUrl(file, item.uri);
+                    const url = this.getRelativeUri(file, item.uri);
                     if (url) {
                         const replacement = this.replacePath(content, item.base64.replace(/\+/g, '\\+'), url, true);
                         if (replacement) {
@@ -415,7 +407,7 @@ const FileManager = class extends Module implements IFileManager {
             while (match = pattern.exec(content)) {
                 const url = match[1].replace(/^["']\s*/, '').replace(/\s*["']$/, '');
                 if (!Node.isFileURI(url) || Node.fromSameOrigin(baseUrl, url)) {
-                    let location = this.getRelativeUrl(file, url);
+                    let location = this.getRelativeUri(file, url);
                     if (location) {
                         output = (output || content).replace(match[0], `url(${location})`);
                     }
@@ -424,7 +416,7 @@ const FileManager = class extends Module implements IFileManager {
                         if (location) {
                             const asset = assets.find(item => item.uri === location && !item.invalid);
                             if (asset) {
-                                location = this.getRelativeUrl(file, location);
+                                location = this.getRelativeUri(file, location);
                                 if (location) {
                                     output = (output || content).replace(match[0], `url(${location})`);
                                 }
@@ -436,7 +428,7 @@ const FileManager = class extends Module implements IFileManager {
                     const asset = assets.find(item => item.uri === url && !item.invalid);
                     if (asset) {
                         const count = file.pathname.split(/[\\/]/).length;
-                        output = (output || content).replace(match[0], `url(${(count ? '../'.repeat(count) : '') + this.getFullUri(asset)})`);
+                        output = (output || content).replace(match[0], `url(${(count ? '../'.repeat(count) : '') + this.getFileUri(asset)})`);
                     }
                 }
             }
@@ -465,7 +457,7 @@ const FileManager = class extends Module implements IFileManager {
                     if (uri === '~') {
                         continue;
                     }
-                    const location = this.getAbsoluteUrl(uri, baseUri);
+                    const location = this.getAbsoluteUri(uri, baseUri);
                     if (items[2] && items[2].includes('inline') && !saved.has(location)) {
                         saved.add(location);
                     }
@@ -535,7 +527,7 @@ const FileManager = class extends Module implements IFileManager {
                             }
                         }
                         else if (bundleIndex === 0 || bundleIndex === -1) {
-                            output = getOuterHTML(/^\s*<link\b/i.test(textContent) || !!item.mimeType?.endsWith('/css'), this.getFullUri(item));
+                            output = getOuterHTML(/^\s*<link\b/i.test(textContent) || !!item.mimeType?.endsWith('/css'), this.getFileUri(item));
                         }
                         else if (item.exclude || bundleIndex !== undefined) {
                             source = source.replace(new RegExp(`\\s*${escapeRegexp(textContent)}\\n*`), '');
@@ -583,10 +575,10 @@ const FileManager = class extends Module implements IFileManager {
                     }
                     let replaced: Undef<string>;
                     if (item.base64) {
-                        replaced = this.replacePath(source, item.base64.replace(/\+/g, '\\+'), this.getFullUri(item), true);
+                        replaced = this.replacePath(source, item.base64.replace(/\+/g, '\\+'), this.getFileUri(item), true);
                     }
                     else if (item.uri && !item.content) {
-                        let value = this.getFullUri(item);
+                        let value = this.getFileUri(item);
                         if (item.rootDir || Node.fromSameOrigin(baseUri, item.uri)) {
                             pattern = new RegExp(`(["'\\s,=])(((?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?${this.escapePathSeparator(path.join(item.pathname, item.filename))})`, 'g');
                             while (match = pattern.exec(html)) {
@@ -770,21 +762,6 @@ const FileManager = class extends Module implements IFileManager {
         }
         return output || filepath;
     }
-    compressImage(filepath: string, output: string) {
-        try {
-            tinify.fromBuffer(fs.readFileSync(output)).toBuffer((err, resultData) => {
-                if (!err && resultData) {
-                    fs.writeFileSync(output, resultData);
-                }
-                this.completeAsyncTask(filepath !== output ? output : '');
-            });
-        }
-        catch (err) {
-            this.completeAsyncTask(filepath !== output ? output : '');
-            this.writeFail(output, err);
-            tinify.validate();
-        }
-    }
     replaceImage(file: ExpressAsset, filepath: string, output: string, command: string) {
         if (filepath !== output) {
             if (command.includes('@')) {
@@ -800,7 +777,27 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
     }
-    writeImage(file: ExpressAsset, filepath: string, output: string, command: string, compress?: CompressFormat, err?: Null<Error>) {
+    writeBuffer(file: ExpressAsset, filepath: string) {
+        const png = Compress.hasImageService() ? Compress.findFormat(file.compress, 'png') : undefined;
+        if (png && Compress.withinSizeRange(filepath, png.condition)) {
+            try {
+                Compress.tryImage(filepath, (result: string, error: Null<Error>) => {
+                    if (error) {
+                        throw error;
+                    }
+                    this.finalizeFile(file, result);
+                });
+            }
+            catch (err) {
+                this.writeFail(filepath, err);
+                this.finalizeFile(file, filepath);
+            }
+        }
+        else {
+            this.finalizeFile(file, filepath);
+        }
+    }
+    finalizeImage(file: ExpressAsset, filepath: string, output: string, command: string, compress?: CompressFormat, err?: Null<Error>) {
         if (err) {
             this.completeAsyncTask();
             this.writeFail(output, err);
@@ -808,77 +805,29 @@ const FileManager = class extends Module implements IFileManager {
         else {
             this.replaceImage(file, filepath, output, command);
             if (compress) {
-                this.compressImage(filepath, output);
+                try {
+                    Compress.tryImage(output, (result: string, error: Null<Error>) => {
+                        if (error) {
+                            throw error;
+                        }
+                        this.completeAsyncTask(result);
+                    });
+                }
+                catch (error) {
+                    this.writeFail(output, error);
+                    this.completeAsyncTask(output);
+                }
             }
             else {
-                this.completeAsyncTask(filepath !== output ? output : '');
+                this.completeAsyncTask(output);
             }
-        }
-    }
-    writeBuffer(file: ExpressAsset, filepath: string) {
-        const png = Compress.findFormat(file.compress, 'png');
-        if (Compress.hasImageService() && png && Compress.withinSizeRange(filepath, png.condition)) {
-            try {
-                tinify.fromBuffer(fs.readFileSync(filepath)).toBuffer((err, resultData) => {
-                    if (!err && resultData) {
-                        fs.writeFileSync(filepath, resultData);
-                    }
-                    this.finalizeFile(file, filepath);
-                });
-            }
-            catch (err) {
-                this.finalizeFile(file, filepath);
-                this.writeFail(filepath, err);
-                tinify.validate();
-            }
-        }
-        else {
-            this.finalizeFile(file, filepath);
         }
     }
     finalizeFile(file: ExpressAsset, filepath: string) {
         this.transformBuffer(file, filepath).then(() => {
-            const gzip = Compress.findFormat(file.compress, 'gz');
-            const brotli = Compress.findFormat(file.compress, 'br');
-            if (gzip && Compress.withinSizeRange(filepath, gzip.condition)) {
-                this.performAsyncTask();
-                let gz = `${filepath}.gz`;
-                Compress.createWriteStreamAsGzip(filepath, gz, gzip.level)
-                    .on('finish', () => {
-                        if (gzip.condition?.includes('%') && this.getFileSize(gz) >= this.getFileSize(filepath)) {
-                            try {
-                                fs.unlinkSync(gz);
-                            }
-                            catch {
-                            }
-                            gz = '';
-                        }
-                        this.completeAsyncTask(gz);
-                    })
-                    .on('error', err => {
-                        this.writeFail(gz, err);
-                        this.completeAsyncTask();
-                    });
-            }
-            if (brotli && Node.checkVersion(11, 7) && Compress.withinSizeRange(filepath, brotli.condition)) {
-                this.performAsyncTask();
-                let br = `${filepath}.br`;
-                Compress.createWriteStreamAsBrotli(filepath, br, brotli.level, file.mimeType)
-                    .on('finish', () => {
-                        if (brotli.condition?.includes('%') && this.getFileSize(br) >= this.getFileSize(filepath)) {
-                            try {
-                                fs.unlinkSync(br);
-                            }
-                            catch {
-                            }
-                            br = '';
-                        }
-                        this.completeAsyncTask(br);
-                    })
-                    .on('error', err => {
-                        this.writeFail(br, err);
-                        this.completeAsyncTask();
-                    });
+            Compress.tryFile(file, filepath, 'gz', this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+            if (Node.checkVersion(11, 7)) {
+                Compress.tryFile(file, filepath, 'br', this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
             }
             this.completeAsyncTask(filepath);
         });
@@ -1279,7 +1228,7 @@ const FileManager = class extends Module implements IFileManager {
                     value = value.replace(new RegExp(id, 'g'), base64Map[id]!);
                 }
                 for (const asset of replaced) {
-                    value = value.replace(new RegExp(this.escapePathSeparator(this.getFullUri(asset, asset.originalName)), 'g'), this.getFullUri(asset));
+                    value = value.replace(new RegExp(this.escapePathSeparator(this.getFileUri(asset, asset.originalName)), 'g'), this.getFileUri(asset));
                 }
                 if (this.productionRelease) {
                     value = value.replace(new RegExp(`(\\.\\./)*${this.serverRoot}`, 'g'), '');

@@ -1,6 +1,6 @@
 {
   "name": "@squared-functions/file-manager",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "File Manager functions for squared-functions",
   "main": "index.js",
   "types": "index.d.ts",
@@ -16,18 +16,17 @@
   "homepage": "https://github.com/anpham6/squared-functions#readme",
   "dependencies": {
     "@squared-functions/chrome": "^0.4.0",
-    "@squared-functions/compress": "^0.4.0",
-    "@squared-functions/image": "^0.4.0",
+    "@squared-functions/compress": "^0.4.1",
+    "@squared-functions/image": "^0.4.1",
     "@squared-functions/module": "^0.4.0",
     "@squared-functions/node": "^0.4.0",
-    "@squared-functions/types": "^0.4.0",
+    "@squared-functions/types": "^0.4.1",
     "chalk": "^4.1.0",
     "escape-string-regexp": "4.0.0",
     "fs-extra": "^9.0.1",
     "gulp": "^4.0.2",
     "mime-types": "^2.1.27",
     "request": "^2.88.2",
-    "tinify": "^1.6.0-beta.2",
     "uuid": "^8.3.1"
   }
 }
