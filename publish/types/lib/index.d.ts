@@ -134,17 +134,16 @@ declare namespace functions {
     }
 
     interface IImage extends IModule {
-        jpegQuality: number;
-        usingJpegCompress(filepath: string, output: string, quality?: number, callback?: () => void): void;
         usingJimp(file: ExpressAsset, filepath: string, compress: Undef<squared.base.CompressFormat>, command?: string): void;
-        isJpeg(filename: string, mimeType?: string, filepath?: string): boolean;
         parseResize(value: string): Undef<internal.ResizeData>;
         parseCrop(value: string): Undef<internal.CropData>;
         parseOpacity(value: string): number;
+        parseQuality(value: string): number;
         parseRotation(value: string): Undef<internal.RotateData>;
         resize(instance: jimp, options: internal.ResizeData): jimp;
         crop(instance: jimp, options: internal.CropData): jimp;
         opacity(instance: jimp, value: number): jimp;
+        quality(instance: jimp, value: number): jimp;
         rotate(instance: jimp, options: internal.RotateData, filepath: string, preRotate?: () => void, postWrite?: (result?: unknown) => void): jimp;
     }
 
@@ -174,7 +173,6 @@ declare namespace functions {
         emptyDirectory: boolean;
         productionRelease: boolean;
         Gulp?: StringMap;
-        Chrome?: IChrome;
         readonly files: Set<string>;
         readonly filesQueued: Set<string>;
         readonly filesToRemove: Set<string>;
@@ -183,10 +181,12 @@ declare namespace functions {
         readonly dirname: string;
         readonly assets: ExpressAsset[];
         readonly postFinalize: FunctionType<void>;
+        readonly dataMap: chrome.DataMap;
         readonly baseAsset?: ExpressAsset;
         install(name: string, ...args: any[]): void;
         add(value: string): void;
         delete(value: string): void;
+        replace(file: ExpressAsset, replaceWith: string): void;
         performAsyncTask(): void;
         removeAsyncTask(): void;
         completeAsyncTask(filepath?: string): void;
@@ -195,20 +195,19 @@ declare namespace functions {
         getAbsoluteUrl(value: string, href: string): string;
         replacePath(source: string, segment: string, value: string, base64?: boolean): Undef<string>;
         escapePathSeparator(value: string): string;
-        replace(file: ExpressAsset, replaceWith: string): void;
         getFileOutput(file: ExpressAsset): internal.FileOutput;
         getRelativeUrl(file: ExpressAsset, url: string): Undef<string>;
         getFullUri(file: ExpressAsset, filename?: string): string;
         getUTF8String(file: ExpressAsset, filepath?: string): string;
+        appendContent(file: ExpressAsset, filepath: string, content: string, bundleIndex: number): Promise<string>;
+        getTrailingContent(file: ExpressAsset): Promise<string>;
         newImage(filepath: string, mimeType: string, ouputType: ImageOutputFormat, command: string, saveAs?: string): string;
         compressImage(filepath: string, output: string): void;
         replaceImage(file: ExpressAsset, filepath: string, output: string, command: string): void;
         transformCss(file: ExpressAsset, content: string): Undef<string>;
-        appendContent(file: ExpressAsset, filepath: string, content: string, bundleIndex: number): Promise<string>;
-        getTrailingContent(file: ExpressAsset): Promise<string>;
         transformBuffer(file: ExpressAsset, filepath: string): Promise<void>;
-        compressFile(file: ExpressAsset, filepath: string, cached?: boolean): void;
-        writeBuffer(file: ExpressAsset, filepath: string, cached?: boolean): void;
+        writeBuffer(file: ExpressAsset, filepath: string): void;
+        finalizeFile(file: ExpressAsset, filepath: string): void;
         processAssets(): void;
         finalizeAssets(): Promise<unknown[]>;
     }
@@ -250,7 +249,6 @@ declare namespace functions {
         request_post_limit?: string;
         gzip_level?: NumString;
         brotli_quality?: NumString;
-        jpeg_quality?: NumString;
         tinypng_api_key?: string;
         env?: string;
         port?: StringMap;

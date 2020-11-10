@@ -1,4 +1,3 @@
-import path = require('path');
 import fs = require('fs');
 import jimp = require('jimp');
 
@@ -19,44 +18,6 @@ const REGEXP_OPACITY = /\|\s*([\d.]+)\s*\|/;
 const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : null;
 
 const Image = new class extends Module implements functions.IImage {
-    public jpegQuality = 100;
-
-    usingJpegCompress(this: IFileManager, filepath: string, output: string, quality?: number, callback?: () => void) {
-        if (callback) {
-            this.performAsyncTask();
-        }
-        jimp.read(filepath)
-            .then(img => {
-                img.quality(quality ?? Image.jpegQuality).write(output, err => {
-                    if (err) {
-                        this.writeFail(filepath, err);
-                    }
-                    else if (output !== filepath) {
-                        try {
-                            if (this.getFileSize(output) >= this.getFileSize(filepath)) {
-                                fs.unlinkSync(output);
-                            }
-                            else {
-                                fs.renameSync(output, filepath);
-                            }
-                        }
-                        catch {
-                        }
-                    }
-                    if (callback) {
-                        this.completeAsyncTask();
-                        callback();
-                    }
-                });
-            })
-            .catch(err => {
-                this.writeFail(filepath, err);
-                if (callback) {
-                    this.completeAsyncTask();
-                    callback();
-                }
-            });
-    }
     usingJimp(this: IFileManager, file: ExpressAsset, filepath: string, compress: Undef<CompressFormat>, command = '') {
         const mimeType = file.mimeType!;
         if (!command || mimeType === 'image/unknown') {
@@ -114,21 +75,21 @@ const Image = new class extends Module implements functions.IImage {
         else {
             const resizeData = Image.parseResize(command = command.trim());
             const cropData = Image.parseCrop(command);
-            const opacityData = Image.parseOpacity(command);
             const rotationData = Image.parseRotation(command);
             if (command.startsWith('png')) {
                 this.performAsyncTask();
                 jimp.read(filepath)
                     .then(img => {
                         const output = this.newImage(filepath, mimeType, 'png', command);
+                        const opacity = Image.parseOpacity(command);
                         if (resizeData) {
                             img = Image.resize(img, resizeData);
                         }
                         if (cropData) {
                             img = Image.crop(img, cropData);
                         }
-                        if (opacityData !== 1) {
-                            img = Image.opacity(img, opacityData);
+                        if (!isNaN(opacity)) {
+                            img = Image.opacity(img, opacity);
                         }
                         if (rotationData) {
                             img = Image.rotate(img, rotationData, output, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
@@ -159,11 +120,15 @@ const Image = new class extends Module implements functions.IImage {
                 jimp.read(filepath)
                     .then(img => {
                         const output = this.newImage(filepath, mimeType, 'jpeg', command, 'jpg');
+                        const quality = Image.parseQuality(command);
                         if (resizeData) {
                             img = Image.resize(img, resizeData);
                         }
                         if (cropData) {
                             img = Image.crop(img, cropData);
+                        }
+                        if (!isNaN(quality)) {
+                            img = Image.quality(img, quality);
                         }
                         if (rotationData) {
                             img = Image.rotate(img, rotationData, output, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
@@ -194,14 +159,15 @@ const Image = new class extends Module implements functions.IImage {
                 jimp.read(filepath)
                     .then(img => {
                         const output = this.newImage(filepath, mimeType, 'bmp', command);
+                        const opacity = Image.parseOpacity(command);
                         if (resizeData) {
                             img = Image.resize(img, resizeData);
                         }
                         if (cropData) {
                             img = Image.crop(img, cropData);
                         }
-                        if (opacityData !== 1) {
-                            img = Image.opacity(img, opacityData);
+                        if (!isNaN(opacity)) {
+                            img = Image.opacity(img, opacity);
                         }
                         if (rotationData) {
                             img = Image.rotate(img, rotationData, output, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
@@ -222,18 +188,6 @@ const Image = new class extends Module implements functions.IImage {
                         this.writeFail(filepath, err);
                     });
             }
-        }
-    }
-    isJpeg(filename: string, mimeType?: string, filepath?: string) {
-        if (mimeType === 'image/jpeg') {
-            return true;
-        }
-        switch (path.extname(filepath || filename).toLowerCase()) {
-            case '.jpg':
-            case '.jpeg':
-                return true;
-            default:
-                return false;
         }
     }
     parseResize(value: string) {
@@ -288,7 +242,23 @@ const Image = new class extends Module implements functions.IImage {
     }
     parseOpacity(value: string) {
         const match = REGEXP_OPACITY.exec(value);
-        return match ? Math.min(Math.max(+match[1], 0), 1) : 1;
+        if (match) {
+            const opacity = +match[1];
+            if (opacity >= 0 && opacity < 1) {
+                return opacity;
+            }
+        }
+        return NaN;
+    }
+    parseQuality(value: string) {
+        const match = REGEXP_OPACITY.exec(value);
+        if (match) {
+            const quality = +match[1];
+            if (quality >= 1 && quality <= 100) {
+                return Math.round(quality);
+            }
+        }
+        return NaN;
     }
     parseRotation(value: string) {
         const match = REGEXP_ROTATE.exec(value);
@@ -301,6 +271,15 @@ const Image = new class extends Module implements functions.IImage {
                 return { values: Array.from(result), color: parseHexDecimal(match[2]) } as RotateData;
             }
         }
+    }
+    crop(instance: jimp, options: CropData) {
+        return instance.crop(options.x, options.y, options.width, options.height);
+    }
+    opacity(instance: jimp, value: number) {
+        return instance.opacity(value);
+    }
+    quality(instance: jimp, value: number) {
+        return instance.quality(value);
     }
     resize(instance: jimp, options: ResizeData) {
         const { width, height, color } = options;
@@ -317,12 +296,6 @@ const Image = new class extends Module implements functions.IImage {
             default:
                 return instance.resize(width === Infinity ? jimp.AUTO : width, height === Infinity ? jimp.AUTO : height, options.algorithm);
         }
-    }
-    crop(instance: jimp, options: CropData) {
-        return instance.crop(options.x, options.y, options.width, options.height);
-    }
-    opacity(instance: jimp, value: number) {
-        return instance.opacity(value);
     }
     rotate(instance: jimp, options: RotateData, filepath: string, preRotate?: () => void, postWrite?: (result?: unknown) => void) {
         const { values, color } = options;

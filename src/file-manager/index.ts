@@ -16,7 +16,6 @@ import Image from '../image';
 import Chrome from '../chrome';
 
 type Settings = functions.Settings;
-type TranspileMap = functions.TranspileMap;
 type DataMap = functions.chrome.DataMap;
 type ExpressAsset = functions.ExpressAsset;
 type IFileManager = functions.IFileManager;
@@ -36,18 +35,14 @@ interface GulpTask {
 
 const FileManager = class extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {
-        const { gzip_level, brotli_quality, jpeg_quality, tinypng_api_key, chrome } = value;
+        const { gzip_level, brotli_quality, tinypng_api_key, chrome } = value;
         const gzip = +(gzip_level as string);
         const brotli = +(brotli_quality as string);
-        const jpeg = +(jpeg_quality as string);
         if (!isNaN(gzip)) {
             Compress.gzipLevel = gzip;
         }
         if (!isNaN(brotli)) {
             Compress.brotliQuality = brotli;
-        }
-        if (!isNaN(jpeg)) {
-            Image.jpegQuality = jpeg;
         }
         if (tinypng_api_key) {
             tinify.key = tinypng_api_key;
@@ -137,8 +132,8 @@ const FileManager = class extends Module implements IFileManager {
     public readonly filesToCompare = new Map<ExpressAsset, string[]>();
     public readonly contentToAppend = new Map<string, string[]>();
     public readonly postFinalize: FunctionType<void>;
+    public readonly dataMap: DataMap;
     public readonly baseAsset?: ExpressAsset;
-    public readonly dataMap?: DataMap;
 
     constructor(
         public readonly dirname: string,
@@ -147,7 +142,7 @@ const FileManager = class extends Module implements IFileManager {
     {
         super();
         this.baseAsset = assets.find(item => item.basePath);
-        this.dataMap = assets[0].dataMap;
+        this.dataMap = assets[0].dataMap || {};
         this.postFinalize = postFinalize.bind(this);
         assets.sort((a, b) => {
             if (a.commands && (!b.commands || a.textContent && !b.textContent) || b === this.baseAsset) {
@@ -174,6 +169,25 @@ const FileManager = class extends Module implements IFileManager {
     }
     delete(value: string) {
         this.files.delete(value.substring(this.dirname.length + 1));
+    }
+    replace(file: ExpressAsset, replaceWith: string) {
+        const filepath = file.filepath;
+        if (filepath) {
+            if (replaceWith.includes('__copy__') && path.extname(filepath) === path.extname(replaceWith)) {
+                try {
+                    fs.renameSync(replaceWith, filepath);
+                }
+                catch (err) {
+                    this.writeFail(replaceWith, err);
+                }
+            }
+            else {
+                this.filesToRemove.add(filepath);
+                file.originalName ||= file.filename;
+                file.filename = path.basename(replaceWith);
+                this.add(replaceWith);
+            }
+        }
     }
     performAsyncTask() {
         ++this.delayed;
@@ -251,25 +265,6 @@ const FileManager = class extends Module implements IFileManager {
     escapePathSeparator(value: string) {
         return value.replace(/[\\/]/g, '[\\\\/]');
     }
-    replace(file: ExpressAsset, replaceWith: string) {
-        const filepath = file.filepath;
-        if (filepath) {
-            if (replaceWith.includes('__copy__') && path.extname(filepath) === path.extname(replaceWith)) {
-                try {
-                    fs.renameSync(replaceWith, filepath);
-                }
-                catch (err) {
-                    this.writeFail(replaceWith, err);
-                }
-            }
-            else {
-                this.filesToRemove.add(filepath);
-                file.originalName ||= file.filename;
-                file.filename = path.basename(replaceWith);
-                this.add(replaceWith);
-            }
-        }
-    }
     getFileOutput(file: ExpressAsset): FileOutput {
         const pathname = path.join(this.dirname, file.moveTo || '', file.pathname);
         const filepath = path.join(pathname, file.filename);
@@ -326,6 +321,79 @@ const FileManager = class extends Module implements IFileManager {
     getUTF8String(file: ExpressAsset, filepath?: string) {
         return file.sourceUTF8 ||= file.buffer?.toString('utf8') || fs.readFileSync(filepath || file.filepath!, 'utf8');
     }
+    async appendContent(file: ExpressAsset, filepath: string, content: string, bundleIndex: number) {
+        const { mimeType, format } = file;
+        if (mimeType) {
+            if (mimeType.endsWith('text/css')) {
+                if (!file.preserve) {
+                    if (this.dataMap.unusedStyles) {
+                        const result = Chrome.removeCss(content, this.dataMap.unusedStyles);
+                        if (result) {
+                            content = result;
+                        }
+                    }
+                }
+                if (mimeType[0] === '@') {
+                    const result = this.transformCss(file, content);
+                    if (result) {
+                        content = result;
+                    }
+                }
+            }
+            if (format) {
+                const result = await Chrome.formatContent(mimeType, format, content, this.dataMap.transpileMap);
+                if (result) {
+                    content = result;
+                }
+            }
+        }
+        const trailing = await this.getTrailingContent(file);
+        if (trailing) {
+            content += trailing;
+        }
+        if (bundleIndex === 0) {
+            return Promise.resolve(content);
+        }
+        const items = this.contentToAppend.get(filepath) || [];
+        items[bundleIndex - 1] = content;
+        this.contentToAppend.set(filepath, items);
+        return Promise.resolve('');
+    }
+    async getTrailingContent(file: ExpressAsset) {
+        const trailingContent = file.trailingContent;
+        let output = '';
+        if (trailingContent) {
+            const mimeType = file.mimeType;
+            for (const item of trailingContent) {
+                let value = item.value;
+                if (mimeType) {
+                    if (mimeType.endsWith('text/css')) {
+                        if (!item.preserve && this.dataMap.unusedStyles) {
+                            const result = Chrome.removeCss(value, this.dataMap.unusedStyles);
+                            if (result) {
+                                value = result;
+                            }
+                        }
+                        if (mimeType[0] === '@') {
+                            const result = this.transformCss(file, value);
+                            if (result) {
+                                value = result;
+                            }
+                        }
+                    }
+                    if (item.format) {
+                        const result = await Chrome.formatContent(mimeType, item.format, value, this.dataMap.transpileMap);
+                        if (result) {
+                            output += '\n' + result;
+                            continue;
+                        }
+                    }
+                }
+                output += '\n' + value;
+            }
+        }
+        return Promise.resolve(output);
+    }
     transformCss(file: ExpressAsset, content: string) {
         const baseUrl = file.uri!;
         if (this.baseAsset && Node.fromSameOrigin(this.baseAsset.uri!, baseUrl)) {
@@ -375,92 +443,11 @@ const FileManager = class extends Module implements IFileManager {
             return output;
         }
     }
-    async appendContent(file: ExpressAsset, filepath: string, content: string, bundleIndex: number) {
-        const { mimeType, format } = file;
-        if (mimeType) {
-            const dataMap = this.dataMap;
-            if (mimeType.endsWith('text/css')) {
-                if (!file.preserve && dataMap) {
-                    const unusedStyles = dataMap.unusedStyles;
-                    if (unusedStyles) {
-                        const result = Chrome.removeCss(content, unusedStyles);
-                        if (result) {
-                            content = result;
-                        }
-                    }
-                }
-                if (mimeType[0] === '@') {
-                    const result = this.transformCss(file, content);
-                    if (result) {
-                        content = result;
-                    }
-                }
-            }
-            if (format) {
-                const result = await Chrome.formatContent(mimeType, format, content, dataMap && dataMap.transpileMap);
-                if (result) {
-                    content = result;
-                }
-            }
-        }
-        const trailing = await this.getTrailingContent(file);
-        if (trailing) {
-            content += trailing;
-        }
-        if (bundleIndex === 0) {
-            return Promise.resolve(content);
-        }
-        const items = this.contentToAppend.get(filepath) || [];
-        items[bundleIndex - 1] = content;
-        this.contentToAppend.set(filepath, items);
-        return Promise.resolve('');
-    }
-    async getTrailingContent(file: ExpressAsset) {
-        const trailingContent = file.trailingContent;
-        let output = '';
-        if (trailingContent) {
-            let unusedStyles: Undef<string[]>,
-                transpileMap: Undef<TranspileMap>;
-            if (this.dataMap) {
-                ({ unusedStyles, transpileMap } = this.dataMap);
-            }
-            const mimeType = file.mimeType;
-            for (const item of trailingContent) {
-                let value = item.value;
-                if (mimeType) {
-                    if (mimeType.endsWith('text/css')) {
-                        if (unusedStyles && !item.preserve) {
-                            const result = Chrome.removeCss(value, unusedStyles);
-                            if (result) {
-                                value = result;
-                            }
-                        }
-                        if (mimeType[0] === '@') {
-                            const result = this.transformCss(file, value);
-                            if (result) {
-                                value = result;
-                            }
-                        }
-                    }
-                    if (item.format) {
-                        const result = await Chrome.formatContent(mimeType, item.format, value, transpileMap);
-                        if (result) {
-                            output += '\n' + result;
-                            continue;
-                        }
-                    }
-                }
-                output += '\n' + value;
-            }
-        }
-        return Promise.resolve(output);
-    }
     async transformBuffer(file: ExpressAsset, filepath: string) {
         const { format, mimeType } = file;
         if (!mimeType || mimeType[0] === '&') {
             return Promise.resolve();
         }
-        const transpileMap = this.dataMap?.transpileMap;
         switch (mimeType) {
             case '@text/html':
             case '@application/xhtml+xml': {
@@ -641,13 +628,13 @@ const FileManager = class extends Module implements IFileManager {
                     .replace(/\s*<script[^>]*?data-chrome-template="([^"]|\\")+?"[^>]*>[\s\S]*?<\/script>\n*/ig, '')
                     .replace(/\s*<(script|link)[^>]+?data-chrome-file="exclude"[^>]*>\n*/ig, '')
                     .replace(/\s+data-(?:use|chrome-[\w-]+)="([^"]|\\")+?"/g, '');
-                file.sourceUTF8 = format && await Chrome.minifyHtml(format, source, transpileMap) || source;
+                file.sourceUTF8 = format && await Chrome.minifyHtml(format, source, this.dataMap.transpileMap) || source;
                 break;
             }
             case 'text/html':
             case 'application/xhtml+xml': {
                 if (format) {
-                    const result = await Chrome.minifyHtml(format, this.getUTF8String(file, filepath), transpileMap);
+                    const result = await Chrome.minifyHtml(format, this.getUTF8String(file, filepath), this.dataMap.transpileMap);
                     if (result) {
                         file.sourceUTF8 = result;
                     }
@@ -656,7 +643,7 @@ const FileManager = class extends Module implements IFileManager {
             }
             case 'text/css':
             case '@text/css': {
-                const unusedStyles = file.preserve !== true && this.dataMap?.unusedStyles;
+                const unusedStyles = file.preserve !== true && this.dataMap.unusedStyles;
                 const transforming = mimeType[0] === '@';
                 const trailing = await this.getTrailingContent(file);
                 if (!unusedStyles && !transforming && !format) {
@@ -685,7 +672,7 @@ const FileManager = class extends Module implements IFileManager {
                     }
                 }
                 if (format) {
-                    const result = await Chrome.minifyCss(format, source || content, transpileMap);
+                    const result = await Chrome.minifyCss(format, source || content, this.dataMap.transpileMap);
                     if (result) {
                         source = result;
                     }
@@ -720,7 +707,7 @@ const FileManager = class extends Module implements IFileManager {
                 const content = this.getUTF8String(file, filepath);
                 let source: Undef<string>;
                 if (format) {
-                    const result = await Chrome.minifyJs(format, content, transpileMap);
+                    const result = await Chrome.minifyJs(format, content, this.dataMap.transpileMap);
                     if (result) {
                         source = result;
                     }
@@ -758,63 +745,6 @@ const FileManager = class extends Module implements IFileManager {
                 break;
         }
         return Promise.resolve();
-    }
-    compressFile(file: ExpressAsset, filepath: string, cached?: boolean) {
-        const compress = file.compress;
-        const jpeg = Image.isJpeg(file.filename, file.mimeType, filepath) && Compress.findFormat(compress, 'jpeg');
-        const resumeThread = () => {
-            this.transformBuffer(file, filepath).then(() => {
-                const gzip = Compress.findFormat(compress, 'gz');
-                const brotli = Compress.findFormat(compress, 'br');
-                if (gzip && Compress.withinSizeRange(filepath, gzip.condition)) {
-                    this.performAsyncTask();
-                    let gz = `${filepath}.gz`;
-                    Compress.createWriteStreamAsGzip(filepath, gz, gzip.level)
-                        .on('finish', () => {
-                            if (gzip.condition?.includes('%') && this.getFileSize(gz) >= this.getFileSize(filepath)) {
-                                try {
-                                    fs.unlinkSync(gz);
-                                }
-                                catch {
-                                }
-                                gz = '';
-                            }
-                            this.completeAsyncTask(gz);
-                        })
-                        .on('error', err => {
-                            this.writeFail(gz, err);
-                            this.completeAsyncTask();
-                        });
-                }
-                if (brotli && Node.checkVersion(11, 7) && Compress.withinSizeRange(filepath, brotli.condition)) {
-                    this.performAsyncTask();
-                    let br = `${filepath}.br`;
-                    Compress.createWriteStreamAsBrotli(filepath, br, brotli.level, file.mimeType)
-                        .on('finish', () => {
-                            if (brotli.condition?.includes('%') && this.getFileSize(br) >= this.getFileSize(filepath)) {
-                                try {
-                                    fs.unlinkSync(br);
-                                }
-                                catch {
-                                }
-                                br = '';
-                            }
-                            this.completeAsyncTask(br);
-                        })
-                        .on('error', err => {
-                            this.writeFail(br, err);
-                            this.completeAsyncTask();
-                        });
-                }
-                this.completeAsyncTask(!cached ? filepath : '');
-            });
-        };
-        if (jpeg && Compress.withinSizeRange(filepath, jpeg.condition)) {
-            Image.usingJpegCompress.call(this, filepath, filepath + (jpeg.condition?.includes('%') ? '.jpg' : ''), jpeg.level, resumeThread.bind(this));
-        }
-        else {
-            resumeThread();
-        }
     }
     newImage(filepath: string, mimeType: string, outputType: ImageOutputFormat, command: string, saveAs?: string) {
         let output = '';
@@ -870,7 +800,7 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
     }
-    writeBuffer(file: ExpressAsset, filepath: string, cached?: boolean) {
+    writeBuffer(file: ExpressAsset, filepath: string) {
         const png = Compress.findFormat(file.compress, 'png');
         if (Compress.hasImageService() && png && Compress.withinSizeRange(filepath, png.condition)) {
             try {
@@ -878,21 +808,65 @@ const FileManager = class extends Module implements IFileManager {
                     if (!err && resultData) {
                         fs.writeFileSync(filepath, resultData);
                     }
-                    if (Image.isJpeg(file.filename, file.mimeType)) {
-                        Compress.removeFormat(file.compress, 'jpeg');
-                    }
-                    this.compressFile(file, filepath, cached);
+                    this.finalizeFile(file, filepath);
                 });
             }
             catch (err) {
-                this.compressFile(file, filepath, cached);
+                this.finalizeFile(file, filepath);
                 this.writeFail(filepath, err);
                 tinify.validate();
             }
         }
         else {
-            this.compressFile(file, filepath, cached);
+            this.finalizeFile(file, filepath);
         }
+    }
+    finalizeFile(file: ExpressAsset, filepath: string) {
+        this.transformBuffer(file, filepath).then(() => {
+            const gzip = Compress.findFormat(file.compress, 'gz');
+            const brotli = Compress.findFormat(file.compress, 'br');
+            if (gzip && Compress.withinSizeRange(filepath, gzip.condition)) {
+                this.performAsyncTask();
+                let gz = `${filepath}.gz`;
+                Compress.createWriteStreamAsGzip(filepath, gz, gzip.level)
+                    .on('finish', () => {
+                        if (gzip.condition?.includes('%') && this.getFileSize(gz) >= this.getFileSize(filepath)) {
+                            try {
+                                fs.unlinkSync(gz);
+                            }
+                            catch {
+                            }
+                            gz = '';
+                        }
+                        this.completeAsyncTask(gz);
+                    })
+                    .on('error', err => {
+                        this.writeFail(gz, err);
+                        this.completeAsyncTask();
+                    });
+            }
+            if (brotli && Node.checkVersion(11, 7) && Compress.withinSizeRange(filepath, brotli.condition)) {
+                this.performAsyncTask();
+                let br = `${filepath}.br`;
+                Compress.createWriteStreamAsBrotli(filepath, br, brotli.level, file.mimeType)
+                    .on('finish', () => {
+                        if (brotli.condition?.includes('%') && this.getFileSize(br) >= this.getFileSize(filepath)) {
+                            try {
+                                fs.unlinkSync(br);
+                            }
+                            catch {
+                            }
+                            br = '';
+                        }
+                        this.completeAsyncTask(br);
+                    })
+                    .on('error', err => {
+                        this.writeFail(br, err);
+                        this.completeAsyncTask();
+                    });
+            }
+            this.completeAsyncTask(filepath);
+        });
     }
     processAssets() {
         const emptyDir = new Set<string>();
@@ -911,7 +885,7 @@ const FileManager = class extends Module implements IFileManager {
             }
             else if (!content) {
                 if (completed.includes(filepath)) {
-                    this.writeBuffer(file, filepath, true);
+                    this.writeBuffer(file, filepath);
                     return true;
                 }
                 else {
@@ -1009,7 +983,7 @@ const FileManager = class extends Module implements IFileManager {
                     }
                 }
                 if (bundleMain || !file.invalid) {
-                    this.compressFile(bundleMain || file, filepath);
+                    this.finalizeFile(bundleMain || file, filepath);
                 }
                 else {
                     this.completeAsyncTask();

@@ -47,7 +47,7 @@ Image conversion can be achieved using the mimeType property in a FileAsset obje
 - ( width(n|auto) x height(n|auto) [bilinear|bicubic|hermite|bezier]? ^(cover|contain|scale)?[left|center|right|top|middle|bottom]? #background-color? )
 - ( left(+|-n) , top(+|-n) | cropWidth(n) x cropHeight(n) )
 - { ...rotate(n) #background-color? }
-- | opacity(d) |
+- | opacity(0<1) OR jpeg_quality(1>=100) |
 ```
 
 @ - replace  
