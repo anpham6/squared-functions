@@ -6,12 +6,9 @@ import Module from '../module';
 
 type CompressFormat = functions.squared.CompressFormat;
 
-type FileCompressFormat = functions.FileCompressFormat;
 type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTaskCallback;
 type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
 type FileOutputCallback = functions.FileOutputCallback;
-
-type FileData = functions.internal.FileData;
 
 type NodeBuiltInCompressionMethod = "createWriteStreamAsGzip" | "createWriteStreamAsBrotli";
 
@@ -70,13 +67,11 @@ const Compress = new class extends Module implements functions.ICompress {
         }
         return true;
     }
-    tryFile(data: FileData, format: FileCompressFormat, preCompress?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback) {
-        const { file, fileUri } = data;
-        const formatData = this.findFormat(file.compress, format);
-        if (formatData && this.withinSizeRange(fileUri, formatData.condition)) {
-            let output = `${fileUri}.${format}`,
+    tryFile(fileUri: string, data: CompressFormat, preCompress?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback) {
+        if (this.withinSizeRange(fileUri, data.condition)) {
+            let output = `${fileUri}.${data.format}`,
                 methodName: Undef<NodeBuiltInCompressionMethod>;
-            switch (format) {
+            switch (data.format) {
                 case 'gz':
                     methodName = 'createWriteStreamAsGzip';
                     break;
@@ -88,9 +83,9 @@ const Compress = new class extends Module implements functions.ICompress {
                 if (preCompress) {
                     preCompress();
                 }
-                Compress[methodName](fileUri, output, formatData.level)
+                Compress[methodName](fileUri, output, data.level)
                     .on('finish', () => {
-                        if (formatData.condition?.includes('%') && this.getFileSize(output) >= this.getFileSize(fileUri)) {
+                        if (data.condition?.includes('%') && this.getFileSize(output) >= this.getFileSize(fileUri)) {
                             try {
                                 fs.unlinkSync(output);
                             }
@@ -108,11 +103,14 @@ const Compress = new class extends Module implements functions.ICompress {
                             postWrite();
                         }
                     });
+                return;
             }
         }
+        if (!preCompress && postWrite) {
+            postWrite();
+        }
     }
-    tryImage(data: FileData, callback: FileOutputCallback) {
-        const fileUri = data.fileUri;
+    tryImage(fileUri: string, callback: FileOutputCallback) {
         try {
             tinify.fromBuffer(fs.readFileSync(fileUri)).toBuffer((err, resultData) => {
                 if (!err && resultData) {

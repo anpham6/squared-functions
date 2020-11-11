@@ -10,7 +10,7 @@ declare namespace functions {
     type FileCompressFormat = "gz" | "br";
     type FileManagerWriteImageCallback = (data: internal.FileData, output: string, command: string, compress?: squared.CompressFormat, err?: Null<Error>) => void;
     type FileManagerPerformAsyncTaskCallback = () => void;
-    type FileManagerCompleteAsyncTaskCallback = (fileUri?: string) => void;
+    type FileManagerCompleteAsyncTaskCallback = (value?: unknown) => void;
     type FileOutputCallback = (result: string, err?: Null<Error>) => void;
 
     namespace squared {
@@ -149,8 +149,8 @@ declare namespace functions {
         hasImageService(): boolean;
         parseSizeRange(value: string): [number, number];
         withinSizeRange(fileUri: string, value: Undef<string>): boolean;
-        tryFile(data: internal.FileData, format: FileCompressFormat, preCompress?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback): void;
-        tryImage(data: internal.FileData, callback: FileOutputCallback): void;
+        tryFile(fileUri: string, data: squared.CompressFormat, preCompress?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback): void;
+        tryImage(fileUri: string, callback: FileOutputCallback): void;
     }
 
     interface IImage extends IModule {
@@ -203,6 +203,7 @@ declare namespace functions {
         install(name: string, ...args: any[]): void;
         add(value: string): void;
         delete(value: string): void;
+        has(value: string): boolean;
         replace(file: ExternalAsset, replaceWith: string): void;
         performAsyncTask: FileManagerPerformAsyncTaskCallback;
         removeAsyncTask(): void;

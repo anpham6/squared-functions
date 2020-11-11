@@ -167,6 +167,9 @@ const FileManager = class extends Module implements IFileManager {
     delete(value: string) {
         this.files.delete(value.substring(this.dirname.length + 1));
     }
+    has(value: string) {
+        return this.files.has(value.substring(this.dirname.length + 1));
+    }
     replace(file: ExternalAsset, replaceWith: string) {
         const fileUri = file.fileUri;
         if (fileUri) {
@@ -816,7 +819,7 @@ const FileManager = class extends Module implements IFileManager {
         const png = Compress.hasImageService() ? Compress.findFormat(data.file.compress, 'png') : undefined;
         if (png && Compress.withinSizeRange(data.fileUri, png.condition)) {
             try {
-                Compress.tryImage(data, (result: string, error: Null<Error>) => {
+                Compress.tryImage(data.fileUri, (result: string, error: Null<Error>) => {
                     if (error) {
                         throw error;
                     }
@@ -842,8 +845,7 @@ const FileManager = class extends Module implements IFileManager {
             this.replaceImage(data, output, command);
             if (compress) {
                 try {
-                    data.fileUri = output;
-                    Compress.tryImage(data, (result: string, error: Null<Error>) => {
+                    Compress.tryImage(output, (result: string, error: Null<Error>) => {
                         if (error) {
                             throw error;
                         }
@@ -862,10 +864,6 @@ const FileManager = class extends Module implements IFileManager {
     }
     finalizeFile(data: FileData) {
         this.transformBuffer(data).then(() => {
-            Compress.tryFile(data, 'gz', this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
-            if (Node.checkVersion(11, 7)) {
-                Compress.tryFile(data, 'br', this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
-            }
             this.completeAsyncTask(data.fileUri);
         });
     }
@@ -1163,7 +1161,7 @@ const FileManager = class extends Module implements IFileManager {
             if (file) {
                 file.sourceUTF8 = this.getUTF8String(file, fileUri) + output;
             }
-            else if (fs.existsSync(fileUri)) {
+            else if (this.has(fileUri)) {
                 tasks.push(fs.appendFile(fileUri, output));
             }
             else {
@@ -1229,17 +1227,6 @@ const FileManager = class extends Module implements IFileManager {
                 this.replace(file, minFile);
             }
         }
-        for (const value of this.filesToRemove) {
-            try {
-                if (fs.existsSync(value)) {
-                    fs.unlinkSync(value);
-                }
-                this.delete(value);
-            }
-            catch (err) {
-                this.writeFail(value, err);
-            }
-        }
         for (const item of this.assets) {
             if (item.inlineBase64 && !item.invalid) {
                 const fileUri = item.fileUri!;
@@ -1255,7 +1242,7 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => Node.writeFail('Finalize: Read base64', err));
+            await Promise.all(tasks).catch(err => Node.writeFail('Finalize: Cache base64', err));
             tasks = [];
         }
         const assets = this.assets.filter(item => !item.invalid);
@@ -1300,6 +1287,28 @@ const FileManager = class extends Module implements IFileManager {
         }
         if (tasks.length) {
             await Promise.all(tasks).catch(err => Node.writeFail('Finalize: Write UTF-8', err));
+            tasks = [];
+        }
+        for (const item of assets) {
+            const fileUri = item.fileUri!;
+            if (this.has(fileUri)) {
+                const gz = Compress.findFormat(item.compress, 'gz');
+                if (gz) {
+                    tasks.push(new Promise(resolve => Compress.tryFile(fileUri, gz, undefined, resolve)));
+                }
+                if (Node.checkVersion(11, 7)) {
+                    const br = Compress.findFormat(item.compress, 'br');
+                    if (br) {
+                        tasks.push(new Promise(resolve => Compress.tryFile(fileUri, br, undefined, resolve)));
+                    }
+                }
+            }
+        }
+        for (const value of this.filesToRemove) {
+            tasks.push(fs.unlink(value).then(() => this.delete(value)).catch(err => this.writeFail(value, err)));
+        }
+        if (tasks.length) {
+            await Promise.all(tasks).catch(err => Node.writeFail('Finalize: Compress and delete temp files', err));
             tasks = [];
         }
         if (this.Gulp) {
@@ -1437,7 +1446,7 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
         return Promise.all(tasks).catch(err => {
-            Node.writeFail('Gulp: Finalize', err);
+            Node.writeFail('Finalize: Exec tasks', err);
             return err;
         });
     }
