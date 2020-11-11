@@ -1,6 +1,8 @@
 import fs = require('fs');
+import child_process = require('child_process');
 import jimp = require('jimp');
 import mime = require('mime-types');
+import uuid = require('uuid');
 
 import Module from '../module';
 
@@ -20,7 +22,7 @@ type RotateData = functions.internal.RotateData;
 const REGEXP_RESIZE = /\(\s*(\d+|auto)\s*x\s*(\d+|auto)(?:\s*\[\s*(bilinear|bicubic|hermite|bezier)\s*\])?(?:\s*^\s*(contain|cover|scale)(?:\s*\[\s*(left|center|right)?(?:\s*\|?\s*(top|middle|bottom))?\s*\])?)?(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\)/;
 const REGEXP_CROP = /\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*\|\s*(\d+)\s*x\s*(\d+)\s*\)/;
 const REGEXP_ROTATE = /\{\s*([\d\s,]+)(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\}/;
-const REGEXP_OPACITY = /\|\s*([\d.]+)\s*\|/;
+const REGEXP_OPACITY = /\|\s*([\d.]+)\s*\|/g;
 
 const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : null;
 
@@ -32,7 +34,7 @@ class JimpProxy implements functions.ImageProxy<jimp> {
     public opacityValue = NaN;
     public errorHandler?: (err: Error) => void;
 
-    constructor(public instance: jimp, public filepath: string, public command = '') {
+    constructor(public instance: jimp, public filepath: string, public command = '', public finalAs?: string) {
         if (command) {
             this.resizeData = Image.parseResize(command);
             this.cropData = Image.parseCrop(command);
@@ -101,9 +103,16 @@ class JimpProxy implements functions.ImageProxy<jimp> {
                     if (err) {
                         Image.writeFail(output, err);
                         output = '';
+                        if (postWrite) {
+                            postWrite(output);
+                        }
                     }
-                    if (postWrite) {
-                        postWrite(output);
+                    else {
+                        this.finalize(output, (result: string) => {
+                            if (postWrite) {
+                                postWrite(result);
+                            }
+                        });
                     }
                 });
             }
@@ -121,20 +130,51 @@ class JimpProxy implements functions.ImageProxy<jimp> {
         }
         this.instance.write(output, err => {
             if (data && callback) {
-                callback(data, output, this.command, compress, err);
+                this.finalize(output, (result: string) => {
+                    callback!(data!, result, this.command, compress, err);
+                });
             }
             else if (err && this.errorHandler) {
                 this.errorHandler(err);
             }
         });
     }
+    finalize(output: string, callback: (result: string) => void) {
+        if (this.finalAs === 'webp') {
+            const webp = Image.replaceExtension(output, 'webp');
+            const args = [output, '-mt', '-m', '6'];
+            if (!isNaN(this.qualityValue)) {
+                args.push('-q', this.qualityValue.toString());
+            }
+            args.push('-o', webp);
+            child_process.execFile(require('cwebp-bin'), args, null, err => {
+                if (err) {
+                    Image.writeFail(`WebP encode (npm i cwebp-bin): ${output}`, err);
+                    callback(output);
+                }
+                else {
+                    try {
+                        fs.unlinkSync(output);
+                    }
+                    catch (error) {
+                        Image.writeFail(`Unable to delete: ${output}`, error);
+                    }
+                    callback(webp);
+                }
+            });
+        }
+        else {
+            callback(output);
+        }
+    }
 }
 
 const Image = new class extends Module implements functions.IImage {
     using(this: IFileManager, options: ImageUsingOptions) {
-        const { data, compress, command = '' } = options;
-        const filepath = data.filepath;
-        const mimeType = data.file.mimeType || mime.lookup(filepath);
+        const { data, compress } = options;
+        const { file, filepath } = data;
+        const command = options.command?.trim().toLowerCase();
+        const mimeType = file.mimeType || mime.lookup(filepath);
         if (!command || !mimeType || mimeType === 'image/unknown') {
             this.performAsyncTask();
             jimp.read(filepath)
@@ -156,11 +196,6 @@ const Image = new class extends Module implements functions.IImage {
                                 this.writeFail(filepath, err);
                             }
                             break;
-                        default: {
-                            const output = this.replaceExtension(filepath, 'png');
-                            const proxy = new JimpProxy(img, filepath, '@');
-                            proxy.write(output, options);
-                        }
                     }
                 })
                 .catch(err => {
@@ -170,42 +205,77 @@ const Image = new class extends Module implements functions.IImage {
         }
         else {
             let jimpType: Undef<string>,
-                saveAs: Undef<string>;
-            if (command.startsWith('png')) {
-                jimpType = jimp.MIME_PNG;
-                saveAs = 'png';
-            }
-            else if (command.startsWith('jpeg')) {
-                jimpType = jimp.MIME_JPEG;
-                saveAs = 'jpg';
-            }
-            else if (command.startsWith('bmp')) {
-                jimpType = jimp.MIME_BMP;
-                saveAs = 'bmp';
-            }
-            if (jimpType && saveAs) {
-                this.performAsyncTask();
-                jimp.read(filepath)
-                    .then(img => {
-                        const proxy = new JimpProxy(img, filepath, command);
-                        proxy.resize();
-                        proxy.crop();
-                        if (jimpType === jimp.MIME_JPEG) {
-                            proxy.quality();
+                tempFile: Undef<string>,
+                saveAs: Undef<string>,
+                finalAs: Undef<string>;
+            const resumeThread = () => {
+                if (command.startsWith('png')) {
+                    jimpType = jimp.MIME_PNG;
+                    saveAs = 'png';
+                }
+                else if (command.startsWith('jpeg')) {
+                    jimpType = jimp.MIME_JPEG;
+                    saveAs = 'jpg';
+                }
+                else if (command.startsWith('bmp')) {
+                    jimpType = jimp.MIME_BMP;
+                    saveAs = 'bmp';
+                }
+                else if (command.startsWith('webp')) {
+                    if (mimeType === jimp.MIME_JPEG) {
+                        jimpType = jimp.MIME_JPEG;
+                        saveAs = 'jpg';
+                    }
+                    else {
+                        jimpType = jimp.MIME_PNG;
+                        saveAs = 'png';
+                    }
+                    finalAs = 'webp';
+                }
+                if (jimpType && saveAs) {
+                    this.performAsyncTask();
+                    jimp.read(tempFile || filepath)
+                        .then(img => {
+                            const proxy = new JimpProxy(img, filepath, command, finalAs);
+                            proxy.resize();
+                            proxy.crop();
+                            if (jimpType === jimp.MIME_JPEG && !finalAs) {
+                                proxy.quality();
+                            }
+                            else {
+                                proxy.opacity();
+                            }
+                            proxy.rotate(this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                            file.mimeType = mimeType;
+                            proxy.write(
+                                this.newImage(data, jimpType!, saveAs!, command),
+                                options
+                            );
+                        })
+                        .catch(err => {
+                            this.completeAsyncTask();
+                            this.writeFail(filepath, err);
+                        });
+                }
+            };
+            if (mimeType === 'image/webp') {
+                try {
+                    tempFile = this.getTempDir() + uuid.v4() + '.png';
+                    child_process.execFile(require('dwebp-bin'), [filepath, '-mt', '-o', tempFile], null, err => {
+                        if (err) {
+                            tempFile = '';
                         }
-                        else {
-                            proxy.opacity();
-                        }
-                        proxy.rotate(this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
-                        proxy.write(
-                            this.newImage(data, mimeType, jimpType!, saveAs!, command),
-                            options
-                        );
-                    })
-                    .catch(err => {
-                        this.completeAsyncTask();
-                        this.writeFail(filepath, err);
+                        resumeThread();
                     });
+                }
+                catch (err) {
+                    tempFile = '';
+                    Image.writeFail(`WebP decode (npm i dwebp-bin): ${filepath}`, err);
+                    resumeThread();
+                }
+            }
+            else {
+                resumeThread();
             }
         }
     }
@@ -260,8 +330,9 @@ const Image = new class extends Module implements functions.IImage {
         }
     }
     parseOpacity(value: string) {
-        const match = REGEXP_OPACITY.exec(value);
-        if (match) {
+        REGEXP_OPACITY.lastIndex = 0;
+        let match: Null<RegExpExecArray>;
+        while (match = REGEXP_OPACITY.exec(value)) {
             const opacity = +match[1];
             if (opacity >= 0 && opacity < 1) {
                 return opacity;
@@ -270,8 +341,9 @@ const Image = new class extends Module implements functions.IImage {
         return NaN;
     }
     parseQuality(value: string) {
-        const match = REGEXP_OPACITY.exec(value);
-        if (match) {
+        REGEXP_OPACITY.lastIndex = 0;
+        let match: Null<RegExpExecArray>;
+        while (match = REGEXP_OPACITY.exec(value)) {
             const quality = +match[1];
             if (quality >= 1 && quality <= 100) {
                 return Math.round(quality);

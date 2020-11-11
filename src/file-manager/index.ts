@@ -743,10 +743,10 @@ const FileManager = class extends Module implements IFileManager {
         }
         return Promise.resolve();
     }
-    newImage(data: FileData, mimeType: string, outputType: string, saveAs: string, command = '') {
+    newImage(data: FileData, outputType: string, saveAs: string, command = '') {
         const filepath = data.filepath;
         let output = '';
-        if (mimeType === outputType) {
+        if (data.file.mimeType === outputType) {
             if (!command.includes('@')) {
                 let i = 1;
                 do {
@@ -789,7 +789,7 @@ const FileManager = class extends Module implements IFileManager {
         const png = Compress.hasImageService() ? Compress.findFormat(data.file.compress, 'png') : undefined;
         if (png && Compress.withinSizeRange(filepath, png.condition)) {
             try {
-                Compress.tryImage(filepath, (result: string, error: Null<Error>) => {
+                Compress.tryImage(data, (result: string, error: Null<Error>) => {
                     if (error) {
                         throw error;
                     }
@@ -815,7 +815,8 @@ const FileManager = class extends Module implements IFileManager {
             this.replaceImage(data, output, command);
             if (compress) {
                 try {
-                    Compress.tryImage(output, (result: string, error: Null<Error>) => {
+                    data.filepath = output;
+                    Compress.tryImage(data, (result: string, error: Null<Error>) => {
                         if (error) {
                             throw error;
                         }
@@ -1038,6 +1039,7 @@ const FileManager = class extends Module implements IFileManager {
             }
             if (file.content) {
                 if (!checkQueue(file, filepath, true)) {
+                    file.sourceUTF8 = file.content;
                     this.performAsyncTask();
                     fs.writeFile(
                         filepath,
@@ -1187,7 +1189,7 @@ const FileManager = class extends Module implements IFileManager {
                 minSize = this.getFileSize(minFile);
             for (const other of output) {
                 const size = this.getFileSize(other);
-                if (size > 0 && size < minSize) {
+                if (minSize === 0 || size > 0 && size < minSize) {
                     this.filesToRemove.add(minFile);
                     minFile = other;
                     minSize = size;
@@ -1351,16 +1353,16 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 return 0;
             });
-            [itemsAsync, itemsSync].forEach((items, index) => {
-                for (const { task, origDir, data } of items) {
-                    const tempDir = process.cwd() + path.sep + 'temp' + path.sep + uuid.v4();
-                    const processFiles = () => {
-                        try {
-                            fs.mkdirpSync(tempDir);
-                            for (const file of data.items) {
-                                fs.copyFileSync(file, path.join(tempDir, path.basename(file)));
-                            }
-                            child_process.exec(`gulp ${task} --gulpfile "${data.gulpfile}" --cwd "${tempDir}"`, { cwd: process.cwd() });
+            const resumeThread = (item: GulpTask, callback: () => void) => {
+                const { task, origDir, data } = item;
+                const tempDir = this.getTempDir() + uuid.v4();
+                try {
+                    fs.mkdirpSync(tempDir);
+                    for (const file of data.items) {
+                        fs.copyFileSync(file, path.join(tempDir, path.basename(file)));
+                    }
+                    child_process.exec(`gulp ${task} --gulpfile "${data.gulpfile}" --cwd "${tempDir}"`, { cwd: process.cwd() }, err => {
+                        if (!err) {
                             for (const filepath of data.items) {
                                 try {
                                     fs.unlinkSync(filepath);
@@ -1379,23 +1381,33 @@ const FileManager = class extends Module implements IFileManager {
                                 }
                             }
                         }
-                        catch (err) {
+                        else {
                             Node.writeFail(`Gulp: exec (${task}:${path.basename(data.gulpfile)})`, err);
                         }
-                    };
-                    if (index === 0) {
-                        tasks.push(
-                            new Promise(resolve => {
-                                processFiles();
-                                resolve();
-                            })
-                        );
-                    }
-                    else {
-                        processFiles();
-                    }
+                        callback();
+                    });
                 }
-            });
+                catch (err) {
+                    Node.writeFail('Gulp: Copy temp files', err);
+                    callback();
+                }
+            };
+            for (const item of itemsAsync) {
+                tasks.push(new Promise(resolve => resumeThread(item, resolve)));
+            }
+            if (itemsSync.length) {
+                tasks.push(new Promise(resolve => {
+                    (function nextTask(this: IFileManager) {
+                        const item = itemsSync.shift();
+                        if (item) {
+                            resumeThread.call(this, item, nextTask);
+                        }
+                        else {
+                            resolve();
+                        }
+                    }).bind(this)();
+                }));
+            }
         }
         return Promise.all(tasks).catch(err => {
             Node.writeFail('Gulp: Finalize', err);

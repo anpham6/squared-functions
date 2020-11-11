@@ -51,14 +51,6 @@ const Compress = new class extends Module implements functions.ICompress {
     findFormat(compress: Undef<CompressFormat[]>, format: string) {
         return compress && compress.find(item => item.format === format);
     }
-    removeFormat(compress: Undef<CompressFormat[]>, format: string) {
-        if (compress) {
-            const index = compress.findIndex(value => value.format === format);
-            if (index !== -1) {
-                compress.splice(index, 1);
-            }
-        }
-    }
     hasImageService() {
         return this.tinifyApiKey !== '';
     }
@@ -80,8 +72,8 @@ const Compress = new class extends Module implements functions.ICompress {
     }
     tryFile(data: FileData, format: FileCompressFormat, preCompress?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback) {
         const { file, filepath } = data;
-        const formatData = Compress.findFormat(file.compress, format);
-        if (formatData && Compress.withinSizeRange(filepath, formatData.condition)) {
+        const formatData = this.findFormat(file.compress, format);
+        if (formatData && this.withinSizeRange(filepath, formatData.condition)) {
             let output = `${filepath}.${format}`,
                 methodName: Undef<NodeBuiltInCompressionMethod>;
             switch (format) {
@@ -119,7 +111,8 @@ const Compress = new class extends Module implements functions.ICompress {
             }
         }
     }
-    tryImage(filepath: string, callback: FileOutputCallback) {
+    tryImage(data: FileData, callback: FileOutputCallback) {
+        const filepath = data.filepath;
         try {
             tinify.fromBuffer(fs.readFileSync(filepath)).toBuffer((err, resultData) => {
                 if (!err && resultData) {

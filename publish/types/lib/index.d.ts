@@ -143,11 +143,10 @@ declare namespace functions {
         createWriteStreamAsBrotli(source: string, filepath: string, quality?: number, mimeType?: string): WriteStream;
         findFormat(compress: Undef<squared.base.CompressFormat[]>, format: string): Undef<squared.base.CompressFormat>;
         hasImageService(): boolean;
-        removeFormat(compress: Undef<squared.base.CompressFormat[]>, format: string): void;
         parseSizeRange(value: string): [number, number];
         withinSizeRange(filepath: string, value: Undef<string>): boolean;
         tryFile(data: internal.FileData, format: FileCompressFormat, preCompress?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback): void;
-        tryImage(filepath: string, callback: FileOutputCallback): void;
+        tryImage(data: internal.FileData, callback: FileOutputCallback): void;
     }
 
     interface IImage extends IModule {
@@ -214,7 +213,7 @@ declare namespace functions {
         appendContent(file: ExpressAsset, filepath: string, content: string, bundleIndex: number): Promise<string>;
         getTrailingContent(file: ExpressAsset): Promise<string>;
         transformCss(file: ExpressAsset, content: string): Undef<string>;
-        newImage(data: internal.FileData, mimeType: string, ouputType: string, saveAs: string, command?: string): string;
+        newImage(data: internal.FileData, ouputType: string, saveAs: string, command?: string): string;
         replaceImage(data: internal.FileData, output: string, command: string): void;
         transformBuffer(data: internal.FileData): Promise<void>;
         writeBuffer(data: internal.FileData): void;
@@ -242,6 +241,7 @@ declare namespace functions {
         checkVersion(major: number, minor: number, patch?: number): boolean;
         getFileSize(filepath: string): number;
         replaceExtension(value: string, ext: string): string;
+        getTempDir(): string;
         writeFail(description: string, message: unknown): void;
     }
 
@@ -267,7 +267,8 @@ declare namespace functions {
         quality(): void;
         rotate(preRotate?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback): void;
         write(output: string, options?: internal.ImageUsingOptions): void;
-        constructor(instance: T, filepath: string, command?: string);
+        finalize(output: string, callback: (result: string) => void): void;
+        constructor(instance: T, filepath: string, command?: string, finalAs?: string);
     }
 
     interface Settings {

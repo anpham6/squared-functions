@@ -33,9 +33,17 @@ Image conversion can be achieved using the mimeType property in a FileAsset obje
 
 * png - r/w
 * jpeg - r/w
+* webp - r/w
 * bmp - r/w
 * gif - r
 * tiff - r
+
+NOTE: WebP support requires manual NPM installation of the binaries.
+
+* dwebp - r
+* cwebp - w
+
+npm install dwebp-bin && npm install cwebp-bin
 
 ```javascript
 // All commands are optional except "format". Outer groupings and inner brackets are required.
@@ -47,7 +55,7 @@ Image conversion can be achieved using the mimeType property in a FileAsset obje
 - ( width(n|auto) x height(n|auto) [bilinear|bicubic|hermite|bezier]? ^(cover|contain|scale)?[left|center|right|top|middle|bottom]? #background-color? )
 - ( left(+|-n) , top(+|-n) | cropWidth(n) x cropHeight(n) )
 - { ...rotate(n) #background-color? }
-- | opacity(0<1) OR jpeg_quality(1>=100) |
+- | opacity(0<1) OR jpeg_webp_quality(1>=100) |
 ```
 
 @ - replace  
@@ -58,7 +66,7 @@ Placing an @ symbol (png@) after the format will remove the original file from t
 ```javascript
 // NOTE: Multiple transformations per asset use the ':' as the separator when using "data-chrome-file"
 
-png(50000,*)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,135,215,315#FFFFFF}|0.5|
+webp(50000,*)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,135,215,315#FFFFFF}|0.5||100|
 ```
 
 ```javascript

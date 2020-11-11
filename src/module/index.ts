@@ -1,3 +1,4 @@
+import path = require('path');
 import fs = require('fs');
 import chalk = require('chalk');
 
@@ -36,6 +37,9 @@ const Module = class implements functions.IModule {
     replaceExtension(value: string, ext: string) {
         const index = value.lastIndexOf('.');
         return (index !== -1 ?value.substring(0, index) : value) + '.' + ext;
+    }
+    getTempDir() {
+        return process.cwd() + path.sep + 'temp' + path.sep;
     }
     writeFail(description: string, message: unknown) {
         console.log(`${chalk.bgRed.bold.white('FAIL')}: ${description} (${message as string})`);
