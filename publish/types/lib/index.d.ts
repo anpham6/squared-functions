@@ -102,7 +102,8 @@ declare namespace functions {
 
         interface QualityData {
             value: number;
-            preset?: string;
+            preset: Undef<string>;
+            nearLossless: number;
         }
 
         interface FileData {
@@ -159,6 +160,7 @@ declare namespace functions {
         parseQuality(value: string): Undef<internal.QualityData>;
         parseResize(value: string): Undef<internal.ResizeData>;
         parseRotation(value: string): Undef<internal.RotateData>;
+        parseMethod(value: string): Undef<string[]>;
     }
 
     interface IChrome extends IModule {
@@ -266,6 +268,7 @@ declare namespace functions {
         qualityData?: internal.QualityData;
         opacityValue: number;
         errorHandler?: (err: Error) => void;
+        method(): void;
         resize(): void;
         crop(): void;
         opacity(): void;

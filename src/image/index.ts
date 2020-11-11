@@ -24,7 +24,8 @@ const REGEXP_RESIZE = /\(\s*(\d+|auto)\s*x\s*(\d+|auto)(?:\s*\[\s*(bilinear|bicu
 const REGEXP_CROP = /\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*\|\s*(\d+)\s*x\s*(\d+)\s*\)/;
 const REGEXP_ROTATE = /\{\s*([\d\s,]+)(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\}/;
 const REGEXP_OPACITY = /\|\s*(\d*\.\d+)\s*\|/;
-const REGEXP_QUALITY = /\|\s*(\d+)\s*(photo|picture|drawing|icon|text)?\s*\|/;
+const REGEXP_QUALITY = /\|\s*(\d+)(?:\s*\[\s*(photo|picture|drawing|icon|text)\s*\])?(?:\s*\[\s*(\d+)\s*\])?\s*\|/;
+const REGEXP_METHOD = /!\s*([A-Za-z$][\w$]*)/g;
 
 const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : null;
 
@@ -33,6 +34,7 @@ class JimpProxy implements functions.ImageProxy<jimp> {
     public cropData?: CropData;
     public rotateData?: RotateData;
     public qualityData?: QualityData;
+    public methodData?: string[];
     public opacityValue = NaN;
     public errorHandler?: (err: Error) => void;
 
@@ -43,9 +45,32 @@ class JimpProxy implements functions.ImageProxy<jimp> {
             this.rotateData = Image.parseRotation(command);
             this.qualityData = Image.parseQuality(command);
             this.opacityValue = Image.parseOpacity(command);
+            this.methodData = Image.parseMethod(command);
         }
     }
 
+    method() {
+        const methodData = this.methodData;
+        if (methodData) {
+            for (const name of methodData) {
+                switch (name) {
+                    case 'dither565':
+                    case 'greyscale':
+                    case 'invert':
+                    case 'normalize':
+                    case 'opaque':
+                    case 'sepia':
+                        try {
+                            this.instance = this.instance[name]();
+                        }
+                        catch (err) {
+                            Image.writeFail(`jimp: ${name}`, err);
+                        }
+                        break;
+                }
+            }
+        }
+    }
     crop() {
         const cropData = this.cropData;
         if (cropData) {
@@ -186,12 +211,15 @@ class JimpProxy implements functions.ImageProxy<jimp> {
             const args = [output, '-mt', '-m', '6'];
             const qualityData = this.qualityData;
             if (qualityData) {
-                const { value, preset } = qualityData;
+                const { value, preset, nearLossless } = qualityData;
                 if (preset) {
                     args.push('-preset', preset);
                 }
                 if (!isNaN(value)) {
                     args.push('-q', value.toString());
+                }
+                if (!isNaN(nearLossless)) {
+                    args.push('-near_lossless', nearLossless.toString());
                 }
             }
             args.push('-o', webp);
@@ -287,6 +315,7 @@ const Image = new class extends Module implements functions.IImage {
                     jimp.read(tempFile || fileUri)
                         .then(img => {
                             const proxy = new JimpProxy(img, fileUri, command, finalAs);
+                            proxy.method();
                             proxy.resize();
                             proxy.crop();
                             if (jimpType === jimp.MIME_JPEG && !finalAs) {
@@ -348,10 +377,16 @@ const Image = new class extends Module implements functions.IImage {
     parseQuality(value: string) {
         const match = REGEXP_QUALITY.exec(value);
         if (match) {
-            const result: QualityData = { value: NaN, preset: match[2] };
+            const result: QualityData = { value: NaN, preset: match[2], nearLossless: NaN };
             const quality = +match[1];
             if (quality >= 0 && quality <= 100) {
                 result.value = quality;
+            }
+            if (match[3]) {
+                const nearLossless = +match[3];
+                if (nearLossless >= 0 && nearLossless <= 100) {
+                    result.nearLossless = nearLossless;
+                }
             }
             return result;
         }
@@ -372,6 +407,17 @@ const Image = new class extends Module implements functions.IImage {
             if (result.size) {
                 return { values: Array.from(result), color: parseHexDecimal(match[2]) } as RotateData;
             }
+        }
+    }
+    parseMethod(value: string) {
+        REGEXP_METHOD.lastIndex = 0;
+        const result: string[] = [];
+        let match: Null<RegExpExecArray>;
+        while (match = REGEXP_METHOD.exec(value)) {
+            result.push(match[1]);
+        }
+        if (result.length) {
+            return result;
         }
     }
 }();
