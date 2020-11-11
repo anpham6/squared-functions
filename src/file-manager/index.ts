@@ -121,6 +121,7 @@ const FileManager = class extends Module implements IFileManager {
     public emptyDirectory = false;
     public productionRelease = false;
     public Gulp?: StringMap;
+    public basePath?: string;
     public readonly files = new Set<string>();
     public readonly filesQueued = new Set<string>();
     public readonly filesToRemove = new Set<string>();
@@ -137,14 +138,15 @@ const FileManager = class extends Module implements IFileManager {
     {
         super();
         this.baseAsset = assets.find(item => item.basePath);
+        this.basePath = this.baseAsset?.basePath;
         this.dataMap = assets[0].dataMap || {};
         this.postFinalize = postFinalize.bind(this);
         assets.sort((a, b) => {
-            if (a.commands && (!b.commands || a.textContent && !b.textContent) || b === this.baseAsset) {
-                return -1;
-            }
-            if (b.commands && (!a.commands || !a.textContent && b.textContent) || a === this.baseAsset) {
+            if (a === this.baseAsset) {
                 return 1;
+            }
+            if (b === this.baseAsset) {
+                return -1;
             }
             return 0;
         });
@@ -226,19 +228,20 @@ const FileManager = class extends Module implements IFileManager {
             locationDir.shift();
             assetDir.shift();
         }
-        return [locationDir, assetDir];
+        return [locationDir.filter(value => value), assetDir];
     }
-    replacePath(source: string, segment: string, value: string, base64?: boolean) {
-        segment = !base64 ? this.escapePathSeparator(segment) : '[^"\',]+,\\s*' + segment;
-        let output: Undef<string>,
-            pattern = new RegExp(`([sS][rR][cC]|[hH][rR][eE][fF]|[dD][aA][tT][aA]|[pP][oO][sS][tT][eE][rR]=)?(["'])(\\s*)${segment}(\\s*)\\2`, 'g'),
-            match: Null<RegExpExecArray>;
-        while (match = pattern.exec(source)) {
-            output = (output || source).replace(match[0], match[1] ? match[1].toLowerCase() + `"${value}"` : match[2] + match[3] + value + match[4] + match[2]);
-        }
-        pattern = new RegExp(`[uU][rR][lL]\\(\\s*(["'])?\\s*${segment}\\s*\\1?\\s*\\)`, 'g');
-        while (match = pattern.exec(source)) {
-            output = (output || source).replace(match[0], `url(${value})`);
+    replacePath(source: string, segments: string[], value: string, matchSingle = true, base64?: boolean) {
+        let output: Undef<string>;
+        for (let segment of segments) {
+            segment = !base64 ? this.escapePathSeparator(value) : `[^"',]+,\\s*` + value;
+            const pattern = new RegExp(`([sS][rR][cC]|[hH][rR][eE][fF]|[dD][aA][tT][aA]|[pP][oO][sS][tT][eE][rR]=)?(["'])?(\\s*)${segment}(\\s*)\\2?`, 'g');
+            let match: Null<RegExpExecArray>;
+            while (match = pattern.exec(source)) {
+                output = (output || source).replace(match[0], match[1] ? match[1].toLowerCase() + `"${value}"` : (match[2] || '') + match[3] + value + match[4] + (match[2] || ''));
+                if (matchSingle && output !== source) {
+                    break;
+                }
+            }
         }
         return output;
     }
@@ -389,54 +392,55 @@ const FileManager = class extends Module implements IFileManager {
         }
         return Promise.resolve(output);
     }
-    transformCss(file: ExpressAsset, content: string) {
-        const baseUrl = file.uri!;
-        if (this.baseAsset && Node.fromSameOrigin(this.baseAsset.uri!, baseUrl)) {
-            const assets = this.assets;
-            for (const item of assets) {
-                if (item.base64 && item.uri && !item.invalid) {
-                    const url = this.getRelativeUri(file, item.uri);
-                    if (url) {
-                        const replacement = this.replacePath(content, item.base64.replace(/\+/g, '\\+'), url, true);
-                        if (replacement) {
-                            content = replacement;
-                        }
+    transformCss(file: ExpressAsset, source: string) {
+        let output: Undef<string>;
+        for (const item of this.assets) {
+            if (item.base64 && !item.textContent && item.uri && !item.invalid) {
+                const url = this.getRelativeUri(file, item.uri);
+                if (url) {
+                    const replaced = this.replacePath(output || source, [item.base64.replace(/\+/g, '\\+')], url, false, true);
+                    if (replaced) {
+                        output = replaced;
                     }
                 }
             }
-            const pattern = /url\(\s*([^)]+)\s*\)/ig;
-            let output: Undef<string>,
-                match: Null<RegExpExecArray>;
-            while (match = pattern.exec(content)) {
-                const url = match[1].replace(/^["']\s*/, '').replace(/\s*["']$/, '');
-                if (!Node.isFileURI(url) || Node.fromSameOrigin(baseUrl, url)) {
-                    let location = this.getRelativeUri(file, url);
+        }
+        if (output) {
+            source = output;
+        }
+        const findAsset = (uri: string) => this.assets.find(item => !item.textContent && item.uri === uri && !item.invalid);
+        const baseUri = file.uri!;
+        const pattern = /url\(\s*([^)]+)\s*\)/ig;
+        let match: Null<RegExpExecArray>;
+        while (match = pattern.exec(source)) {
+            const url = match[1].replace(/^["']\s*/, '').replace(/\s*["']$/, '');
+            if (!Node.isFileURI(url) || Node.fromSameOrigin(baseUri, url)) {
+                let location = this.getRelativeUri(file, url);
+                if (location) {
+                    output = (output || source).replace(match[0], `url(${location})`);
+                }
+                else if (this.baseAsset) {
+                    location = Node.resolvePath(url, this.baseAsset.uri!);
                     if (location) {
-                        output = (output || content).replace(match[0], `url(${location})`);
-                    }
-                    else {
-                        location = Node.resolvePath(url, this.baseAsset.uri!);
-                        if (location) {
-                            const asset = assets.find(item => item.uri === location && !item.invalid);
-                            if (asset) {
-                                location = this.getRelativeUri(file, location);
-                                if (location) {
-                                    output = (output || content).replace(match[0], `url(${location})`);
-                                }
+                        const asset = findAsset(location);
+                        if (asset) {
+                            location = this.getRelativeUri(file, location);
+                            if (location) {
+                                output = (output || source).replace(match[0], `url(${location})`);
                             }
                         }
                     }
                 }
-                else {
-                    const asset = assets.find(item => item.uri === url && !item.invalid);
-                    if (asset) {
-                        const count = file.pathname.split(/[\\/]/).length;
-                        output = (output || content).replace(match[0], `url(${(count ? '../'.repeat(count) : '') + this.getFileUri(asset)})`);
-                    }
+            }
+            else {
+                const asset = findAsset(url);
+                if (asset) {
+                    const count = file.pathname !== '/' && !file.basePath ? file.pathname.split(/[\\/]/).length : 0;
+                    output = (output || source).replace(match[0], `url(${(count ? '../'.repeat(count) : '') + this.getFileUri(asset)})`);
                 }
             }
-            return output;
         }
+        return output;
     }
     async transformBuffer(data: FileData) {
         const { file, filepath } = data;
@@ -559,6 +563,9 @@ const FileManager = class extends Module implements IFileManager {
                                 replaceWith = output;
                                 replaceTry();
                                 replaceMinify();
+                                if (replacing !== source) {
+                                    item.textContent = output;
+                                }
                             }
                         }
                     }
@@ -573,53 +580,67 @@ const FileManager = class extends Module implements IFileManager {
                         html = source;
                     }
                 }
+                const basePath = this.basePath;
                 for (const item of this.assets) {
-                    if (item.invalid || item === file) {
+                    if (item === file || item.content || item.bundleIndex !== undefined && item.bundleIndex >= 0 || item.inlineContent || !item.uri || item.invalid) {
                         continue;
                     }
-                    let replaced: Undef<string>;
-                    if (item.base64) {
-                        replaced = this.replacePath(source, item.base64.replace(/\+/g, '\\+'), this.getFileUri(item), true);
-                    }
-                    else if (item.uri && !item.content) {
-                        let value = this.getFileUri(item);
-                        if (item.rootDir || Node.fromSameOrigin(baseUri, item.uri)) {
-                            pattern = new RegExp(`(["'\\s,=])(((?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?${this.escapePathSeparator(path.join(item.pathname, item.filename))})`, 'g');
+                    const { uri, textContent } = item;
+                    if (textContent) {
+                        item.mimeType ||= mime.lookup(uri).toString();
+                        const segments = [uri];
+                        let value: string,
+                            relativeUri: Undef<string>,
+                            ascending: Undef<boolean>;
+                        if (basePath) {
+                            relativeUri = uri.replace(basePath, '');
+                            if (relativeUri === uri) {
+                                relativeUri = '';
+                            }
+                        }
+                        if (!relativeUri && Node.fromSameOrigin(baseUri, uri)) {
+                            relativeUri = path.join(item.pathname, path.basename(uri));
+                            ascending = true;
+                        }
+                        if (relativeUri) {
+                            segments.push(relativeUri);
+                        }
+                        if (item.mimeType.startsWith('image/') && item.format === 'base64') {
+                            value = uuid.v4();
+                            item.inlineBase64 = value;
+                        }
+                        else {
+                            value = this.getFileUri(item);
+                        }
+                        const innerContent = textContent.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/\w+>)?\s*$/, '');
+                        const replaced = this.replacePath(innerContent, segments, value);
+                        if (replaced) {
+                            const result = source.replace(innerContent, replaced);
+                            if (result !== source) {
+                                source = result;
+                                html = result;
+                                continue;
+                            }
+                        }
+                        if (relativeUri) {
+                            pattern = new RegExp(`(["'\\s,=])(` + (ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + this.escapePathSeparator(relativeUri) + ')', 'g');
                             while (match = pattern.exec(html)) {
-                                if (match[2] !== value && item.uri === Node.resolvePath(match[2], baseUri)) {
+                                if (uri === Node.resolvePath(match[2], baseUri)) {
                                     source = source.replace(match[0], match[1] + value);
+                                    break;
                                 }
                             }
                         }
-                        item.mimeType ||= mime.lookup(value).toString();
-                        if (item.mimeType.startsWith('image/')) {
-                            if (item.format === 'base64') {
-                                value = uuid.v4();
-                                item.inlineBase64 = value;
-                            }
-                            let textContent = item.textContent;
-                            if (textContent) {
-                                textContent = textContent.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/\w+>)?\s*$/, '');
-                                replaced = this.replacePath(textContent, item.uri, value);
-                                if (replaced) {
-                                    const result = source.replace(textContent, replaced);
-                                    if (result !== source) {
-                                        source = result;
-                                        html = result;
-                                        continue;
-                                    }
-                                    replaced = '';
-                                }
-                            }
+                    }
+                    else if (item.base64) {
+                        const replaced = this.replacePath(source, [item.base64.replace(/\+/g, '\\+')], this.getFileUri(item), false, true);
+                        if (replaced) {
+                            source = replaced;
                         }
-                        replaced ||= this.replacePath(source, item.uri, value);
                     }
-                    if (replaced) {
-                        source = replaced;
-                        html = source;
-                    }
+                    html = source;
                 }
-                source = source
+                source = (this.transformCss(file, source) || source)
                     .replace(/\s*<(script|link|style)[^>]+?data-chrome-file="exclude"[^>]*>[\s\S]*?<\/\1>\n*/ig, '')
                     .replace(/\s*<script[^>]*?data-chrome-template="([^"]|\\")+?"[^>]*>[\s\S]*?<\/script>\n*/ig, '')
                     .replace(/\s*<(script|link)[^>]+?data-chrome-file="exclude"[^>]*>\n*/ig, '')

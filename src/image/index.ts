@@ -163,11 +163,13 @@ class JimpProxy implements functions.ImageProxy<jimp> {
                     callback(output);
                 }
                 else {
-                    try {
-                        fs.unlinkSync(output);
-                    }
-                    catch (error) {
-                        Image.writeFail(`Unable to delete: ${output}`, error);
+                    if (webp !== output) {
+                        try {
+                            fs.unlinkSync(output);
+                        }
+                        catch (error) {
+                            Image.writeFail(`Unable to delete: ${output}`, error);
+                        }
                     }
                     callback(webp);
                 }

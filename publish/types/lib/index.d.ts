@@ -188,6 +188,7 @@ declare namespace functions {
         cleared: boolean;
         emptyDirectory: boolean;
         productionRelease: boolean;
+        basePath?: string;
         Gulp?: StringMap;
         readonly files: Set<string>;
         readonly filesQueued: Set<string>;
@@ -208,7 +209,7 @@ declare namespace functions {
         completeAsyncTask: FileManagerCompleteAsyncTaskCallback;
         performFinalize(): void;
         getHtmlPages(modified?: boolean): ExpressAsset[];
-        replacePath(source: string, segment: string, value: string, base64?: boolean): Undef<string>;
+        replacePath(source: string, segments: string[], value: string, matchSingle?: boolean, base64?: boolean): Undef<string>;
         escapePathSeparator(value: string): string;
         getFileOutput(file: ExpressAsset): internal.FileOutput;
         getRelativeUri(file: ExpressAsset, uri: string): Undef<string>;
