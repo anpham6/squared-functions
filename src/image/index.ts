@@ -6,7 +6,7 @@ import uuid = require('uuid');
 
 import Module from '../module';
 
-type CompressFormat = functions.squared.base.CompressFormat;
+type CompressFormat = functions.squared.CompressFormat;
 
 type IFileManager = functions.IFileManager;
 type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTaskCallback;
@@ -36,7 +36,7 @@ class JimpProxy implements functions.ImageProxy<jimp> {
     public opacityValue = NaN;
     public errorHandler?: (err: Error) => void;
 
-    constructor(public instance: jimp, public filepath: string, public command = '', public finalAs?: string) {
+    constructor(public instance: jimp, public fileUri: string, public command = '', public finalAs?: string) {
         if (command) {
             this.resizeData = Image.parseResize(command);
             this.cropData = Image.parseCrop(command);
@@ -66,22 +66,60 @@ class JimpProxy implements functions.ImageProxy<jimp> {
     resize() {
         const resizeData = this.resizeData;
         if (resizeData) {
-            const { width, height, color } = resizeData;
+            const { width, height, color, algorithm, align } = resizeData;
             if (color !== null) {
                 this.instance = this.instance.background(color);
             }
+            let mode: string = jimp.RESIZE_NEAREST_NEIGHBOR,
+                flags = 0;
+            switch (algorithm) {
+                case 'bilinear':
+                    mode = jimp.RESIZE_BILINEAR;
+                    break;
+                case 'bicubic':
+                    mode = jimp.RESIZE_BICUBIC;
+                    break;
+                case 'hermite':
+                    mode = jimp.RESIZE_HERMITE;
+                    break;
+                case 'bezier':
+                    mode = jimp.RESIZE_BEZIER;
+                    break;
+            }
+            switch (align[0]) {
+                case 'left':
+                    flags |= jimp.HORIZONTAL_ALIGN_LEFT;
+                    break;
+                case 'center':
+                    flags |= jimp.HORIZONTAL_ALIGN_CENTER;
+                    break;
+                case 'right':
+                    flags |= jimp.HORIZONTAL_ALIGN_RIGHT;
+                    break;
+            }
+            switch (align[1]) {
+                case 'top':
+                    flags |= jimp.VERTICAL_ALIGN_TOP;
+                    break;
+                case 'middle':
+                    flags |= jimp.VERTICAL_ALIGN_MIDDLE;
+                    break;
+                case 'bottom':
+                    flags |= jimp.VERTICAL_ALIGN_BOTTOM;
+                    break;
+            }
             switch (resizeData.mode) {
                 case 'contain':
-                    this.instance = this.instance.contain(width, height, resizeData.align);
+                    this.instance = this.instance.contain(width, height, flags);
                     break;
                 case 'cover':
-                    this.instance = this.instance.cover(width, height, resizeData.align);
+                    this.instance = this.instance.cover(width, height, flags);
                     break;
                 case 'scale':
                     this.instance = this.instance.scaleToFit(width, height);
                     break;
                 default:
-                    this.instance = this.instance.resize(width === Infinity ? jimp.AUTO : width, height === Infinity ? jimp.AUTO : height, resizeData.algorithm);
+                    this.instance = this.instance.resize(width === Infinity ? jimp.AUTO : width, height === Infinity ? jimp.AUTO : height, mode);
                     break;
             }
         }
@@ -100,8 +138,8 @@ class JimpProxy implements functions.ImageProxy<jimp> {
                     preRotate();
                 }
                 const img = this.instance.clone().rotate(value);
-                const index = this.filepath.lastIndexOf('.');
-                let output = this.filepath.substring(0, index) + '.' + value + this.filepath.substring(index);
+                const index = this.fileUri.lastIndexOf('.');
+                let output = this.fileUri.substring(0, index) + '.' + value + this.fileUri.substring(index);
                 img.write(output, err => {
                     if (err) {
                         Image.writeFail(output, err);
@@ -125,22 +163,22 @@ class JimpProxy implements functions.ImageProxy<jimp> {
         }
     }
     write(output: string, options?: ImageUsingOptions) {
-        let data: Undef<FileData>,
-            compress: Undef<CompressFormat>,
-            callback: Undef<FileManagerWriteImageCallback>;
-        if (options) {
-            ({ data, compress, callback } = options);
+        if (output) {
+            let data: Undef<FileData>,
+                compress: Undef<CompressFormat>,
+                callback: Undef<FileManagerWriteImageCallback>;
+            if (options) {
+                ({ data, compress, callback } = options);
+            }
+            this.instance.write(output, err => {
+                if (data && callback) {
+                    this.finalize(output, (result: string) => callback!(data!, result, this.command, compress, err));
+                }
+                else if (err && this.errorHandler) {
+                    this.errorHandler(err);
+                }
+            });
         }
-        this.instance.write(output, err => {
-            if (data && callback) {
-                this.finalize(output, (result: string) => {
-                    callback!(data!, result, this.command, compress, err);
-                });
-            }
-            else if (err && this.errorHandler) {
-                this.errorHandler(err);
-            }
-        });
     }
     finalize(output: string, callback: (result: string) => void) {
         if (this.finalAs === 'webp') {
@@ -184,12 +222,12 @@ class JimpProxy implements functions.ImageProxy<jimp> {
 const Image = new class extends Module implements functions.IImage {
     using(this: IFileManager, options: ImageUsingOptions) {
         const { data, compress } = options;
-        const { file, filepath } = data;
+        const { file, fileUri } = data;
         const command = options.command?.trim().toLowerCase();
-        const mimeType = file.mimeType || mime.lookup(filepath);
+        const mimeType = file.mimeType || mime.lookup(fileUri);
         if (!command || !mimeType || mimeType === 'image/unknown') {
             this.performAsyncTask();
-            jimp.read(filepath)
+            jimp.read(fileUri)
                 .then(img => {
                     const unknownType = img.getMIME();
                     switch (unknownType) {
@@ -199,20 +237,20 @@ const Image = new class extends Module implements functions.IImage {
                         case jimp.MIME_GIF:
                         case jimp.MIME_TIFF:
                             try {
-                                const output = this.replaceExtension(filepath, unknownType.split('/')[1]);
-                                fs.renameSync(filepath, output);
+                                const output = this.replaceExtension(fileUri, unknownType.split('/')[1]);
+                                fs.renameSync(fileUri, output);
                                 this.finalizeImage(data, output, '@', unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG ? compress : undefined);
                             }
                             catch (err) {
                                 this.completeAsyncTask();
-                                this.writeFail(filepath, err);
+                                this.writeFail(fileUri, err);
                             }
                             break;
                     }
                 })
                 .catch(err => {
                     this.completeAsyncTask();
-                    this.writeFail(filepath, err);
+                    this.writeFail(fileUri, err);
                 });
         }
         else {
@@ -246,9 +284,9 @@ const Image = new class extends Module implements functions.IImage {
                 }
                 if (jimpType && saveAs) {
                     this.performAsyncTask();
-                    jimp.read(tempFile || filepath)
+                    jimp.read(tempFile || fileUri)
                         .then(img => {
-                            const proxy = new JimpProxy(img, filepath, command, finalAs);
+                            const proxy = new JimpProxy(img, fileUri, command, finalAs);
                             proxy.resize();
                             proxy.crop();
                             if (jimpType === jimp.MIME_JPEG && !finalAs) {
@@ -266,14 +304,14 @@ const Image = new class extends Module implements functions.IImage {
                         })
                         .catch(err => {
                             this.completeAsyncTask();
-                            this.writeFail(filepath, err);
+                            this.writeFail(fileUri, err);
                         });
                 }
             };
             if (mimeType === 'image/webp') {
                 try {
                     tempFile = this.getTempDir() + uuid.v4() + '.bmp';
-                    child_process.execFile(require('dwebp-bin'), [filepath, '-mt', '-bmp', '-o', tempFile], null, err => {
+                    child_process.execFile(require('dwebp-bin'), [fileUri, '-mt', '-bmp', '-o', tempFile], null, err => {
                         if (err) {
                             tempFile = '';
                         }
@@ -282,57 +320,13 @@ const Image = new class extends Module implements functions.IImage {
                 }
                 catch (err) {
                     tempFile = '';
-                    Image.writeFail(`WebP decode (npm i dwebp-bin): ${filepath}`, err);
+                    Image.writeFail(`WebP decode (npm i dwebp-bin): ${fileUri}`, err);
                     resumeThread();
                 }
             }
             else {
                 resumeThread();
             }
-        }
-    }
-    parseResize(value: string) {
-        const match = REGEXP_RESIZE.exec(value);
-        if (match) {
-            let algorithm: string = jimp.RESIZE_NEAREST_NEIGHBOR,
-                align = 0;
-            switch (match[3]) {
-                case 'bilinear':
-                    algorithm = jimp.RESIZE_BILINEAR;
-                    break;
-                case 'bicubic':
-                    algorithm = jimp.RESIZE_BICUBIC;
-                    break;
-                case 'hermite':
-                    algorithm = jimp.RESIZE_HERMITE;
-                    break;
-                case 'bezier':
-                    algorithm = jimp.RESIZE_BEZIER;
-                    break;
-            }
-            switch (match[5]) {
-                case 'left':
-                    align |= jimp.HORIZONTAL_ALIGN_LEFT;
-                    break;
-                case 'center':
-                    align |= jimp.HORIZONTAL_ALIGN_CENTER;
-                    break;
-                case 'right':
-                    align |= jimp.HORIZONTAL_ALIGN_RIGHT;
-                    break;
-            }
-            switch (match[6]) {
-                case 'top':
-                    align |= jimp.VERTICAL_ALIGN_TOP;
-                    break;
-                case 'middle':
-                    align |= jimp.VERTICAL_ALIGN_MIDDLE;
-                    break;
-                case 'bottom':
-                    align |= jimp.VERTICAL_ALIGN_BOTTOM;
-                    break;
-            }
-            return { width: match[1] === 'auto' ? Infinity : +match[1], height: match[2] === 'auto' ? Infinity : +match[2], mode: match[4] || 'resize', algorithm, align, color: parseHexDecimal(match[7]) } as ResizeData;
         }
     }
     parseCrop(value: string) {
@@ -360,6 +354,12 @@ const Image = new class extends Module implements functions.IImage {
                 result.value = quality;
             }
             return result;
+        }
+    }
+    parseResize(value: string) {
+        const match = REGEXP_RESIZE.exec(value);
+        if (match) {
+            return { width: match[1] === 'auto' ? Infinity : +match[1], height: match[2] === 'auto' ? Infinity : +match[2], mode: match[4] || 'resize', algorithm: match[3], align: [match[5], match[6]], color: parseHexDecimal(match[7]) } as ResizeData;
         }
     }
     parseRotation(value: string) {

@@ -333,9 +333,9 @@ const Chrome = new class extends Module implements functions.IChrome {
                                         }
                                     };
                                     if (typeof custom === 'string') {
-                                        const filepath = path.resolve(custom);
-                                        if (fs.existsSync(filepath)) {
-                                            await require('rollup/dist/loadConfigFile')(filepath, es)
+                                        const fileUri = path.resolve(custom);
+                                        if (fs.existsSync(fileUri)) {
+                                            await require('rollup/dist/loadConfigFile')(fileUri, es)
                                                 .then(async (merged: StandardMap) => {
                                                     merged.warnings.flush();
                                                     for (const rollupOptions of merged.options as MergedRollupOptions[]) {

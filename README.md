@@ -61,7 +61,7 @@ npm install dwebp-bin && npm install cwebp-bin
 @ - replace  
 % - smaller
 
-Placing an @ symbol (png@) after the format will remove the original file from the package. Using the % symbol (png%) instead will choose the smaller of the two files. You can also use these commands with the setting "convertImages" in the Android framework.
+Placing an @ symbol (png@) after the format will remove the original file from the package. Using the % symbol (png%) instead will choose the smaller of the two files. You can also use these commands with the setting "convertImages" in the Android framework as a string with the "+" chain format.
 
 ```javascript
 // NOTE: Multiple transformations per asset use the ':' as the separator when using "data-chrome-file"

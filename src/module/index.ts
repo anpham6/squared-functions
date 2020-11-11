@@ -26,9 +26,9 @@ const Module = class implements functions.IModule {
         }
         return true;
     }
-    getFileSize(filepath: string) {
+    getFileSize(fileUri: string) {
         try {
-            return fs.statSync(filepath).size;
+            return fs.statSync(fileUri).size;
         }
         catch {
         }

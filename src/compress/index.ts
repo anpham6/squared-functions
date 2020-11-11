@@ -4,7 +4,7 @@ import tinify = require('tinify');
 
 import Module from '../module';
 
-type CompressFormat = functions.squared.base.CompressFormat;
+type CompressFormat = functions.squared.CompressFormat;
 
 type FileCompressFormat = functions.FileCompressFormat;
 type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTaskCallback;
@@ -30,12 +30,12 @@ const Compress = new class extends Module implements functions.ICompress {
             });
         }
     }
-    createWriteStreamAsGzip(source: string, filepath: string, level?: number) {
+    createWriteStreamAsGzip(source: string, fileUri: string, level?: number) {
         return fs.createReadStream(source)
             .pipe(zlib.createGzip({ level: level ?? this.gzipLevel }))
-            .pipe(fs.createWriteStream(filepath));
+            .pipe(fs.createWriteStream(fileUri));
     }
-    createWriteStreamAsBrotli(source: string, filepath: string, quality?: number, mimeType = '') {
+    createWriteStreamAsBrotli(source: string, fileUri: string, quality?: number, mimeType = '') {
         return fs.createReadStream(source)
             .pipe(
                 zlib.createBrotliCompress({
@@ -46,7 +46,7 @@ const Compress = new class extends Module implements functions.ICompress {
                     }
                 })
             )
-            .pipe(fs.createWriteStream(filepath));
+            .pipe(fs.createWriteStream(fileUri));
     }
     findFormat(compress: Undef<CompressFormat[]>, format: string) {
         return compress && compress.find(item => item.format === format);
@@ -58,11 +58,11 @@ const Compress = new class extends Module implements functions.ICompress {
         const match = /\(\s*(\d+)\s*,\s*(\d+|\*)\s*\)/.exec(value);
         return match ? [+match[1], match[2] === '*' ? Infinity : +match[2]] : [0, Infinity];
     }
-    withinSizeRange(filepath: string, value: Undef<string>) {
+    withinSizeRange(fileUri: string, value: Undef<string>) {
         if (value) {
             const [minSize, maxSize] = this.parseSizeRange(value);
             if (minSize > 0 || maxSize < Infinity) {
-                const fileSize = this.getFileSize(filepath);
+                const fileSize = this.getFileSize(fileUri);
                 if (fileSize === 0 || fileSize < minSize || fileSize > maxSize) {
                     return false;
                 }
@@ -71,10 +71,10 @@ const Compress = new class extends Module implements functions.ICompress {
         return true;
     }
     tryFile(data: FileData, format: FileCompressFormat, preCompress?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback) {
-        const { file, filepath } = data;
+        const { file, fileUri } = data;
         const formatData = this.findFormat(file.compress, format);
-        if (formatData && this.withinSizeRange(filepath, formatData.condition)) {
-            let output = `${filepath}.${format}`,
+        if (formatData && this.withinSizeRange(fileUri, formatData.condition)) {
+            let output = `${fileUri}.${format}`,
                 methodName: Undef<NodeBuiltInCompressionMethod>;
             switch (format) {
                 case 'gz':
@@ -88,9 +88,9 @@ const Compress = new class extends Module implements functions.ICompress {
                 if (preCompress) {
                     preCompress();
                 }
-                Compress[methodName](filepath, output, formatData.level)
+                Compress[methodName](fileUri, output, formatData.level)
                     .on('finish', () => {
-                        if (formatData.condition?.includes('%') && this.getFileSize(output) >= this.getFileSize(filepath)) {
+                        if (formatData.condition?.includes('%') && this.getFileSize(output) >= this.getFileSize(fileUri)) {
                             try {
                                 fs.unlinkSync(output);
                             }
@@ -112,13 +112,13 @@ const Compress = new class extends Module implements functions.ICompress {
         }
     }
     tryImage(data: FileData, callback: FileOutputCallback) {
-        const filepath = data.filepath;
+        const fileUri = data.fileUri;
         try {
-            tinify.fromBuffer(fs.readFileSync(filepath)).toBuffer((err, resultData) => {
+            tinify.fromBuffer(fs.readFileSync(fileUri)).toBuffer((err, resultData) => {
                 if (!err && resultData) {
-                    fs.writeFileSync(filepath, resultData);
+                    fs.writeFileSync(fileUri, resultData);
                 }
-                callback(filepath, err);
+                callback(fileUri, err);
             });
         }
         catch (err) {

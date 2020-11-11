@@ -17,12 +17,12 @@ import Chrome from '../chrome';
 type DataMap = functions.chrome.DataMap;
 
 type Settings = functions.Settings;
-type ExpressAsset = functions.ExpressAsset;
+type ExternalAsset = functions.ExternalAsset;
 type IFileManager = functions.IFileManager;
 
 type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
-type CompressFormat = functions.squared.base.CompressFormat;
+type CompressFormat = functions.squared.CompressFormat;
 
 interface GulpData {
     gulpfile: string;
@@ -125,15 +125,15 @@ const FileManager = class extends Module implements IFileManager {
     public readonly files = new Set<string>();
     public readonly filesQueued = new Set<string>();
     public readonly filesToRemove = new Set<string>();
-    public readonly filesToCompare = new Map<ExpressAsset, string[]>();
+    public readonly filesToCompare = new Map<ExternalAsset, string[]>();
     public readonly contentToAppend = new Map<string, string[]>();
     public readonly postFinalize: FunctionType<void>;
     public readonly dataMap: DataMap;
-    public readonly baseAsset?: ExpressAsset;
+    public readonly baseAsset?: ExternalAsset;
 
     constructor(
         public readonly dirname: string,
-        public readonly assets: ExpressAsset[],
+        public readonly assets: ExternalAsset[],
         postFinalize: FunctionType<void>)
     {
         super();
@@ -167,19 +167,19 @@ const FileManager = class extends Module implements IFileManager {
     delete(value: string) {
         this.files.delete(value.substring(this.dirname.length + 1));
     }
-    replace(file: ExpressAsset, replaceWith: string) {
-        const filepath = file.filepath;
-        if (filepath) {
-            if (replaceWith.includes('__copy__') && path.extname(filepath) === path.extname(replaceWith)) {
+    replace(file: ExternalAsset, replaceWith: string) {
+        const fileUri = file.fileUri;
+        if (fileUri) {
+            if (replaceWith.includes('__copy__') && path.extname(fileUri) === path.extname(replaceWith)) {
                 try {
-                    fs.renameSync(replaceWith, filepath);
+                    fs.renameSync(replaceWith, fileUri);
                 }
                 catch (err) {
                     this.writeFail(replaceWith, err);
                 }
             }
             else {
-                this.filesToRemove.add(filepath);
+                this.filesToRemove.add(fileUri);
                 file.originalName ||= file.filename;
                 file.filename = path.basename(replaceWith);
                 this.add(replaceWith);
@@ -192,10 +192,10 @@ const FileManager = class extends Module implements IFileManager {
     removeAsyncTask() {
         --this.delayed;
     }
-    completeAsyncTask(filepath?: string) {
+    completeAsyncTask(fileUri?: string) {
         if (this.delayed !== Infinity) {
-            if (filepath) {
-                this.add(filepath);
+            if (fileUri) {
+                this.add(fileUri);
             }
             this.removeAsyncTask();
             this.performFinalize();
@@ -230,10 +230,13 @@ const FileManager = class extends Module implements IFileManager {
         }
         return [locationDir.filter(value => value), assetDir];
     }
+    findAsset(uri: string, fromElement?: boolean) {
+        return this.assets.find(item => item.uri === uri && (fromElement && item.textContent || !fromElement && !item.textContent) && !item.invalid);
+    }
     replacePath(source: string, segments: string[], value: string, matchSingle = true, base64?: boolean) {
         let output: Undef<string>;
         for (let segment of segments) {
-            segment = !base64 ? this.escapePathSeparator(value) : `[^"',]+,\\s*` + value;
+            segment = !base64 ? this.escapePathSeparator(segment) : `[^"',]+,\\s*` + segment;
             const pattern = new RegExp(`([sS][rR][cC]|[hH][rR][eE][fF]|[dD][aA][tT][aA]|[pP][oO][sS][tT][eE][rR]=)?(["'])?(\\s*)${segment}(\\s*)\\2?`, 'g');
             let match: Null<RegExpExecArray>;
             while (match = pattern.exec(source)) {
@@ -248,19 +251,19 @@ const FileManager = class extends Module implements IFileManager {
     escapePathSeparator(value: string) {
         return value.replace(/[\\/]/g, '[\\\\/]');
     }
-    getFileOutput(file: ExpressAsset): FileOutput {
+    getFileOutput(file: ExternalAsset): FileOutput {
         const pathname = path.join(this.dirname, file.moveTo || '', file.pathname);
-        const filepath = path.join(pathname, file.filename);
-        file.filepath = filepath;
-        return { pathname, filepath };
+        const fileUri = path.join(pathname, file.filename);
+        file.fileUri = fileUri;
+        return { pathname, fileUri };
     }
-    getRelativeUri(file: ExpressAsset, uri: string) {
-        let asset = this.assets.find(item => item.uri === uri),
+    getRelativeUri(file: ExternalAsset, uri: string) {
+        let asset = this.findAsset(uri),
             origin = file.uri;
         if (!asset && origin) {
             const location = Node.resolvePath(uri, origin);
             if (location) {
-                asset = this.assets.find(item => item.uri === location);
+                asset = this.findAsset(location);
             }
         }
         if (asset && asset.uri) {
@@ -313,13 +316,13 @@ const FileManager = class extends Module implements IFileManager {
         }
         return moveTo + value;
     }
-    getFileUri(file: ExpressAsset, filename = file.filename) {
+    getFileUri(file: ExternalAsset, filename = file.filename) {
         return Node.toPosixPath(path.join(file.moveTo || '', file.pathname, filename));
     }
-    getUTF8String(file: ExpressAsset, filepath?: string) {
-        return file.sourceUTF8 ||= file.buffer?.toString('utf8') || fs.readFileSync(filepath || file.filepath!, 'utf8');
+    getUTF8String(file: ExternalAsset, fileUri?: string) {
+        return file.sourceUTF8 ||= file.buffer?.toString('utf8') || fs.readFileSync(fileUri || file.fileUri!, 'utf8');
     }
-    async appendContent(file: ExpressAsset, filepath: string, content: string, bundleIndex: number) {
+    async appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex: number) {
         const { mimeType, format } = file;
         if (mimeType) {
             if (mimeType.endsWith('text/css')) {
@@ -352,12 +355,12 @@ const FileManager = class extends Module implements IFileManager {
         if (bundleIndex === 0) {
             return Promise.resolve(content);
         }
-        const items = this.contentToAppend.get(filepath) || [];
+        const items = this.contentToAppend.get(fileUri) || [];
         items[bundleIndex - 1] = content;
-        this.contentToAppend.set(filepath, items);
+        this.contentToAppend.set(fileUri, items);
         return Promise.resolve('');
     }
-    async getTrailingContent(file: ExpressAsset) {
+    async getTrailingContent(file: ExternalAsset) {
         const trailingContent = file.trailingContent;
         let output = '';
         if (trailingContent) {
@@ -392,7 +395,7 @@ const FileManager = class extends Module implements IFileManager {
         }
         return Promise.resolve(output);
     }
-    transformCss(file: ExpressAsset, source: string) {
+    transformCss(file: ExternalAsset, source: string) {
         let output: Undef<string>;
         for (const item of this.assets) {
             if (item.base64 && !item.textContent && item.uri && !item.invalid) {
@@ -408,7 +411,6 @@ const FileManager = class extends Module implements IFileManager {
         if (output) {
             source = output;
         }
-        const findAsset = (uri: string) => this.assets.find(item => !item.textContent && item.uri === uri && !item.invalid);
         const baseUri = file.uri!;
         const pattern = /url\(\s*([^)]+)\s*\)/ig;
         let match: Null<RegExpExecArray>;
@@ -422,7 +424,7 @@ const FileManager = class extends Module implements IFileManager {
                 else if (this.baseAsset) {
                     location = Node.resolvePath(url, this.baseAsset.uri!);
                     if (location) {
-                        const asset = findAsset(location);
+                        const asset = this.findAsset(location);
                         if (asset) {
                             location = this.getRelativeUri(file, location);
                             if (location) {
@@ -433,7 +435,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             else {
-                const asset = findAsset(url);
+                const asset = this.findAsset(url);
                 if (asset) {
                     const count = file.pathname !== '/' && !file.basePath ? file.pathname.split(/[\\/]/).length : 0;
                     output = (output || source).replace(match[0], `url(${(count ? '../'.repeat(count) : '') + this.getFileUri(asset)})`);
@@ -443,7 +445,7 @@ const FileManager = class extends Module implements IFileManager {
         return output;
     }
     async transformBuffer(data: FileData) {
-        const { file, filepath } = data;
+        const { file, fileUri } = data;
         const { format, mimeType } = file;
         if (!mimeType || mimeType[0] === '&') {
             return Promise.resolve();
@@ -455,7 +457,7 @@ const FileManager = class extends Module implements IFileManager {
                 const getOuterHTML = (css: boolean, value: string) => css ? `<link rel="stylesheet" href="${value}" />` : `<script src="${value}"></script>`;
                 const baseUri = file.uri!;
                 const saved = new Set<string>();
-                let html = this.getUTF8String(file, filepath),
+                let html = this.getUTF8String(file, fileUri),
                     source = html,
                     pattern = /(\s*)<(script|link|style)[^>]*?(\s+data-chrome-file="\s*(save|export)As:\s*((?:[^"]|\\")+)")[^>]*>(?:[\s\S]*?<\/\2>\n*)?/ig,
                     match: Null<RegExpExecArray>;
@@ -529,8 +531,8 @@ const FileManager = class extends Module implements IFileManager {
                             replaceMinify();
                             if (replacing !== source) {
                                 item.inlineContent = id;
-                                if (item.filepath) {
-                                    this.filesToRemove.add(item.filepath);
+                                if (item.fileUri) {
+                                    this.filesToRemove.add(item.fileUri);
                                 }
                             }
                         }
@@ -582,7 +584,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 const basePath = this.basePath;
                 for (const item of this.assets) {
-                    if (item === file || item.content || item.bundleIndex !== undefined && item.bundleIndex >= 0 || item.inlineContent || !item.uri || item.invalid) {
+                    if (item === file || item.content || item.bundleIndex !== undefined || item.inlineContent || !item.uri || item.invalid) {
                         continue;
                     }
                     const { uri, textContent } = item;
@@ -651,7 +653,7 @@ const FileManager = class extends Module implements IFileManager {
             case 'text/html':
             case 'application/xhtml+xml': {
                 if (format) {
-                    const result = await Chrome.minifyHtml(format, this.getUTF8String(file, filepath), this.dataMap.transpileMap);
+                    const result = await Chrome.minifyHtml(format, this.getUTF8String(file, fileUri), this.dataMap.transpileMap);
                     if (result) {
                         file.sourceUTF8 = result;
                     }
@@ -666,15 +668,15 @@ const FileManager = class extends Module implements IFileManager {
                 if (!unusedStyles && !transforming && !format) {
                     if (trailing) {
                         try {
-                            fs.appendFileSync(filepath, trailing);
+                            fs.appendFileSync(fileUri, trailing);
                         }
                         catch (err) {
-                            this.writeFail(filepath, err);
+                            this.writeFail(fileUri, err);
                         }
                     }
                     break;
                 }
-                const content = this.getUTF8String(file, filepath);
+                const content = this.getUTF8String(file, fileUri);
                 let source: Undef<string>;
                 if (unusedStyles) {
                     const result = Chrome.removeCss(content, unusedStyles);
@@ -713,15 +715,15 @@ const FileManager = class extends Module implements IFileManager {
                 if (!format) {
                     if (trailing) {
                         try {
-                            fs.appendFileSync(filepath, trailing);
+                            fs.appendFileSync(fileUri, trailing);
                         }
                         catch (err) {
-                            this.writeFail(filepath, err);
+                            this.writeFail(fileUri, err);
                         }
                     }
                     break;
                 }
-                const content = this.getUTF8String(file, filepath);
+                const content = this.getUTF8String(file, fileUri);
                 let source: Undef<string>;
                 if (format) {
                     const result = await Chrome.minifyJs(format, content, this.dataMap.transpileMap);
@@ -745,7 +747,7 @@ const FileManager = class extends Module implements IFileManager {
             default:
                 if (mimeType.startsWith('image/')) {
                     let compress = Compress.hasImageService() ? Compress.findFormat(file.compress, 'png') : undefined;
-                    if (compress && !Compress.withinSizeRange(filepath, compress.condition)) {
+                    if (compress && !Compress.withinSizeRange(fileUri, compress.condition)) {
                         compress = undefined;
                     }
                     const callback = this.finalizeImage.bind(this);
@@ -754,7 +756,7 @@ const FileManager = class extends Module implements IFileManager {
                     }
                     else if (file.commands) {
                         for (const command of file.commands) {
-                            if (Compress.withinSizeRange(filepath, command)) {
+                            if (Compress.withinSizeRange(fileUri, command)) {
                                 Image.using.call(this, { data, compress, command, callback });
                             }
                         }
@@ -765,33 +767,38 @@ const FileManager = class extends Module implements IFileManager {
         return Promise.resolve();
     }
     newImage(data: FileData, outputType: string, saveAs: string, command = '') {
-        const filepath = data.filepath;
-        let output = '';
+        const fileUri = data.fileUri;
+        let output: Undef<string>;
         if (data.file.mimeType === outputType) {
-            if (!command.includes('@')) {
+            if (!command.includes('@') || this.filesQueued.has(fileUri)) {
                 let i = 1;
                 do {
-                    output = this.replaceExtension(filepath, '__copy__.' + (i > 1 ? `(${i}).` : '') + saveAs);
+                    output = this.replaceExtension(fileUri, '__copy__.' + (i > 1 ? `(${i}).` : '') + saveAs);
                 }
                 while (this.filesQueued.has(output) && ++i);
-                fs.copyFileSync(filepath, output);
+                try {
+                    fs.copyFileSync(fileUri, output);
+                }
+                catch (err) {
+                    this.writeFail(fileUri, err);
+                    return '';
+                }
             }
         }
         else {
             let i = 1;
             do {
-                output = this.replaceExtension(filepath, (i > 1 ? `(${i}).` : '') + saveAs);
+                output = this.replaceExtension(fileUri, (i > 1 ? `(${i}).` : '') + saveAs);
             }
             while (this.filesQueued.has(output) && ++i);
         }
-        if (output) {
-            this.filesQueued.add(output);
-        }
-        return output || filepath;
+        output ||= fileUri;
+        this.filesQueued.add(output);
+        return output;
     }
     replaceImage(data: FileData, output: string, command: string) {
-        const { file, filepath } = data;
-        if (filepath !== output) {
+        const { file, fileUri } = data;
+        if (fileUri !== output) {
             if (command.includes('@')) {
                 this.replace(file, output);
             }
@@ -806,20 +813,19 @@ const FileManager = class extends Module implements IFileManager {
         }
     }
     writeBuffer(data: FileData) {
-        const filepath = data.filepath;
         const png = Compress.hasImageService() ? Compress.findFormat(data.file.compress, 'png') : undefined;
-        if (png && Compress.withinSizeRange(filepath, png.condition)) {
+        if (png && Compress.withinSizeRange(data.fileUri, png.condition)) {
             try {
                 Compress.tryImage(data, (result: string, error: Null<Error>) => {
                     if (error) {
                         throw error;
                     }
-                    data.filepath = result;
+                    data.fileUri = result;
                     this.finalizeFile(data);
                 });
             }
             catch (err) {
-                this.writeFail(filepath, err);
+                this.writeFail(data.fileUri, err);
                 this.finalizeFile(data);
             }
         }
@@ -836,7 +842,7 @@ const FileManager = class extends Module implements IFileManager {
             this.replaceImage(data, output, command);
             if (compress) {
                 try {
-                    data.filepath = output;
+                    data.fileUri = output;
                     Compress.tryImage(data, (result: string, error: Null<Error>) => {
                         if (error) {
                             throw error;
@@ -860,49 +866,49 @@ const FileManager = class extends Module implements IFileManager {
             if (Node.checkVersion(11, 7)) {
                 Compress.tryFile(data, 'br', this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
             }
-            this.completeAsyncTask(data.filepath);
+            this.completeAsyncTask(data.fileUri);
         });
     }
     processAssets() {
         const emptyDir = new Set<string>();
         const notFound: ObjectMap<boolean> = {};
-        const processing: ObjectMap<ExpressAsset[]> = {};
-        const appending: ObjectMap<ExpressAsset[]> = {};
+        const processing: ObjectMap<ExternalAsset[]> = {};
+        const appending: ObjectMap<ExternalAsset[]> = {};
         const completed: string[] = [];
-        const checkQueue = (file: ExpressAsset, filepath: string, content?: boolean) => {
+        const checkQueue = (file: ExternalAsset, fileUri: string, content?: boolean) => {
             const bundleIndex = file.bundleIndex;
             if (bundleIndex !== undefined && bundleIndex !== -1) {
-                appending[filepath] ||= [];
+                appending[fileUri] ||= [];
                 if (bundleIndex > 0) {
-                    appending[filepath][bundleIndex - 1] = file;
+                    appending[fileUri][bundleIndex - 1] = file;
                     return true;
                 }
             }
             else if (!content) {
-                if (completed.includes(filepath)) {
-                    this.writeBuffer({ file, filepath });
+                if (completed.includes(fileUri)) {
+                    this.writeBuffer({ file, fileUri });
                     return true;
                 }
                 else {
-                    const queue = processing[filepath];
+                    const queue = processing[fileUri];
                     if (queue) {
                         this.performAsyncTask();
                         queue.push(file);
                         return true;
                     }
                     else {
-                        processing[filepath] = [file];
+                        processing[fileUri] = [file];
                     }
                 }
             }
             return false;
         };
-        const processQueue = async (file: ExpressAsset, filepath: string, bundleMain?: ExpressAsset) => {
+        const processQueue = async (file: ExternalAsset, fileUri: string, bundleMain?: ExternalAsset) => {
             if (file.bundleIndex !== undefined) {
                 if (file.bundleIndex === 0) {
-                    let content = this.getUTF8String(file, filepath);
+                    let content = this.getUTF8String(file, fileUri);
                     if (content) {
-                        content = await this.appendContent(file, filepath, content, 0);
+                        content = await this.appendContent(file, fileUri, content, 0);
                         if (content) {
                             file.sourceUTF8 = content;
                         }
@@ -923,9 +929,9 @@ const FileManager = class extends Module implements IFileManager {
                         }
                     }
                 }
-                const items = appending[filepath];
+                const items = appending[fileUri];
                 if (items) {
-                    let queue: Undef<ExpressAsset>;
+                    let queue: Undef<ExternalAsset>;
                     while (!queue && items.length) {
                         queue = items.shift();
                     }
@@ -933,10 +939,10 @@ const FileManager = class extends Module implements IFileManager {
                         const uri = queue.uri;
                         const verifyBundle = async (value: string) => {
                             if (bundleMain) {
-                                return this.appendContent(queue!, filepath, value, queue!.bundleIndex!);
+                                return this.appendContent(queue!, fileUri, value, queue!.bundleIndex!);
                             }
                             if (value) {
-                                queue!.sourceUTF8 = await this.appendContent(queue!, filepath, value, 0) || value;
+                                queue!.sourceUTF8 = await this.appendContent(queue!, fileUri, value, 0) || value;
                                 queue!.invalid = false;
                                 bundleMain = queue;
                             }
@@ -945,7 +951,7 @@ const FileManager = class extends Module implements IFileManager {
                             }
                             return Promise.resolve();
                         };
-                        const resumeQueue = () => processQueue(queue!, filepath, bundleMain);
+                        const resumeQueue = () => processQueue(queue!, fileUri, bundleMain);
                         if (queue.content) {
                             verifyBundle(queue.content).then(resumeQueue);
                         }
@@ -978,31 +984,31 @@ const FileManager = class extends Module implements IFileManager {
                     }
                 }
                 if (bundleMain || !file.invalid) {
-                    this.finalizeFile({ file: bundleMain || file, filepath });
+                    this.finalizeFile({ file: bundleMain || file, fileUri });
                 }
                 else {
                     this.completeAsyncTask();
                 }
-                delete appending[filepath];
+                delete appending[fileUri];
             }
-            else if (Array.isArray(processing[filepath])) {
-                completed.push(filepath);
-                for (const item of processing[filepath]) {
+            else if (Array.isArray(processing[fileUri])) {
+                completed.push(fileUri);
+                for (const item of processing[fileUri]) {
                     if (!item.invalid) {
-                        this.writeBuffer({ file: item, filepath });
+                        this.writeBuffer({ file: item, fileUri });
                     }
                 }
-                delete processing[filepath];
+                delete processing[fileUri];
             }
             else {
-                this.writeBuffer({ file, filepath });
+                this.writeBuffer({ file, fileUri });
             }
         };
-        const errorRequest = (file: ExpressAsset, filepath: string, message: Error | string, stream?: fs.WriteStream) => {
+        const errorRequest = (file: ExternalAsset, fileUri: string, message: Error | string, stream?: fs.WriteStream) => {
             const uri = file.uri!;
             if (!notFound[uri]) {
-                if (appending[filepath]) {
-                    processQueue(file, filepath);
+                if (appending[fileUri]) {
+                    processQueue(file, fileUri);
                 }
                 else {
                     this.completeAsyncTask();
@@ -1012,27 +1018,27 @@ const FileManager = class extends Module implements IFileManager {
             if (stream) {
                 try {
                     stream.close();
-                    fs.unlinkSync(filepath);
+                    fs.unlinkSync(fileUri);
                 }
                 catch {
                 }
             }
             file.invalid = true;
             this.writeFail(uri, message);
-            delete processing[filepath];
+            delete processing[fileUri];
         };
         for (const file of this.assets) {
             if (file.exclude) {
                 file.invalid = true;
                 continue;
             }
-            const { pathname, filepath } = this.getFileOutput(file);
+            const { pathname, fileUri } = this.getFileOutput(file);
             const fileReceived = (err: NodeJS.ErrnoException) => {
                 if (err) {
                     file.invalid = true;
                 }
-                if (!err || appending[filepath]) {
-                    processQueue(file, filepath);
+                if (!err || appending[fileUri]) {
+                    processQueue(file, fileUri);
                 }
                 else {
                     this.completeAsyncTask();
@@ -1059,11 +1065,11 @@ const FileManager = class extends Module implements IFileManager {
                 emptyDir.add(pathname);
             }
             if (file.content) {
-                if (!checkQueue(file, filepath, true)) {
+                if (!checkQueue(file, fileUri, true)) {
                     file.sourceUTF8 = file.content;
                     this.performAsyncTask();
                     fs.writeFile(
-                        filepath,
+                        fileUri,
                         file.content,
                         'utf8',
                         err => fileReceived(err)
@@ -1073,12 +1079,12 @@ const FileManager = class extends Module implements IFileManager {
             else if (file.base64) {
                 this.performAsyncTask();
                 fs.writeFile(
-                    filepath,
+                    fileUri,
                     file.base64,
                     'base64',
                     err => {
                         if (!err) {
-                            this.writeBuffer({ file, filepath });
+                            this.writeBuffer({ file, fileUri });
                         }
                         else {
                             file.invalid = true;
@@ -1095,11 +1101,11 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 try {
                     if (Node.isFileURI(uri)) {
-                        if (!checkQueue(file, filepath)) {
-                            const stream = fs.createWriteStream(filepath);
+                        if (!checkQueue(file, fileUri)) {
+                            const stream = fs.createWriteStream(fileUri);
                             stream.on('finish', () => {
                                 if (!notFound[uri]) {
-                                    processQueue(file, filepath);
+                                    processQueue(file, fileUri);
                                 }
                             });
                             this.performAsyncTask();
@@ -1107,7 +1113,7 @@ const FileManager = class extends Module implements IFileManager {
                                 .on('response', response => {
                                     const statusCode = response.statusCode;
                                     if (statusCode >= 300) {
-                                        errorRequest(file, filepath, statusCode + ' ' + response.statusMessage, stream);
+                                        errorRequest(file, fileUri, statusCode + ' ' + response.statusMessage, stream);
                                     }
                                 })
                                 .on('data', data => {
@@ -1118,16 +1124,16 @@ const FileManager = class extends Module implements IFileManager {
                                         file.buffer = data;
                                     }
                                 })
-                                .on('error', err => errorRequest(file, filepath, err, stream))
+                                .on('error', err => errorRequest(file, fileUri, err, stream))
                                 .pipe(stream);
                             }
                     }
                     else if (Node.canReadUNC() && Node.isFileUNC(uri) || Node.canReadDisk() && path.isAbsolute(uri)) {
-                        if (!checkQueue(file, filepath)) {
+                        if (!checkQueue(file, fileUri)) {
                             this.performAsyncTask();
                             fs.copyFile(
                                 uri,
-                                filepath,
+                                fileUri,
                                 err => fileReceived(err)
                             );
                         }
@@ -1137,7 +1143,7 @@ const FileManager = class extends Module implements IFileManager {
                     }
                 }
                 catch (err) {
-                    errorRequest(file, filepath, err);
+                    errorRequest(file, fileUri, err);
                 }
             }
         }
@@ -1146,22 +1152,22 @@ const FileManager = class extends Module implements IFileManager {
     }
     async finalizeAssets() {
         let tasks: Promise<unknown>[] = [];
-        for (const [filepath, content] of this.contentToAppend) {
+        for (const [fileUri, content] of this.contentToAppend) {
             let output = '';
             for (const value of content) {
                 if (value) {
                     output += '\n' + value;
                 }
             }
-            const file = this.assets.find(item => item.filepath === filepath && (item.sourceUTF8 || item.buffer));
+            const file = this.assets.find(item => item.fileUri === fileUri && (item.sourceUTF8 || item.buffer));
             if (file) {
-                file.sourceUTF8 = this.getUTF8String(file, filepath) + output;
+                file.sourceUTF8 = this.getUTF8String(file, fileUri) + output;
             }
-            else if (fs.existsSync(filepath)) {
-                tasks.push(fs.appendFile(filepath, output));
+            else if (fs.existsSync(fileUri)) {
+                tasks.push(fs.appendFile(fileUri, output));
             }
             else {
-                tasks.push(fs.writeFile(filepath, output));
+                tasks.push(fs.writeFile(fileUri, output));
             }
         }
         if (tasks.length) {
@@ -1181,7 +1187,7 @@ const FileManager = class extends Module implements IFileManager {
                     tasks.push(Promise.resolve());
                 }
                 else {
-                    tasks.push(fs.readFile(item.filepath!, 'utf8').then(data => setContent(data)));
+                    tasks.push(fs.readFile(item.fileUri!, 'utf8').then(data => setContent(data)));
                 }
             }
         }
@@ -1205,8 +1211,8 @@ const FileManager = class extends Module implements IFileManager {
             tasks = [];
         }
         for (const [file, output] of this.filesToCompare) {
-            const filepath = file.filepath!;
-            let minFile = filepath,
+            const fileUri = file.fileUri!;
+            let minFile = fileUri,
                 minSize = this.getFileSize(minFile);
             for (const other of output) {
                 const size = this.getFileSize(other);
@@ -1219,7 +1225,7 @@ const FileManager = class extends Module implements IFileManager {
                     this.filesToRemove.add(other);
                 }
             }
-            if (minFile !== filepath) {
+            if (minFile !== fileUri) {
                 this.replace(file, minFile);
             }
         }
@@ -1236,11 +1242,11 @@ const FileManager = class extends Module implements IFileManager {
         }
         for (const item of this.assets) {
             if (item.inlineBase64 && !item.invalid) {
-                const filepath = item.filepath!;
-                const mimeType = mime.lookup(filepath).toString();
+                const fileUri = item.fileUri!;
+                const mimeType = mime.lookup(fileUri).toString();
                 if (mimeType.startsWith('image/')) {
                     tasks.push(
-                        fs.readFile(filepath).then((data: Buffer) => {
+                        fs.readFile(fileUri).then((data: Buffer) => {
                             base64Map[item.inlineBase64!] = `data:${mimeType};base64,${data.toString('base64')}`;
                             item.invalid = true;
                         })
@@ -1255,7 +1261,7 @@ const FileManager = class extends Module implements IFileManager {
         const assets = this.assets.filter(item => !item.invalid);
         const replaced = assets.filter(item => item.originalName);
         if (replaced.length || Object.keys(base64Map) || this.productionRelease) {
-            const replaceContent = (file: ExpressAsset, value: string) => {
+            const replaceContent = (file: ExternalAsset, value: string) => {
                 for (const id in base64Map) {
                     value = value.replace(new RegExp(id, 'g'), base64Map[id]!);
                 }
@@ -1277,7 +1283,7 @@ const FileManager = class extends Module implements IFileManager {
                             replaceContent(item, this.getUTF8String(item));
                         }
                         else {
-                            tasks.push(fs.readFile(item.filepath!, 'utf8').then(data => replaceContent(item, data)));
+                            tasks.push(fs.readFile(item.fileUri!, 'utf8').then(data => replaceContent(item, data)));
                         }
                         break;
                 }
@@ -1289,7 +1295,7 @@ const FileManager = class extends Module implements IFileManager {
         }
         for (const item of assets) {
             if (item.sourceUTF8) {
-                tasks.push(fs.writeFile(item.filepath!, item.sourceUTF8, 'utf8'));
+                tasks.push(fs.writeFile(item.fileUri!, item.sourceUTF8, 'utf8'));
             }
         }
         if (tasks.length) {
@@ -1301,7 +1307,7 @@ const FileManager = class extends Module implements IFileManager {
             const origMap = new Map<string, string[]>();
             for (const item of assets) {
                 if (item.tasks) {
-                    const origDir = path.dirname(item.filepath!);
+                    const origDir = path.dirname(item.fileUri!);
                     const scheduled = new Set<string>();
                     for (let task of item.tasks) {
                         if (!scheduled.has(task = task.trim()) && this.Gulp[task]) {
@@ -1314,7 +1320,7 @@ const FileManager = class extends Module implements IFileManager {
                                 if (!dirMap.has(origDir)) {
                                     dirMap.set(origDir, { gulpfile, items: [] });
                                 }
-                                dirMap.get(origDir)!.items.push(item.filepath!);
+                                dirMap.get(origDir)!.items.push(item.fileUri!);
                                 scheduled.add(task);
                             }
                         }
@@ -1384,19 +1390,19 @@ const FileManager = class extends Module implements IFileManager {
                     }
                     child_process.exec(`gulp ${task} --gulpfile "${data.gulpfile}" --cwd "${tempDir}"`, { cwd: process.cwd() }, err => {
                         if (!err) {
-                            for (const filepath of data.items) {
+                            for (const fileUri of data.items) {
                                 try {
-                                    fs.unlinkSync(filepath);
-                                    this.delete(filepath);
+                                    fs.unlinkSync(fileUri);
+                                    this.delete(fileUri);
                                 }
                                 catch {
                                 }
                             }
                             for (const file of fs.readdirSync(tempDir)) {
                                 try {
-                                    const filepath = path.join(origDir, path.basename(file));
-                                    fs.moveSync(path.join(tempDir, file), filepath, { overwrite: true });
-                                    this.add(filepath);
+                                    const fileUri = path.join(origDir, path.basename(file));
+                                    fs.moveSync(path.join(tempDir, file), fileUri, { overwrite: true });
+                                    this.add(fileUri);
                                 }
                                 catch {
                                 }

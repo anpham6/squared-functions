@@ -8,41 +8,39 @@ declare namespace functions {
     type BoolString = boolean | string;
     type ExternalCategory = "html" | "css" | "js";
     type FileCompressFormat = "gz" | "br";
-    type FileManagerWriteImageCallback = (data: internal.FileData, output: string, command: string, compress?: squared.base.CompressFormat, err?: Null<Error>) => void;
+    type FileManagerWriteImageCallback = (data: internal.FileData, output: string, command: string, compress?: squared.CompressFormat, err?: Null<Error>) => void;
     type FileManagerPerformAsyncTaskCallback = () => void;
-    type FileManagerCompleteAsyncTaskCallback = (filepath?: string) => void;
+    type FileManagerCompleteAsyncTaskCallback = (fileUri?: string) => void;
     type FileOutputCallback = (result: string, err?: Null<Error>) => void;
 
     namespace squared {
-        namespace base {
-            interface LocationUri {
-                pathname: string;
-                filename: string;
-            }
+        interface LocationUri {
+            pathname: string;
+            filename: string;
+        }
 
-            interface FileAsset extends LocationUri {
-                content?: string;
-                uri?: string;
-                mimeType?: string;
-                base64?: string;
-                commands?: string[];
-                compress?: CompressFormat[];
-            }
+        interface FileAsset extends LocationUri {
+            content?: string;
+            uri?: string;
+            mimeType?: string;
+            base64?: string;
+            commands?: string[];
+            compress?: CompressFormat[];
+        }
 
-            interface CompressFormat {
-                format: string;
-                level?: number;
-                condition?: string;
-            }
+        interface CompressFormat {
+            format: string;
+            level?: number;
+            condition?: string;
+        }
 
-            interface ResultOfFileAction {
-                success: boolean;
-                zipname?: string;
-                bytes?: number;
-                files?: string[];
-                application?: string;
-                system?: string;
-            }
+        interface ResultOfFileAction {
+            success: boolean;
+            zipname?: string;
+            bytes?: number;
+            files?: string[];
+            application?: string;
+            system?: string;
         }
     }
 
@@ -84,7 +82,7 @@ declare namespace functions {
         interface ImageUsingOptions {
             data: FileData;
             command?: string;
-            compress?: squared.base.CompressFormat;
+            compress?: squared.CompressFormat;
             callback?: FileManagerWriteImageCallback;
         }
 
@@ -95,8 +93,8 @@ declare namespace functions {
 
         interface ResizeData extends Dimension {
             mode: string;
-            algorithm: string;
-            align: number;
+            algorithm: Undef<string>;
+            align: Undef<string>[];
             color: Null<number>;
         }
 
@@ -108,13 +106,13 @@ declare namespace functions {
         }
 
         interface FileData {
-            file: ExpressAsset;
-            filepath: string;
+            file: ExternalAsset;
+            fileUri: string;
         }
 
         interface FileOutput {
             pathname: string;
-            filepath: string;
+            fileUri: string;
         }
 
         type Config = StandardMap | string;
@@ -144,22 +142,22 @@ declare namespace functions {
         gzipLevel: number;
         brotliQuality: number;
         tinifyApiKey: string;
-        createWriteStreamAsGzip(source: string, filepath: string, level?: number): WriteStream;
-        createWriteStreamAsBrotli(source: string, filepath: string, quality?: number, mimeType?: string): WriteStream;
-        findFormat(compress: Undef<squared.base.CompressFormat[]>, format: string): Undef<squared.base.CompressFormat>;
+        createWriteStreamAsGzip(source: string, fileUri: string, level?: number): WriteStream;
+        createWriteStreamAsBrotli(source: string, fileUri: string, quality?: number, mimeType?: string): WriteStream;
+        findFormat(compress: Undef<squared.CompressFormat[]>, format: string): Undef<squared.CompressFormat>;
         hasImageService(): boolean;
         parseSizeRange(value: string): [number, number];
-        withinSizeRange(filepath: string, value: Undef<string>): boolean;
+        withinSizeRange(fileUri: string, value: Undef<string>): boolean;
         tryFile(data: internal.FileData, format: FileCompressFormat, preCompress?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback): void;
         tryImage(data: internal.FileData, callback: FileOutputCallback): void;
     }
 
     interface IImage extends IModule {
         using(options: internal.ImageUsingOptions): void;
-        parseResize(value: string): Undef<internal.ResizeData>;
         parseCrop(value: string): Undef<internal.CropData>;
         parseOpacity(value: string): number;
         parseQuality(value: string): Undef<internal.QualityData>;
+        parseResize(value: string): Undef<internal.ResizeData>;
         parseRotation(value: string): Undef<internal.RotateData>;
     }
 
@@ -193,32 +191,33 @@ declare namespace functions {
         readonly files: Set<string>;
         readonly filesQueued: Set<string>;
         readonly filesToRemove: Set<string>;
-        readonly filesToCompare: Map<ExpressAsset, string[]>;
+        readonly filesToCompare: Map<ExternalAsset, string[]>;
         readonly contentToAppend: Map<string, string[]>;
         readonly dirname: string;
-        readonly assets: ExpressAsset[];
+        readonly assets: ExternalAsset[];
         readonly postFinalize: FunctionType<void>;
         readonly dataMap: chrome.DataMap;
-        readonly baseAsset?: ExpressAsset;
+        readonly baseAsset?: ExternalAsset;
         install(name: string, ...args: any[]): void;
         add(value: string): void;
         delete(value: string): void;
-        replace(file: ExpressAsset, replaceWith: string): void;
+        replace(file: ExternalAsset, replaceWith: string): void;
         performAsyncTask: FileManagerPerformAsyncTaskCallback;
         removeAsyncTask(): void;
         completeAsyncTask: FileManagerCompleteAsyncTaskCallback;
         performFinalize(): void;
-        getHtmlPages(modified?: boolean): ExpressAsset[];
+        getHtmlPages(modified?: boolean): ExternalAsset[];
         replacePath(source: string, segments: string[], value: string, matchSingle?: boolean, base64?: boolean): Undef<string>;
         escapePathSeparator(value: string): string;
-        getFileOutput(file: ExpressAsset): internal.FileOutput;
-        getRelativeUri(file: ExpressAsset, uri: string): Undef<string>;
+        getFileOutput(file: ExternalAsset): internal.FileOutput;
+        findAsset(uri: string, fromElement?: boolean): Undef<ExternalAsset>;
+        getRelativeUri(file: ExternalAsset, uri: string): Undef<string>;
         getAbsoluteUri(value: string, href: string): string;
-        getFileUri(file: ExpressAsset, filename?: string): string;
-        getUTF8String(file: ExpressAsset, filepath?: string): string;
-        appendContent(file: ExpressAsset, filepath: string, content: string, bundleIndex: number): Promise<string>;
-        getTrailingContent(file: ExpressAsset): Promise<string>;
-        transformCss(file: ExpressAsset, content: string): Undef<string>;
+        getFileUri(file: ExternalAsset, filename?: string): string;
+        getUTF8String(file: ExternalAsset, fileUri?: string): string;
+        appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex: number): Promise<string>;
+        getTrailingContent(file: ExternalAsset): Promise<string>;
+        transformCss(file: ExternalAsset, content: string): Undef<string>;
         newImage(data: internal.FileData, ouputType: string, saveAs: string, command?: string): string;
         replaceImage(data: internal.FileData, output: string, command: string): void;
         transformBuffer(data: internal.FileData): Promise<void>;
@@ -235,7 +234,7 @@ declare namespace functions {
         moduleNode(): INode;
         moduleCompress(): ICompress;
         moduleImage(): IImage;
-        new(dirname: string, assets: ExpressAsset[], postFinalize: FunctionType<void>, productionRelease?: boolean): IFileManager;
+        new(dirname: string, assets: ExternalAsset[], postFinalize: FunctionType<void>, productionRelease?: boolean): IFileManager;
     }
 
     const FileManager: FileManagerConstructor;
@@ -245,7 +244,7 @@ declare namespace functions {
         readonly minor: number;
         readonly patch: number;
         checkVersion(major: number, minor: number, patch?: number): boolean;
-        getFileSize(filepath: string): number;
+        getFileSize(fileUri: string): number;
         replaceExtension(value: string, ext: string): string;
         getTempDir(): string;
         writeFail(description: string, message: unknown): void;
@@ -259,7 +258,7 @@ declare namespace functions {
 
     class ImageProxy<T> {
         instance: T;
-        filepath: string
+        fileUri: string
         command: string
         resizeData?: internal.ResizeData;
         cropData?: internal.CropData;
@@ -274,7 +273,7 @@ declare namespace functions {
         rotate(preRotate?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback): void;
         write(output: string, options?: internal.ImageUsingOptions): void;
         finalize(output: string, callback: (result: string) => void): void;
-        constructor(instance: T, filepath: string, command?: string, finalAs?: string);
+        constructor(instance: T, fileUri: string, command?: string, finalAs?: string);
     }
 
     interface Settings {
@@ -331,8 +330,8 @@ declare namespace functions {
         js?: ObjectMap<StandardMap>;
     }
 
-    interface ExpressAsset extends squared.base.FileAsset, chrome.ChromeAsset {
-        filepath?: string;
+    interface ExternalAsset extends squared.FileAsset, chrome.ChromeAsset {
+        fileUri?: string;
         invalid?: boolean;
         buffer?: Buffer;
         sourceUTF8?: string;
