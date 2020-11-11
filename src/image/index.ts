@@ -18,11 +18,13 @@ type FileData = functions.internal.FileData;
 type ResizeData = functions.internal.ResizeData;
 type CropData = functions.internal.CropData;
 type RotateData = functions.internal.RotateData;
+type QualityData = functions.internal.QualityData;
 
 const REGEXP_RESIZE = /\(\s*(\d+|auto)\s*x\s*(\d+|auto)(?:\s*\[\s*(bilinear|bicubic|hermite|bezier)\s*\])?(?:\s*^\s*(contain|cover|scale)(?:\s*\[\s*(left|center|right)?(?:\s*\|?\s*(top|middle|bottom))?\s*\])?)?(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\)/;
 const REGEXP_CROP = /\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*\|\s*(\d+)\s*x\s*(\d+)\s*\)/;
 const REGEXP_ROTATE = /\{\s*([\d\s,]+)(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\}/;
-const REGEXP_OPACITY = /\|\s*([\d.]+)\s*\|/g;
+const REGEXP_OPACITY = /\|\s*(\d*\.\d+)\s*\|/;
+const REGEXP_QUALITY = /\|\s*(\d+)\s*(photo|picture|drawing|icon|text)?\s*\|/;
 
 const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : null;
 
@@ -30,7 +32,7 @@ class JimpProxy implements functions.ImageProxy<jimp> {
     public resizeData?: ResizeData;
     public cropData?: CropData;
     public rotateData?: RotateData;
-    public qualityValue = NaN;
+    public qualityData?: QualityData;
     public opacityValue = NaN;
     public errorHandler?: (err: Error) => void;
 
@@ -39,7 +41,7 @@ class JimpProxy implements functions.ImageProxy<jimp> {
             this.resizeData = Image.parseResize(command);
             this.cropData = Image.parseCrop(command);
             this.rotateData = Image.parseRotation(command);
-            this.qualityValue = Image.parseQuality(command);
+            this.qualityData = Image.parseQuality(command);
             this.opacityValue = Image.parseOpacity(command);
         }
     }
@@ -56,8 +58,9 @@ class JimpProxy implements functions.ImageProxy<jimp> {
         }
     }
     quality() {
-        if (!isNaN(this.qualityValue)) {
-            this.instance = this.instance.quality(this.qualityValue);
+        const qualityData = this.qualityData;
+        if (qualityData && !isNaN(qualityData.value)) {
+            this.instance = this.instance.quality(qualityData.value);
         }
     }
     resize() {
@@ -143,8 +146,15 @@ class JimpProxy implements functions.ImageProxy<jimp> {
         if (this.finalAs === 'webp') {
             const webp = Image.replaceExtension(output, 'webp');
             const args = [output, '-mt', '-m', '6'];
-            if (!isNaN(this.qualityValue)) {
-                args.push('-q', this.qualityValue.toString());
+            const qualityData = this.qualityData;
+            if (qualityData) {
+                const { value, preset } = qualityData;
+                if (preset) {
+                    args.push('-preset', preset);
+                }
+                if (!isNaN(value)) {
+                    args.push('-q', value.toString());
+                }
             }
             args.push('-o', webp);
             child_process.execFile(require('cwebp-bin'), args, null, err => {
@@ -260,8 +270,8 @@ const Image = new class extends Module implements functions.IImage {
             };
             if (mimeType === 'image/webp') {
                 try {
-                    tempFile = this.getTempDir() + uuid.v4() + '.png';
-                    child_process.execFile(require('dwebp-bin'), [filepath, '-mt', '-o', tempFile], null, err => {
+                    tempFile = this.getTempDir() + uuid.v4() + '.bmp';
+                    child_process.execFile(require('dwebp-bin'), [filepath, '-mt', '-bmp', '-o', tempFile], null, err => {
                         if (err) {
                             tempFile = '';
                         }
@@ -330,9 +340,8 @@ const Image = new class extends Module implements functions.IImage {
         }
     }
     parseOpacity(value: string) {
-        REGEXP_OPACITY.lastIndex = 0;
-        let match: Null<RegExpExecArray>;
-        while (match = REGEXP_OPACITY.exec(value)) {
+        const match = REGEXP_OPACITY.exec(value);
+        if (match) {
             const opacity = +match[1];
             if (opacity >= 0 && opacity < 1) {
                 return opacity;
@@ -341,15 +350,15 @@ const Image = new class extends Module implements functions.IImage {
         return NaN;
     }
     parseQuality(value: string) {
-        REGEXP_OPACITY.lastIndex = 0;
-        let match: Null<RegExpExecArray>;
-        while (match = REGEXP_OPACITY.exec(value)) {
+        const match = REGEXP_QUALITY.exec(value);
+        if (match) {
+            const result: QualityData = { value: NaN, preset: match[2] };
             const quality = +match[1];
-            if (quality >= 1 && quality <= 100) {
-                return Math.round(quality);
+            if (quality >= 0 && quality <= 100) {
+                result.value = quality;
             }
+            return result;
         }
-        return NaN;
     }
     parseRotation(value: string) {
         const match = REGEXP_ROTATE.exec(value);

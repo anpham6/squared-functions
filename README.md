@@ -55,7 +55,7 @@ npm install dwebp-bin && npm install cwebp-bin
 - ( width(n|auto) x height(n|auto) [bilinear|bicubic|hermite|bezier]? ^(cover|contain|scale)?[left|center|right|top|middle|bottom]? #background-color? )
 - ( left(+|-n) , top(+|-n) | cropWidth(n) x cropHeight(n) )
 - { ...rotate(n) #background-color? }
-- | opacity(0<1) OR jpeg_webp_quality(1>=100) |
+- | opacity(0.0-1.0) OR jpeg_webp_quality(0-100)[photo|picture|drawing|icon|text]?| // webp -preset
 ```
 
 @ - replace  
@@ -66,7 +66,7 @@ Placing an @ symbol (png@) after the format will remove the original file from t
 ```javascript
 // NOTE: Multiple transformations per asset use the ':' as the separator when using "data-chrome-file"
 
-webp(50000,*)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,135,215,315#FFFFFF}|0.5||100|
+webp(50000,*)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,135,215,315#FFFFFF}|0.5||100[photo]|
 ```
 
 ```javascript

@@ -102,6 +102,11 @@ declare namespace functions {
 
         interface CropData extends Point, Dimension {}
 
+        interface QualityData {
+            value: number;
+            preset?: string;
+        }
+
         interface FileData {
             file: ExpressAsset;
             filepath: string;
@@ -154,7 +159,7 @@ declare namespace functions {
         parseResize(value: string): Undef<internal.ResizeData>;
         parseCrop(value: string): Undef<internal.CropData>;
         parseOpacity(value: string): number;
-        parseQuality(value: string): number;
+        parseQuality(value: string): Undef<internal.QualityData>;
         parseRotation(value: string): Undef<internal.RotateData>;
     }
 
@@ -258,7 +263,7 @@ declare namespace functions {
         resizeData?: internal.ResizeData;
         cropData?: internal.CropData;
         rotateData?: internal.RotateData;
-        qualityValue: number;
+        qualityData?: internal.QualityData;
         opacityValue: number;
         errorHandler?: (err: Error) => void;
         resize(): void;
