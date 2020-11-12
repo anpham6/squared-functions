@@ -854,10 +854,10 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
     }
-    finalizeFile(data: FileData) {
-        this.transformBuffer(data).then(() => {
-            this.completeAsyncTask(data.fileUri);
-        });
+    async finalizeFile(data: FileData) {
+        await this.transformBuffer(data);
+        this.completeAsyncTask(data.fileUri);
+        return Promise.resolve();
     }
     processAssets() {
         const emptyDir = new Set<string>();
@@ -1021,6 +1021,9 @@ const FileManager = class extends Module implements IFileManager {
             if (file.exclude) {
                 file.invalid = true;
                 continue;
+            }
+            if (file.filename.startsWith('__assign__')) {
+                file.filename = uuid.v4() + path.extname(file.filename);
             }
             const { pathname, fileUri } = this.getFileOutput(file);
             const fileReceived = (err: NodeJS.ErrnoException) => {
@@ -1416,24 +1419,24 @@ const FileManager = class extends Module implements IFileManager {
                                                         }))
                                                         .then(() => callback())
                                                         .catch(errWrite => {
-                                                            Node.writeFail('Gulp: Unable to replace original files', errWrite);
+                                                            Node.writeFail('gulp: Unable to replace original files', errWrite);
                                                             callback();
                                                         });
                                                 }
                                             });
                                         })
-                                        .catch(error => Node.writeFail('Gulp: Unable to delete original files', error));
+                                        .catch(error => Node.writeFail('gulp: Unable to delete original files', error));
                                 }
                                 else {
-                                    Node.writeFail(`Gulp: exec (${task}:${path.basename(data.gulpfile)})`, err);
+                                    Node.writeFail(`gulp: exec (${task}:${path.basename(data.gulpfile)})`, err);
                                     callback();
                                 }
                             });
                         })
-                        .catch(err => Node.writeFail('Gulp: Unable to copy original files', err));
+                        .catch(err => Node.writeFail('gulp: Unable to copy original files', err));
                 }
                 catch (err) {
-                    Node.writeFail('Gulp: Copy temp files', err);
+                    Node.writeFail(`gulp: ${task}`, err);
                     callback();
                 }
             };
@@ -1455,7 +1458,7 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
         return Promise.all(tasks).catch(err => {
-            Node.writeFail('Finalize: Exec tasks', err);
+            Node.writeFail('Finalize: exec tasks', err);
             return err;
         });
     }

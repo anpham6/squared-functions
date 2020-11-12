@@ -226,7 +226,7 @@ declare namespace functions {
         transformBuffer(data: internal.FileData): Promise<void>;
         writeBuffer(data: internal.FileData): void;
         finalizeImage: FileManagerWriteImageCallback;
-        finalizeFile(data: internal.FileData): void;
+        finalizeFile(data: internal.FileData): Promise<void>;
         processAssets(): void;
         finalizeAssets(): Promise<unknown[]>;
     }
