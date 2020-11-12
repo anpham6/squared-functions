@@ -228,15 +228,15 @@ class JimpProxy implements functions.ImageProxy<jimp> {
                     Image.writeFail(`WebP encode (npm i cwebp-bin): ${output}`, err);
                     callback(output);
                 }
-                else {
-                    if (webp !== output) {
-                        try {
-                            fs.unlinkSync(output);
-                        }
-                        catch (error) {
+                else if (webp !== output) {
+                    fs.unlink(output, error => {
+                        if (error) {
                             Image.writeFail(`Unable to delete: ${output}`, error);
                         }
-                    }
+                        callback(webp);
+                    });
+                }
+                else {
                     callback(webp);
                 }
             });
@@ -263,17 +263,18 @@ const Image = new class extends Module implements functions.IImage {
                         case jimp.MIME_JPEG:
                         case jimp.MIME_BMP:
                         case jimp.MIME_GIF:
-                        case jimp.MIME_TIFF:
-                            try {
-                                const output = this.replaceExtension(fileUri, unknownType.split('/')[1]);
-                                fs.renameSync(fileUri, output);
-                                this.finalizeImage(data, output, '@', unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG ? compress : undefined);
-                            }
-                            catch (err) {
-                                this.completeAsyncTask();
-                                this.writeFail(fileUri, err);
-                            }
-                            break;
+                        case jimp.MIME_TIFF: {
+                            const output = this.replaceExtension(fileUri, unknownType.split('/')[1]);
+                            fs.rename(fileUri, output, err => {
+                                if (err) {
+                                    this.completeAsyncTask();
+                                    this.writeFail(fileUri, err);
+                                }
+                                else {
+                                    this.finalizeImage(data, output, '@', unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG ? compress : undefined);
+                                }
+                            });
+                        }
                     }
                 })
                 .catch(err => {

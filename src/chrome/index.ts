@@ -318,10 +318,8 @@ const Chrome = new class extends Module implements functions.IChrome {
                                 case 'rollup': {
                                     const rollup = require('rollup');
                                     const rollupDir = path.join(process.cwd(), 'temp' + path.sep + 'rollup');
-                                    if (!fs.existsSync(rollupDir)) {
-                                        fs.mkdirpSync(rollupDir);
-                                    }
                                     const inputFile = rollupDir + path.sep + uuid.v4();
+                                    fs.mkdirpSync(rollupDir);
                                     fs.writeFileSync(inputFile, value);
                                     let result = '';
                                     const es: OutputOptions = { format: 'es' };

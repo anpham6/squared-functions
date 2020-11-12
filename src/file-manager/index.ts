@@ -670,12 +670,7 @@ const FileManager = class extends Module implements IFileManager {
                 const trailing = await this.getTrailingContent(file);
                 if (!unusedStyles && !transforming && !format) {
                     if (trailing) {
-                        try {
-                            fs.appendFileSync(fileUri, trailing);
-                        }
-                        catch (err) {
-                            this.writeFail(fileUri, err);
-                        }
+                        file.sourceUTF8 = this.getUTF8String(file, fileUri) + trailing;
                     }
                     break;
                 }
@@ -717,12 +712,7 @@ const FileManager = class extends Module implements IFileManager {
                 const trailing = await this.getTrailingContent(file);
                 if (!format) {
                     if (trailing) {
-                        try {
-                            fs.appendFileSync(fileUri, trailing);
-                        }
-                        catch (err) {
-                            this.writeFail(fileUri, err);
-                        }
+                        file.sourceUTF8 = this.getUTF8String(file, fileUri) + trailing;
                     }
                     break;
                 }
@@ -819,11 +809,13 @@ const FileManager = class extends Module implements IFileManager {
         const png = Compress.hasImageService() ? Compress.findFormat(data.file.compress, 'png') : undefined;
         if (png && Compress.withinSizeRange(data.fileUri, png.condition)) {
             try {
-                Compress.tryImage(data.fileUri, (result: string, error: Null<Error>) => {
-                    if (error) {
-                        throw error;
+                Compress.tryImage(data.fileUri, (result: string, err: Null<Error>) => {
+                    if (err) {
+                        throw err;
                     }
-                    data.fileUri = result;
+                    if (result) {
+                        data.fileUri = result;
+                    }
                     this.finalizeFile(data);
                 });
             }
@@ -1016,7 +1008,7 @@ const FileManager = class extends Module implements IFileManager {
             if (stream) {
                 try {
                     stream.close();
-                    fs.unlinkSync(fileUri);
+                    fs.unlink(fileUri);
                 }
                 catch {
                 }
@@ -1051,14 +1043,12 @@ const FileManager = class extends Module implements IFileManager {
                         this.writeFail(pathname, err);
                     }
                 }
-                if (!fs.existsSync(pathname)) {
-                    try {
-                        fs.mkdirpSync(pathname);
-                    }
-                    catch (err) {
-                        file.invalid = true;
-                        this.writeFail(pathname, err);
-                    }
+                try {
+                    fs.mkdirpSync(pathname);
+                }
+                catch (err) {
+                    file.invalid = true;
+                    this.writeFail(pathname, err);
                 }
                 emptyDir.add(pathname);
             }
@@ -1294,18 +1284,32 @@ const FileManager = class extends Module implements IFileManager {
             if (this.has(fileUri)) {
                 const gz = Compress.findFormat(item.compress, 'gz');
                 if (gz) {
-                    tasks.push(new Promise(resolve => Compress.tryFile(fileUri, gz, undefined, resolve)));
+                    tasks.push(
+                        new Promise(resolve => Compress.tryFile(fileUri, gz, undefined, (result: string) => {
+                            if (result) {
+                                this.add(result);
+                            }
+                            resolve();
+                        }))
+                    );
                 }
                 if (Node.checkVersion(11, 7)) {
                     const br = Compress.findFormat(item.compress, 'br');
                     if (br) {
-                        tasks.push(new Promise(resolve => Compress.tryFile(fileUri, br, undefined, resolve)));
+                        tasks.push(
+                            new Promise(resolve => Compress.tryFile(fileUri, br, undefined, (result: string) => {
+                                if (result) {
+                                    this.add(result);
+                                }
+                                resolve();
+                            }))
+                        );
                     }
                 }
             }
         }
         for (const value of this.filesToRemove) {
-            tasks.push(fs.unlink(value).then(() => this.delete(value)).catch(err => this.writeFail(value, err)));
+            tasks.push(fs.unlink(value).then(() => this.delete(value)));
         }
         if (tasks.length) {
             await Promise.all(tasks).catch(err => Node.writeFail('Finalize: Compress and delete temp files', err));
@@ -1394,34 +1398,39 @@ const FileManager = class extends Module implements IFileManager {
                 const tempDir = this.getTempDir() + uuid.v4();
                 try {
                     fs.mkdirpSync(tempDir);
-                    for (const file of data.items) {
-                        fs.copyFileSync(file, path.join(tempDir, path.basename(file)));
-                    }
-                    child_process.exec(`gulp ${task} --gulpfile "${data.gulpfile}" --cwd "${tempDir}"`, { cwd: process.cwd() }, err => {
-                        if (!err) {
-                            for (const fileUri of data.items) {
-                                try {
-                                    fs.unlinkSync(fileUri);
-                                    this.delete(fileUri);
+                    Promise.all(data.items.map(fileUri => fs.copyFile(fileUri, path.join(tempDir, path.basename(fileUri)))))
+                        .then(() => {
+                            child_process.exec(`gulp ${task} --gulpfile "${data.gulpfile}" --cwd "${tempDir}"`, { cwd: process.cwd() }, err => {
+                                if (!err) {
+                                    Promise.all(data.items.map(fileUri => fs.unlink(fileUri).then(() => this.delete(fileUri))))
+                                        .then(() => {
+                                            fs.readdir(tempDir, (errRead, files) => {
+                                                if (errRead) {
+                                                    callback();
+                                                }
+                                                else {
+                                                    Promise.all(
+                                                        files.map(filename => {
+                                                            const origUri = path.join(origDir, filename);
+                                                            return fs.move(path.join(tempDir, filename), origUri, { overwrite: true }).then(() => this.add(origUri));
+                                                        }))
+                                                        .then(() => callback())
+                                                        .catch(errWrite => {
+                                                            Node.writeFail('Gulp: Unable to replace original files', errWrite);
+                                                            callback();
+                                                        });
+                                                }
+                                            });
+                                        })
+                                        .catch(error => Node.writeFail('Gulp: Unable to delete original files', error));
                                 }
-                                catch {
+                                else {
+                                    Node.writeFail(`Gulp: exec (${task}:${path.basename(data.gulpfile)})`, err);
+                                    callback();
                                 }
-                            }
-                            for (const file of fs.readdirSync(tempDir)) {
-                                try {
-                                    const fileUri = path.join(origDir, path.basename(file));
-                                    fs.moveSync(path.join(tempDir, file), fileUri, { overwrite: true });
-                                    this.add(fileUri);
-                                }
-                                catch {
-                                }
-                            }
-                        }
-                        else {
-                            Node.writeFail(`Gulp: exec (${task}:${path.basename(data.gulpfile)})`, err);
-                        }
-                        callback();
-                    });
+                            });
+                        })
+                        .catch(err => Node.writeFail('Gulp: Unable to copy original files', err));
                 }
                 catch (err) {
                     Node.writeFail('Gulp: Copy temp files', err);

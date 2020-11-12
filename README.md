@@ -180,14 +180,19 @@ Chain  (2): +
 Option (3): |
 ```
 
+```xml
 * preserve - Prevent unused styles from being deleted (css)
-* inline - Content is extracted and rendered inline with &lt;script&gt; or &lt;style&gt; (js/css)
-* compress - TinyPNG service is used to compress PNG or JPEG (image)
+* inline - Content is extracted and rendered inline with <script> or <style> (js/css)
+* compress
+    - png TinyPNG service for PNG or JPEG
+    - gz  Gzip
+    - br  Brotli
 * base64 - Content is rendered inline with base64 encoding (image)
+```
 
 ```xml
 <link data-chrome-file="saveAs:css/prod.css::beautify::preserve|inline" rel="stylesheet" href="css/dev.css" />
-<style data-chrome-file="exportAs:css/prod.css::minify+beautify">
+<style data-chrome-file="exportAs:css/prod.css::minify+beautify::compress[gz]">
     body {
         font: 1em/1.4 Helvetica, Arial, sans-serif;
         background-color: #fafafa;
@@ -349,8 +354,8 @@ YAML (yml/yaml) configuration is optional and is provided for those who prefer t
 interface FileModifiers {
     preserve?: boolean; // type: css
     inline?: boolean; // type: js | css
-    compress?: boolean; // type: image
     base64?: boolean; // type: image
+    compress?: CompressFormat[];
     ignore?: boolean;
     exclude?: boolean;
 }

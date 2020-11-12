@@ -69,8 +69,8 @@ const Compress = new class extends Module implements functions.ICompress {
     }
     tryFile(fileUri: string, data: CompressFormat, preCompress?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback) {
         if (this.withinSizeRange(fileUri, data.condition)) {
-            let output = `${fileUri}.${data.format}`,
-                methodName: Undef<NodeBuiltInCompressionMethod>;
+            const output = `${fileUri}.${data.format}`;
+            let methodName: Undef<NodeBuiltInCompressionMethod>;
             switch (data.format) {
                 case 'gz':
                     methodName = 'createWriteStreamAsGzip';
@@ -86,19 +86,18 @@ const Compress = new class extends Module implements functions.ICompress {
                 Compress[methodName](fileUri, output, data.level)
                     .on('finish', () => {
                         if (data.condition?.includes('%') && this.getFileSize(output) >= this.getFileSize(fileUri)) {
-                            try {
-                                fs.unlinkSync(output);
-                            }
-                            catch {
-                            }
-                            output = '';
+                            fs.unlink(output, () => {
+                                if (postWrite) {
+                                    postWrite();
+                                }
+                            });
                         }
-                        if (postWrite) {
+                        else if (postWrite) {
                             postWrite(output);
                         }
                     })
-                    .on('error', error => {
-                        this.writeFail(output, error);
+                    .on('error', err => {
+                        this.writeFail(output, err);
                         if (postWrite) {
                             postWrite();
                         }
@@ -111,18 +110,24 @@ const Compress = new class extends Module implements functions.ICompress {
         }
     }
     tryImage(fileUri: string, callback: FileOutputCallback) {
-        try {
-            tinify.fromBuffer(fs.readFileSync(fileUri)).toBuffer((err, resultData) => {
-                if (!err && resultData) {
-                    fs.writeFileSync(fileUri, resultData);
-                }
-                callback(fileUri, err);
-            });
-        }
-        catch (err) {
-            this.validate(this.tinifyApiKey);
-            throw err;
-        }
+        fs.readFile(fileUri, (err, buffer) => {
+            if (err) {
+                callback('', err);
+            }
+            else {
+                tinify.fromBuffer(buffer).toBuffer((errRead, data) => {
+                    if (data && !errRead) {
+                        fs.writeFile(fileUri, data, errWrite => callback(fileUri, errWrite));
+                    }
+                    else {
+                        if (errRead) {
+                            this.validate(this.tinifyApiKey);
+                        }
+                        callback('', err);
+                    }
+                });
+            }
+        });
     }
 }();
 
