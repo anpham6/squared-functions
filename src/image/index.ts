@@ -8,6 +8,7 @@ import Module from '../module';
 
 type CompressFormat = functions.squared.CompressFormat;
 
+type ExternalAsset = functions.ExternalAsset;
 type IFileManager = functions.IFileManager;
 type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTaskCallback;
 type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
@@ -149,7 +150,7 @@ class JimpProxy implements functions.ImageProxy<jimp> {
             }
         }
     }
-    rotate(preRotate?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback) {
+    rotate(parent?: ExternalAsset, preRotate?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback) {
         const rotateData = this.rotateData;
         if (rotateData) {
             const { values, color } = rotateData;
@@ -164,19 +165,18 @@ class JimpProxy implements functions.ImageProxy<jimp> {
                 }
                 const img = this.instance.clone().rotate(value);
                 const index = this.fileUri.lastIndexOf('.');
-                let output = this.fileUri.substring(0, index) + '.' + value + this.fileUri.substring(index);
+                const output = this.fileUri.substring(0, index) + '.' + value + this.fileUri.substring(index);
                 img.write(output, err => {
                     if (err) {
                         Image.writeFail(output, err);
-                        output = '';
                         if (postWrite) {
-                            postWrite(output);
+                            postWrite();
                         }
                     }
                     else {
                         this.finalize(output, (result: string) => {
                             if (postWrite) {
-                                postWrite(result);
+                                postWrite(result, parent);
                             }
                         });
                     }
@@ -253,9 +253,17 @@ const Image = new class extends Module implements functions.IImage {
         const { file, fileUri } = data;
         const command = options.command?.trim().toLowerCase();
         const mimeType = file.mimeType || mime.lookup(fileUri);
+        const getFile = () => {
+            const buffer = file.buffer;
+            if (buffer) {
+                delete file.buffer;
+                return (buffer as unknown) as string;
+            }
+            return fileUri;
+        };
         if (!command || !mimeType || mimeType === 'image/unknown') {
             this.performAsyncTask();
-            jimp.read(fileUri)
+            jimp.read(getFile())
                 .then(img => {
                     const unknownType = img.getMIME();
                     switch (unknownType) {
@@ -313,7 +321,7 @@ const Image = new class extends Module implements functions.IImage {
                 }
                 if (jimpType && saveAs) {
                     this.performAsyncTask();
-                    jimp.read(tempFile || fileUri)
+                    jimp.read(tempFile || getFile())
                         .then(img => {
                             const proxy = new JimpProxy(img, fileUri, command, finalAs);
                             proxy.method();
@@ -325,7 +333,7 @@ const Image = new class extends Module implements functions.IImage {
                             else {
                                 proxy.opacity();
                             }
-                            proxy.rotate(this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                            proxy.rotate(file, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
                             file.mimeType = mimeType;
                             proxy.write(
                                 this.newImage(data, jimpType!, saveAs!, command),

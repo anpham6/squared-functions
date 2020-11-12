@@ -8,9 +8,9 @@ declare namespace functions {
     type BoolString = boolean | string;
     type ExternalCategory = "html" | "css" | "js";
     type FileCompressFormat = "gz" | "br";
-    type FileManagerWriteImageCallback = (data: internal.FileData, output: string, command: string, compress?: squared.CompressFormat, err?: Null<Error>) => void;
+    type FileManagerWriteImageCallback = (data: internal.FileData, output: string, command: string, compress?: squared.CompressFormat, error?: Null<Error>) => void;
     type FileManagerPerformAsyncTaskCallback = () => void;
-    type FileManagerCompleteAsyncTaskCallback = (value?: unknown) => void;
+    type FileManagerCompleteAsyncTaskCallback = (value?: unknown, parent?: ExternalAsset) => void;
     type FileOutputCallback = (result: string, err?: Null<Error>) => void;
 
     namespace squared {
@@ -57,8 +57,18 @@ declare namespace functions {
             basePath?: string;
             bundleIndex?: number;
             trailingContent?: FormattableContent[];
+            cloudStorage?: CloudService[];
             textContent?: string;
             dataMap?: DataMap;
+        }
+
+        interface CloudService {
+            service: "s3";
+            bucket: string;
+            active?: boolean;
+            localStorage?: boolean;
+            filename?: string;
+            [key: string]: Undef<unknown>;
         }
 
         interface AttributeValue {
@@ -209,7 +219,8 @@ declare namespace functions {
         removeAsyncTask(): void;
         completeAsyncTask: FileManagerCompleteAsyncTaskCallback;
         performFinalize(): void;
-        getHtmlPages(modified?: boolean): ExternalAsset[];
+        getCloudService(data: chrome.CloudService[]): Undef<chrome.CloudService>;
+        hasCloudService(data: Record<string, unknown>): data is chrome.CloudService;
         replacePath(source: string, segments: string[], value: string, matchSingle?: boolean, base64?: boolean): Undef<string>;
         escapePathSeparator(value: string): string;
         getFileOutput(file: ExternalAsset): internal.FileOutput;
@@ -222,11 +233,10 @@ declare namespace functions {
         getTrailingContent(file: ExternalAsset): Promise<string>;
         transformCss(file: ExternalAsset, content: string): Undef<string>;
         newImage(data: internal.FileData, ouputType: string, saveAs: string, command?: string): string;
-        replaceImage(data: internal.FileData, output: string, command: string): void;
         transformBuffer(data: internal.FileData): Promise<void>;
         writeBuffer(data: internal.FileData): void;
         finalizeImage: FileManagerWriteImageCallback;
-        finalizeFile(data: internal.FileData): Promise<void>;
+        finalizeFile(data: internal.FileData, parent?: ExternalAsset): Promise<void>;
         processAssets(): void;
         finalizeAssets(): Promise<unknown[]>;
     }
@@ -250,6 +260,7 @@ declare namespace functions {
         getFileSize(fileUri: string): number;
         replaceExtension(value: string, ext: string): string;
         getTempDir(): string;
+        writeMessage(value: string, message: unknown, title?: string, color?: "green" | "yellow" | "blue" | "white" | "grey"): void;
         writeFail(description: string, message: unknown): void;
     }
 
@@ -274,7 +285,7 @@ declare namespace functions {
         crop(): void;
         opacity(): void;
         quality(): void;
-        rotate(preRotate?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback): void;
+        rotate(parent?: ExternalAsset, preRotate?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback): void;
         write(output: string, options?: internal.ImageUsingOptions): void;
         finalize(output: string, callback: (result: string) => void): void;
         constructor(instance: T, fileUri: string, command?: string, finalAs?: string);
@@ -336,10 +347,12 @@ declare namespace functions {
 
     interface ExternalAsset extends squared.FileAsset, chrome.ChromeAsset {
         fileUri?: string;
+        children?: string[];
         invalid?: boolean;
         buffer?: Buffer;
         sourceUTF8?: string;
         inlineBase64?: string;
+        inlineCloud?: string;
         originalName?: string;
     }
 }

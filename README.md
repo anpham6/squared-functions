@@ -392,9 +392,38 @@ Here is the equivalent page with "data-chrome-file" using only inline commands.
 
 - [bundle_inline.html](https://github.com/anpham6/squared/blob/master/html/chrome/bundle_inline.html)
 
+### Cloud storage
+
+Manual installation of the SDK is required and an account with a cloud storage provider.
+
+```xml
+* Amazon S3
+  - npm install aws-sdk
+  - AWS Free Tier: https://aws.amazon.com/free (5GB)
+```
+
+Inline commands and images located inside CSS url() attributes are not supported.
+
+```javascript
+- selector: #picture1
+  type: image
+  commands:
+    - png(100x200){90,180,270} // Uploaded with UUID filename
+  cloudStorage:
+    - service: s3
+      bucket: squared-001
+      accessKeyId: **********
+      secretAccessKey: **********
+      active: true // Rewrites "src" to cloud storage location (optional)
+      localStorage: false // Removes all files from archive or local disk (optional)
+      filename: picture1.webp // Bucket filename (optional)
+```
+
+Other providers will be integrated similarly except for required credential verification.
+
 ### Options: Production / saveAs
 
-The entire page can similarly be transformed as a group using the "saveAs" attribute in options.
+The entire page can similarly be transformed as a group using the "saveAs" attribute in options. Cloud storage can be used for all assets except HTML using the same configuration as element selectors.
 
 ```javascript
 squared.saveAs('index.zip', {

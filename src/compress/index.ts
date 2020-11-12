@@ -115,15 +115,15 @@ const Compress = new class extends Module implements functions.ICompress {
                 callback('', err);
             }
             else {
-                tinify.fromBuffer(buffer).toBuffer((errRead, data) => {
-                    if (data && !errRead) {
-                        fs.writeFile(fileUri, data, errWrite => callback(fileUri, errWrite));
+                tinify.fromBuffer(buffer).toBuffer((errR, data) => {
+                    if (data && !errR) {
+                        fs.writeFile(fileUri, data, errW => callback(errW ? '' : fileUri, errW));
                     }
                     else {
-                        if (errRead) {
+                        if (errR) {
                             this.validate(this.tinifyApiKey);
                         }
-                        callback('', err);
+                        callback('', errR);
                     }
                 });
             }

@@ -41,8 +41,15 @@ const Module = class implements functions.IModule {
     getTempDir() {
         return process.cwd() + path.sep + 'temp' + path.sep;
     }
-    writeFail(description: string, message: unknown) {
-        console.log(`${chalk.bgRed.bold.white('FAIL')}: ${description} (${message as string})`);
+    writeMessage(value: string, message: unknown, title = 'SUCCESS', color: "green" | "yellow" | "blue" | "white" | "grey" = 'green') {
+        try {
+            console.log(`${chalk.bold[color](title)}: ${value} (${message as string})`);
+        }
+        catch {
+        }
+    }
+    writeFail(value: string, message: unknown) {
+        console.log(`${chalk.bgRed.bold.white('FAIL')}: ${value} (${message as string})`);
     }
 };
 

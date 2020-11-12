@@ -21,6 +21,7 @@
   "license": "MIT",
   "homepage": "https://github.com/anpham6/squared-functions#readme",
   "devDependencies": {
+    "@types/aws-sdk": "^2.7.0",
     "@types/body-parser": "^1.19.0",
     "@types/cors": "^2.8.8",
     "@types/escape-string-regexp": "^2.0.1",

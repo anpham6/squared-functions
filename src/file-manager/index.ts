@@ -1,4 +1,5 @@
 import type { Response } from 'express';
+import type * as aws from 'aws-sdk';
 
 import child_process = require('child_process');
 import path = require('path');
@@ -23,6 +24,7 @@ type IFileManager = functions.IFileManager;
 type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
 type CompressFormat = functions.squared.CompressFormat;
+type CloudService = functions.chrome.CloudService;
 
 interface GulpData {
     gulpfile: string;
@@ -161,8 +163,11 @@ const FileManager = class extends Module implements IFileManager {
                 break;
         }
     }
-    add(value: string) {
+    add(value: string, parent?: ExternalAsset) {
         this.files.add(value.substring(this.dirname.length + 1));
+        if (parent) {
+            (parent.children ||= []).push(value);
+        }
     }
     delete(value: string) {
         this.files.delete(value.substring(this.dirname.length + 1));
@@ -182,9 +187,10 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             else {
-                this.filesToRemove.add(fileUri);
                 file.originalName ||= file.filename;
                 file.filename = path.basename(replaceWith);
+                file.fileUri = this.getFileOutput(file).fileUri;
+                this.filesToRemove.add(fileUri);
                 this.add(replaceWith);
             }
         }
@@ -195,10 +201,10 @@ const FileManager = class extends Module implements IFileManager {
     removeAsyncTask() {
         --this.delayed;
     }
-    completeAsyncTask(fileUri?: string) {
+    completeAsyncTask(fileUri?: string, parent?: ExternalAsset) {
         if (this.delayed !== Infinity) {
             if (fileUri) {
-                this.add(fileUri);
+                this.add(fileUri, parent);
             }
             this.removeAsyncTask();
             this.performFinalize();
@@ -210,19 +216,24 @@ const FileManager = class extends Module implements IFileManager {
             this.finalizeAssets().then(() => this.postFinalize());
         }
     }
-    getHtmlPages(modified = true) {
-        return this.assets.filter(item => {
-            switch (item.mimeType) {
-                case '@text/html':
-                case '@application/xhtml+xml':
-                    return modified;
-                case 'text/html':
-                case 'application/xhtml+xml':
-                    return !modified;
-                default:
-                    return false;
+    getCloudService(data: Undef<CloudService[]>) {
+        if (data) {
+            for (const item of data) {
+                if (this.hasCloudService(item)) {
+                    if (item.active) {
+                        return item;
+                    }
+                }
             }
-        });
+        }
+    }
+    hasCloudService(data: Record<string, unknown>): data is CloudService {
+        switch (data.service) {
+            case 's3':
+                return !!(data.bucket && typeof data.accessKeyId && data.secretAccessKey);
+            default:
+                return false;
+        }
     }
     getRootDirectory(location: string, asset: string): [string[], string[]] {
         const locationDir = location.split(/[\\/]/);
@@ -540,7 +551,15 @@ const FileManager = class extends Module implements IFileManager {
                             }
                         }
                         else if (bundleIndex === 0 || bundleIndex === -1) {
-                            output = getOuterHTML(/^\s*<link\b/i.test(textContent) || !!item.mimeType?.endsWith('/css'), this.getFileUri(item));
+                            let value: string;
+                            if (this.getCloudService(item.cloudStorage)) {
+                                value = uuid.v4();
+                                item.inlineCloud = value;
+                            }
+                            else {
+                                value = this.getFileUri(item);
+                            }
+                            output = getOuterHTML(/^\s*<link\b/i.test(textContent) || !!item.mimeType?.endsWith('/css'), value);
                         }
                         else if (item.exclude || bundleIndex !== undefined) {
                             source = source.replace(new RegExp(`\\s*${escapeRegexp(textContent)}\\n*`), '');
@@ -571,6 +590,12 @@ const FileManager = class extends Module implements IFileManager {
                                 if (replacing !== source) {
                                     item.textContent = output;
                                 }
+                                else {
+                                    delete item.inlineCloud;
+                                }
+                            }
+                            else {
+                                delete item.inlineCloud;
                             }
                         }
                     }
@@ -590,60 +615,83 @@ const FileManager = class extends Module implements IFileManager {
                     if (item === file || item.content || item.bundleIndex !== undefined || item.inlineContent || !item.uri || item.invalid) {
                         continue;
                     }
-                    const { uri, textContent } = item;
-                    if (textContent) {
-                        item.mimeType ||= mime.lookup(uri).toString();
-                        const segments = [uri];
-                        let value: string,
-                            relativeUri: Undef<string>,
-                            ascending: Undef<boolean>;
-                        if (basePath) {
-                            relativeUri = uri.replace(basePath, '');
-                            if (relativeUri === uri) {
-                                relativeUri = '';
-                            }
-                        }
-                        if (!relativeUri && Node.fromSameOrigin(baseUri, uri)) {
-                            relativeUri = path.join(item.pathname, path.basename(uri));
-                            ascending = true;
-                        }
-                        if (relativeUri) {
-                            segments.push(relativeUri);
-                        }
-                        if (item.mimeType.startsWith('image/') && item.format === 'base64') {
-                            value = uuid.v4();
-                            item.inlineBase64 = value;
-                        }
-                        else {
-                            value = this.getFileUri(item);
-                        }
-                        const innerContent = textContent.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/\w+>)?\s*$/, '');
-                        const replaced = this.replacePath(innerContent, segments, value);
-                        if (replaced) {
-                            const result = source.replace(innerContent, replaced);
-                            if (result !== source) {
-                                source = result;
-                                html = result;
-                                continue;
-                            }
-                        }
-                        if (relativeUri) {
-                            pattern = new RegExp(`(["'\\s,=])(` + (ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + this.escapePathSeparator(relativeUri) + ')', 'g');
-                            while (match = pattern.exec(html)) {
-                                if (uri === Node.resolvePath(match[2], baseUri)) {
-                                    source = source.replace(match[0], match[1] + value);
-                                    break;
+                    found: {
+                        const { uri, textContent } = item;
+                        if (textContent) {
+                            item.mimeType ||= mime.lookup(uri).toString();
+                            const segments = [uri];
+                            let value: string,
+                                relativeUri: Undef<string>,
+                                ascending: Undef<boolean>;
+                            if (basePath) {
+                                relativeUri = uri.replace(basePath, '');
+                                if (relativeUri === uri) {
+                                    relativeUri = '';
                                 }
                             }
+                            if (!relativeUri && Node.fromSameOrigin(baseUri, uri)) {
+                                relativeUri = path.join(item.pathname, path.basename(uri));
+                                ascending = true;
+                            }
+                            if (relativeUri) {
+                                segments.push(relativeUri);
+                            }
+                            if (this.getCloudService(item.cloudStorage)) {
+                                value = uuid.v4();
+                                item.inlineCloud = value;
+                            }
+                            else if (item.mimeType.startsWith('image/') && item.format === 'base64') {
+                                value = uuid.v4();
+                                item.inlineBase64 = value;
+                            }
+                            else {
+                                value = this.getFileUri(item);
+                            }
+                            const innerContent = textContent.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/\w+>)?\s*$/, '');
+                            const replaced = this.replacePath(innerContent, segments, value);
+                            if (replaced) {
+                                const result = source.replace(innerContent, replaced);
+                                if (result !== source) {
+                                    source = result;
+                                    html = source;
+                                    break found;
+                                }
+                            }
+                            if (relativeUri) {
+                                pattern = new RegExp(`(["'\\s,=])(` + (ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + this.escapePathSeparator(relativeUri) + ')', 'g');
+                                while (match = pattern.exec(html)) {
+                                    if (uri === Node.resolvePath(match[2], baseUri)) {
+                                        const result = source.replace(match[0], match[1] + value);
+                                        if (result !== source) {
+                                            source = result;
+                                            html = source;
+                                            break found;
+                                        }
+                                    }
+                                }
+                            }
+                            delete item.inlineCloud;
+                            delete item.inlineBase64;
+                        }
+                        else if (item.base64) {
+                            let value: string;
+                            if (this.getCloudService(item.cloudStorage)) {
+                                value = uuid.v4();
+                                item.inlineCloud = value;
+                            }
+                            else {
+                                value = this.getFileUri(item);
+                            }
+                            const result = this.replacePath(source, [item.base64.replace(/\+/g, '\\+')], value, false, true);
+                            if (result) {
+                                source = result;
+                                html = source;
+                            }
+                            else {
+                                delete item.inlineCloud;
+                            }
                         }
                     }
-                    else if (item.base64) {
-                        const replaced = this.replacePath(source, [item.base64.replace(/\+/g, '\\+')], this.getFileUri(item), false, true);
-                        if (replaced) {
-                            source = replaced;
-                        }
-                    }
-                    html = source;
                 }
                 source = (this.transformCss(file, source) || source)
                     .replace(/\s*<(script|link|style)[^>]+?data-chrome-file="exclude"[^>]*>[\s\S]*?<\/\1>\n*/ig, '')
@@ -789,22 +837,6 @@ const FileManager = class extends Module implements IFileManager {
         this.filesQueued.add(output);
         return output;
     }
-    replaceImage(data: FileData, output: string, command: string) {
-        const { file, fileUri } = data;
-        if (fileUri !== output) {
-            if (command.includes('@')) {
-                this.replace(file, output);
-            }
-            else if (command.includes('%')) {
-                if (this.filesToCompare.has(file)) {
-                    this.filesToCompare.get(file)!.push(output);
-                }
-                else {
-                    this.filesToCompare.set(file, [output]);
-                }
-            }
-        }
-    }
     writeBuffer(data: FileData) {
         const png = Compress.hasImageService() ? Compress.findFormat(data.file.compress, 'png') : undefined;
         if (png && Compress.withinSizeRange(data.fileUri, png.condition)) {
@@ -815,6 +847,7 @@ const FileManager = class extends Module implements IFileManager {
                     }
                     if (result) {
                         data.fileUri = result;
+                        delete data.file.buffer;
                     }
                     this.finalizeFile(data);
                 });
@@ -828,35 +861,51 @@ const FileManager = class extends Module implements IFileManager {
             this.finalizeFile(data);
         }
     }
-    finalizeImage(data: FileData, output: string, command: string, compress?: CompressFormat, err?: Null<Error>) {
-        if (err) {
+    finalizeImage(data: FileData, output: string, command: string, compress?: CompressFormat, error?: Null<Error>) {
+        if (error) {
             this.completeAsyncTask();
-            this.writeFail(output, err);
+            this.writeFail(output, error);
         }
         else {
-            this.replaceImage(data, output, command);
-            if (compress) {
-                try {
-                    Compress.tryImage(output, (result: string, error: Null<Error>) => {
-                        if (error) {
-                            throw error;
-                        }
-                        this.completeAsyncTask(result);
-                    });
+            const { file, fileUri } = data;
+            let parent: Undef<ExternalAsset>;
+            if (fileUri !== output) {
+                if (command.includes('@')) {
+                    if (!file.originalName) {
+                        this.replace(file, output);
+                    }
+                    else {
+                        parent = file;
+                    }
                 }
-                catch (error) {
-                    this.writeFail(output, error);
-                    this.completeAsyncTask(output);
+                else if (command.includes('%')) {
+                    if (this.filesToCompare.has(file)) {
+                        this.filesToCompare.get(file)!.push(output);
+                    }
+                    else {
+                        this.filesToCompare.set(file, [output]);
+                    }
+                }
+                else {
+                    parent = file;
                 }
             }
+            if (compress) {
+                Compress.tryImage(output, (result: string, err: Null<Error>) => {
+                    if (err) {
+                        this.writeFail(output, err);
+                    }
+                    this.completeAsyncTask(result || output, parent);
+                });
+            }
             else {
-                this.completeAsyncTask(output);
+                this.completeAsyncTask(output, parent);
             }
         }
     }
-    async finalizeFile(data: FileData) {
+    async finalizeFile(data: FileData, parent?: ExternalAsset) {
         await this.transformBuffer(data);
-        this.completeAsyncTask(data.fileUri);
+        this.completeAsyncTask(data.fileUri, parent);
         return Promise.resolve();
     }
     processAssets() {
@@ -895,6 +944,7 @@ const FileManager = class extends Module implements IFileManager {
         };
         const processQueue = async (file: ExternalAsset, fileUri: string, bundleMain?: ExternalAsset) => {
             if (file.bundleIndex !== undefined) {
+                let cloudStorage: Undef<CloudService[]>;
                 if (file.bundleIndex === 0) {
                     let content = this.getUTF8String(file, fileUri);
                     if (content) {
@@ -914,8 +964,10 @@ const FileManager = class extends Module implements IFileManager {
                         }
                         else {
                             delete file.sourceUTF8;
-                            file.bundleIndex = -1;
+                            file.bundleIndex = NaN;
+                            file.exclude = true;
                             file.invalid = true;
+                            cloudStorage = file.cloudStorage;
                         }
                     }
                 }
@@ -934,6 +986,7 @@ const FileManager = class extends Module implements IFileManager {
                             if (value) {
                                 queue!.sourceUTF8 = await this.appendContent(queue!, fileUri, value, 0) || value;
                                 queue!.invalid = false;
+                                queue!.cloudStorage = cloudStorage;
                                 bundleMain = queue;
                             }
                             else {
@@ -1108,11 +1161,8 @@ const FileManager = class extends Module implements IFileManager {
                                     }
                                 })
                                 .on('data', data => {
-                                    if (typeof data === 'string') {
-                                        file.sourceUTF8 = data;
-                                    }
-                                    else {
-                                        file.buffer = data;
+                                    if (Buffer.isBuffer(data)) {
+                                        file.buffer = file.buffer ? Buffer.concat([file.buffer, data]) : data;
                                     }
                                 })
                                 .on('error', err => errorRequest(file, fileUri, err, stream))
@@ -1142,6 +1192,9 @@ const FileManager = class extends Module implements IFileManager {
         this.performFinalize();
     }
     async finalizeAssets() {
+        const inlineMap: StringMap = {};
+        const base64Map: StringMap = {};
+        const html = this.baseAsset;
         let tasks: Promise<unknown>[] = [];
         for (const [fileUri, content] of this.contentToAppend) {
             let output = '';
@@ -1162,44 +1215,39 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => Node.writeFail('Finalize: Append UTF-8', err));
+            await Promise.all(tasks).catch(err => this.writeFail('Finalize: Append UTF-8', err));
             tasks = [];
         }
-        const inlineMap: StringMap = {};
-        const base64Map: StringMap = {};
-        for (const item of this.assets) {
-            if (item.inlineContent && item.inlineContent.startsWith('<!--') && !item.invalid) {
-                const setContent = (value: string) => {
-                    inlineMap[item.inlineContent!] = value.trim();
-                    item.invalid = true;
-                };
-                if (item.sourceUTF8 || item.buffer) {
-                    setContent(this.getUTF8String(item));
-                    tasks.push(Promise.resolve());
-                }
-                else {
-                    tasks.push(fs.readFile(item.fileUri!, 'utf8').then(data => setContent(data)));
+        if (html) {
+            for (const item of this.assets) {
+                if (item.inlineContent && item.inlineContent.startsWith('<!--') && !item.invalid) {
+                    const setContent = (value: string) => {
+                        inlineMap[item.inlineContent!] = value.trim();
+                        item.invalid = true;
+                    };
+                    if (item.sourceUTF8 || item.buffer) {
+                        setContent(this.getUTF8String(item));
+                        tasks.push(Promise.resolve());
+                    }
+                    else {
+                        tasks.push(fs.readFile(item.fileUri!, 'utf8').then(data => setContent(data)));
+                    }
                 }
             }
-        }
-        if (tasks.length) {
-            const html = this.getHtmlPages();
-            if (html.length) {
+            if (tasks.length) {
                 await Promise.all(tasks).then(() => {
-                    for (const item of html) {
-                        let content = this.getUTF8String(item);
-                        if (content) {
-                            for (const id in inlineMap) {
-                                const value = inlineMap[id]!;
-                                content = content.replace(new RegExp((value.includes(' ') ? '[ \t]*' : '') + id), value);
-                            }
-                            item.sourceUTF8 = content;
+                    let content = this.getUTF8String(html);
+                    if (content) {
+                        for (const id in inlineMap) {
+                            const value = inlineMap[id]!;
+                            content = content.replace(new RegExp((value.includes(' ') ? '[ \t]*' : '') + id), value);
                         }
+                        html.sourceUTF8 = content;
                     }
                 })
-                .catch(err => Node.writeFail('Finalize: Inline UTF-8', err));
+                .catch(err => this.writeFail('Finalize: Inline UTF-8', err));
+                tasks = [];
             }
-            tasks = [];
         }
         for (const [file, output] of this.filesToCompare) {
             const fileUri = file.fileUri!;
@@ -1235,7 +1283,7 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => Node.writeFail('Finalize: Cache base64', err));
+            await Promise.all(tasks).catch(err => this.writeFail('Finalize: Cache base64', err));
             tasks = [];
         }
         const assets = this.assets.filter(item => !item.invalid);
@@ -1270,7 +1318,7 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => Node.writeFail('Finalize: Replace UTF-8', err));
+            await Promise.all(tasks).catch(err => this.writeFail('Finalize: Replace UTF-8', err));
             tasks = [];
         }
         for (const item of assets) {
@@ -1279,43 +1327,14 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => Node.writeFail('Finalize: Write UTF-8', err));
+            await Promise.all(tasks).catch(err => this.writeFail('Finalize: Write UTF-8', err));
             tasks = [];
-        }
-        for (const item of assets) {
-            const fileUri = item.fileUri!;
-            if (this.has(fileUri)) {
-                const gz = Compress.findFormat(item.compress, 'gz');
-                if (gz) {
-                    tasks.push(
-                        new Promise(resolve => Compress.tryFile(fileUri, gz, undefined, (result: string) => {
-                            if (result) {
-                                this.add(result);
-                            }
-                            resolve();
-                        }))
-                    );
-                }
-                if (Node.checkVersion(11, 7)) {
-                    const br = Compress.findFormat(item.compress, 'br');
-                    if (br) {
-                        tasks.push(
-                            new Promise(resolve => Compress.tryFile(fileUri, br, undefined, (result: string) => {
-                                if (result) {
-                                    this.add(result);
-                                }
-                                resolve();
-                            }))
-                        );
-                    }
-                }
-            }
         }
         for (const value of this.filesToRemove) {
             tasks.push(fs.unlink(value).then(() => this.delete(value)));
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => Node.writeFail('Finalize: Compress and delete temp files', err));
+            await Promise.all(tasks).catch(err => this.writeFail('Finalize: Delete temp files', err));
             tasks = [];
         }
         if (this.Gulp) {
@@ -1419,24 +1438,24 @@ const FileManager = class extends Module implements IFileManager {
                                                         }))
                                                         .then(() => callback())
                                                         .catch(errWrite => {
-                                                            Node.writeFail('gulp: Unable to replace original files', errWrite);
+                                                            this.writeFail('gulp: Unable to replace original files', errWrite);
                                                             callback();
                                                         });
                                                 }
                                             });
                                         })
-                                        .catch(error => Node.writeFail('gulp: Unable to delete original files', error));
+                                        .catch(error => this.writeFail('gulp: Unable to delete original files', error));
                                 }
                                 else {
-                                    Node.writeFail(`gulp: exec (${task}:${path.basename(data.gulpfile)})`, err);
+                                    this.writeFail(`gulp: exec (${task}:${path.basename(data.gulpfile)})`, err);
                                     callback();
                                 }
                             });
                         })
-                        .catch(err => Node.writeFail('gulp: Unable to copy original files', err));
+                        .catch(err => this.writeFail('gulp: Unable to copy original files', err));
                 }
                 catch (err) {
-                    Node.writeFail(`gulp: ${task}`, err);
+                    this.writeFail(`gulp: ${task}`, err);
                     callback();
                 }
             };
@@ -1457,8 +1476,144 @@ const FileManager = class extends Module implements IFileManager {
                 }));
             }
         }
+        if (tasks.length) {
+            await Promise.all(tasks).catch(err => this.writeFail('Finalize: exec tasks', err));
+            tasks = [];
+        }
+        const cloudMap: ObjectMap<ExternalAsset> = {};
+        const localStorage: ExternalAsset[] = [];
+        let modifiedHtml = false;
+        for (const item of assets) {
+            const cloudStorage = item.cloudStorage;
+            if (cloudStorage) {
+                let cloudMain: Undef<CloudService>;
+                if (html && item.inlineCloud) {
+                    cloudMap[item.inlineCloud] = item;
+                    cloudMain = this.getCloudService(cloudStorage);
+                    modifiedHtml = true;
+                }
+                for (const data of cloudStorage) {
+                    if (this.hasCloudService(data)) {
+                        if (cloudMain && data.localStorage === false) {
+                            localStorage.push(item);
+                        }
+                        tasks.push(new Promise(resolve => {
+                            try {
+                                const files = [item.fileUri!].concat(item.children || []);
+                                const upload: Promise<string>[] = [];
+                                switch (data.service) {
+                                    case 's3': {
+                                        const S3 = require('aws-sdk/clients/s3');
+                                        const s3 = new S3(data) as aws.S3;
+                                        for (let i = 0, length = files.length; i < length; ++i) {
+                                            const fileUri = files[i];
+                                            if (i === 0 || this.has(fileUri)) {
+                                                upload.push(
+                                                    new Promise(success => {
+                                                        const Key = i === 0 && data.filename || (uuid.v4() + path.extname(fileUri));
+                                                        fs.readFile(fileUri, (err, Body) => {
+                                                            if (err) {
+                                                                success('');
+                                                            }
+                                                            else {
+                                                                s3.upload({ Bucket: data.bucket, Key, Body }, (error, result) => {
+                                                                    if (error) {
+                                                                        this.writeFail(`${data.service}: Upload to cloud service failed (${fileUri})`, error);
+                                                                        success('');
+                                                                    }
+                                                                    else {
+                                                                        this.writeMessage('Upload', result.Location, 's3');
+                                                                        success(result.Location);
+                                                                    }
+                                                                });
+                                                            }
+                                                        });
+                                                    })
+                                                );
+                                            }
+                                        }
+                                        break;
+                                    }
+                                }
+                                Promise.all(upload)
+                                    .then(result => {
+                                        if (result[0] && data === cloudMain && item.inlineCloud) {
+                                            html!.sourceUTF8 = this.getUTF8String(html!).replace(item.inlineCloud, result[0]);
+                                            delete cloudMap[item.inlineCloud];
+                                        }
+                                        resolve();
+                                    })
+                                    .catch(() => resolve());
+                            }
+                            catch (err) {
+                                let message: Undef<string>;
+                                switch (data.service) {
+                                    case 's3':
+                                        message = 'Install AWS? [npm i aws-sdk]';
+                                        break;
+                                }
+                                this.writeFail(message || 'Unknown', err);
+                                resolve();
+                            }
+                        }));
+                    }
+                }
+            }
+        }
+        if (tasks.length) {
+            await Promise.all(tasks).catch(err => this.writeFail('Finalize: Upload to cloud storage', err));
+            if (modifiedHtml) {
+                let sourceUTF8 = this.getUTF8String(html!);
+                for (const id in cloudMap) {
+                    const file = cloudMap[id];
+                    sourceUTF8 = sourceUTF8.replace(id, this.getFileUri(file));
+                    const index = localStorage.findIndex(item => item === file);
+                    if (index !== -1) {
+                        localStorage.splice(index, 1);
+                    }
+                }
+                fs.writeFileSync(html!.fileUri!, sourceUTF8, 'utf8');
+            }
+            tasks = [];
+        }
+        for (const item of localStorage) {
+            tasks.push(...[item.fileUri!].concat(item.children || []).map(value => fs.unlink(value).then(() => this.delete(value)).catch(() => this.delete(value))));
+        }
+        if (tasks.length) {
+            await Promise.all(tasks).catch(err => this.writeFail('Finalize: Delete cloud temp files', err));
+            tasks = [];
+        }
+        for (const item of assets) {
+            const fileUri = item.fileUri!;
+            if (this.has(fileUri)) {
+                const gz = Compress.findFormat(item.compress, 'gz');
+                if (gz) {
+                    tasks.push(
+                        new Promise(resolve => Compress.tryFile(fileUri, gz, undefined, (result: string) => {
+                            if (result) {
+                                this.add(result);
+                            }
+                            resolve();
+                        }))
+                    );
+                }
+                if (Node.checkVersion(11, 7)) {
+                    const br = Compress.findFormat(item.compress, 'br');
+                    if (br) {
+                        tasks.push(
+                            new Promise(resolve => Compress.tryFile(fileUri, br, undefined, (result: string) => {
+                                if (result) {
+                                    this.add(result);
+                                }
+                                resolve();
+                            }))
+                        );
+                    }
+                }
+            }
+        }
         return Promise.all(tasks).catch(err => {
-            Node.writeFail('Finalize: exec tasks', err);
+            this.writeFail('Finalize: Compress files', err);
             return err;
         });
     }
