@@ -19,6 +19,7 @@ import Chrome from '../chrome';
 type awsS3 = Constructor<aws.S3>;
 
 type Settings = functions.Settings;
+type RequestBody = functions.RequestBody;
 type ExternalAsset = functions.ExternalAsset;
 type IFileManager = functions.IFileManager;
 type IChrome = functions.IChrome;
@@ -136,6 +137,7 @@ const FileManager = class extends Module implements IFileManager {
     public Gulp?: GulpModule;
     public Cloud?: CloudModule;
     public basePath?: string;
+    public readonly assets: ExternalAsset[];
     public readonly files = new Set<string>();
     public readonly filesQueued = new Set<string>();
     public readonly filesToRemove = new Set<string>();
@@ -147,15 +149,16 @@ const FileManager = class extends Module implements IFileManager {
 
     constructor(
         public readonly dirname: string,
-        public readonly assets: ExternalAsset[],
+        body: RequestBody,
         postFinalize: FunctionType<void>)
     {
         super();
-        this.baseAsset = assets.find(item => item.basePath);
+        this.assets = body.assets;
+        this.dataMap = body.dataMap || {};
+        this.baseAsset = this.assets.find(item => item.basePath);
         this.basePath = this.baseAsset?.basePath;
-        this.dataMap = assets[0].dataMap || {};
         this.postFinalize = postFinalize.bind(this);
-        assets.sort((a, b) => {
+        this.assets.sort((a, b) => {
             if (a === this.baseAsset) {
                 return 1;
             }
@@ -898,8 +901,8 @@ const FileManager = class extends Module implements IFileManager {
     }
     finalizeImage(data: FileData, output: string, command: string, compress?: CompressFormat, error?: Null<Error>) {
         if (error) {
-            this.completeAsyncTask();
             this.writeFail(output, error);
+            this.completeAsyncTask();
         }
         else {
             const { file, fileUri } = data;
@@ -1036,17 +1039,17 @@ const FileManager = class extends Module implements IFileManager {
                         else if (uri) {
                             request(uri, (err, response) => {
                                 if (err) {
+                                    this.writeFail(uri, err);
                                     notFound[uri] = true;
                                     queue!.invalid = true;
-                                    this.writeFail(uri, err);
                                     resumeQueue();
                                 }
                                 else {
                                     const statusCode = response.statusCode;
                                     if (statusCode >= 300) {
+                                        this.writeFail(uri, statusCode + ' ' + response.statusMessage);
                                         notFound[uri] = true;
                                         queue!.invalid = true;
-                                        this.writeFail(uri, statusCode + ' ' + response.statusMessage);
                                         resumeQueue();
                                     }
                                     else {
@@ -1101,8 +1104,8 @@ const FileManager = class extends Module implements IFileManager {
                 catch {
                 }
             }
-            file.invalid = true;
             this.writeFail(uri, message);
+            file.invalid = true;
             delete processing[fileUri];
         };
         for (const file of this.assets) {
@@ -1138,8 +1141,8 @@ const FileManager = class extends Module implements IFileManager {
                     fs.mkdirpSync(pathname);
                 }
                 catch (err) {
-                    file.invalid = true;
                     this.writeFail(pathname, err);
+                    file.invalid = true;
                 }
                 emptyDir.add(pathname);
             }

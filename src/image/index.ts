@@ -225,7 +225,7 @@ class JimpProxy implements functions.ImageProxy<jimp> {
             args.push('-o', webp);
             child_process.execFile(require('cwebp-bin'), args, null, err => {
                 if (err) {
-                    Image.writeFail(`WebP encode (npm i cwebp-bin): ${output}`, err);
+                    Image.writeFail(`Install WebP? [npm i cwebp-bin]: ${output}`, err);
                     callback(output);
                 }
                 else if (webp !== output) {
@@ -275,8 +275,8 @@ const Image = new class extends Module implements functions.IImage {
                             const output = this.replaceExtension(fileUri, unknownType.split('/')[1]);
                             fs.rename(fileUri, output, err => {
                                 if (err) {
-                                    this.completeAsyncTask();
                                     this.writeFail(fileUri, err);
+                                    this.completeAsyncTask();
                                 }
                                 else {
                                     this.finalizeImage(data, output, '@', unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG ? compress : undefined);
@@ -286,8 +286,8 @@ const Image = new class extends Module implements functions.IImage {
                     }
                 })
                 .catch(err => {
-                    this.completeAsyncTask();
                     this.writeFail(fileUri, err);
+                    this.completeAsyncTask();
                 });
         }
         else {
@@ -357,8 +357,8 @@ const Image = new class extends Module implements functions.IImage {
                     });
                 }
                 catch (err) {
+                    Image.writeFail(`Install WebP? [npm i dwebp-bin]: ${fileUri}`, err);
                     tempFile = '';
-                    Image.writeFail(`WebP decode (npm i dwebp-bin): ${fileUri}`, err);
                     resumeThread();
                 }
             }

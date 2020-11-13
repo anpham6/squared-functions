@@ -296,7 +296,7 @@ declare namespace functions {
         moduleNode(): INode;
         moduleCompress(): ICompress;
         moduleImage(): IImage;
-        new(dirname: string, assets: ExternalAsset[], postFinalize: FunctionType<void>, productionRelease?: boolean): IFileManager;
+        new(dirname: string, body: RequestBody, postFinalize: FunctionType<void>, productionRelease?: boolean): IFileManager;
     }
 
     const FileManager: FileManagerConstructor;
@@ -368,6 +368,11 @@ declare namespace functions {
         cloud?: settings.CloudModule;
         gulp?: settings.GulpModule;
         chrome?: settings.ChromeModule;
+    }
+
+    interface RequestBody {
+        assets: ExternalAsset[];
+        dataMap?: chrome.DataMap;
     }
 
     interface ExternalAsset extends squared.FileAsset, chrome.ChromeAsset {
