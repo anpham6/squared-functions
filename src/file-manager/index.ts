@@ -1,6 +1,6 @@
-import type { Response } from 'express';
 import type * as aws from 'aws-sdk';
-import type { ConfigurationOptions } from 'aws-sdk/lib/core';
+import type * as awsCore from 'aws-sdk/lib/core';
+import type { Response } from 'express';
 
 import child_process = require('child_process');
 import path = require('path');
@@ -21,6 +21,7 @@ type awsS3 = Constructor<aws.S3>;
 type Settings = functions.Settings;
 type ExternalAsset = functions.ExternalAsset;
 type IFileManager = functions.IFileManager;
+type IChrome = functions.IChrome;
 
 type CompressFormat = functions.squared.CompressFormat;
 type CloudService = functions.chrome.CloudService;
@@ -42,6 +43,8 @@ interface GulpTask {
     origDir: string;
     data: GulpData;
 }
+
+let S3: Undef<awsS3>;
 
 const FileManager = class extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {
@@ -125,8 +128,9 @@ const FileManager = class extends Module implements IFileManager {
     public cleared = false;
     public emptyDirectory = false;
     public productionRelease = false;
-    public Cloud: CloudModule = {};
+    public Chrome?: IChrome;
     public Gulp?: GulpModule;
+    public Cloud?: CloudModule;
     public basePath?: string;
     public readonly files = new Set<string>();
     public readonly filesQueued = new Set<string>();
@@ -169,6 +173,7 @@ const FileManager = class extends Module implements IFileManager {
                     break;
                 case 'chrome':
                     Chrome.settings = args[0] as ChromeModule;
+                    this.Chrome = Chrome;
                     break;
             }
         }
@@ -182,8 +187,8 @@ const FileManager = class extends Module implements IFileManager {
     delete(value: string) {
         this.files.delete(value.substring(this.dirname.length + 1));
     }
-    has(value: string) {
-        return this.files.has(value.substring(this.dirname.length + 1));
+    has(value: Undef<string>) {
+        return value ? this.files.has(value.substring(this.dirname.length + 1)) : false;
     }
     replace(file: ExternalAsset, replaceWith: string) {
         const fileUri = file.fileUri;
@@ -237,10 +242,13 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
     }
-    hasCloudService(data: Record<string, unknown>): data is CloudService {
+    hasCloudService(data: CloudService): data is CloudService {
+        const cloud = this.Cloud || {};
         switch (data.service) {
-            case 's3':
-                return !!(data.bucket && typeof data.accessKeyId && data.secretAccessKey);
+            case 's3': {
+                const settings = data.settings && cloud.s3 ? cloud.s3[data.settings] : {};
+                return !!(data.bucket && ((data.accessKeyId || settings.accessKeyId) && (data.secretAccessKey || settings.secretAccessKey)));
+            }
             default:
                 return false;
         }
@@ -253,6 +261,9 @@ const FileManager = class extends Module implements IFileManager {
             assetDir.shift();
         }
         return [locationDir.filter(value => value), assetDir];
+    }
+    getHtmlPages() {
+        return this.assets.filter(item => item.mimeType === '@text/html');
     }
     findAsset(uri: string, fromElement?: boolean) {
         return this.assets.find(item => item.uri === uri && (fromElement && item.textContent || !fromElement && !item.textContent) && !item.invalid);
@@ -1208,144 +1219,146 @@ const FileManager = class extends Module implements IFileManager {
         this.performFinalize();
     }
     async finalizeAssets() {
-        const inlineMap: StringMap = {};
-        const base64Map: StringMap = {};
-        const htmlFiles = this.assets.filter(item => item.mimeType === '@text/html');
         let tasks: Promise<unknown>[] = [];
-        for (const [fileUri, content] of this.contentToAppend) {
-            let output = '';
-            for (const value of content) {
-                if (value) {
-                    output += '\n' + value;
+        if (this.Chrome) {
+            const inlineMap: StringMap = {};
+            const base64Map: StringMap = {};
+            const htmlFiles = this.getHtmlPages();
+            for (const [fileUri, content] of this.contentToAppend) {
+                let output = '';
+                for (const value of content) {
+                    if (value) {
+                        output += '\n' + value;
+                    }
+                }
+                const file = this.assets.find(item => item.fileUri === fileUri && (item.sourceUTF8 || item.buffer));
+                if (file) {
+                    file.sourceUTF8 = this.getUTF8String(file, fileUri) + output;
+                }
+                else if (this.has(fileUri)) {
+                    tasks.push(fs.appendFile(fileUri, output));
+                }
+                else {
+                    tasks.push(fs.writeFile(fileUri, output));
                 }
             }
-            const file = this.assets.find(item => item.fileUri === fileUri && (item.sourceUTF8 || item.buffer));
-            if (file) {
-                file.sourceUTF8 = this.getUTF8String(file, fileUri) + output;
+            if (tasks.length) {
+                await Promise.all(tasks).catch(err => this.writeFail('Finalize: Append UTF-8', err));
+                tasks = [];
             }
-            else if (this.has(fileUri)) {
-                tasks.push(fs.appendFile(fileUri, output));
+            if (htmlFiles.length) {
+                for (const item of this.assets) {
+                    if (item.inlineContent && item.inlineContent.startsWith('<!--') && !item.invalid) {
+                        const setContent = (value: string) => {
+                            inlineMap[item.inlineContent!] = value.trim();
+                            item.invalid = true;
+                        };
+                        if (item.sourceUTF8 || item.buffer) {
+                            setContent(this.getUTF8String(item));
+                            tasks.push(Promise.resolve());
+                        }
+                        else {
+                            tasks.push(fs.readFile(item.fileUri!, 'utf8').then(data => setContent(data)));
+                        }
+                    }
+                }
+                if (tasks.length) {
+                    await Promise.all(tasks).then(() => {
+                        for (const item of htmlFiles) {
+                            let content = this.getUTF8String(item);
+                            if (content) {
+                                for (const id in inlineMap) {
+                                    const value = inlineMap[id]!;
+                                    content = content.replace(new RegExp((value.includes(' ') ? '[ \t]*' : '') + id), value);
+                                }
+                                item.sourceUTF8 = content;
+                            }
+                        }
+                    })
+                    .catch(err => this.writeFail('Finalize: Inline UTF-8', err));
+                    tasks = [];
+                }
             }
-            else {
-                tasks.push(fs.writeFile(fileUri, output));
-            }
-        }
-        if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail('Finalize: Append UTF-8', err));
-            tasks = [];
-        }
-        if (htmlFiles.length) {
-            for (const item of this.assets) {
-                if (item.inlineContent && item.inlineContent.startsWith('<!--') && !item.invalid) {
-                    const setContent = (value: string) => {
-                        inlineMap[item.inlineContent!] = value.trim();
-                        item.invalid = true;
-                    };
-                    if (item.sourceUTF8 || item.buffer) {
-                        setContent(this.getUTF8String(item));
-                        tasks.push(Promise.resolve());
+            for (const [file, output] of this.filesToCompare) {
+                const fileUri = file.fileUri!;
+                let minFile = fileUri,
+                    minSize = this.getFileSize(minFile);
+                for (const other of output) {
+                    const size = this.getFileSize(other);
+                    if (minSize === 0 || size > 0 && size < minSize) {
+                        this.filesToRemove.add(minFile);
+                        minFile = other;
+                        minSize = size;
                     }
                     else {
-                        tasks.push(fs.readFile(item.fileUri!, 'utf8').then(data => setContent(data)));
+                        this.filesToRemove.add(other);
+                    }
+                }
+                if (minFile !== fileUri) {
+                    this.replace(file, minFile);
+                }
+            }
+            for (const item of this.assets) {
+                if (item.inlineBase64 && !item.invalid) {
+                    const fileUri = item.fileUri!;
+                    const mimeType = mime.lookup(fileUri).toString();
+                    if (mimeType.startsWith('image/')) {
+                        tasks.push(
+                            fs.readFile(fileUri).then((data: Buffer) => {
+                                base64Map[item.inlineBase64!] = `data:${mimeType};base64,${data.toString('base64')}`;
+                                item.invalid = true;
+                            })
+                        );
                     }
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).then(() => {
-                    for (const item of htmlFiles) {
-                        let content = this.getUTF8String(item);
-                        if (content) {
-                            for (const id in inlineMap) {
-                                const value = inlineMap[id]!;
-                                content = content.replace(new RegExp((value.includes(' ') ? '[ \t]*' : '') + id), value);
-                            }
-                            item.sourceUTF8 = content;
-                        }
-                    }
-                })
-                .catch(err => this.writeFail('Finalize: Inline UTF-8', err));
+                await Promise.all(tasks).catch(err => this.writeFail('Finalize: Cache base64', err));
                 tasks = [];
             }
-        }
-        for (const [file, output] of this.filesToCompare) {
-            const fileUri = file.fileUri!;
-            let minFile = fileUri,
-                minSize = this.getFileSize(minFile);
-            for (const other of output) {
-                const size = this.getFileSize(other);
-                if (minSize === 0 || size > 0 && size < minSize) {
-                    this.filesToRemove.add(minFile);
-                    minFile = other;
-                    minSize = size;
-                }
-                else {
-                    this.filesToRemove.add(other);
-                }
-            }
-            if (minFile !== fileUri) {
-                this.replace(file, minFile);
-            }
-        }
-        for (const item of this.assets) {
-            if (item.inlineBase64 && !item.invalid) {
-                const fileUri = item.fileUri!;
-                const mimeType = mime.lookup(fileUri).toString();
-                if (mimeType.startsWith('image/')) {
-                    tasks.push(
-                        fs.readFile(fileUri).then((data: Buffer) => {
-                            base64Map[item.inlineBase64!] = `data:${mimeType};base64,${data.toString('base64')}`;
-                            item.invalid = true;
-                        })
-                    );
+            const assets = this.assets.filter(item => !item.invalid);
+            const replaced = assets.filter(item => item.originalName);
+            if (replaced.length || Object.keys(base64Map) || this.productionRelease) {
+                const replaceContent = (file: ExternalAsset, value: string) => {
+                    for (const id in base64Map) {
+                        value = value.replace(new RegExp(id, 'g'), base64Map[id]!);
+                    }
+                    for (const asset of replaced) {
+                        value = value.replace(new RegExp(this.escapePathSeparator(this.getFileUri(asset, asset.originalName)), 'g'), this.getFileUri(asset));
+                    }
+                    if (this.productionRelease) {
+                        value = value.replace(new RegExp(`(\\.\\./)*${this.serverRoot}`, 'g'), '');
+                    }
+                    file.sourceUTF8 = value;
+                };
+                for (const item of assets) {
+                    switch (item.mimeType) {
+                        case '@text/html':
+                        case '@text/css':
+                        case '&text/css':
+                            if (item.sourceUTF8 || item.buffer) {
+                                replaceContent(item, this.getUTF8String(item));
+                            }
+                            else {
+                                tasks.push(fs.readFile(item.fileUri!, 'utf8').then(data => replaceContent(item, data)));
+                            }
+                            break;
+                    }
                 }
             }
-        }
-        if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail('Finalize: Cache base64', err));
-            tasks = [];
-        }
-        const assets = this.assets.filter(item => !item.invalid);
-        const replaced = assets.filter(item => item.originalName);
-        if (replaced.length || Object.keys(base64Map) || this.productionRelease) {
-            const replaceContent = (file: ExternalAsset, value: string) => {
-                for (const id in base64Map) {
-                    value = value.replace(new RegExp(id, 'g'), base64Map[id]!);
-                }
-                for (const asset of replaced) {
-                    value = value.replace(new RegExp(this.escapePathSeparator(this.getFileUri(asset, asset.originalName)), 'g'), this.getFileUri(asset));
-                }
-                if (this.productionRelease) {
-                    value = value.replace(new RegExp(`(\\.\\./)*${this.serverRoot}`, 'g'), '');
-                }
-                file.sourceUTF8 = value;
-            };
+            if (tasks.length) {
+                await Promise.all(tasks).catch(err => this.writeFail('Finalize: Replace UTF-8', err));
+                tasks = [];
+            }
             for (const item of assets) {
-                switch (item.mimeType) {
-                    case '@text/html':
-                    case '@text/css':
-                    case '&text/css':
-                        if (item.sourceUTF8 || item.buffer) {
-                            replaceContent(item, this.getUTF8String(item));
-                        }
-                        else {
-                            tasks.push(fs.readFile(item.fileUri!, 'utf8').then(data => replaceContent(item, data)));
-                        }
-                        break;
+                if (item.sourceUTF8) {
+                    tasks.push(fs.writeFile(item.fileUri!, item.sourceUTF8, 'utf8'));
                 }
             }
-        }
-        if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail('Finalize: Replace UTF-8', err));
-            tasks = [];
-        }
-        for (const item of assets) {
-            if (item.sourceUTF8) {
-                tasks.push(fs.writeFile(item.fileUri!, item.sourceUTF8, 'utf8'));
+            if (tasks.length) {
+                await Promise.all(tasks).catch(err => this.writeFail('Finalize: Write UTF-8', err));
+                tasks = [];
             }
-        }
-        if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail('Finalize: Write UTF-8', err));
-            tasks = [];
         }
         for (const value of this.filesToRemove) {
             tasks.push(fs.unlink(value).then(() => this.delete(value)));
@@ -1355,15 +1368,16 @@ const FileManager = class extends Module implements IFileManager {
             tasks = [];
         }
         if (this.Gulp) {
+            const gulp = this.Gulp;
             const taskMap = new Map<string, Map<string, GulpData>>();
             const origMap = new Map<string, string[]>();
-            for (const item of assets) {
-                if (item.tasks) {
+            for (const item of this.assets) {
+                if (item.tasks && !item.invalid) {
                     const origDir = path.dirname(item.fileUri!);
                     const scheduled = new Set<string>();
                     for (let task of item.tasks) {
-                        if (!scheduled.has(task = task.trim()) && this.Gulp[task]) {
-                            const gulpfile = path.resolve(this.Gulp[task]!);
+                        if (!scheduled.has(task = task.trim()) && gulp[task]) {
+                            const gulpfile = path.resolve(gulp[task]!);
                             if (fs.existsSync(gulpfile)) {
                                 if (!taskMap.has(task)) {
                                     taskMap.set(task, new Map<string, GulpData>());
@@ -1492,183 +1506,189 @@ const FileManager = class extends Module implements IFileManager {
                     }).bind(this)();
                 }));
             }
-        }
-        if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail('Finalize: exec tasks', err));
-            tasks = [];
-        }
-        const cloudMap: ObjectMap<ExternalAsset> = {};
-        const cloudCssMap: StringMap = {};
-        const localStorage = new Map<ExternalAsset, CloudService>();
-        const cssFiles: ExternalAsset[] = [];
-        const cloudSettings = this.Cloud;
-        let S3: Undef<awsS3>,
-            modifiedHtml: Undef<boolean>;
-        const uploadFiles = (item: ExternalAsset, ContentType?: string) => {
-            const cloudMain = this.getCloudService(item.cloudStorage);
-            for (const data of item.cloudStorage!) {
-                if (this.hasCloudService(data)) {
-                    if (data === cloudMain && data.localStorage === false) {
-                        localStorage.set(item, data);
-                    }
-                    tasks.push(new Promise(resolve => {
-                        const service = data.service;
-                        try {
-                            const files = [item.fileUri!];
-                            if (item.transforms && data.uploadAll) {
-                                files.push(...item.transforms);
-                            }
-                            const settings = cloudSettings[service];
-                            const config: ConfigurationOptions = {};
-                            if (settings && data.settings) {
-                                Object.assign(config, settings[data.settings]);
-                            }
-                            Object.assign(config, data);
-                            const upload: Promise<string>[] = [];
-                            switch (service) {
-                                case 's3': {
-                                    S3 ||= require('aws-sdk/clients/s3') as awsS3;
-                                    const s3 = new S3(config);
-                                    for (let i = 0, length = files.length; i < length; ++i) {
-                                        const fileUri = files[i];
-                                        if (i === 0 || this.has(fileUri)) {
-                                            upload.push(
-                                                new Promise(success => {
-                                                    const Key = i === 0 && data.filename || (uuid.v4() + path.extname(fileUri));
-                                                    fs.readFile(fileUri, (err, Body) => {
-                                                        if (err) {
-                                                            success('');
-                                                        }
-                                                        else {
-                                                            s3.upload({ Bucket: data.bucket, Key, Body, ContentType }, (error, result) => {
-                                                                if (error) {
-                                                                    this.writeFail(`${service}: Upload to cloud service failed (${fileUri})`, error);
-                                                                    success('');
-                                                                }
-                                                                else {
-                                                                    this.writeMessage('Upload', result.Location, 's3');
-                                                                    success(result.Location);
-                                                                }
-                                                            });
-                                                        }
-                                                    });
-                                                })
-                                            );
-                                        }
-                                    }
-                                    break;
-                                }
-                            }
-                            Promise.all(upload)
-                                .then(result => {
-                                    if (result[0] && data === cloudMain) {
-                                        if (item.inlineCloud) {
-                                            for (const content of htmlFiles) {
-                                                content.sourceUTF8 = this.getUTF8String(content).replace(item.inlineCloud, result[0]);
-                                                delete cloudMap[item.inlineCloud];
-                                            }
-                                        }
-                                        else if (item.inlineCssCloud) {
-                                            for (const content of htmlFiles) {
-                                                content.sourceUTF8 = this.getUTF8String(content).replace(new RegExp(item.inlineCssCloud, 'g'), result[0]);
-                                            }
-                                            cloudCssMap[item.inlineCssCloud] = result[0];
-                                        }
-                                    }
-                                    resolve();
-                                })
-                                .catch(() => resolve());
-                        }
-                        catch (err) {
-                            let message: Undef<string>;
-                            switch (service) {
-                                case 's3':
-                                    message = 'Install AWS? [npm i aws-sdk]';
-                                    break;
-                            }
-                            this.writeFail(message || 'Unknown', err);
-                            resolve();
-                        }
-                    }));
-                }
-            }
-        };
-        for (const item of assets) {
-            if (item.cloudStorage) {
-                if (item.inlineCloud) {
-                    cloudMap[item.inlineCloud] = item;
-                    modifiedHtml = true;
-                }
-                switch (item.mimeType) {
-                    case '@text/html':
-                        htmlFiles.push(item);
-                        break;
-                    case '@text/css':
-                    case '&text/css':
-                        cssFiles.push(item);
-                        break;
-                    default:
-                        uploadFiles(item);
-                        break;
-                }
-            }
-        }
-        if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail('Finalize: Upload raw assets to cloud storage', err));
-            tasks = [];
-        }
-        if (Object.keys(cloudCssMap).length) {
-            for (const item of cssFiles) {
-                tasks.push(
-                    new Promise(resolve => {
-                        fs.readFile(item.fileUri!, 'utf8')
-                            .then(content => {
-                                for (const id in cloudCssMap) {
-                                    content = content.replace(new RegExp(id, 'g'), cloudCssMap[id]!);
-                                }
-                                fs.writeFile(item.fileUri!, content, 'utf8', () => resolve());
-                            })
-                            .catch(() => resolve());
-                    })
-                );
-            }
             if (tasks.length) {
-                await Promise.all(tasks);
+                await Promise.all(tasks).catch(err => this.writeFail('Finalize: exec tasks', err));
                 tasks = [];
             }
         }
-        for (const item of cssFiles) {
-            if (item.cloudStorage) {
-                uploadFiles(item, 'text/css');
-            }
-        }
-        if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail('Finalize: Upload CSS to cloud storage', err));
-            tasks = [];
-        }
-        if (modifiedHtml) {
-            for (const content of htmlFiles) {
-                let sourceUTF8 = this.getUTF8String(content);
-                for (const id in cloudMap) {
-                    const file = cloudMap[id];
-                    sourceUTF8 = sourceUTF8.replace(id, this.getFileUri(file));
-                    localStorage.delete(file);
+        if (this.Cloud) {
+            const cloudSettings = this.Cloud;
+            const cloudMap: ObjectMap<ExternalAsset> = {};
+            const cloudCssMap: StringMap = {};
+            const localStorage = new Map<ExternalAsset, CloudService>();
+            const htmlFiles = this.getHtmlPages();
+            const cssFiles: ExternalAsset[] = [];
+            const getFiles = (item: ExternalAsset, data: CloudService) => {
+                const files = [item.fileUri!];
+                if (item.transforms && data.uploadAll) {
+                    files.push(...item.transforms);
                 }
-                fs.writeFileSync(content.fileUri!, sourceUTF8, 'utf8');
+                return files;
+            };
+            const uploadFiles = (item: ExternalAsset, ContentType?: string) => {
+                const cloudMain = this.getCloudService(item.cloudStorage);
+                for (const data of item.cloudStorage!) {
+                    if (this.hasCloudService(data)) {
+                        if (data === cloudMain && data.localStorage === false) {
+                            localStorage.set(item, data);
+                        }
+                        tasks.push(new Promise(resolve => {
+                            const service = data.service;
+                            try {
+                                const files = getFiles(item, data);
+                                const settings = cloudSettings[service];
+                                const config: awsCore.ConfigurationOptions = {};
+                                if (settings && data.settings) {
+                                    Object.assign(config, settings[data.settings]);
+                                }
+                                Object.assign(config, data);
+                                const upload: Promise<string>[] = [];
+                                switch (service) {
+                                    case 's3': {
+                                        S3 ||= require('aws-sdk/clients/s3') as awsS3;
+                                        const s3 = new S3(config);
+                                        for (let i = 0, length = files.length; i < length; ++i) {
+                                            const fileUri = files[i];
+                                            if (i === 0 || this.has(fileUri)) {
+                                                upload.push(
+                                                    new Promise(success => {
+                                                        const Key = i === 0 && data.filename || (uuid.v4() + path.extname(fileUri));
+                                                        fs.readFile(fileUri, (err, Body) => {
+                                                            if (err) {
+                                                                success('');
+                                                            }
+                                                            else {
+                                                                s3.upload({ Bucket: data.bucket, Key, Body, ContentType }, (error, result) => {
+                                                                    if (error) {
+                                                                        this.writeFail(`${service}: Upload to cloud service failed (${fileUri})`, error);
+                                                                        success('');
+                                                                    }
+                                                                    else {
+                                                                        this.writeMessage('Upload', result.Location, 's3');
+                                                                        success(result.Location);
+                                                                    }
+                                                                });
+                                                            }
+                                                        });
+                                                    })
+                                                );
+                                            }
+                                        }
+                                        break;
+                                    }
+                                }
+                                Promise.all(upload)
+                                    .then(result => {
+                                        const fileUri = result[0];
+                                        if (fileUri && data === cloudMain) {
+                                            if (item.inlineCloud) {
+                                                for (const content of htmlFiles) {
+                                                    content.sourceUTF8 = this.getUTF8String(content).replace(item.inlineCloud, fileUri);
+                                                    delete cloudMap[item.inlineCloud];
+                                                }
+                                            }
+                                            else if (item.inlineCssCloud) {
+                                                for (const content of htmlFiles) {
+                                                    content.sourceUTF8 = this.getUTF8String(content).replace(new RegExp(item.inlineCssCloud, 'g'), fileUri);
+                                                }
+                                                cloudCssMap[item.inlineCssCloud] = fileUri;
+                                            }
+                                        }
+                                        resolve();
+                                    })
+                                    .catch(() => resolve());
+                            }
+                            catch (err) {
+                                let message: Undef<string>;
+                                switch (service) {
+                                    case 's3':
+                                        message = 'Install AWS? [npm i aws-sdk]';
+                                        break;
+                                }
+                                this.writeFail(message || 'Unknown', err);
+                                resolve();
+                            }
+                        }));
+                    }
+                }
+            };
+            let modifiedHtml: Undef<boolean>;
+            for (const item of this.assets) {
+                if (item.cloudStorage && !item.invalid) {
+                    if (item.inlineCloud) {
+                        cloudMap[item.inlineCloud] = item;
+                        modifiedHtml = true;
+                    }
+                    switch (item.mimeType) {
+                        case '@text/html':
+                            htmlFiles.push(item);
+                            break;
+                        case '@text/css':
+                        case '&text/css':
+                            cssFiles.push(item);
+                            break;
+                        default:
+                            uploadFiles(item);
+                            break;
+                    }
+                }
+            }
+            if (tasks.length) {
+                await Promise.all(tasks).catch(err => this.writeFail('Finalize: Upload raw assets to cloud storage', err));
+                tasks = [];
+            }
+            if (Object.keys(cloudCssMap).length) {
+                for (const item of cssFiles) {
+                    tasks.push(
+                        new Promise(resolve => {
+                            fs.readFile(item.fileUri!, 'utf8')
+                                .then(content => {
+                                    for (const id in cloudCssMap) {
+                                        content = content.replace(new RegExp(id, 'g'), cloudCssMap[id]!);
+                                    }
+                                    fs.writeFile(item.fileUri!, content, 'utf8', () => resolve());
+                                })
+                                .catch(() => resolve());
+                        })
+                    );
+                }
+                if (tasks.length) {
+                    await Promise.all(tasks);
+                    tasks = [];
+                }
+            }
+            for (const item of cssFiles) {
+                if (item.cloudStorage) {
+                    uploadFiles(item, 'text/css');
+                }
+            }
+            if (tasks.length) {
+                await Promise.all(tasks).catch(err => this.writeFail('Finalize: Upload CSS to cloud storage', err));
+                tasks = [];
+            }
+            if (modifiedHtml) {
+                for (const content of htmlFiles) {
+                    let sourceUTF8 = this.getUTF8String(content);
+                    for (const id in cloudMap) {
+                        const file = cloudMap[id];
+                        sourceUTF8 = sourceUTF8.replace(id, this.getFileUri(file));
+                        localStorage.delete(file);
+                    }
+                    fs.writeFileSync(content.fileUri!, sourceUTF8, 'utf8');
+                }
+            }
+            for (const [item, data] of localStorage) {
+                tasks.push(...getFiles(item, data).map(value => fs.unlink(value).then(() => this.delete(value)).catch(() => this.delete(value))));
+            }
+            if (tasks.length) {
+                await Promise.all(tasks).catch(err => this.writeFail('Finalize: Delete cloud temp files', err));
+                tasks = [];
             }
         }
-        for (const [item, data] of localStorage) {
-            const files = [item.fileUri!];
-            if (item.transforms && data.uploadAll) {
-                files.push(...item.transforms);
+        for (const item of this.assets) {
+            if (item.invalid) {
+                continue;
             }
-            tasks.push(...files.map(value => fs.unlink(value).then(() => this.delete(value)).catch(() => this.delete(value))));
-        }
-        if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail('Finalize: Delete cloud temp files', err));
-            tasks = [];
-        }
-        for (const item of assets) {
             const fileUri = item.fileUri!;
             if (this.has(fileUri)) {
                 const gz = Compress.findFormat(item.compress, 'gz');

@@ -1,9 +1,9 @@
 /// <reference path="type.d.ts" />
 
+import type * as awsCore from 'aws-sdk/lib/core';
 import type { Response } from 'express';
 import type { CorsOptions } from 'cors';
 import type { WriteStream } from 'fs';
-import type * as aws from 'aws-sdk/lib/core';
 
 declare namespace functions {
     type BoolString = boolean | string;
@@ -110,7 +110,7 @@ declare namespace functions {
 
             interface CloudModule {
                 s3?: {
-                    [key: string]: aws.ConfigurationOptions;
+                    [key: string]: awsCore.ConfigurationOptions;
                 };
             }
 
@@ -237,8 +237,9 @@ declare namespace functions {
         emptyDirectory: boolean;
         productionRelease: boolean;
         basePath?: string;
-        Cloud: internal.settings.CloudModule;
+        Chrome?: IChrome;
         Gulp?: internal.settings.GulpModule;
+        Cloud?: internal.settings.CloudModule;
         readonly files: Set<string>;
         readonly filesQueued: Set<string>;
         readonly filesToRemove: Set<string>;
@@ -252,18 +253,19 @@ declare namespace functions {
         install(name: string, ...args: unknown[]): void;
         add(value: string): void;
         delete(value: string): void;
-        has(value: string): boolean;
+        has(value: Undef<string>): boolean;
         replace(file: ExternalAsset, replaceWith: string): void;
         performAsyncTask: FileManagerPerformAsyncTaskCallback;
         removeAsyncTask(): void;
         completeAsyncTask: FileManagerCompleteAsyncTaskCallback;
         performFinalize(): void;
         getCloudService(data: chrome.CloudService[]): Undef<chrome.CloudService>;
-        hasCloudService(data: Record<string, unknown>): data is chrome.CloudService;
+        hasCloudService(data: chrome.CloudService): data is chrome.CloudService;
         replacePath(source: string, segments: string[], value: string, matchSingle?: boolean, base64?: boolean): Undef<string>;
         escapePathSeparator(value: string): string;
         getFileOutput(file: ExternalAsset): internal.FileOutput;
         findAsset(uri: string, fromElement?: boolean): Undef<ExternalAsset>;
+        getHtmlPages(): ExternalAsset[];
         getRelativeUri(file: ExternalAsset, uri: string): Undef<string>;
         getAbsoluteUri(value: string, href: string): string;
         getFileUri(file: ExternalAsset, filename?: string): string;
