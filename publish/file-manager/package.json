@@ -24,7 +24,6 @@
     "chalk": "^4.1.0",
     "escape-string-regexp": "4.0.0",
     "fs-extra": "^9.0.1",
-    "gulp": "^4.0.2",
     "mime-types": "^2.1.27",
     "request": "^2.88.2",
     "uuid": "^8.3.1"

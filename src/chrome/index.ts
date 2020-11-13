@@ -4,7 +4,6 @@ import type { MergedRollupOptions, OutputAsset, OutputChunk, OutputOptions, Roll
 import path = require('path');
 import fs = require('fs-extra');
 import uuid = require('uuid');
-import chalk = require('chalk');
 
 import Module from '../module';
 
@@ -189,7 +188,7 @@ const Chrome = new class extends Module implements functions.IChrome {
                         }
                     }
                     catch (err) {
-                        this.writeFail(`${chalk.yellow('Install required?')} ${chalk.bold(`[npm i ${name}]`)}`, err);
+                        this.writeFail(`Install required? [npm i ${name}]`, err);
                     }
                 }
             }
@@ -248,7 +247,7 @@ const Chrome = new class extends Module implements functions.IChrome {
                         }
                     }
                     catch (err) {
-                        this.writeFail(`${chalk.yellow('Install required?')} ${chalk.bold(`[npm i ${name}]`)}`, err);
+                        this.writeFail(`Install required? [npm i ${name}]`, err);
                     }
                 }
             }
@@ -365,7 +364,7 @@ const Chrome = new class extends Module implements functions.IChrome {
                         }
                     }
                     catch (err) {
-                        this.writeFail(`${chalk.yellow('Install required?')} ${chalk.bold(`[npm i ${name}]`)}`, err);
+                        this.writeFail(`Install required? [npm i ${name}]`, err);
                     }
                 }
             }
@@ -376,7 +375,7 @@ const Chrome = new class extends Module implements functions.IChrome {
         return Promise.resolve();
     }
     formatContent(mimeType: string, format: string, value: string, transpileMap?: TranspileMap) {
-        if (mimeType.endsWith('text/html') || mimeType.endsWith('application/xhtml+xml')) {
+        if (mimeType.endsWith('text/html')) {
             return this.minifyHtml(format, value, transpileMap);
         }
         else if (mimeType.endsWith('text/css')) {

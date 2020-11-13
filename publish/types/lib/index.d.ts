@@ -51,13 +51,13 @@ declare namespace functions {
             format?: string;
             tasks?: string[];
             attributes?: AttributeValue[];
+            cloudStorage?: CloudService[];
             preserve?: boolean;
             inlineContent?: string;
             exclude?: boolean;
             basePath?: string;
             bundleIndex?: number;
             trailingContent?: FormattableContent[];
-            cloudStorage?: CloudService[];
             textContent?: string;
             dataMap?: DataMap;
         }
@@ -67,6 +67,7 @@ declare namespace functions {
             bucket: string;
             active?: boolean;
             localStorage?: boolean;
+            uploadAll?: boolean;
             filename?: string;
             [key: string]: Undef<unknown>;
         }
@@ -347,12 +348,13 @@ declare namespace functions {
 
     interface ExternalAsset extends squared.FileAsset, chrome.ChromeAsset {
         fileUri?: string;
-        children?: string[];
+        transforms?: string[];
         invalid?: boolean;
         buffer?: Buffer;
         sourceUTF8?: string;
         inlineBase64?: string;
         inlineCloud?: string;
+        inlineCssCloud?: string;
         originalName?: string;
     }
 }

@@ -17,7 +17,6 @@
   "dependencies": {
     "@squared-functions/module": "^0.5.1",
     "@squared-functions/types": "^0.5.1",
-    "chalk": "^4.1.0",
     "fs-extra": "^9.0.1",
     "uuid": "^8.3.1"
   }

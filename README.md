@@ -1,4 +1,4 @@
-### squared-functions 0.4
+### squared-functions 0.5
 
 These are some of the available options when creating archives or copying files with squared 2.1.
 
@@ -402,7 +402,7 @@ Manual installation of the SDK is required and an account with a cloud storage p
   - AWS Free Tier: https://aws.amazon.com/free (5GB)
 ```
 
-Inline commands and images located inside CSS url() attributes are not supported.
+Other providers will be integrated similarly except for credential verification.
 
 ```javascript
 - selector: #picture1
@@ -416,10 +416,33 @@ Inline commands and images located inside CSS url() attributes are not supported
       secretAccessKey: **********
       active: true // Rewrites "src" to cloud storage location (optional)
       localStorage: false // Removes all files from archive or local disk (optional)
+      uploadAll: true // Include transforms (optional)
       filename: picture1.webp // Bucket filename (optional)
 ```
 
-Other providers will be integrated similarly except for required credential verification.
+Inline commands are not supported. Serving CSS files from cloud storage or CDN requires every image inside the file to be hosted with an absolute URL.
+
+```javascript
+squared
+    .saveAs('index.zip', {
+        configUri: 'http://localhost:3000/chrome/bundle.yml',
+        saveAs: {
+            image: { // Non-element images using url() method
+                cloudStorage: [{
+                    service: 's3',
+                    bucket: 'squared-001',
+                    active: true,
+                    accessKeyId: '**********',
+                    secretAccessKey: '**********'
+                }]
+            }
+        }
+    })
+    .then(result => {
+        console.log(((performance.now() - time) / 1000).toPrecision(4));
+        console.log(result);
+    });
+```
 
 ### Options: Production / saveAs
 
