@@ -1,0 +1,49 @@
+{
+    "cloud": {
+      "s3": {
+        "main": {
+          "accessKeyId": null,
+          "secretAccessKey": null
+        }
+      }
+    },
+    "gulp": {
+      "minify": "./gulpfile.js"
+    },
+    "chrome": {
+      "html": {
+        "prettier": {
+          "beautify": {
+            "parser": "html",
+            "printWidth": 120,
+            "tabWidth": 4
+          }
+        }
+      },
+      "js": {
+        "terser": {
+          "minify-example": "function(context, value, config) {\n  return context.minify(value, config).code;\n}\n",
+          "minify-example-config": {
+            "keep_classnames": true
+          }
+        },
+        "@babel/core": {
+          "es5-example": "./es5.js"
+        },
+        "rollup": {
+          "bundle": "./rollup.config.js",
+          "bundle-es6": {
+            "external": [
+              "lodash"
+            ]
+          },
+          "bundle-es6-config": "./rollup.output.config.js"
+        }
+      },
+      "css": {
+        "node-sass": {
+          "sass-example": "function(context, value) {\n  return context.renderSync({ data: value }, functions: {});\n}"
+        }
+      }
+    }
+  }

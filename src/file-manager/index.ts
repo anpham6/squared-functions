@@ -29,9 +29,10 @@ type DataMap = functions.chrome.DataMap;
 
 type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
-type CloudModule = functions.internal.settings.CloudModule;
-type GulpModule = functions.internal.settings.GulpModule;
-type ChromeModule = functions.internal.settings.ChromeModule;
+type CompressModule = functions.settings.CompressModule;
+type CloudModule = functions.settings.CloudModule;
+type GulpModule = functions.settings.GulpModule;
+type ChromeModule = functions.settings.ChromeModule;
 
 interface GulpData {
     gulpfile: string;
@@ -48,16 +49,6 @@ let S3: Undef<awsS3>;
 
 const FileManager = class extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {
-        const { gzip_level, brotli_quality, tinypng_api_key } = value;
-        const gzip = +(gzip_level as string);
-        const brotli = +(brotli_quality as string);
-        if (!isNaN(gzip)) {
-            Compress.gzipLevel = gzip;
-        }
-        if (!isNaN(brotli)) {
-            Compress.brotliQuality = brotli;
-        }
-        Compress.validate(tinypng_api_key);
         if (!ignorePermissions) {
             const { disk_read, disk_write, unc_read, unc_write } = value;
             if (disk_read === true || disk_read === 'true') {
@@ -72,6 +63,18 @@ const FileManager = class extends Module implements IFileManager {
             if (unc_write === true || unc_write === 'true') {
                 Node.enableUNCWrite();
             }
+        }
+        if (value.compress) {
+            const { gzip_level, brotli_quality, tinypng_api_key } = value.compress;
+            const gzip = +(gzip_level as string);
+            const brotli = +(brotli_quality as string);
+            if (!isNaN(gzip)) {
+                Compress.gzipLevel = gzip;
+            }
+            if (!isNaN(brotli)) {
+                Compress.brotliQuality = brotli;
+            }
+            Compress.validate(tinypng_api_key);
         }
     }
 
@@ -128,6 +131,7 @@ const FileManager = class extends Module implements IFileManager {
     public cleared = false;
     public emptyDirectory = false;
     public productionRelease = false;
+    public Compress?: CompressModule;
     public Chrome?: IChrome;
     public Gulp?: GulpModule;
     public Cloud?: CloudModule;
@@ -165,6 +169,9 @@ const FileManager = class extends Module implements IFileManager {
     install(name: string, ...args: unknown[]) {
         if (typeof args[0] === 'object') {
             switch (name) {
+                case 'compress':
+                    this.Compress = args[0] as CompressModule;
+                    break;
                 case 'cloud':
                     this.Cloud = args[0] as CloudModule;
                     break;
@@ -865,28 +872,29 @@ const FileManager = class extends Module implements IFileManager {
         return output;
     }
     writeBuffer(data: FileData) {
-        const png = Compress.hasImageService() ? Compress.findFormat(data.file.compress, 'png') : undefined;
-        if (png && Compress.withinSizeRange(data.fileUri, png.condition)) {
-            try {
-                Compress.tryImage(data.fileUri, (result: string, err: Null<Error>) => {
-                    if (err) {
-                        throw err;
-                    }
-                    if (result) {
-                        data.fileUri = result;
-                        delete data.file.buffer;
-                    }
+        if (this.Compress) {
+            const png = Compress.hasImageService() && Compress.findFormat(data.file.compress, 'png');
+            if (png && Compress.withinSizeRange(data.fileUri, png.condition)) {
+                try {
+                    Compress.tryImage(data.fileUri, (result: string, err: Null<Error>) => {
+                        if (err) {
+                            throw err;
+                        }
+                        if (result) {
+                            data.fileUri = result;
+                            delete data.file.buffer;
+                        }
+                        this.finalizeFile(data);
+                    });
+                }
+                catch (err) {
+                    this.writeFail(data.fileUri, err);
                     this.finalizeFile(data);
-                });
-            }
-            catch (err) {
-                this.writeFail(data.fileUri, err);
-                this.finalizeFile(data);
+                }
+                return;
             }
         }
-        else {
-            this.finalizeFile(data);
-        }
+        this.finalizeFile(data);
     }
     finalizeImage(data: FileData, output: string, command: string, compress?: CompressFormat, error?: Null<Error>) {
         if (error) {
@@ -1219,6 +1227,7 @@ const FileManager = class extends Module implements IFileManager {
         this.performFinalize();
     }
     async finalizeAssets() {
+        const { Gulp, Cloud } = this;
         let tasks: Promise<unknown>[] = [];
         if (this.Chrome) {
             const inlineMap: StringMap = {};
@@ -1367,8 +1376,7 @@ const FileManager = class extends Module implements IFileManager {
             await Promise.all(tasks).catch(err => this.writeFail('Finalize: Delete temp files', err));
             tasks = [];
         }
-        if (this.Gulp) {
-            const gulp = this.Gulp;
+        if (Gulp) {
             const taskMap = new Map<string, Map<string, GulpData>>();
             const origMap = new Map<string, string[]>();
             for (const item of this.assets) {
@@ -1376,8 +1384,8 @@ const FileManager = class extends Module implements IFileManager {
                     const origDir = path.dirname(item.fileUri!);
                     const scheduled = new Set<string>();
                     for (let task of item.tasks) {
-                        if (!scheduled.has(task = task.trim()) && gulp[task]) {
-                            const gulpfile = path.resolve(gulp[task]!);
+                        if (!scheduled.has(task = task.trim()) && Gulp[task]) {
+                            const gulpfile = path.resolve(Gulp[task]!);
                             if (fs.existsSync(gulpfile)) {
                                 if (!taskMap.has(task)) {
                                     taskMap.set(task, new Map<string, GulpData>());
@@ -1511,8 +1519,7 @@ const FileManager = class extends Module implements IFileManager {
                 tasks = [];
             }
         }
-        if (this.Cloud) {
-            const cloudSettings = this.Cloud;
+        if (Cloud) {
             const cloudMap: ObjectMap<ExternalAsset> = {};
             const cloudCssMap: StringMap = {};
             const localStorage = new Map<ExternalAsset, CloudService>();
@@ -1536,7 +1543,7 @@ const FileManager = class extends Module implements IFileManager {
                             const service = data.service;
                             try {
                                 const files = getFiles(item, data);
-                                const settings = cloudSettings[service];
+                                const settings = Cloud[service];
                                 const config: awsCore.ConfigurationOptions = {};
                                 if (settings && data.settings) {
                                     Object.assign(config, settings[data.settings]);
@@ -1685,34 +1692,36 @@ const FileManager = class extends Module implements IFileManager {
                 tasks = [];
             }
         }
-        for (const item of this.assets) {
-            if (item.invalid) {
-                continue;
-            }
-            const fileUri = item.fileUri!;
-            if (this.has(fileUri)) {
-                const gz = Compress.findFormat(item.compress, 'gz');
-                if (gz) {
-                    tasks.push(
-                        new Promise(resolve => Compress.tryFile(fileUri, gz, undefined, (result: string) => {
-                            if (result) {
-                                this.add(result);
-                            }
-                            resolve();
-                        }))
-                    );
+        if (this.Compress) {
+            for (const item of this.assets) {
+                if (item.invalid) {
+                    continue;
                 }
-                if (Node.checkVersion(11, 7)) {
-                    const br = Compress.findFormat(item.compress, 'br');
-                    if (br) {
+                const fileUri = item.fileUri!;
+                if (this.has(fileUri)) {
+                    const gz = Compress.findFormat(item.compress, 'gz');
+                    if (gz) {
                         tasks.push(
-                            new Promise(resolve => Compress.tryFile(fileUri, br, undefined, (result: string) => {
+                            new Promise(resolve => Compress.tryFile(fileUri, gz, undefined, (result: string) => {
                                 if (result) {
                                     this.add(result);
                                 }
                                 resolve();
                             }))
                         );
+                    }
+                    if (Node.checkVersion(11, 7)) {
+                        const br = Compress.findFormat(item.compress, 'br');
+                        if (br) {
+                            tasks.push(
+                                new Promise(resolve => Compress.tryFile(fileUri, br, undefined, (result: string) => {
+                                    if (result) {
+                                        this.add(result);
+                                    }
+                                    resolve();
+                                }))
+                            );
+                        }
                     }
                 }
             }

@@ -313,6 +313,7 @@ The same concept can be used inline anywhere using a &lt;script&gt; tag with the
 Here is the equivalent YAML settings and when available has higher precedence than JSON settings.
 
 - [squared.settings.yml](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.yml)
+- [squared.settings.json](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.json)
 
 ### Modifying content attributes
 
@@ -382,13 +383,12 @@ interface AssetCommand extends FileModifiers {
 
 - [bundle.yml](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.yml)
 - [bundle.json](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.json)
-- [bundle.html](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.html)
 
 ```javascript
 squared.saveAs('bundle.zip', { configUri: 'http://localhost:3000/chrome/bundle.yml' });
 ```
 
-Here is the equivalent page with "data-chrome-file" using only inline commands.
+Here is the equivalent page using only inline commands with "data-chrome-file" and "data-chrome-tasks".
 
 - [bundle_inline.html](https://github.com/anpham6/squared/blob/master/html/chrome/bundle_inline.html)
 

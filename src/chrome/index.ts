@@ -9,7 +9,7 @@ import Module from '../module';
 
 type ExternalCategory = functions.ExternalCategory;
 type TranspileMap = functions.chrome.TranspileMap;
-type ChromeModule = functions.internal.settings.ChromeModule;
+type ChromeModule = functions.settings.ChromeModule;
 type ConfigOrTranspiler = functions.internal.ConfigOrTranspiler;
 type PluginConfig = functions.internal.PluginConfig;
 

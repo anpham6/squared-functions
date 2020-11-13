@@ -98,7 +98,7 @@ declare namespace functions {
     }
 
     namespace internal {
-        namespace settings {
+        namespace serve {
             interface Routing {
                 [key: string]: Route[];
             }
@@ -106,22 +106,6 @@ declare namespace functions {
             interface Route {
                 mount?: string;
                 path?: string;
-            }
-
-            interface CloudModule {
-                s3?: {
-                    [key: string]: awsCore.ConfigurationOptions;
-                };
-            }
-
-            interface GulpModule extends StringMap {}
-
-            interface ChromeModule {
-                eval_function?: boolean;
-                eval_text_template?: boolean;
-                html?: ObjectMap<StandardMap>;
-                css?: ObjectMap<StandardMap>;
-                js?: ObjectMap<StandardMap>;
             }
         }
 
@@ -169,6 +153,30 @@ declare namespace functions {
         type PluginConfig = [string, Undef<ConfigOrTranspiler>, Config];
     }
 
+    namespace settings {
+        interface CompressModule {
+            gzip_level?: NumString;
+            brotli_quality?: NumString;
+            tinypng_api_key?: string;
+        }
+
+        interface CloudModule {
+            s3?: {
+                [key: string]: awsCore.ConfigurationOptions;
+            };
+        }
+
+        interface GulpModule extends StringMap {}
+
+        interface ChromeModule {
+            eval_function?: boolean;
+            eval_text_template?: boolean;
+            html?: ObjectMap<StandardMap>;
+            css?: ObjectMap<StandardMap>;
+            js?: ObjectMap<StandardMap>;
+        }
+    }
+
     interface INode extends IModule {
         enableDiskRead(): void;
         enableDiskWrite(): void;
@@ -212,7 +220,7 @@ declare namespace functions {
     }
 
     interface IChrome extends IModule {
-        settings?: internal.settings.ChromeModule;
+        settings?: settings.ChromeModule;
         findPlugin(settings: Undef<ObjectMap<StandardMap>>, name: string): internal.PluginConfig;
         findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory, transpileMap?: chrome.TranspileMap): internal.PluginConfig;
         createTranspiler(value: string): Null<FunctionType<string>>;
@@ -225,7 +233,7 @@ declare namespace functions {
     }
 
     interface ChromeConstructor {
-        new(settings?: internal.settings.ChromeModule): IChrome;
+        new(settings?: settings.ChromeModule): IChrome;
     }
 
     const Chrome: ChromeConstructor;
@@ -238,8 +246,8 @@ declare namespace functions {
         productionRelease: boolean;
         basePath?: string;
         Chrome?: IChrome;
-        Gulp?: internal.settings.GulpModule;
-        Cloud?: internal.settings.CloudModule;
+        Gulp?: settings.GulpModule;
+        Cloud?: settings.CloudModule;
         readonly files: Set<string>;
         readonly filesQueued: Set<string>;
         readonly filesToRemove: Set<string>;
@@ -353,15 +361,13 @@ declare namespace functions {
         unc_write?: BoolString;
         cors?: CorsOptions;
         request_post_limit?: string;
-        gzip_level?: NumString;
-        brotli_quality?: NumString;
-        tinypng_api_key?: string;
         env?: string;
         port?: StringMap;
-        routing?: internal.settings.Routing;
-        cloud?: internal.settings.CloudModule;
-        gulp?: StringMap;
-        chrome?: internal.settings.ChromeModule;
+        routing?: internal.serve.Routing;
+        compress?: settings.CompressModule;
+        cloud?: settings.CloudModule;
+        gulp?: settings.GulpModule;
+        chrome?: settings.ChromeModule;
     }
 
     interface ExternalAsset extends squared.FileAsset, chrome.ChromeAsset {
