@@ -1,5 +1,3 @@
-import type * as aws from 'aws-sdk';
-import type * as awsCore from 'aws-sdk/lib/core';
 import type { Response } from 'express';
 
 import child_process = require('child_process');
@@ -15,14 +13,14 @@ import Node from '../node';
 import Compress from '../compress';
 import Image from '../image';
 import Chrome from '../chrome';
-
-type awsS3 = Constructor<aws.S3>;
+import Cloud from '../cloud';
 
 type Settings = functions.Settings;
 type RequestBody = functions.RequestBody;
 type ExternalAsset = functions.ExternalAsset;
 type IFileManager = functions.IFileManager;
 type IChrome = functions.IChrome;
+type ICloud = functions.ICloud;
 
 type CompressFormat = functions.squared.CompressFormat;
 type CloudService = functions.chrome.CloudService;
@@ -30,6 +28,8 @@ type DataMap = functions.chrome.DataMap;
 
 type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
+type CloudUploadOptions = functions.external.CloudUploadOptions;
+
 type CompressModule = functions.settings.CompressModule;
 type CloudModule = functions.settings.CloudModule;
 type GulpModule = functions.settings.GulpModule;
@@ -45,8 +45,6 @@ interface GulpTask {
     origDir: string;
     data: GulpData;
 }
-
-let S3: Undef<awsS3>;
 
 const FileManager = class extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {
@@ -95,6 +93,10 @@ const FileManager = class extends Module implements IFileManager {
         return Chrome;
     }
 
+    public static moduleCloud() {
+        return Cloud;
+    }
+
     public static checkPermissions(dirname: string, res?: Response) {
         if (Node.isDirectoryUNC(dirname)) {
             if (!Node.canWriteUNC()) {
@@ -134,8 +136,8 @@ const FileManager = class extends Module implements IFileManager {
     public productionRelease = false;
     public Compress?: CompressModule;
     public Chrome?: IChrome;
+    public Cloud?: ICloud;
     public Gulp?: GulpModule;
-    public Cloud?: CloudModule;
     public basePath?: string;
     public readonly assets: ExternalAsset[];
     public readonly files = new Set<string>();
@@ -176,7 +178,8 @@ const FileManager = class extends Module implements IFileManager {
                     this.Compress = args[0] as CompressModule;
                     break;
                 case 'cloud':
-                    this.Cloud = args[0] as CloudModule;
+                    Cloud.settings = args[0] as CloudModule;
+                    this.Cloud = Cloud;
                     break;
                 case 'gulp':
                     this.Gulp = args[0] as GulpModule;
@@ -239,28 +242,6 @@ const FileManager = class extends Module implements IFileManager {
         if (this.cleared && this.delayed <= 0) {
             this.delayed = Infinity;
             this.finalizeAssets().then(() => this.postFinalize());
-        }
-    }
-    getCloudService(data: Undef<CloudService[]>) {
-        if (data) {
-            for (const item of data) {
-                if (this.hasCloudService(item)) {
-                    if (item.active) {
-                        return item;
-                    }
-                }
-            }
-        }
-    }
-    hasCloudService(data: CloudService): data is CloudService {
-        const cloud = this.Cloud || {};
-        switch (data.service) {
-            case 's3': {
-                const settings = data.settings && cloud.s3 ? cloud.s3[data.settings] : {};
-                return !!(data.bucket && ((data.accessKeyId || settings.accessKeyId) && (data.secretAccessKey || settings.secretAccessKey)));
-            }
-            default:
-                return false;
         }
     }
     getRootDirectory(location: string, asset: string): [string[], string[]] {
@@ -441,7 +422,7 @@ const FileManager = class extends Module implements IFileManager {
         return Promise.resolve(output);
     }
     transformCss(file: ExternalAsset, source: string) {
-        const getCloudUUID = (item: Undef<ExternalAsset>, url: string) => item && this.getCloudService(item.cloudStorage) ? item.inlineCssCloud ||= uuid.v4() : url;
+        const getCloudUUID = (item: Undef<ExternalAsset>, url: string) => item && Cloud.getService(item.cloudStorage) ? item.inlineCssCloud ||= uuid.v4() : url;
         let output: Undef<string>;
         for (const item of this.assets) {
             if (item.base64 && !item.textContent && item.uri && !item.invalid) {
@@ -591,7 +572,7 @@ const FileManager = class extends Module implements IFileManager {
                         }
                         else if (bundleIndex === 0 || bundleIndex === -1) {
                             let value: string;
-                            if (this.getCloudService(item.cloudStorage)) {
+                            if (Cloud.getService(item.cloudStorage)) {
                                 value = uuid.v4();
                                 item.inlineCloud = value;
                             }
@@ -675,7 +656,7 @@ const FileManager = class extends Module implements IFileManager {
                             if (relativeUri) {
                                 segments.push(relativeUri);
                             }
-                            if (this.getCloudService(item.cloudStorage)) {
+                            if (Cloud.getService(item.cloudStorage)) {
                                 value = uuid.v4();
                                 item.inlineCloud = value;
                             }
@@ -714,7 +695,7 @@ const FileManager = class extends Module implements IFileManager {
                         }
                         else if (item.base64) {
                             let value: string;
-                            if (this.getCloudService(item.cloudStorage)) {
+                            if (Cloud.getService(item.cloudStorage)) {
                                 value = uuid.v4();
                                 item.inlineCloud = value;
                             }
@@ -1230,7 +1211,6 @@ const FileManager = class extends Module implements IFileManager {
         this.performFinalize();
     }
     async finalizeAssets() {
-        const { Gulp, Cloud } = this;
         let tasks: Promise<unknown>[] = [];
         if (this.Chrome) {
             const inlineMap: StringMap = {};
@@ -1379,7 +1359,8 @@ const FileManager = class extends Module implements IFileManager {
             await Promise.all(tasks).catch(err => this.writeFail('Finalize: Delete temp files', err));
             tasks = [];
         }
-        if (Gulp) {
+        if (this.Gulp) {
+            const gulp = this.Gulp;
             const taskMap = new Map<string, Map<string, GulpData>>();
             const origMap = new Map<string, string[]>();
             for (const item of this.assets) {
@@ -1387,8 +1368,8 @@ const FileManager = class extends Module implements IFileManager {
                     const origDir = path.dirname(item.fileUri!);
                     const scheduled = new Set<string>();
                     for (let task of item.tasks) {
-                        if (!scheduled.has(task = task.trim()) && Gulp[task]) {
-                            const gulpfile = path.resolve(Gulp[task]!);
+                        if (!scheduled.has(task = task.trim()) && gulp[task]) {
+                            const gulpfile = path.resolve(gulp[task]!);
                             if (fs.existsSync(gulpfile)) {
                                 if (!taskMap.has(task)) {
                                     taskMap.set(task, new Map<string, GulpData>());
@@ -1522,7 +1503,8 @@ const FileManager = class extends Module implements IFileManager {
                 tasks = [];
             }
         }
-        if (Cloud) {
+        if (this.Cloud) {
+            const cloudSettings = this.Cloud.settings;
             const cloudMap: ObjectMap<ExternalAsset> = {};
             const cloudCssMap: StringMap = {};
             const localStorage = new Map<ExternalAsset, CloudService>();
@@ -1535,89 +1517,71 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 return files;
             };
-            const uploadFiles = (item: ExternalAsset, ContentType?: string) => {
-                const cloudMain = this.getCloudService(item.cloudStorage);
+            const uploadFiles = (item: ExternalAsset, mimeType?: string) => {
+                const cloudMain = Cloud.getService(item.cloudStorage);
                 for (const data of item.cloudStorage!) {
-                    if (this.hasCloudService(data)) {
+                    if (Cloud.hasService(data)) {
                         if (data === cloudMain && data.localStorage === false) {
                             localStorage.set(item, data);
                         }
                         tasks.push(new Promise(resolve => {
                             const service = data.service;
+                            const settings = cloudSettings[service];
+                            const config = {};
+                            if (settings && data.settings) {
+                                Object.assign(config, settings[data.settings]);
+                            }
+                            Object.assign(config, data);
+                            let uploadHandler: Undef<(...args: unknown[]) => void>;
                             try {
-                                const files = getFiles(item, data);
-                                const settings = Cloud[service];
-                                const config: awsCore.ConfigurationOptions = {};
-                                if (settings && data.settings) {
-                                    Object.assign(config, settings[data.settings]);
-                                }
-                                Object.assign(config, data);
-                                const upload: Promise<string>[] = [];
-                                switch (service) {
-                                    case 's3': {
-                                        S3 ||= require('aws-sdk/clients/s3') as awsS3;
-                                        const s3 = new S3(config);
-                                        for (let i = 0, length = files.length; i < length; ++i) {
-                                            const fileUri = files[i];
-                                            if (i === 0 || this.has(fileUri)) {
-                                                upload.push(
-                                                    new Promise(success => {
-                                                        const Key = i === 0 && data.filename || (uuid.v4() + path.extname(fileUri));
-                                                        fs.readFile(fileUri, (err, Body) => {
-                                                            if (err) {
-                                                                success('');
-                                                            }
-                                                            else {
-                                                                s3.upload({ Bucket: data.bucket, Key, Body, ContentType }, (error, result) => {
-                                                                    if (error) {
-                                                                        this.writeFail(`${service}: Upload to cloud service failed (${fileUri})`, error);
-                                                                        success('');
-                                                                    }
-                                                                    else {
-                                                                        this.writeMessage('Upload', result.Location, 's3');
-                                                                        success(result.Location);
-                                                                    }
-                                                                });
-                                                            }
-                                                        });
-                                                    })
-                                                );
-                                            }
-                                        }
-                                        break;
-                                    }
-                                }
-                                Promise.all(upload)
-                                    .then(result => {
-                                        const fileUri = result[0];
-                                        if (fileUri && data === cloudMain) {
-                                            if (item.inlineCloud) {
-                                                for (const content of htmlFiles) {
-                                                    content.sourceUTF8 = this.getUTF8String(content).replace(item.inlineCloud, fileUri);
-                                                    delete cloudMap[item.inlineCloud];
-                                                }
-                                            }
-                                            else if (item.inlineCssCloud) {
-                                                for (const content of htmlFiles) {
-                                                    content.sourceUTF8 = this.getUTF8String(content).replace(new RegExp(item.inlineCssCloud, 'g'), fileUri);
-                                                }
-                                                cloudCssMap[item.inlineCssCloud] = fileUri;
-                                            }
-                                        }
-                                        resolve();
-                                    })
-                                    .catch(() => resolve());
+                                uploadHandler = require(`../cloud/${service}-upload`)(this, config);
                             }
                             catch (err) {
-                                let message: Undef<string>;
-                                switch (service) {
-                                    case 's3':
-                                        message = 'Install AWS? [npm i aws-sdk]';
-                                        break;
-                                }
-                                this.writeFail(message || 'Unknown', err);
-                                resolve();
+                                this.writeFail(`Unable to load cloud/${service}`, err);
                             }
+                            if (!uploadHandler) {
+                                resolve();
+                                return;
+                            }
+                            const upload: Promise<string>[] = [];
+                            const files = getFiles(item, data);
+                            for (let i = 0, length = files.length; i < length; ++i) {
+                                const fileUri = files[i];
+                                if (i === 0 || this.has(fileUri)) {
+                                    upload.push(
+                                        new Promise(success => {
+                                            fs.readFile(fileUri, (err, buffer) => {
+                                                if (err) {
+                                                    success('');
+                                                }
+                                                else {
+                                                    uploadHandler!(buffer, success, { service: config, fileUri, fileIndex: i, mimeType } as CloudUploadOptions);
+                                                }
+                                            });
+                                        })
+                                    );
+                                }
+                            }
+                            Promise.all(upload)
+                                .then(result => {
+                                    const fileUri = result[0];
+                                    if (fileUri && data === cloudMain) {
+                                        if (item.inlineCloud) {
+                                            for (const content of htmlFiles) {
+                                                content.sourceUTF8 = this.getUTF8String(content).replace(item.inlineCloud, fileUri);
+                                                delete cloudMap[item.inlineCloud];
+                                            }
+                                        }
+                                        else if (item.inlineCssCloud) {
+                                            for (const content of htmlFiles) {
+                                                content.sourceUTF8 = this.getUTF8String(content).replace(new RegExp(item.inlineCssCloud, 'g'), fileUri);
+                                            }
+                                            cloudCssMap[item.inlineCssCloud] = fileUri;
+                                        }
+                                    }
+                                    resolve();
+                                })
+                                .catch(() => resolve());
                         }));
                     }
                 }

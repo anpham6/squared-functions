@@ -11,6 +11,17 @@ export default [
         plugins: []
     },
     {
+        input: './build/cloud/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/cloud/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/cloud ${require('./publish/cloud/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
+        },
+        plugins: []
+    },
+    {
         input: './build/compress/index.js',
         treeshake: false,
         output: {

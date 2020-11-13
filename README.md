@@ -424,24 +424,19 @@ Other providers will be integrated similarly except for credential verification.
 Inline commands are not supported. Serving CSS files from cloud storage or CDN requires every image inside the file to be hosted with an absolute URL.
 
 ```javascript
-squared
-    .saveAs('index.zip', {
-        configUri: 'http://localhost:3000/chrome/bundle.yml',
-        saveAs: {
-            image: { // Non-element images using url() method
-                cloudStorage: [{
-                    service: 's3',
-                    bucket: 'squared-001',
-                    active: true,
-                    settings: 'main'
-                }]
-            }
+squared.saveAs('index.zip', {
+    configUri: 'http://localhost:3000/chrome/bundle.yml',
+    saveAs: {
+        image: { // Non-element images using url() method
+            cloudStorage: [{
+                service: 's3',
+                bucket: 'squared-001',
+                active: true,
+                settings: 'main'
+            }]
         }
-    })
-    .then(result => {
-        console.log(((performance.now() - time) / 1000).toPrecision(4));
-        console.log(result);
-    });
+    }
+});
 ```
 
 ### Options: Production / saveAs

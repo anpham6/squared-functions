@@ -64,7 +64,7 @@ declare namespace functions {
         }
 
         interface CloudService {
-            service: "s3";
+            service: string;
             bucket: string;
             active?: boolean;
             localStorage?: boolean;
@@ -153,6 +153,17 @@ declare namespace functions {
         type PluginConfig = [string, Undef<ConfigOrTranspiler>, Config];
     }
 
+    namespace external {
+        interface CloudUploadOptions {
+            service: chrome.CloudService;
+            fileUri: string;
+            fileIndex: number;
+            mimeType?: string;
+        }
+
+        type CloudServiceClient = (data: chrome.CloudService, settings: StandardMap) => boolean;
+    }
+
     namespace settings {
         interface CompressModule {
             gzip_level?: NumString;
@@ -220,7 +231,7 @@ declare namespace functions {
     }
 
     interface IChrome extends IModule {
-        settings?: settings.ChromeModule;
+        settings: settings.ChromeModule;
         findPlugin(settings: Undef<ObjectMap<StandardMap>>, name: string): internal.PluginConfig;
         findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory, transpileMap?: chrome.TranspileMap): internal.PluginConfig;
         createTranspiler(value: string): Null<FunctionType<string>>;
@@ -232,11 +243,11 @@ declare namespace functions {
         removeCss(source: string, styles: string[]): Undef<string>;
     }
 
-    interface ChromeConstructor {
-        new(settings?: settings.ChromeModule): IChrome;
+    interface ICloud extends IModule {
+        settings: settings.CloudModule;
+        getService(data: Undef<chrome.CloudService[]>): Undef<chrome.CloudService>;
+        hasService(data: chrome.CloudService): data is chrome.CloudService;
     }
-
-    const Chrome: ChromeConstructor;
 
     interface IFileManager extends IModule {
         serverRoot: string;
@@ -246,8 +257,8 @@ declare namespace functions {
         productionRelease: boolean;
         basePath?: string;
         Chrome?: IChrome;
+        Cloud?: ICloud;
         Gulp?: settings.GulpModule;
-        Cloud?: settings.CloudModule;
         readonly files: Set<string>;
         readonly filesQueued: Set<string>;
         readonly filesToRemove: Set<string>;
@@ -267,8 +278,6 @@ declare namespace functions {
         removeAsyncTask(): void;
         completeAsyncTask: FileManagerCompleteAsyncTaskCallback;
         performFinalize(): void;
-        getCloudService(data: chrome.CloudService[]): Undef<chrome.CloudService>;
-        hasCloudService(data: chrome.CloudService): data is chrome.CloudService;
         replacePath(source: string, segments: string[], value: string, matchSingle?: boolean, base64?: boolean): Undef<string>;
         escapePathSeparator(value: string): string;
         getFileOutput(file: ExternalAsset): internal.FileOutput;
