@@ -3,6 +3,7 @@
 import type { Response } from 'express';
 import type { CorsOptions } from 'cors';
 import type { WriteStream } from 'fs';
+import type * as aws from 'aws-sdk/lib/core';
 
 declare namespace functions {
     type BoolString = boolean | string;
@@ -69,6 +70,7 @@ declare namespace functions {
             localStorage?: boolean;
             uploadAll?: boolean;
             filename?: string;
+            settings?: string;
             [key: string]: Undef<unknown>;
         }
 
@@ -87,34 +89,69 @@ declare namespace functions {
             unusedStyles?: string[];
             transpileMap?: TranspileMap;
         }
+
+        interface TranspileMap {
+            html: ObjectMap<StringMap>;
+            js: ObjectMap<StringMap>;
+            css: ObjectMap<StringMap>;
+        }
     }
 
     namespace internal {
-        interface ImageUsingOptions {
-            data: FileData;
-            command?: string;
-            compress?: squared.CompressFormat;
-            callback?: FileManagerWriteImageCallback;
+        namespace settings {
+            interface Routing {
+                [key: string]: Route[];
+            }
+
+            interface Route {
+                mount?: string;
+                path?: string;
+            }
+
+            interface CloudModule {
+                s3?: {
+                    [key: string]: aws.ConfigurationOptions;
+                };
+            }
+
+            interface GulpModule extends StringMap {}
+
+            interface ChromeModule {
+                eval_function?: boolean;
+                eval_text_template?: boolean;
+                html?: ObjectMap<StandardMap>;
+                css?: ObjectMap<StandardMap>;
+                js?: ObjectMap<StandardMap>;
+            }
         }
 
-        interface RotateData {
-            values: number[];
-            color: Null<number>;
-        }
+        namespace image {
+            interface UsingOptions {
+                data: FileData;
+                command?: string;
+                compress?: squared.CompressFormat;
+                callback?: FileManagerWriteImageCallback;
+            }
 
-        interface ResizeData extends Dimension {
-            mode: string;
-            algorithm: Undef<string>;
-            align: Undef<string>[];
-            color: Null<number>;
-        }
+            interface RotateData {
+                values: number[];
+                color: Null<number>;
+            }
 
-        interface CropData extends Point, Dimension {}
+            interface ResizeData extends Dimension {
+                mode: string;
+                algorithm: Undef<string>;
+                align: Undef<string>[];
+                color: Null<number>;
+            }
 
-        interface QualityData {
-            value: number;
-            preset: Undef<string>;
-            nearLossless: number;
+            interface CropData extends Point, Dimension {}
+
+            interface QualityData {
+                value: number;
+                preset: Undef<string>;
+                nearLossless: number;
+            }
         }
 
         interface FileData {
@@ -165,30 +202,30 @@ declare namespace functions {
     }
 
     interface IImage extends IModule {
-        using(options: internal.ImageUsingOptions): void;
-        parseCrop(value: string): Undef<internal.CropData>;
+        using(options: internal.image.UsingOptions): void;
+        parseCrop(value: string): Undef<internal.image.CropData>;
         parseOpacity(value: string): number;
-        parseQuality(value: string): Undef<internal.QualityData>;
-        parseResize(value: string): Undef<internal.ResizeData>;
-        parseRotation(value: string): Undef<internal.RotateData>;
+        parseQuality(value: string): Undef<internal.image.QualityData>;
+        parseResize(value: string): Undef<internal.image.ResizeData>;
+        parseRotation(value: string): Undef<internal.image.RotateData>;
         parseMethod(value: string): Undef<string[]>;
     }
 
     interface IChrome extends IModule {
-        modules?: ChromeModules;
+        settings?: internal.settings.ChromeModule;
         findPlugin(settings: Undef<ObjectMap<StandardMap>>, name: string): internal.PluginConfig;
-        findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory, transpileMap?: TranspileMap): internal.PluginConfig;
+        findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory, transpileMap?: chrome.TranspileMap): internal.PluginConfig;
         createTranspiler(value: string): Null<FunctionType<string>>;
         createConfig(value: string): Undef<StandardMap | string>;
-        minifyHtml(format: string, value: string, transpileMap?: TranspileMap): Promise<Void<string>>;
-        minifyCss(format: string, value: string, transpileMap?: TranspileMap): Promise<Void<string>>;
-        minifyJs(format: string, value: string, transpileMap?: TranspileMap): Promise<Void<string>>;
-        formatContent(mimeType: string, format: string, value: string, transpileMap?: TranspileMap): Promise<Void<string>>;
+        minifyHtml(format: string, value: string, transpileMap?: chrome.TranspileMap): Promise<Void<string>>;
+        minifyCss(format: string, value: string, transpileMap?: chrome.TranspileMap): Promise<Void<string>>;
+        minifyJs(format: string, value: string, transpileMap?: chrome.TranspileMap): Promise<Void<string>>;
+        formatContent(mimeType: string, format: string, value: string, transpileMap?: chrome.TranspileMap): Promise<Void<string>>;
         removeCss(source: string, styles: string[]): Undef<string>;
     }
 
     interface ChromeConstructor {
-        new(modules?: ChromeModules): IChrome;
+        new(settings?: internal.settings.ChromeModule): IChrome;
     }
 
     const Chrome: ChromeConstructor;
@@ -200,7 +237,8 @@ declare namespace functions {
         emptyDirectory: boolean;
         productionRelease: boolean;
         basePath?: string;
-        Gulp?: StringMap;
+        Cloud: internal.settings.CloudModule;
+        Gulp?: internal.settings.GulpModule;
         readonly files: Set<string>;
         readonly filesQueued: Set<string>;
         readonly filesToRemove: Set<string>;
@@ -211,7 +249,7 @@ declare namespace functions {
         readonly postFinalize: FunctionType<void>;
         readonly dataMap: chrome.DataMap;
         readonly baseAsset?: ExternalAsset;
-        install(name: string, ...args: any[]): void;
+        install(name: string, ...args: unknown[]): void;
         add(value: string): void;
         delete(value: string): void;
         has(value: string): boolean;
@@ -275,10 +313,10 @@ declare namespace functions {
         instance: T;
         fileUri: string
         command: string
-        resizeData?: internal.ResizeData;
-        cropData?: internal.CropData;
-        rotateData?: internal.RotateData;
-        qualityData?: internal.QualityData;
+        resizeData?: internal.image.ResizeData;
+        cropData?: internal.image.CropData;
+        rotateData?: internal.image.RotateData;
+        qualityData?: internal.image.QualityData;
         opacityValue: number;
         errorHandler?: (err: Error) => void;
         method(): void;
@@ -287,27 +325,9 @@ declare namespace functions {
         opacity(): void;
         quality(): void;
         rotate(parent?: ExternalAsset, preRotate?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback): void;
-        write(output: string, options?: internal.ImageUsingOptions): void;
+        write(output: string, options?: internal.image.UsingOptions): void;
         finalize(output: string, callback: (result: string) => void): void;
         constructor(instance: T, fileUri: string, command?: string, finalAs?: string);
-    }
-
-    interface Settings {
-        version?: string;
-        disk_read?: BoolString;
-        disk_write?: BoolString;
-        unc_read?: BoolString;
-        unc_write?: BoolString;
-        cors?: CorsOptions;
-        request_post_limit?: string;
-        gzip_level?: NumString;
-        brotli_quality?: NumString;
-        tinypng_api_key?: string;
-        env?: string;
-        port?: StringMap;
-        routing?: Routing;
-        gulp?: StringMap;
-        chrome?: ChromeModules;
     }
 
     interface Arguments {
@@ -323,27 +343,23 @@ declare namespace functions {
         cors?: string;
     }
 
-    interface Routing {
-        [key: string]: Route[];
-    }
-
-    interface Route {
-        mount?: string;
-        path?: string;
-    }
-
-    interface TranspileMap {
-        html: ObjectMap<StringMap>;
-        js: ObjectMap<StringMap>;
-        css: ObjectMap<StringMap>;
-    }
-
-    interface ChromeModules {
-        eval_function?: boolean;
-        eval_text_template?: boolean;
-        html?: ObjectMap<StandardMap>;
-        css?: ObjectMap<StandardMap>;
-        js?: ObjectMap<StandardMap>;
+    interface Settings {
+        version?: string;
+        disk_read?: BoolString;
+        disk_write?: BoolString;
+        unc_read?: BoolString;
+        unc_write?: BoolString;
+        cors?: CorsOptions;
+        request_post_limit?: string;
+        gzip_level?: NumString;
+        brotli_quality?: NumString;
+        tinypng_api_key?: string;
+        env?: string;
+        port?: StringMap;
+        routing?: internal.settings.Routing;
+        cloud?: internal.settings.CloudModule;
+        gulp?: StringMap;
+        chrome?: internal.settings.ChromeModule;
     }
 
     interface ExternalAsset extends squared.FileAsset, chrome.ChromeAsset {

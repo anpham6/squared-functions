@@ -1,4 +1,8 @@
-
+cloud:
+  s3:
+    main:
+      accessKeyId:
+      secretAccessKey:
 gulp:
   minify: ./gulpfile.js
 chrome:

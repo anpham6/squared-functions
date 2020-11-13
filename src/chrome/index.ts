@@ -7,9 +7,9 @@ import uuid = require('uuid');
 
 import Module from '../module';
 
-type TranspileMap = functions.TranspileMap;
-type ChromeModules = functions.ChromeModules;
 type ExternalCategory = functions.ExternalCategory;
+type TranspileMap = functions.chrome.TranspileMap;
+type ChromeModule = functions.internal.settings.ChromeModule;
 type ConfigOrTranspiler = functions.internal.ConfigOrTranspiler;
 type PluginConfig = functions.internal.PluginConfig;
 
@@ -59,12 +59,12 @@ function setPrettierParser(options: PrettierOptions): PrettierOptions {
 const validLocalPath = (value: string) => /^\.?\.[\\/]/.test(value);
 
 const Chrome = new class extends Module implements functions.IChrome {
-    public modules: ChromeModules = {};
+    public settings: ChromeModule = {};
 
     createOptions(value: Undef<ConfigOrTranspiler>): Undef<ConfigOrTranspiler> {
         if (typeof value === 'string') {
             value = value.trim();
-            if (this.modules.eval_function) {
+            if (this.settings.eval_function) {
                 const transpiler = this.createTranspiler(value);
                 if (transpiler) {
                     return transpiler;
@@ -94,7 +94,7 @@ const Chrome = new class extends Module implements functions.IChrome {
         return ([] as unknown) as PluginConfig;
     }
     findTranspiler(settings: Undef<ObjectMap<StandardMap>>, value: string, category: ExternalCategory, transpileMap?: TranspileMap): PluginConfig {
-        if (transpileMap && this.modules.eval_text_template) {
+        if (transpileMap && this.settings.eval_text_template) {
             const data = transpileMap[category];
             for (const name in data) {
                 const item = data[name][value];
@@ -140,7 +140,7 @@ const Chrome = new class extends Module implements functions.IChrome {
         return value || {};
     }
     async minifyHtml(format: string, value: string, transpileMap?: TranspileMap) {
-        const html = this.modules.html;
+        const html = this.settings.html;
         if (html) {
             let valid: Undef<boolean>;
             const formatters = format.split('+');
@@ -199,7 +199,7 @@ const Chrome = new class extends Module implements functions.IChrome {
         return Promise.resolve();
     }
     async minifyCss(format: string, value: string, transpileMap?: TranspileMap) {
-        const css = this.modules.css;
+        const css = this.settings.css;
         if (css) {
             let valid: Undef<boolean>;
             const formatters = format.split('+');
@@ -258,7 +258,7 @@ const Chrome = new class extends Module implements functions.IChrome {
         return Promise.resolve();
     }
     async minifyJs(format: string, value: string, transpileMap?: TranspileMap) {
-        const js = this.modules.js;
+        const js = this.settings.js;
         if (js) {
             const formatters = format.split('+');
             let modified: Undef<boolean>;

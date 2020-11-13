@@ -29,7 +29,7 @@ squared.saveAs('archive1', { // OR: archive1.gz
 });
 ```
 
-Image conversion can be achieved using the mimeType property in a FileAsset object. The supported formats are:
+Image conversion can be achieved using the "commands" array property in a FileAsset object. The supported formats are:
 
 * png - r/w
 * jpeg - r/w
@@ -412,12 +412,13 @@ Other providers will be integrated similarly except for credential verification.
   cloudStorage:
     - service: s3
       bucket: squared-001
-      accessKeyId: **********
-      secretAccessKey: **********
+      accessKeyId: ********** // Using settings (optional)
+      secretAccessKey: ********** // Using settings (optional)
       active: true // Rewrites "src" to cloud storage location (optional)
       localStorage: false // Removes all files from archive or local disk (optional)
       uploadAll: true // Include transforms (optional)
       filename: picture1.webp // Bucket filename (optional)
+      settings: main // Load host configuration at instantiation (optional)
 ```
 
 Inline commands are not supported. Serving CSS files from cloud storage or CDN requires every image inside the file to be hosted with an absolute URL.
@@ -432,8 +433,7 @@ squared
                     service: 's3',
                     bucket: 'squared-001',
                     active: true,
-                    accessKeyId: '**********',
-                    secretAccessKey: '**********'
+                    settings: 'main'
                 }]
             }
         }

@@ -1,5 +1,6 @@
 import type { Response } from 'express';
 import type * as aws from 'aws-sdk';
+import type { ConfigurationOptions } from 'aws-sdk/lib/core';
 
 import child_process = require('child_process');
 import path = require('path');
@@ -15,16 +16,21 @@ import Compress from '../compress';
 import Image from '../image';
 import Chrome from '../chrome';
 
-type DataMap = functions.chrome.DataMap;
+type awsS3 = Constructor<aws.S3>;
 
 type Settings = functions.Settings;
 type ExternalAsset = functions.ExternalAsset;
 type IFileManager = functions.IFileManager;
 
-type FileData = functions.internal.FileData;
-type FileOutput = functions.internal.FileOutput;
 type CompressFormat = functions.squared.CompressFormat;
 type CloudService = functions.chrome.CloudService;
+type DataMap = functions.chrome.DataMap;
+
+type FileData = functions.internal.FileData;
+type FileOutput = functions.internal.FileOutput;
+type CloudModule = functions.internal.settings.CloudModule;
+type GulpModule = functions.internal.settings.GulpModule;
+type ChromeModule = functions.internal.settings.ChromeModule;
 
 interface GulpData {
     gulpfile: string;
@@ -39,7 +45,7 @@ interface GulpTask {
 
 const FileManager = class extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {
-        const { gzip_level, brotli_quality, tinypng_api_key, chrome } = value;
+        const { gzip_level, brotli_quality, tinypng_api_key } = value;
         const gzip = +(gzip_level as string);
         const brotli = +(brotli_quality as string);
         if (!isNaN(gzip)) {
@@ -63,9 +69,6 @@ const FileManager = class extends Module implements IFileManager {
             if (unc_write === true || unc_write === 'true') {
                 Node.enableUNCWrite();
             }
-        }
-        if (chrome) {
-            Chrome.modules = chrome;
         }
     }
 
@@ -122,7 +125,8 @@ const FileManager = class extends Module implements IFileManager {
     public cleared = false;
     public emptyDirectory = false;
     public productionRelease = false;
-    public Gulp?: StringMap;
+    public Cloud: CloudModule = {};
+    public Gulp?: GulpModule;
     public basePath?: string;
     public readonly files = new Set<string>();
     public readonly filesQueued = new Set<string>();
@@ -154,13 +158,19 @@ const FileManager = class extends Module implements IFileManager {
         });
     }
 
-    install(name: string, ...args: any[]) {
-        switch (name) {
-            case 'gulp':
-                if (typeof args[0] === 'object') {
-                    this.Gulp = args[0] as StringMap;
-                }
-                break;
+    install(name: string, ...args: unknown[]) {
+        if (typeof args[0] === 'object') {
+            switch (name) {
+                case 'cloud':
+                    this.Cloud = args[0] as CloudModule;
+                    break;
+                case 'gulp':
+                    this.Gulp = args[0] as GulpModule;
+                    break;
+                case 'chrome':
+                    Chrome.settings = args[0] as ChromeModule;
+                    break;
+            }
         }
     }
     add(value: string, parent?: ExternalAsset) {
@@ -1491,7 +1501,9 @@ const FileManager = class extends Module implements IFileManager {
         const cloudCssMap: StringMap = {};
         const localStorage = new Map<ExternalAsset, CloudService>();
         const cssFiles: ExternalAsset[] = [];
-        let modifiedHtml: Undef<boolean>;
+        const cloudSettings = this.Cloud;
+        let S3: Undef<awsS3>,
+            modifiedHtml: Undef<boolean>;
         const uploadFiles = (item: ExternalAsset, ContentType?: string) => {
             const cloudMain = this.getCloudService(item.cloudStorage);
             for (const data of item.cloudStorage!) {
@@ -1500,16 +1512,23 @@ const FileManager = class extends Module implements IFileManager {
                         localStorage.set(item, data);
                     }
                     tasks.push(new Promise(resolve => {
+                        const service = data.service;
                         try {
                             const files = [item.fileUri!];
                             if (item.transforms && data.uploadAll) {
                                 files.push(...item.transforms);
                             }
+                            const settings = cloudSettings[service];
+                            const config: ConfigurationOptions = {};
+                            if (settings && data.settings) {
+                                Object.assign(config, settings[data.settings]);
+                            }
+                            Object.assign(config, data);
                             const upload: Promise<string>[] = [];
-                            switch (data.service) {
+                            switch (service) {
                                 case 's3': {
-                                    const S3 = require('aws-sdk/clients/s3');
-                                    const s3 = new S3(data) as aws.S3;
+                                    S3 ||= require('aws-sdk/clients/s3') as awsS3;
+                                    const s3 = new S3(config);
                                     for (let i = 0, length = files.length; i < length; ++i) {
                                         const fileUri = files[i];
                                         if (i === 0 || this.has(fileUri)) {
@@ -1523,7 +1542,7 @@ const FileManager = class extends Module implements IFileManager {
                                                         else {
                                                             s3.upload({ Bucket: data.bucket, Key, Body, ContentType }, (error, result) => {
                                                                 if (error) {
-                                                                    this.writeFail(`${data.service}: Upload to cloud service failed (${fileUri})`, error);
+                                                                    this.writeFail(`${service}: Upload to cloud service failed (${fileUri})`, error);
                                                                     success('');
                                                                 }
                                                                 else {
@@ -1562,7 +1581,7 @@ const FileManager = class extends Module implements IFileManager {
                         }
                         catch (err) {
                             let message: Undef<string>;
-                            switch (data.service) {
+                            switch (service) {
                                 case 's3':
                                     message = 'Install AWS? [npm i aws-sdk]';
                                     break;

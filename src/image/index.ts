@@ -14,12 +14,12 @@ type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTask
 type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
 type FileManagerWriteImageCallback = functions.FileManagerWriteImageCallback;
 
-type ImageUsingOptions = functions.internal.ImageUsingOptions;
 type FileData = functions.internal.FileData;
-type ResizeData = functions.internal.ResizeData;
-type CropData = functions.internal.CropData;
-type RotateData = functions.internal.RotateData;
-type QualityData = functions.internal.QualityData;
+type ImageUsingOptions = functions.internal.image.UsingOptions;
+type ResizeData = functions.internal.image.ResizeData;
+type CropData = functions.internal.image.CropData;
+type RotateData = functions.internal.image.RotateData;
+type QualityData = functions.internal.image.QualityData;
 
 const REGEXP_RESIZE = /\(\s*(\d+|auto)\s*x\s*(\d+|auto)(?:\s*\[\s*(bilinear|bicubic|hermite|bezier)\s*\])?(?:\s*^\s*(contain|cover|scale)(?:\s*\[\s*(left|center|right)?(?:\s*\|?\s*(top|middle|bottom))?\s*\])?)?(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\)/;
 const REGEXP_CROP = /\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*\|\s*(\d+)\s*x\s*(\d+)\s*\)/;
