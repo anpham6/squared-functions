@@ -397,9 +397,13 @@ Here is the equivalent page using only inline commands with "data-chrome-file" a
 Manual installation of the SDK is required and an account with a cloud storage provider.
 
 ```xml
-* Amazon S3
+* Amazon AWS
   - npm install aws-sdk
-  - AWS Free Tier: https://aws.amazon.com/free (5GB)
+  - S3: https://aws.amazon.com/free (5GB)
+
+* Microsoft
+  - npm install @azure/storage-blob
+  - Azure: https://azure.microsoft.com/en-us/free (5GB)
 ```
 
 Other providers will be integrated similarly except for credential verification.
@@ -419,6 +423,10 @@ Other providers will be integrated similarly except for credential verification.
       uploadAll: true // Include transforms (optional)
       filename: picture1.webp // Bucket filename (optional)
       settings: main // Load host configuration at instantiation (optional)
+    - service: azure
+      container: squared-002
+      accountName: **********
+      accountKey: **********
 ```
 
 Inline commands are not supported. Serving CSS files from cloud storage or CDN requires every image inside the file to be hosted with an absolute URL.

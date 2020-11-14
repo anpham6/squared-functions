@@ -22,5 +22,27 @@ export default [
             banner: `/* @squared-functions/cloud/s3-client ${version}\n   https://github.com/anpham6/squared-functions */\n`
         },
         plugins: []
+    },
+    {
+        input: './build/cloud/azure-upload/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/cloud/azure-upload/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/cloud/azure-upload ${version}\n   https://github.com/anpham6/squared-functions */\n`
+        },
+        plugins: []
+    },
+    {
+        input: './build/cloud/azure-client/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/cloud/azure-client/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/cloud/azure-client ${version}\n   https://github.com/anpham6/squared-functions */\n`
+        },
+        plugins: []
     }
 ];

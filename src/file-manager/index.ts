@@ -28,7 +28,7 @@ type DataMap = functions.chrome.DataMap;
 
 type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
-type CloudUploadOptions = functions.external.CloudUploadOptions;
+type CloudServiceUpload = functions.external.CloudServiceUpload;
 
 type CompressModule = functions.settings.CompressModule;
 type CloudModule = functions.settings.CloudModule;
@@ -45,6 +45,8 @@ interface GulpTask {
     origDir: string;
     data: GulpData;
 }
+
+const cloudUploadMap: ObjectMap<CloudServiceUpload> = {};
 
 const FileManager = class extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {
@@ -1527,19 +1529,18 @@ const FileManager = class extends Module implements IFileManager {
                         tasks.push(new Promise(resolve => {
                             const service = data.service;
                             const settings = cloudSettings[service];
-                            const config = {};
+                            const config = {} as CloudService;
                             if (settings && data.settings) {
                                 Object.assign(config, settings[data.settings]);
                             }
                             Object.assign(config, data);
-                            let uploadHandler: Undef<(...args: unknown[]) => void>;
                             try {
-                                uploadHandler = require(`../cloud/${service}-upload`)(this, config);
+                                cloudUploadMap[service] ||= require(`../cloud/${service}-upload`)(this, config);
                             }
                             catch (err) {
                                 this.writeFail(`Unable to load cloud/${service}`, err);
                             }
-                            if (!uploadHandler) {
+                            if (!cloudUploadMap[service]) {
                                 resolve();
                                 return;
                             }
@@ -1555,7 +1556,8 @@ const FileManager = class extends Module implements IFileManager {
                                                     success('');
                                                 }
                                                 else {
-                                                    uploadHandler!(buffer, success, { service: config, fileUri, fileIndex: i, mimeType } as CloudUploadOptions);
+                                                    const filename = i === 0 && config.filename || (uuid.v4() + path.extname(fileUri));
+                                                    cloudUploadMap[service](buffer, success, { config, fileUri, filename, mimeType });
                                                 }
                                             });
                                         })

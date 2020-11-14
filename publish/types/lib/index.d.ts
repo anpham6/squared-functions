@@ -65,7 +65,6 @@ declare namespace functions {
 
         interface CloudService {
             service: string;
-            bucket: string;
             active?: boolean;
             localStorage?: boolean;
             uploadAll?: boolean;
@@ -155,13 +154,14 @@ declare namespace functions {
 
     namespace external {
         interface CloudUploadOptions {
-            service: chrome.CloudService;
+            config: chrome.CloudService;
+            filename: string;
             fileUri: string;
-            fileIndex: number;
             mimeType?: string;
         }
 
         type CloudServiceClient = (data: chrome.CloudService, settings: StandardMap) => boolean;
+        type CloudServiceUpload = (buffer: Buffer, success: (value?: unknown) => void, options: CloudUploadOptions) => void;
     }
 
     namespace settings {
