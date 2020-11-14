@@ -22,6 +22,7 @@ type IFileManager = functions.IFileManager;
 type IChrome = functions.IChrome;
 type ICloud = functions.ICloud;
 
+type FilePostResult = functions.squared.FilePostResult;
 type CompressFormat = functions.squared.CompressFormat;
 type CloudService = functions.chrome.CloudService;
 type DataMap = functions.chrome.DataMap;
@@ -104,14 +105,14 @@ const FileManager = class extends Module implements IFileManager {
         if (Node.isDirectoryUNC(dirname)) {
             if (!Node.canWriteUNC()) {
                 if (res) {
-                    res.json({ application: 'OPTION: --unc-write', system: 'Writing to UNC shares is not enabled.' });
+                    res.json({ success: false, error: { hint: 'OPTION: --unc-write', message: 'Writing to UNC shares is not enabled.' } } as FilePostResult);
                 }
                 return false;
             }
         }
         else if (!Node.canWriteDisk()) {
             if (res) {
-                res.json({ application: 'OPTION: --disk-write', system: 'Writing to disk is not enabled.' });
+                res.json({ success: false, error: { hint: 'OPTION: --disk-write', message: 'Writing to disk is not enabled.' } } as FilePostResult);
             }
             return false;
         }
@@ -123,9 +124,9 @@ const FileManager = class extends Module implements IFileManager {
                 throw new Error('Root is not a directory.');
             }
         }
-        catch (system) {
+        catch (message) {
             if (res) {
-                res.json({ application: `DIRECTORY: ${dirname}`, system });
+                res.json({ success: false, error: { hint: `DIRECTORY: ${dirname}`, message } } as FilePostResult);
             }
             return false;
         }
@@ -142,6 +143,7 @@ const FileManager = class extends Module implements IFileManager {
     public Cloud?: ICloud;
     public Gulp?: GulpModule;
     public basePath?: string;
+    public baseAsset?: ExternalAsset;
     public readonly assets: ExternalAsset[];
     public readonly files = new Set<string>();
     public readonly filesQueued = new Set<string>();
@@ -150,7 +152,6 @@ const FileManager = class extends Module implements IFileManager {
     public readonly contentToAppend = new Map<string, string[]>();
     public readonly postFinalize: FunctionType<void>;
     public readonly dataMap: DataMap;
-    public readonly baseAsset?: ExternalAsset;
 
     constructor(
         public readonly dirname: string,
@@ -160,18 +161,7 @@ const FileManager = class extends Module implements IFileManager {
         super();
         this.assets = body.assets;
         this.dataMap = body.dataMap || {};
-        this.baseAsset = this.assets.find(item => item.basePath);
-        this.basePath = this.baseAsset?.basePath;
         this.postFinalize = postFinalize.bind(this);
-        this.assets.sort((a, b) => {
-            if (a === this.baseAsset) {
-                return 1;
-            }
-            if (b === this.baseAsset) {
-                return -1;
-            }
-            return 0;
-        });
     }
 
     install(name: string, ...args: unknown[]) {
@@ -187,10 +177,25 @@ const FileManager = class extends Module implements IFileManager {
                 case 'gulp':
                     this.Gulp = args[0] as GulpModule;
                     break;
-                case 'chrome':
+                case 'chrome': {
+                    const baseAsset = this.assets.find(item => item.basePath);
+                    if (baseAsset) {
+                        this.baseAsset = baseAsset;
+                        this.basePath = baseAsset.basePath;
+                        this.assets.sort((a, b) => {
+                            if (a === baseAsset) {
+                                return 1;
+                            }
+                            if (b === baseAsset) {
+                                return -1;
+                            }
+                            return 0;
+                        });
+                    }
                     Chrome.settings = args[0] as ChromeModule;
                     this.Chrome = Chrome;
                     break;
+                }
             }
         }
     }
@@ -1676,10 +1681,12 @@ const FileManager = class extends Module implements IFileManager {
                 await Promise.all(tasks).catch(err => this.writeFail('Finalize: Delete cloud temp files', err));
                 tasks = [];
                 for (const value of Array.from(emptyDir).reverse()) {
-                    tasks.push(fs.rmdir(value).catch(() => true));
+                    try {
+                        fs.rmdirSync(value);
+                    }
+                    catch {
+                    }
                 }
-                await Promise.all(tasks).catch(err => this.writeFail('Finalize: Delete empty directories', err));
-                tasks = [];
             }
         }
         if (this.Compress) {

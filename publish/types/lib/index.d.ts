@@ -37,13 +37,15 @@ declare namespace functions {
             condition?: string;
         }
 
-        interface ResultOfFileAction {
+        interface FilePostResult {
             success: boolean;
             zipname?: string;
             bytes?: number;
             files?: string[];
-            application?: string;
-            system?: string;
+            error?: {
+                message: string;
+                hint?: string;
+            };
         }
     }
 
@@ -320,6 +322,8 @@ declare namespace functions {
         moduleNode(): INode;
         moduleCompress(): ICompress;
         moduleImage(): IImage;
+        moduleChrome(): IChrome;
+        moduleCloud(): ICloud;
         new(dirname: string, body: RequestBody, postFinalize: FunctionType<void>, productionRelease?: boolean): IFileManager;
     }
 
@@ -334,7 +338,7 @@ declare namespace functions {
         replaceExtension(value: string, ext: string): string;
         getTempDir(): string;
         writeMessage(value: string, message: unknown, title?: string, color?: "green" | "yellow" | "blue" | "white" | "grey"): void;
-        writeFail(description: string, message: unknown): void;
+        writeFail(value: string, message: unknown): void;
     }
 
     interface ModuleConstructor {
