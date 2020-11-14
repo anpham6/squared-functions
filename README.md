@@ -218,7 +218,7 @@ You can use images commands with saveTo (directory) on any element when the imag
 
 ### Built-In plugins
 
-JS and CSS files can be optimized further using these settings (node-express):
+JS and CSS files can be optimized further using these settings:
 
 * beautify
 * minify
@@ -427,6 +427,7 @@ Other providers will be integrated similarly except for credential verification.
       container: squared-002
       accountName: **********
       accountKey: **********
+      endpoint: "http://squaredjs.azureedge.net/squared-002" // CDN endpoint (optional)
 ```
 
 Inline commands are not supported. Serving CSS files from cloud storage or CDN requires every image inside the file to be hosted with an absolute URL.

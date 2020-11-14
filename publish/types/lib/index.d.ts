@@ -69,6 +69,7 @@ declare namespace functions {
             localStorage?: boolean;
             uploadAll?: boolean;
             filename?: string;
+            endpoint?: string;
             settings?: string;
             [key: string]: Undef<unknown>;
         }

@@ -22,8 +22,9 @@ const uploadHandlerS3 = (manager: IFileManager, config: StandardMap) => {
                 success('');
             }
             else {
-                manager.writeMessage('Upload', result.Location, 's3');
-                success(result.Location);
+                const url = config.endpoint ? config.endpoint.replace(/\/*$/, '') + '/' + options.filename : result.Location;
+                manager.writeMessage('Upload', url, 's3');
+                success(url);
             }
         });
     };

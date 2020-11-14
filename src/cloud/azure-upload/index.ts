@@ -23,7 +23,7 @@ const uploadHandlerAzure = (manager: IFileManager, config: AzureCloudService) =>
         const blob = container.getBlockBlobClient(options.filename);
         blob.upload(buffer, buffer.byteLength, { blobHTTPHeaders: { blobContentType: options.mimeType } })
             .then(() => {
-                const url = `https://${config.accountName}.blob.core.windows.net/${config.container}/${options.filename}`;
+                const url = (config.endpoint ? config.endpoint.replace(/\/*$/, '') : `https://${config.accountName}.blob.core.windows.net/${config.container}`) + '/' + options.filename;
                 manager.writeMessage('Upload', url, 'Azure');
                 success(url);
             })
