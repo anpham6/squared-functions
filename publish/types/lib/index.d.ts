@@ -1,9 +1,11 @@
 /// <reference path="type.d.ts" />
 
-import type * as awsCore from 'aws-sdk/lib/core';
 import type { Response } from 'express';
 import type { CorsOptions } from 'cors';
 import type { WriteStream } from 'fs';
+
+import type { ConfigurationOptions } from 'aws-sdk/lib/core';
+import type { GoogleAuthOptions } from 'google-auth-library';
 
 declare namespace functions {
     type BoolString = boolean | string;
@@ -161,7 +163,13 @@ declare namespace functions {
             mimeType?: string;
         }
 
+        interface StorageSharedKeyCredential {
+            accountName: string;
+            accountKey: string;
+        }
+
         type CloudServiceClient = (data: chrome.CloudService, settings: StandardMap) => boolean;
+        type CloudServiceHost = (this: IFileManager, config: chrome.CloudService) => CloudServiceUpload;
         type CloudServiceUpload = (buffer: Buffer, success: (value?: unknown) => void, options: CloudUploadOptions) => void;
     }
 
@@ -174,7 +182,13 @@ declare namespace functions {
 
         interface CloudModule {
             s3?: {
-                [key: string]: awsCore.ConfigurationOptions;
+                [key: string]: ConfigurationOptions;
+            };
+            azure?: {
+                [key: string]: external.StorageSharedKeyCredential;
+            };
+            gcs?: {
+                [key: string]: GoogleAuthOptions;
             };
         }
 
