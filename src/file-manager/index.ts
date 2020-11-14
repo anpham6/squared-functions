@@ -474,7 +474,8 @@ const FileManager = class extends Module implements IFileManager {
             else {
                 const asset = this.findAsset(url);
                 if (asset) {
-                    const count = file.pathname !== '/' && !file.basePath ? file.pathname.split(/[\\/]/).length : 0;
+                    const pathname = file.pathname;
+                    const count = pathname && pathname !== '/' && !file.basePath ? pathname.split(/[\\/]/).length : 0;
                     output = (output || source).replace(match[0], `url(${getCloudUUID(asset, (count ? '../'.repeat(count) : '') + this.getFileUri(asset))})`);
                 }
             }
@@ -1653,11 +1654,28 @@ const FileManager = class extends Module implements IFileManager {
                     fs.writeFileSync(content.fileUri!, sourceUTF8, 'utf8');
                 }
             }
+            const emptyDir = new Set<string>();
             for (const [item, data] of localStorage) {
-                tasks.push(...getFiles(item, data).map(value => fs.unlink(value).then(() => this.delete(value)).catch(() => this.delete(value))));
+                tasks.push(
+                    ...getFiles(item, data).map(value => fs.unlink(value)
+                        .then(() => {
+                            let dir = this.dirname;
+                            for (const seg of path.dirname(value).substring(this.dirname.length + 1).split(/[\\/]/)) {
+                                dir += path.sep + seg;
+                                emptyDir.add(dir);
+                            }
+                            this.delete(value);
+                        })
+                        .catch(() => this.delete(value)))
+                );
             }
             if (tasks.length) {
                 await Promise.all(tasks).catch(err => this.writeFail('Finalize: Delete cloud temp files', err));
+                tasks = [];
+                for (const value of Array.from(emptyDir).reverse()) {
+                    tasks.push(fs.rmdir(value).catch(() => true));
+                }
+                await Promise.all(tasks).catch(err => this.writeFail('Finalize: Delete empty directories', err));
                 tasks = [];
             }
         }

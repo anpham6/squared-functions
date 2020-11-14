@@ -404,11 +404,17 @@ Manual installation of the SDK is required and an account with a cloud storage p
 * Microsoft
   - npm install @azure/storage-blob
   - Azure: https://azure.microsoft.com/en-us/free (5GB)
+
+* Google
+  - npm install @google-cloud/storage
+  - GCS: https://cloud.google.com/free (5GB)
 ```
 
 Other providers will be integrated similarly except for credential verification.
 
 ```javascript
+// NOTE: Optional fields are supported by all services
+
 - selector: #picture1
   type: image
   commands:
@@ -422,12 +428,15 @@ Other providers will be integrated similarly except for credential verification.
       localStorage: false // Removes all files from archive or local disk (optional)
       uploadAll: true // Include transforms (optional)
       filename: picture1.webp // Bucket filename (optional)
-      settings: main // Load host configuration at instantiation (optional)
     - service: azure
       container: squared-002
       accountName: **********
       accountKey: **********
-      endpoint: "http://squaredjs.azureedge.net/squared-002" // CDN endpoint (optional)
+      apiEndpoint: "http://squaredjs.azureedge.net/squared-002" // e.g. CDN (optional)
+    - service: gcs
+      bucket: squared-003
+      keyFilename: ********** // Path to JSON credentials
+      settings: main // Load host configuration at instantiation (optional)
 ```
 
 Inline commands are not supported. Serving CSS files from cloud storage or CDN requires every image inside the file to be hosted with an absolute URL.
@@ -458,7 +467,7 @@ squared.saveAs('index.zip', {
     productionRelease: false, // Ignore local url rewriting and load assets using absolute paths
     preserveCrossOrigin: false, // Ignore downloading a local copy of assets hosted on other domains
 
-    // All attributes are optional
+    // All attributes are optional except "filename" for <script> and <link>.
     saveAs: {
         html: { filename: 'index.html', format: 'beautify', attributes: [{ name: 'lang', value: 'en' }] },
         script: { pathname: '../js', filename: 'bundle.js', format: 'es5+es5-minify' },
@@ -468,6 +477,8 @@ squared.saveAs('index.zip', {
     }
 }); 
 ```
+
+Setting the active cloud storage filename to a JS/CSS bundle will have no effect since it is possible more than one bundle will be created.
 
 ### Asset exclusion
 

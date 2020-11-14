@@ -1,8 +1,6 @@
 import type * as awsCore from 'aws-sdk/lib/core';
 
-type CloudService = functions.chrome.CloudService;
-
-export interface S3CloudService extends CloudService, awsCore.ConfigurationOptions {
+export interface S3CloudService extends functions.chrome.CloudService, awsCore.ConfigurationOptions {
     bucket: string;
 }
 

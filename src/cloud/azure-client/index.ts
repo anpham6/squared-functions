@@ -1,11 +1,9 @@
-type CloudService = functions.chrome.CloudService;
-
-export interface StorageSharedKeyCredential {
+interface StorageSharedKeyCredential {
     accountName: string;
     accountKey: string;
 }
 
-export interface AzureCloudService extends CloudService, StorageSharedKeyCredential {
+export interface AzureCloudService extends functions.chrome.CloudService, StorageSharedKeyCredential {
     container: string;
 }
 
