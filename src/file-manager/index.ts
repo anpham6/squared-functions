@@ -226,6 +226,7 @@ const FileManager = class extends Module implements IFileManager {
                 file.originalName ||= file.filename;
                 file.filename = path.basename(replaceWith);
                 file.fileUri = this.getFileOutput(file).fileUri;
+                file.mimeType = mime.lookup(replaceWith) || file.mimeType;
                 this.filesToRemove.add(fileUri);
                 this.add(replaceWith);
             }
@@ -954,17 +955,13 @@ const FileManager = class extends Module implements IFileManager {
                     this.writeBuffer({ file, fileUri });
                     return true;
                 }
-                else {
-                    const queue = processing[fileUri];
-                    if (queue) {
-                        this.performAsyncTask();
-                        queue.push(file);
-                        return true;
-                    }
-                    else {
-                        processing[fileUri] = [file];
-                    }
+                const queue = processing[fileUri];
+                if (queue) {
+                    this.performAsyncTask();
+                    queue.push(file);
+                    return true;
                 }
+                processing[fileUri] = [file];
             }
             return false;
         };
@@ -1529,6 +1526,9 @@ const FileManager = class extends Module implements IFileManager {
                     if (Cloud.hasService(data)) {
                         if (data === cloudMain && data.localStorage === false) {
                             localStorage.set(item, data);
+                        }
+                        if (!mimeType) {
+                            mimeType = item.mimeType;
                         }
                         tasks.push(new Promise(resolve => {
                             const service = data.service;
