@@ -1,7 +1,7 @@
 import type * as aws from 'aws-sdk';
 import type * as awsCore from 'aws-sdk/lib/core';
 
-import type { S3CloudService } from '../s3-client';
+import type { S3CloudService } from '../index';
 
 type IFileManager = functions.IFileManager;
 

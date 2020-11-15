@@ -293,32 +293,22 @@ const FileManager = class extends Module implements IFileManager {
         return { pathname, fileUri };
     }
     getRelativeUri(file: ExternalAsset, uri: string) {
-        let asset = this.findAsset(uri),
-            origin = file.uri;
-        if (!asset && origin) {
+        const origin = file.uri!;
+        let asset = this.findAsset(uri);
+        if (!asset) {
             const location = Node.resolvePath(uri, origin);
             if (location) {
                 asset = this.findAsset(location);
             }
         }
-        if (asset && asset.uri) {
-            const { serverRoot, baseAsset } = this;
-            if (baseAsset) {
-                origin = Node.resolvePath(path.join(file.moveTo !== serverRoot && file.rootDir || '', file.pathname, file.filename), baseAsset.uri!);
-            }
-            if (origin && Node.fromSameOrigin(origin, asset.uri)) {
+        const { baseAsset, serverRoot } = this;
+        const baseDir = (file.rootDir || '') + file.pathname;
+        if (asset) {
+            if (Node.fromSameOrigin(origin, asset.uri!)) {
                 const rootDir = asset.rootDir;
-                const baseDir = (file.rootDir || '') + file.pathname;
                 if (asset.moveTo === serverRoot) {
                     if (file.moveTo === serverRoot) {
                         return Node.toPosixPath(path.join(asset.pathname, asset.filename));
-                    }
-                    else if (baseAsset) {
-                        const mainUri = baseAsset.uri!;
-                        if (Node.fromSameOrigin(origin, mainUri)) {
-                            const [originDir] = this.getRootDirectory(baseDir + '/' + file.filename, Node.parsePath(mainUri)!);
-                            return '../'.repeat(originDir.length - 1) + this.getFileUri(asset);
-                        }
                     }
                 }
                 else if (rootDir) {
@@ -330,9 +320,13 @@ const FileManager = class extends Module implements IFileManager {
                     }
                 }
                 else {
-                    const [originDir, uriDir] = this.getRootDirectory(Node.parsePath(origin)!, Node.parsePath(asset.uri)!);
+                    const [originDir, uriDir] = this.getRootDirectory(Node.parsePath(origin)!, Node.parsePath(asset.uri!)!);
                     return '../'.repeat(originDir.length - 1) + uriDir.join('/');
                 }
+            }
+            if (baseAsset && Node.fromSameOrigin(origin, baseAsset.uri!)) {
+                const [originDir] = this.getRootDirectory(baseDir + '/' + file.filename, Node.parsePath(baseAsset.uri!)!);
+                return '../'.repeat(originDir.length - 1) + this.getFileUri(asset);
             }
         }
     }
@@ -361,12 +355,10 @@ const FileManager = class extends Module implements IFileManager {
         const { mimeType, format } = file;
         if (mimeType) {
             if (mimeType.endsWith('text/css')) {
-                if (!file.preserve) {
-                    if (this.dataMap.unusedStyles) {
-                        const result = Chrome.removeCss(content, this.dataMap.unusedStyles);
-                        if (result) {
-                            content = result;
-                        }
+                if (!file.preserve && this.dataMap.unusedStyles) {
+                    const result = Chrome.removeCss(content, this.dataMap.unusedStyles);
+                    if (result) {
+                        content = result;
                     }
                 }
                 if (mimeType[0] === '@') {
@@ -492,9 +484,6 @@ const FileManager = class extends Module implements IFileManager {
     async transformBuffer(data: FileData) {
         const { file, fileUri } = data;
         const { format, mimeType } = file;
-        if (!mimeType || mimeType[0] === '&') {
-            return;
-        }
         switch (mimeType) {
             case '@text/html': {
                 const minifySpace = (value: string) => value.replace(/(\s+|\/)/g, '');
@@ -814,7 +803,7 @@ const FileManager = class extends Module implements IFileManager {
                 break;
             }
             default:
-                if (mimeType.startsWith('image/')) {
+                if (mimeType && mimeType.startsWith('image/')) {
                     let compress = Compress.hasImageService() ? Compress.findFormat(file.compress, 'png') : undefined;
                     if (compress && !Compress.withinSizeRange(fileUri, compress.condition)) {
                         compress = undefined;
@@ -1330,7 +1319,6 @@ const FileManager = class extends Module implements IFileManager {
                     switch (item.mimeType) {
                         case '@text/html':
                         case '@text/css':
-                        case '&text/css':
                             if (item.sourceUTF8 || item.buffer) {
                                 replaceContent(item, this.getUTF8String(item));
                             }
@@ -1540,11 +1528,11 @@ const FileManager = class extends Module implements IFileManager {
                             Object.assign(config, data);
                             let uploadHandler: Undef<CloudServiceUpload>;
                             try {
-                                cloudUploadHostMap[service] ||= require(`../cloud/${service}-upload`);
+                                cloudUploadHostMap[service] ||= require(`../cloud/${service}/upload`);
                                 uploadHandler = cloudUploadHostMap[service].call(this, config);
                             }
                             catch (err) {
-                                this.writeFail(`Unable to load cloud/${service}`, err);
+                                this.writeFail(`${service} does not support upload function.`, err);
                             }
                             if (typeof uploadHandler !== 'function') {
                                 resolve();
@@ -1606,7 +1594,6 @@ const FileManager = class extends Module implements IFileManager {
                             htmlFiles.push(item);
                             break;
                         case '@text/css':
-                        case '&text/css':
                             cssFiles.push(item);
                             break;
                         default:

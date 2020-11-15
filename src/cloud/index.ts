@@ -26,7 +26,7 @@ const Cloud = new class extends Module implements functions.ICloud {
         const service = data.service && data.service.trim();
         const settings = data.settings && cloud[service] ? cloud[service][data.settings] : {};
         try {
-            return (serviceMap[service] ||= require(`../cloud/${service}-client`) as CloudServiceClient)(data, settings);
+            return (serviceMap[service] ||= require(`../cloud/${service}`) as CloudServiceClient)(data, settings);
         }
         catch {
         }

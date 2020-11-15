@@ -1,4 +1,4 @@
-import type { AzureCloudService } from '../azure-client';
+import type { AzureCloudService } from '../index';
 import type * as azure from '@azure/storage-blob';
 
 type IFileManager = functions.IFileManager;

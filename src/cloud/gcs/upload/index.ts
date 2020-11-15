@@ -1,4 +1,4 @@
-import type { GCSCloudService } from '../gcs-client';
+import type { GCSCloudService } from '../index';
 import type * as gcs from '@google-cloud/storage';
 
 import path = require('path');
