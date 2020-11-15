@@ -387,12 +387,12 @@ const FileManager = class extends Module implements IFileManager {
             content += trailing;
         }
         if (bundleIndex === 0) {
-            return Promise.resolve(content);
+            return content;
         }
         const items = this.contentToAppend.get(fileUri) || [];
         items[bundleIndex - 1] = content;
         this.contentToAppend.set(fileUri, items);
-        return Promise.resolve('');
+        return '';
     }
     async getTrailingContent(file: ExternalAsset) {
         const trailingContent = file.trailingContent;
@@ -427,7 +427,7 @@ const FileManager = class extends Module implements IFileManager {
                 output += '\n' + value;
             }
         }
-        return Promise.resolve(output);
+        return output;
     }
     transformCss(file: ExternalAsset, source: string) {
         const getCloudUUID = (item: Undef<ExternalAsset>, url: string) => item && Cloud.getService(item.cloudStorage) ? item.inlineCssCloud ||= uuid.v4() : url;
@@ -492,7 +492,7 @@ const FileManager = class extends Module implements IFileManager {
         const { file, fileUri } = data;
         const { format, mimeType } = file;
         if (!mimeType || mimeType[0] === '&') {
-            return Promise.resolve();
+            return;
         }
         switch (mimeType) {
             case '@text/html': {
@@ -727,12 +727,12 @@ const FileManager = class extends Module implements IFileManager {
                     .replace(/\s*<script[^>]*?data-chrome-template="([^"]|\\")+?"[^>]*>[\s\S]*?<\/script>\n*/ig, '')
                     .replace(/\s*<(script|link)[^>]+?data-chrome-file="exclude"[^>]*>\n*/ig, '')
                     .replace(/\s+data-(?:use|chrome-[\w-]+)="([^"]|\\")+?"/g, '');
-                file.sourceUTF8 = format && await Chrome.minifyHtml(format, source, this.dataMap.transpileMap) || source;
+                file.sourceUTF8 = format && await Chrome.transform('html', format, source, this.dataMap.transpileMap) || source;
                 break;
             }
             case 'text/html':
                 if (format) {
-                    const result = await Chrome.minifyHtml(format, this.getUTF8String(file, fileUri), this.dataMap.transpileMap);
+                    const result = await Chrome.transform('html', format, this.getUTF8String(file, fileUri), this.dataMap.transpileMap);
                     if (result) {
                         file.sourceUTF8 = result;
                     }
@@ -764,7 +764,7 @@ const FileManager = class extends Module implements IFileManager {
                     }
                 }
                 if (format) {
-                    const result = await Chrome.minifyCss(format, source || content, this.dataMap.transpileMap);
+                    const result = await Chrome.transform('css', format, source || content, this.dataMap.transpileMap);
                     if (result) {
                         source = result;
                     }
@@ -794,7 +794,7 @@ const FileManager = class extends Module implements IFileManager {
                 const content = this.getUTF8String(file, fileUri);
                 let source: Undef<string>;
                 if (format) {
-                    const result = await Chrome.minifyJs(format, content, this.dataMap.transpileMap);
+                    const result = await Chrome.transform('js', format, content, this.dataMap.transpileMap);
                     if (result) {
                         source = result;
                     }
@@ -832,7 +832,6 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 break;
         }
-        return Promise.resolve();
     }
     newImage(data: FileData, outputType: string, saveAs: string, command = '') {
         const fileUri = data.fileUri;
@@ -934,7 +933,6 @@ const FileManager = class extends Module implements IFileManager {
     async finalizeFile(data: FileData, parent?: ExternalAsset) {
         await this.transformBuffer(data);
         this.completeAsyncTask(data.fileUri, parent);
-        return Promise.resolve();
     }
     processAssets() {
         const emptyDir = new Set<string>();
@@ -1020,7 +1018,6 @@ const FileManager = class extends Module implements IFileManager {
                             else {
                                 queue!.invalid = true;
                             }
-                            return Promise.resolve();
                         };
                         const resumeQueue = () => processQueue(queue!, fileUri, bundleMain);
                         if (queue.content) {

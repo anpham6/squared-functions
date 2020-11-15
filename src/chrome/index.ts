@@ -1,9 +1,5 @@
-import type { Options as PrettierOptions } from 'prettier';
-import type { MergedRollupOptions, OutputAsset, OutputChunk, OutputOptions, RollupBuild } from 'rollup';
-
 import path = require('path');
 import fs = require('fs-extra');
-import uuid = require('uuid');
 
 import Module from '../module';
 
@@ -13,53 +9,12 @@ type ChromeModule = functions.settings.ChromeModule;
 type ConfigOrTranspiler = functions.internal.ConfigOrTranspiler;
 type PluginConfig = functions.internal.PluginConfig;
 
-function setPrettierParser(options: PrettierOptions): PrettierOptions {
-    switch (options.parser) {
-        case 'babel':
-        case 'babel-flow':
-        case 'babel-ts':
-        case 'json':
-        case 'json-5':
-        case 'json-stringify':
-            options.plugins = [require('prettier/parser-babel')];
-            break;
-        case 'css':
-        case 'scss':
-        case 'less':
-            options.plugins = [require('prettier/parser-postcss')];
-            break;
-        case 'flow':
-            options.plugins = [require('prettier/parser-flow')];
-            break;
-        case 'html':
-        case 'angular':
-        case 'lwc':
-        case 'vue':
-            options.plugins = [require('prettier/parser-html')];
-            break;
-        case 'graphql':
-            options.plugins = [require('prettier/parser-graphql')];
-            break;
-        case 'markdown':
-            options.plugins = [require('prettier/parser-markdown')];
-            break;
-        case 'typescript':
-            options.plugins = [require('prettier/parser-typescript')];
-            break;
-        case 'yaml':
-            options.plugins = [require('prettier/parser-yaml')];
-            break;
-        default:
-            options.plugins ||= [];
-            break;
-    }
-    return options;
-}
-
 const validLocalPath = (value: string) => /^\.?\.[\\/]/.test(value);
 
 const Chrome = new class extends Module implements functions.IChrome {
     public settings: ChromeModule = {};
+
+    private _packageMap: ObjectMap<FunctionType<Undef<string>>> = {};
 
     createOptions(value: Undef<ConfigOrTranspiler>): Undef<ConfigOrTranspiler> {
         if (typeof value === 'string') {
@@ -139,51 +94,38 @@ const Chrome = new class extends Module implements functions.IChrome {
         }
         return value || {};
     }
-    async minifyHtml(format: string, value: string, transpileMap?: TranspileMap) {
-        const html = this.settings.html;
-        if (html) {
+    async transform(type: ExternalCategory, format: string, value: string, transpileMap?: TranspileMap) {
+        const data = this.settings[type];
+        if (data) {
             let valid: Undef<boolean>;
             const formatters = format.split('+');
             for (let i = 0, length = formatters.length; i < length; ++i) {
-                const [name, custom, config] = this.findTranspiler(html, formatters[i].trim(), 'html', transpileMap);
+                const [name, custom, config] = this.findTranspiler(data, formatters[i].trim(), type, transpileMap);
                 if (name) {
                     try {
                         if (typeof custom === 'function') {
                             const result = custom(require(name), value, config);
                             if (result && typeof result === 'string') {
                                 if (i === length - 1) {
-                                    return Promise.resolve(result);
+                                    return result;
                                 }
                                 value = result;
                                 valid = true;
                             }
                         }
                         else {
-                            const options = typeof custom === 'object' ? { ...custom } : typeof config === 'object' ? config : {};
-                            switch (name) {
-                                case 'prettier': {
-                                    const result: Undef<string> = require('prettier').format(value, setPrettierParser(options));
-                                    if (result) {
-                                        if (i === length - 1) {
-                                            return Promise.resolve(result);
-                                        }
-                                        value = result;
-                                        valid = true;
-                                    }
-                                    break;
+                            this._packageMap[name] ||= require(`./packages/${name}`).default;
+                            const result: Undef<string> = await this._packageMap[name](
+                                value,
+                                typeof custom === 'object' ? { ...custom } : typeof config === 'object' ? { ...config } : {},
+                                typeof config === 'object' ? { ...config } : config
+                            );
+                            if (result) {
+                                if (i === length - 1) {
+                                    return result;
                                 }
-                                case 'html-minifier':
-                                case 'html-minifier-terser': {
-                                    const result: Undef<string> = require(name).minify(value, options);
-                                    if (result) {
-                                        if (i === length - 1) {
-                                            return Promise.resolve(result);
-                                        }
-                                        value = result;
-                                        valid = true;
-                                    }
-                                    break;
-                                }
+                                value = result;
+                                valid = true;
                             }
                         }
                     }
@@ -193,196 +135,19 @@ const Chrome = new class extends Module implements functions.IChrome {
                 }
             }
             if (valid) {
-                return Promise.resolve(value);
+                return value;
             }
         }
-        return Promise.resolve();
-    }
-    async minifyCss(format: string, value: string, transpileMap?: TranspileMap) {
-        const css = this.settings.css;
-        if (css) {
-            let valid: Undef<boolean>;
-            const formatters = format.split('+');
-            for (let i = 0, length = formatters.length; i < length; ++i) {
-                const [name, custom, config] = this.findTranspiler(css, formatters[i].trim(), 'css', transpileMap);
-                if (name) {
-                    try {
-                        if (typeof custom === 'function') {
-                            const result = custom(require(name), value, config);
-                            if (result && typeof result === 'string') {
-                                if (i === length - 1) {
-                                    return Promise.resolve(result);
-                                }
-                                value = result;
-                                valid = true;
-                            }
-                        }
-                        else {
-                            const options = typeof custom === 'object' ? { ...custom } : typeof config === 'object' ? config : {};
-                            switch (name) {
-                                case 'prettier': {
-                                    const result: Undef<string> = require('prettier').format(value, setPrettierParser(options));
-                                    if (result) {
-                                        if (i === length - 1) {
-                                            return Promise.resolve(result);
-                                        }
-                                        value = result;
-                                        valid = true;
-                                    }
-                                    break;
-                                }
-                                case 'clean-css': {
-                                    const clean_css = require('clean-css');
-                                    const result: Undef<string> = new clean_css(options).minify(value).styles;
-                                    if (result) {
-                                        if (i === length - 1) {
-                                            return Promise.resolve(result);
-                                        }
-                                        value = result;
-                                        valid = true;
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    catch (err) {
-                        this.writeFail(`Install required? [npm i ${name}]`, err);
-                    }
-                }
-            }
-            if (valid) {
-                return Promise.resolve(value);
-            }
-        }
-        return Promise.resolve();
-    }
-    async minifyJs(format: string, value: string, transpileMap?: TranspileMap) {
-        const js = this.settings.js;
-        if (js) {
-            const formatters = format.split('+');
-            let modified: Undef<boolean>;
-            for (let i = 0, length = formatters.length; i < length; ++i) {
-                const [name, custom, config] = this.findTranspiler(js, formatters[i].trim(), 'js', transpileMap);
-                if (name) {
-                    try {
-                        if (typeof custom === 'function') {
-                            const result: Undef<string> = custom(require(name), value, config);
-                            if (result && typeof result === 'string') {
-                                if (i === length - 1) {
-                                    return Promise.resolve(result);
-                                }
-                                value = result;
-                                modified = true;
-                            }
-                        }
-                        else {
-                            const options = typeof custom === 'object' ? { ...custom } : typeof config === 'object' ? config : {};
-                            switch (name) {
-                                case '@babel/core': {
-                                    const result: Undef<string> = require('@babel/core').transformSync(value, options).code;
-                                    if (result) {
-                                        if (i === length - 1) {
-                                            return Promise.resolve(result);
-                                        }
-                                        value = result;
-                                        modified = true;
-                                    }
-                                    break;
-                                }
-                                case 'prettier': {
-                                    const result: Undef<string> = require('prettier').format(value, setPrettierParser(options));
-                                    if (result) {
-                                        if (i === length - 1) {
-                                            return Promise.resolve(result);
-                                        }
-                                        value = result;
-                                        modified = true;
-                                    }
-                                    break;
-                                }
-                                case 'terser':
-                                case 'uglify-js': {
-                                    const terser = require(name);
-                                    const result: Undef<string> = (await terser.minify(value, options)).code;
-                                    if (result) {
-                                        if (i === length - 1) {
-                                            return Promise.resolve(result);
-                                        }
-                                        value = result;
-                                        modified = true;
-                                    }
-                                    break;
-                                }
-                                case 'rollup': {
-                                    const rollup = require('rollup');
-                                    const rollupDir = path.join(process.cwd(), 'temp' + path.sep + 'rollup');
-                                    const inputFile = rollupDir + path.sep + uuid.v4();
-                                    fs.mkdirpSync(rollupDir);
-                                    fs.writeFileSync(inputFile, value);
-                                    let result = '';
-                                    const es: OutputOptions = { format: 'es' };
-                                    const appendOutput = (output: (OutputChunk | OutputAsset)[]) => {
-                                        for (const item of output) {
-                                            if (item.type === 'chunk') {
-                                                result += item.code;
-                                            }
-                                        }
-                                    };
-                                    if (typeof custom === 'string') {
-                                        const fileUri = path.resolve(custom);
-                                        if (fs.existsSync(fileUri)) {
-                                            await require('rollup/dist/loadConfigFile')(fileUri, es)
-                                                .then(async (merged: StandardMap) => {
-                                                    merged.warnings.flush();
-                                                    for (const rollupOptions of merged.options as MergedRollupOptions[]) {
-                                                        rollupOptions.input = inputFile;
-                                                        const bundle = await rollup.rollup(rollupOptions) as RollupBuild;
-                                                        for (const item of rollupOptions.output) {
-                                                            const { output } = await bundle.generate(item);
-                                                            appendOutput(output);
-                                                        }
-                                                    }
-                                                });
-                                        }
-                                    }
-                                    else if (typeof custom === 'object') {
-                                        options.input = inputFile;
-                                        const bundle = await rollup.rollup(options) as RollupBuild;
-                                        const { output } = await bundle.generate(typeof config === 'object' ? Object.assign(config, es) : Object.assign(options, es));
-                                        appendOutput(output);
-                                    }
-                                    if (result) {
-                                        if (i === length - 1) {
-                                            return Promise.resolve(result);
-                                        }
-                                        value = result;
-                                        modified = true;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    catch (err) {
-                        this.writeFail(`Install required? [npm i ${name}]`, err);
-                    }
-                }
-            }
-            if (modified) {
-                return Promise.resolve(value);
-            }
-        }
-        return Promise.resolve();
     }
     formatContent(mimeType: string, format: string, value: string, transpileMap?: TranspileMap) {
         if (mimeType.endsWith('text/html')) {
-            return this.minifyHtml(format, value, transpileMap);
+            return this.transform('html', format, value, transpileMap);
         }
         else if (mimeType.endsWith('text/css')) {
-            return this.minifyCss(format, value, transpileMap);
+            return this.transform('css', format, value, transpileMap);
         }
         else if (mimeType.endsWith('text/javascript')) {
-            return this.minifyJs(format, value, transpileMap);
+            return this.transform('js', format, value, transpileMap);
         }
         return Promise.resolve();
     }

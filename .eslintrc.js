@@ -83,6 +83,7 @@ module.exports = {
         "@typescript-eslint/no-var-requires": "off",
         "@typescript-eslint/prefer-function-type": "off",
         "@typescript-eslint/restrict-plus-operands": "off",
+        "@typescript-eslint/require-await": "off",
         "@typescript-eslint/return-await": "off",
         "@typescript-eslint/triple-slash-reference": "off",
         "@typescript-eslint/consistent-type-assertions": "error",

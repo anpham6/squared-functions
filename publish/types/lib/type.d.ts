@@ -9,6 +9,7 @@ type NumString = number | string;
 
 type StringMap = Record<string, Undef<string>>;
 type StandardMap = Record<string, any>;
+type PlainObject = Record<string | number | symbol, unknown>;
 type ObjectMap<T> = Record<string, T>;
 
 interface Point {

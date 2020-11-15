@@ -253,9 +253,7 @@ declare namespace functions {
         findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory, transpileMap?: chrome.TranspileMap): internal.PluginConfig;
         createTranspiler(value: string): Null<FunctionType<string>>;
         createConfig(value: string): Undef<StandardMap | string>;
-        minifyHtml(format: string, value: string, transpileMap?: chrome.TranspileMap): Promise<Void<string>>;
-        minifyCss(format: string, value: string, transpileMap?: chrome.TranspileMap): Promise<Void<string>>;
-        minifyJs(format: string, value: string, transpileMap?: chrome.TranspileMap): Promise<Void<string>>;
+        transform(type: ExternalCategory, format: string, value: string, transpileMap?: chrome.TranspileMap): Promise<Void<string>>;
         formatContent(mimeType: string, format: string, value: string, transpileMap?: chrome.TranspileMap): Promise<Void<string>>;
         removeCss(source: string, styles: string[]): Undef<string>;
     }
