@@ -234,6 +234,7 @@ You can also define your own optimizations in squared.settings.json:
 * [npm i rollup](https://github.com/rollup/rollup)
 * [npm i terser](https://github.com/terser/terser)
 * [npm i uglify-js](https://github.com/mishoo/UglifyJS)
+* [npm i postcss](https://github.com/postcss/postcss)
 * [npm i prettier](https://github.com/prettier/prettier)
 * [npm i clean-css](https://github.com/jakubpawlowicz/clean-css)
 * [npm i html-minifier-terser](https://github.com/DanielRuf/html-minifier-terser)
@@ -282,6 +283,11 @@ chrome -> html | js | css -> npm package name -> custom name
       }
     },
     "css": {
+      "postcss": {
+        "transform": {
+          "plugins": ["autoprefixer", "cssnano"] // Plugins have be installed with NPM manually
+        }
+      },
       "node-sass": { // npm i node-sass
         "sass-example": "function(context, value) { return context.renderSync({ data: value }, functions: {}); }" // first transpiler in chain
       }
@@ -305,10 +311,16 @@ The same concept can be used inline anywhere using a &lt;script&gt; tag with the
 // "es5-example" is a custom name (chrome -> eval_text_template: true)
 
 <script type="text/template" data-chrome-template="js::@babel/core::es5-example">
-    function (context, value, config /* optional */) {
-        const options = { ...config, presets: ['@babel/preset-env'] };
-        return context.transformSync(value, options).code;
-    }
+  function (context, value, config /* optional */, sourceMap /* optional */) {
+      const options = { presets: ['@babel/preset-env'], sourceMaps: true };
+      const result = context.transformSync(value, options);
+      if (result) {
+          if (result.map && result.map.mappings) {
+              sourceMap.set('babel', { value, map: result.map.mappings });
+          }
+          return result.code;
+      }
+  }
 </script>
 ```
 

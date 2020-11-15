@@ -43,12 +43,6 @@ function setPrettierParser(options: PlainObject) {
     return options;
 }
 
-export default async function (value: string, options: ObjectString, config: ObjectString, outputMap: Map<string, ObjectString>) {
-    if (typeof options === 'object') {
-        const result = context.format(value, setPrettierParser(options));
-        if (result) {
-            outputMap.set('prettier', result);
-            return result;
-        }
-    }
+export default async function (value: string, options: PlainObject) {
+    return context.format(value, setPrettierParser(options));
 }

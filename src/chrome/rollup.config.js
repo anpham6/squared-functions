@@ -40,6 +40,16 @@ export default [
         plugins: []
     },
     {
+        input: './build/chrome/packages/postcss.js',
+        treeshake: false,
+        output: {
+            file: './publish/chrome/packages/postcss.js',
+            format: 'cjs',
+            strict: false
+        },
+        plugins: []
+    },
+    {
         input: './build/chrome/packages/prettier.js',
         treeshake: false,
         output: {

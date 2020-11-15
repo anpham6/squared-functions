@@ -1,9 +1,11 @@
 const context = require('@babel/core');
 
-export default async function (value: string, options: ObjectString, config: ObjectString, outputMap: Map<string, ObjectString>) {
+export default async function (value: string, options: PlainObject, config: ObjectString, sourceMap: Map<string, functions.internal.SourceMapOutput>) {
     const result = context.transform(value, options);
     if (result) {
-        outputMap.set('@babel/core', result);
+        if (result.map && result.map.mappings) {
+            sourceMap.set('babel', { value: result.code, map: result.map.mappings });
+        }
         return result.code;
     }
 }

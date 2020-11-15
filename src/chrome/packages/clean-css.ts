@@ -1,9 +1,11 @@
 const context = require('clean-css');
 
-export default async function (value: string, options: ObjectString, config: ObjectString, outputMap: Map<string, ObjectString>) {
+export default async function (value: string, options: PlainObject, config: ObjectString, sourceMap: Map<string, functions.internal.SourceMapOutput>) {
     const result = new context(options).minify(value);
-    outputMap.set('clean-css', result);
     if (result) {
+        if (result.sourceMap) {
+            sourceMap.set('clean-css', { value: result.styles, map: result.sourceMap.toString() });
+        }
         return result.styles;
     }
 }

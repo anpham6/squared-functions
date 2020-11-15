@@ -6,6 +6,7 @@ import Module from '../module';
 type ExternalCategory = functions.ExternalCategory;
 type TranspileMap = functions.chrome.TranspileMap;
 type ChromeModule = functions.settings.ChromeModule;
+type SourceMapOutput = functions.internal.SourceMapOutput;
 type ConfigOrTranspiler = functions.internal.ConfigOrTranspiler;
 type PluginConfig = functions.internal.PluginConfig;
 
@@ -94,21 +95,21 @@ const Chrome = new class extends Module implements functions.IChrome {
         }
         return value || {};
     }
-    async transform(type: ExternalCategory, format: string, value: string, transpileMap?: TranspileMap) {
+    async transform(type: ExternalCategory, format: string, value: string, transpileMap?: TranspileMap): Promise<Void<[string, Map<string, SourceMapOutput>]>> {
         const data = this.settings[type];
         if (data) {
             let valid: Undef<boolean>;
             const formatters = format.split('+');
-            const outputMap = new Map<string, ObjectString>();
+            const sourceMap = new Map<string, SourceMapOutput>();
             for (let i = 0, length = formatters.length; i < length; ++i) {
                 const [name, custom, config] = this.findTranspiler(data, formatters[i].trim(), type, transpileMap);
                 if (name) {
                     try {
                         if (typeof custom === 'function') {
-                            const result = custom(require(name), value, config, outputMap);
+                            const result = custom(require(name), value, config, sourceMap);
                             if (result && typeof result === 'string') {
                                 if (i === length - 1) {
-                                    return result;
+                                    return [result, sourceMap];
                                 }
                                 value = result;
                                 valid = true;
@@ -120,11 +121,11 @@ const Chrome = new class extends Module implements functions.IChrome {
                                 value,
                                 typeof custom === 'object' ? { ...custom } : !custom && typeof config === 'object' ? { ...config } : custom || {},
                                 typeof config === 'object' ? { ...config } : config,
-                                outputMap
+                                sourceMap
                             );
                             if (result) {
                                 if (i === length - 1) {
-                                    return result;
+                                    return [result, sourceMap];
                                 }
                                 value = result;
                                 valid = true;
@@ -137,7 +138,7 @@ const Chrome = new class extends Module implements functions.IChrome {
                 }
             }
             if (valid) {
-                return value;
+                return [value, sourceMap];
             }
         }
     }

@@ -5,21 +5,23 @@ import fs = require('fs-extra');
 import uuid = require('uuid');
 import rollup = require('rollup');
 
-export default async function (value: string, options: ObjectString, config: ObjectString, outputMap: Map<string, ObjectString>) {
+export default async function (value: string, options: ObjectString, config: ObjectString, sourceMap: Map<string, functions.internal.SourceMapOutput>) {
     const rollupDir = path.join(process.cwd(), 'temp' + path.sep + 'rollup');
     const inputFile = rollupDir + path.sep + uuid.v4();
     fs.mkdirpSync(rollupDir);
     fs.writeFileSync(inputFile, value);
     const es: OutputOptions = { format: 'es' };
-    const items: rollup.RollupOutput[] = [];
-    let result = '';
+    let result = '',
+        map = '';
     const appendOutput = (data: rollup.RollupOutput) => {
         for (const item of data.output) {
             if (item.type === 'chunk') {
                 result += item.code;
+                if (item.map) {
+                    map += item.map;
+                }
             }
         }
-        items.push(data);
     };
     if (typeof options === 'string') {
         const fileUri = path.resolve(options);
@@ -40,11 +42,13 @@ export default async function (value: string, options: ObjectString, config: Obj
     else {
         options.input = inputFile;
         const bundle = await rollup.rollup(options);
-        const data = await bundle.generate(typeof config === 'object' ? Object.assign(config, es) : Object.assign(options, es));
+        const data = await bundle.generate(typeof config === 'object' && Object.keys(config).length ? Object.assign(config, es) : Object.assign(options, es));
         appendOutput(data);
     }
     if (result) {
-        outputMap.set('rollup', { output: items });
+        if (map) {
+            sourceMap.set('rollup', { value: result, map });
+        }
         return result;
     }
 }

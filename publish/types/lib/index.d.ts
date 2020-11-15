@@ -157,6 +157,12 @@ declare namespace functions {
             fileUri: string;
         }
 
+        interface SourceMapOutput {
+            value: string;
+            map: string;
+            filename?: string;
+        }
+
         type Config = StandardMap | string;
         type ConfigOrTranspiler = Config | FunctionType<string>;
         type PluginConfig = [string, Undef<ConfigOrTranspiler>, Config];
@@ -258,8 +264,8 @@ declare namespace functions {
         findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory, transpileMap?: chrome.TranspileMap): internal.PluginConfig;
         createTranspiler(value: string): Null<FunctionType<string>>;
         createConfig(value: string): Undef<StandardMap | string>;
-        transform(type: ExternalCategory, format: string, value: string, transpileMap?: chrome.TranspileMap): Promise<Void<string>>;
-        formatContent(mimeType: string, format: string, value: string, transpileMap?: chrome.TranspileMap): Promise<Void<string>>;
+        transform(type: ExternalCategory, format: string, value: string, transpileMap?: chrome.TranspileMap): Promise<Void<[string, Map<string, internal.SourceMapOutput>]>>;
+        formatContent(mimeType: string, format: string, value: string, transpileMap?: chrome.TranspileMap): Promise<Void<[string, Map<string, internal.SourceMapOutput>]>>;
         removeCss(source: string, styles: string[]): Undef<string>;
     }
 
@@ -309,6 +315,8 @@ declare namespace functions {
         getUTF8String(file: ExternalAsset, fileUri?: string): string;
         appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex: number): Promise<string>;
         getTrailingContent(file: ExternalAsset): Promise<string>;
+        getBundleContent(fileUri: string): Undef<string>;
+        writeSourceMaps(fileUri: string, sourceMap: Map<string, internal.SourceMapOutput>, parent?: ExternalAsset): Promise<unknown[]>;
         transformCss(file: ExternalAsset, content: string): Undef<string>;
         newImage(data: internal.FileData, ouputType: string, saveAs: string, command?: string): string;
         transformBuffer(data: internal.FileData): Promise<void>;
