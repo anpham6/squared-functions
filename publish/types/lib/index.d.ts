@@ -37,7 +37,23 @@ declare namespace functions {
             condition?: string;
         }
 
-        interface FilePostResult {
+        interface CloudService {
+            service: string;
+            active?: boolean;
+            localStorage?: boolean;
+            uploadAll?: boolean;
+            filename?: string;
+            apiEndpoint?: string;
+            settings?: string;
+            objects?: CloudObject[];
+            [key: string]: Undef<unknown>;
+        }
+
+        interface CloudObject extends Partial<LocationUri> {
+            keyName: string;
+        }
+
+        interface FileResponseData {
             success: boolean;
             zipname?: string;
             bytes?: number;
@@ -56,7 +72,7 @@ declare namespace functions {
             format?: string;
             tasks?: string[];
             attributes?: AttributeValue[];
-            cloudStorage?: CloudService[];
+            cloudStorage?: squared.CloudService[];
             preserve?: boolean;
             inlineContent?: string;
             exclude?: boolean;
@@ -65,17 +81,6 @@ declare namespace functions {
             trailingContent?: FormattableContent[];
             textContent?: string;
             dataMap?: DataMap;
-        }
-
-        interface CloudService {
-            service: string;
-            active?: boolean;
-            localStorage?: boolean;
-            uploadAll?: boolean;
-            filename?: string;
-            apiEndpoint?: string;
-            settings?: string;
-            [key: string]: Undef<unknown>;
         }
 
         interface AttributeValue {
@@ -159,7 +164,7 @@ declare namespace functions {
 
     namespace external {
         interface CloudUploadOptions {
-            config: chrome.CloudService;
+            config: squared.CloudService;
             filename: string;
             fileUri: string;
             mimeType?: string;
@@ -170,8 +175,8 @@ declare namespace functions {
             accountKey: string;
         }
 
-        type CloudServiceClient = (data: chrome.CloudService, settings: StandardMap) => boolean;
-        type CloudServiceHost = (this: IFileManager, config: chrome.CloudService) => CloudServiceUpload;
+        type CloudServiceClient = (data: squared.CloudService, settings: StandardMap) => boolean;
+        type CloudServiceHost = (this: IFileManager, config: squared.CloudService) => CloudServiceUpload;
         type CloudServiceUpload = (buffer: Buffer, success: (value?: unknown) => void, options: CloudUploadOptions) => void;
     }
 
@@ -260,8 +265,8 @@ declare namespace functions {
 
     interface ICloud extends IModule {
         settings: settings.CloudModule;
-        getService(data: Undef<chrome.CloudService[]>): Undef<chrome.CloudService>;
-        hasService(data: chrome.CloudService): data is chrome.CloudService;
+        getService(data: Undef<squared.CloudService[]>): Undef<squared.CloudService>;
+        hasService(data: squared.CloudService): data is squared.CloudService;
     }
 
     interface IFileManager extends IModule {
@@ -309,9 +314,9 @@ declare namespace functions {
         transformBuffer(data: internal.FileData): Promise<void>;
         writeBuffer(data: internal.FileData): void;
         finalizeImage: FileManagerWriteImageCallback;
-        finalizeFile(data: internal.FileData, parent?: ExternalAsset): Promise<void>;
+        finalizeAsset(data: internal.FileData, parent?: ExternalAsset): Promise<void>;
         processAssets(): void;
-        finalizeAssets(): Promise<unknown[]>;
+        finalize(): Promise<unknown[]>;
     }
 
     interface FileManagerConstructor {

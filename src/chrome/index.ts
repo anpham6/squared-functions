@@ -99,12 +99,13 @@ const Chrome = new class extends Module implements functions.IChrome {
         if (data) {
             let valid: Undef<boolean>;
             const formatters = format.split('+');
+            const outputMap = new Map<string, ObjectString>();
             for (let i = 0, length = formatters.length; i < length; ++i) {
                 const [name, custom, config] = this.findTranspiler(data, formatters[i].trim(), type, transpileMap);
                 if (name) {
                     try {
                         if (typeof custom === 'function') {
-                            const result = custom(require(name), value, config);
+                            const result = custom(require(name), value, config, outputMap);
                             if (result && typeof result === 'string') {
                                 if (i === length - 1) {
                                     return result;
@@ -117,8 +118,9 @@ const Chrome = new class extends Module implements functions.IChrome {
                             this._packageMap[name] ||= require(`./packages/${name}`).default;
                             const result: Undef<string> = await this._packageMap[name](
                                 value,
-                                typeof custom === 'object' ? { ...custom } : typeof config === 'object' ? { ...config } : {},
-                                typeof config === 'object' ? { ...config } : config
+                                typeof custom === 'object' ? { ...custom } : !custom && typeof config === 'object' ? { ...config } : custom || {},
+                                typeof config === 'object' ? { ...config } : config,
+                                outputMap
                             );
                             if (result) {
                                 if (i === length - 1) {

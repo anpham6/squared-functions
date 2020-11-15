@@ -203,6 +203,8 @@ Option (3): |
 <script data-chrome-file="saveAs:js/bundle2.js" src="/dist/chrome.framework.js"></script>
 ```
 
+Bundling with inline commands using a 1-2-1 format may cause the generated bundle to execute incorrectly. Other configuration methods will create a new file when it finds any conflicts.
+
 ### Raw assets: saveTo command
 
 You can use images commands with saveTo (directory) on any element when the image is the primary display output. Encoding with base64 is also available using the "::base64" commmand as the third argument. Transformations are given arbitrary filenames and the original file is preserved.

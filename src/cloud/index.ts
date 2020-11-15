@@ -3,7 +3,7 @@ import Module from '../module';
 type CloudServiceClient = functions.external.CloudServiceClient;
 
 type CloudModule = functions.settings.CloudModule;
-type CloudService = functions.chrome.CloudService;
+type CloudService = functions.squared.CloudService;
 
 const serviceMap: ObjectMap<CloudServiceClient> = {};
 

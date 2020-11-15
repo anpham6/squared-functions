@@ -22,9 +22,9 @@ type IFileManager = functions.IFileManager;
 type IChrome = functions.IChrome;
 type ICloud = functions.ICloud;
 
-type FilePostResult = functions.squared.FilePostResult;
+type FileResponseData = functions.squared.FileResponseData;
 type CompressFormat = functions.squared.CompressFormat;
-type CloudService = functions.chrome.CloudService;
+type CloudService = functions.squared.CloudService;
 type DataMap = functions.chrome.DataMap;
 
 type FileData = functions.internal.FileData;
@@ -105,14 +105,14 @@ const FileManager = class extends Module implements IFileManager {
         if (Node.isDirectoryUNC(dirname)) {
             if (!Node.canWriteUNC()) {
                 if (res) {
-                    res.json({ success: false, error: { hint: 'OPTION: --unc-write', message: 'Writing to UNC shares is not enabled.' } } as FilePostResult);
+                    res.json({ success: false, error: { hint: 'OPTION: --unc-write', message: 'Writing to UNC shares is not enabled.' } } as FileResponseData);
                 }
                 return false;
             }
         }
         else if (!Node.canWriteDisk()) {
             if (res) {
-                res.json({ success: false, error: { hint: 'OPTION: --disk-write', message: 'Writing to disk is not enabled.' } } as FilePostResult);
+                res.json({ success: false, error: { hint: 'OPTION: --disk-write', message: 'Writing to disk is not enabled.' } } as FileResponseData);
             }
             return false;
         }
@@ -124,9 +124,9 @@ const FileManager = class extends Module implements IFileManager {
                 throw new Error('Root is not a directory.');
             }
         }
-        catch (message) {
+        catch (err) {
             if (res) {
-                res.json({ success: false, error: { hint: `DIRECTORY: ${dirname}`, message } } as FilePostResult);
+                res.json({ success: false, error: { hint: `DIRECTORY: ${dirname}`, message: err.toString() } } as FileResponseData);
             }
             return false;
         }
@@ -250,7 +250,7 @@ const FileManager = class extends Module implements IFileManager {
     performFinalize() {
         if (this.cleared && this.delayed <= 0) {
             this.delayed = Infinity;
-            this.finalizeAssets().then(() => this.postFinalize());
+            this.finalize().then(() => this.postFinalize());
         }
     }
     getRootDirectory(location: string, asset: string): [string[], string[]] {
@@ -301,9 +301,9 @@ const FileManager = class extends Module implements IFileManager {
                 asset = this.findAsset(location);
             }
         }
-        const { baseAsset, serverRoot } = this;
-        const baseDir = (file.rootDir || '') + file.pathname;
         if (asset) {
+            const { baseAsset, serverRoot } = this;
+            const baseDir = (file.rootDir || '') + file.pathname;
             if (Node.fromSameOrigin(origin, asset.uri!)) {
                 const rootDir = asset.rootDir;
                 if (asset.moveTo === serverRoot) {
@@ -426,7 +426,7 @@ const FileManager = class extends Module implements IFileManager {
         const getCloudUUID = (item: Undef<ExternalAsset>, url: string) => item && Cloud.getService(item.cloudStorage) ? item.inlineCssCloud ||= uuid.v4() : url;
         let output: Undef<string>;
         for (const item of this.assets) {
-            if (item.base64 && !item.textContent && item.uri && !item.invalid) {
+            if (item.base64 && item.uri && !item.textContent && !item.invalid) {
                 const url = this.getRelativeUri(file, item.uri);
                 if (url) {
                     const replaced = this.replacePath(output || source, [item.base64.replace(/\+/g, '\\+')], getCloudUUID(item, url), false, true);
@@ -442,23 +442,20 @@ const FileManager = class extends Module implements IFileManager {
         if (output) {
             source = output;
         }
-        const baseUri = file.uri!;
+        const fileUri = file.uri!;
+        const baseUri = this.baseAsset?.uri;
         const pattern = /url\(\s*([^)]+)\s*\)/ig;
         let match: Null<RegExpExecArray>;
         while (match = pattern.exec(source)) {
             const url = match[1].replace(/^["']\s*/, '').replace(/\s*["']$/, '');
-            if (!Node.isFileURI(url) || Node.fromSameOrigin(baseUri, url)) {
+            if (!Node.isFileURI(url) || Node.fromSameOrigin(fileUri, url)) {
                 let location = this.getRelativeUri(file, url);
                 if (location) {
-                    const uri = Node.resolvePath(url, baseUri);
-                    let asset: Undef<ExternalAsset>;
-                    if (uri) {
-                        asset = this.findAsset(uri);
-                    }
-                    output = (output || source).replace(match[0], `url(${getCloudUUID(asset, location)})`);
+                    const uri = Node.resolvePath(url, fileUri);
+                    output = (output || source).replace(match[0], `url(${getCloudUUID(uri ? this.findAsset(uri) : undefined, location)})`);
                 }
-                else if (this.baseAsset) {
-                    location = Node.resolvePath(url, this.baseAsset.uri!);
+                else if (baseUri) {
+                    location = Node.resolvePath(url, baseUri);
                     if (location) {
                         const asset = this.findAsset(location);
                         if (asset) {
@@ -495,12 +492,11 @@ const FileManager = class extends Module implements IFileManager {
                     pattern = /(\s*)<(script|link|style)[^>]*?(\s+data-chrome-file="\s*(save|export)As:\s*((?:[^"]|\\")+)")[^>]*>(?:[\s\S]*?<\/\2>\n*)?/ig,
                     match: Null<RegExpExecArray>;
                 while (match = pattern.exec(html)) {
-                    const items = match[5].split('::');
-                    const uri = items[0].trim();
-                    if (uri === '~') {
+                    const items = match[5].split('::').map(item => item.trim());
+                    if (items[0] === '~') {
                         continue;
                     }
-                    const location = this.getAbsoluteUri(uri, baseUri);
+                    const location = this.getAbsoluteUri(items[0], baseUri);
                     if (items[2] && items[2].includes('inline') && !saved.has(location)) {
                         saved.add(location);
                     }
@@ -731,9 +727,9 @@ const FileManager = class extends Module implements IFileManager {
             case 'text/css':
             case '@text/css': {
                 const unusedStyles = file.preserve !== true && this.dataMap.unusedStyles;
-                const transforming = mimeType[0] === '@';
+                const transform = mimeType[0] === '@';
                 const trailing = await this.getTrailingContent(file);
-                if (!unusedStyles && !transforming && !format) {
+                if (!unusedStyles && !transform && !format) {
                     if (trailing) {
                         file.sourceUTF8 = this.getUTF8String(file, fileUri) + trailing;
                     }
@@ -747,7 +743,7 @@ const FileManager = class extends Module implements IFileManager {
                         source = result;
                     }
                 }
-                if (transforming) {
+                if (transform) {
                     const result = this.transformCss(file, source || content);
                     if (result) {
                         source = result;
@@ -772,8 +768,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 break;
             }
-            case 'text/javascript':
-            case '@text/javascript': {
+            case 'text/javascript': {
                 const trailing = await this.getTrailingContent(file);
                 if (!format) {
                     if (trailing) {
@@ -866,17 +861,17 @@ const FileManager = class extends Module implements IFileManager {
                             data.fileUri = result;
                             delete data.file.buffer;
                         }
-                        this.finalizeFile(data);
+                        this.finalizeAsset(data);
                     });
                 }
                 catch (err) {
                     this.writeFail(data.fileUri, err);
-                    this.finalizeFile(data);
+                    this.finalizeAsset(data);
                 }
                 return;
             }
         }
-        this.finalizeFile(data);
+        this.finalizeAsset(data);
     }
     finalizeImage(data: FileData, output: string, command: string, compress?: CompressFormat, error?: Null<Error>) {
         if (error) {
@@ -920,7 +915,7 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
     }
-    async finalizeFile(data: FileData, parent?: ExternalAsset) {
+    async finalizeAsset(data: FileData, parent?: ExternalAsset) {
         await this.transformBuffer(data);
         this.completeAsyncTask(data.fileUri, parent);
     }
@@ -1038,7 +1033,7 @@ const FileManager = class extends Module implements IFileManager {
                     }
                 }
                 if (bundleMain || !file.invalid) {
-                    this.finalizeFile({ file: bundleMain || file, fileUri });
+                    this.finalizeAsset({ file: bundleMain || file, fileUri });
                 }
                 else {
                     this.completeAsyncTask();
@@ -1202,7 +1197,7 @@ const FileManager = class extends Module implements IFileManager {
         this.cleared = true;
         this.performFinalize();
     }
-    async finalizeAssets() {
+    async finalize() {
         let tasks: Promise<unknown>[] = [];
         if (this.Chrome) {
             const inlineMap: StringMap = {};
@@ -1232,7 +1227,7 @@ const FileManager = class extends Module implements IFileManager {
             }
             if (htmlFiles.length) {
                 for (const item of this.assets) {
-                    if (item.inlineContent && item.inlineContent.startsWith('<!--') && !item.invalid) {
+                    if (item.inlineContent && item.inlineContent.startsWith('<!--')) {
                         const setContent = (value: string) => {
                             inlineMap[item.inlineContent!] = value.trim();
                             item.invalid = true;
@@ -1283,18 +1278,16 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             for (const item of this.assets) {
-                if (item.inlineBase64 && !item.invalid) {
-                    const fileUri = item.fileUri!;
-                    const mimeType = mime.lookup(fileUri).toString();
-                    if (mimeType.startsWith('image/')) {
-                        tasks.push(
-                            fs.readFile(fileUri).then((data: Buffer) => {
-                                base64Map[item.inlineBase64!] = `data:${mimeType};base64,${data.toString('base64')}`;
-                                item.invalid = true;
-                            })
-                        );
-                    }
+                if (!item.inlineBase64 || item.invalid) {
+                    continue;
                 }
+                const mimeType = mime.lookup(item.fileUri!) || item.mimeType!;
+                tasks.push(
+                    fs.readFile(item.fileUri!).then((data: Buffer) => {
+                        base64Map[item.inlineBase64!] = `data:${mimeType};base64,${data.toString('base64')}`;
+                        item.invalid = true;
+                    })
+                );
             }
             if (tasks.length) {
                 await Promise.all(tasks).catch(err => this.writeFail('Finalize: Cache base64', err));
@@ -1355,51 +1348,52 @@ const FileManager = class extends Module implements IFileManager {
             const taskMap = new Map<string, Map<string, GulpData>>();
             const origMap = new Map<string, string[]>();
             for (const item of this.assets) {
-                if (item.tasks && !item.invalid) {
-                    const origDir = path.dirname(item.fileUri!);
-                    const scheduled = new Set<string>();
-                    for (let task of item.tasks) {
-                        if (!scheduled.has(task = task.trim()) && gulp[task]) {
-                            const gulpfile = path.resolve(gulp[task]!);
-                            if (fs.existsSync(gulpfile)) {
-                                if (!taskMap.has(task)) {
-                                    taskMap.set(task, new Map<string, GulpData>());
-                                }
-                                const dirMap = taskMap.get(task)!;
-                                if (!dirMap.has(origDir)) {
-                                    dirMap.set(origDir, { gulpfile, items: [] });
-                                }
-                                dirMap.get(origDir)!.items.push(item.fileUri!);
-                                scheduled.add(task);
+                if (!item.tasks || item.invalid) {
+                    continue;
+                }
+                const origDir = path.dirname(item.fileUri!);
+                const scheduled = new Set<string>();
+                for (let task of item.tasks) {
+                    if (!scheduled.has(task = task.trim()) && gulp[task]) {
+                        const gulpfile = path.resolve(gulp[task]!);
+                        if (fs.existsSync(gulpfile)) {
+                            if (!taskMap.has(task)) {
+                                taskMap.set(task, new Map<string, GulpData>());
                             }
+                            const dirMap = taskMap.get(task)!;
+                            if (!dirMap.has(origDir)) {
+                                dirMap.set(origDir, { gulpfile, items: [] });
+                            }
+                            dirMap.get(origDir)!.items.push(item.fileUri!);
+                            scheduled.add(task);
                         }
                     }
-                    if (scheduled.size) {
-                        const stored = origMap.get(origDir);
-                        const items = Array.from(scheduled);
-                        if (!stored) {
-                            origMap.set(origDir, items);
-                        }
-                        else {
-                            let previous = -1;
-                            for (const task of items.reverse()) {
-                                const index = stored.indexOf(task);
-                                if (index !== -1) {
-                                    if (index > previous) {
-                                        stored.splice(index, 1);
-                                    }
-                                    else {
-                                        previous = index;
-                                        continue;
-                                    }
-                                }
-                                if (previous !== -1) {
-                                    stored.splice(previous--, 0, task);
+                }
+                if (scheduled.size) {
+                    const stored = origMap.get(origDir);
+                    const items = Array.from(scheduled);
+                    if (!stored) {
+                        origMap.set(origDir, items);
+                    }
+                    else {
+                        let previous = -1;
+                        for (const task of items.reverse()) {
+                            const index = stored.indexOf(task);
+                            if (index !== -1) {
+                                if (index > previous) {
+                                    stored.splice(index, 1);
                                 }
                                 else {
-                                    stored.push(task);
-                                    previous = stored.length - 1;
+                                    previous = index;
+                                    continue;
                                 }
+                            }
+                            if (previous !== -1) {
+                                stored.splice(previous--, 0, task);
+                            }
+                            else {
+                                stored.push(task);
+                                previous = stored.length - 1;
                             }
                         }
                     }
@@ -1584,22 +1578,23 @@ const FileManager = class extends Module implements IFileManager {
             };
             let modifiedHtml: Undef<boolean>;
             for (const item of this.assets) {
-                if (item.cloudStorage && !item.invalid) {
-                    if (item.inlineCloud) {
-                        cloudMap[item.inlineCloud] = item;
-                        modifiedHtml = true;
-                    }
-                    switch (item.mimeType) {
-                        case '@text/html':
-                            htmlFiles.push(item);
-                            break;
-                        case '@text/css':
-                            cssFiles.push(item);
-                            break;
-                        default:
-                            uploadFiles(item);
-                            break;
-                    }
+                if (!item.cloudStorage || item.invalid) {
+                    continue;
+                }
+                if (item.inlineCloud) {
+                    cloudMap[item.inlineCloud] = item;
+                    modifiedHtml = true;
+                }
+                switch (item.mimeType) {
+                    case '@text/html':
+                        htmlFiles.push(item);
+                        break;
+                    case '@text/css':
+                        cssFiles.push(item);
+                        break;
+                    default:
+                        uploadFiles(item);
+                        break;
                 }
             }
             if (tasks.length) {

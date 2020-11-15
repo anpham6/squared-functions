@@ -1,6 +1,6 @@
 import type { GoogleAuthOptions } from 'google-auth-library';
 
-export interface GCSCloudService extends functions.chrome.CloudService, GoogleAuthOptions {
+export interface GCSCloudService extends functions.squared.CloudService, GoogleAuthOptions {
     bucket: string;
 }
 

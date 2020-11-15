@@ -3,7 +3,7 @@
   "version": "0.5.5",
   "description": "Parent folder for @squared-functions packages.",
   "scripts": {
-    "dev": "tsc -outDir ../squared/node_modules/@squared-functions",
+    "dev": "npm run prod && copyfiles -a ./publish/**/* -u 1 ../squared/node_modules/@squared-functions",
     "prod": "rimraf build/* && eslint **/*.ts && tsc && rollup --silent -c rollup.config.js && rollup --silent -c ./src/cloud/rollup.config.js && rollup --silent -c ./src/chrome/rollup.config.js",
     "dev-publish": "npm publish --dry-run && cd publish && cd types && npm publish --dry-run && cd ../chrome && npm publish --dry-run && cd ../cloud && npm publish --dry-run && cd ../compress && npm publish --dry-run && cd ../image && npm publish --dry-run && cd ../module && npm publish --dry-run && cd ../node && npm publish --dry-run && cd ../file-manager && npm publish --dry-run",
     "prod-publish": "cd publish && cd types && npm publish && cd ../chrome && npm publish && cd ../cloud && npm publish && cd ../compress && npm publish && cd ../image && npm publish && cd ../module && npm publish && cd ../node && npm publish && cd ../file-manager && npm publish"
@@ -31,12 +31,12 @@
     "@types/fs-extra": "^9.0.4",
     "@types/mime-types": "^2.1.0",
     "@types/node": "^14.14.7",
-    "@types/prettier": "^2.1.5",
     "@types/request": "^2.48.5",
     "@types/uuid": "^8.3.0",
     "@typescript-eslint/eslint-plugin": "^4.7.0",
     "@typescript-eslint/parser": "^4.7.0",
     "aws-sdk": "^2.792.0",
+    "copyfiles": "^2.4.0",
     "eslint": "^7.13.0",
     "install": "^0.13.0",
     "jimp": "^0.16.1",

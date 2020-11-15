@@ -1,6 +1,6 @@
 type StorageSharedKeyCredential = functions.external.StorageSharedKeyCredential;
 
-export interface AzureCloudService extends functions.chrome.CloudService, StorageSharedKeyCredential {
+export interface AzureCloudService extends functions.squared.CloudService, StorageSharedKeyCredential {
     container: string;
 }
 

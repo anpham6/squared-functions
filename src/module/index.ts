@@ -2,6 +2,8 @@ import path = require('path');
 import fs = require('fs');
 import chalk = require('chalk');
 
+const getMessage = (value: unknown) => value !== undefined && value !== null ? ` (${value as string})` : '';
+
 const Module = class implements functions.IModule {
     public major: number;
     public minor: number;
@@ -43,13 +45,13 @@ const Module = class implements functions.IModule {
     }
     writeMessage(value: string, message: unknown, title = 'SUCCESS', color: "green" | "yellow" | "blue" | "white" | "grey" = 'green') {
         try {
-            console.log(`${chalk.bold[color](title)}: ${value} (${message as string})`);
+            console.log(`${chalk.bold[color](title)}: ${value}` + getMessage(message));
         }
         catch {
         }
     }
     writeFail(value: string, message: unknown) {
-        console.log(`${chalk.bgRed.bold.white('FAIL')}: ${value} (${message as string})`);
+        console.log(`${chalk.bgRed.bold.white('FAIL')}: ${value}` + getMessage(message));
     }
 };
 
