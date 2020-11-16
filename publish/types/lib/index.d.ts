@@ -285,12 +285,12 @@ declare namespace functions {
         settings: settings.ChromeModule;
         findPlugin(settings: Undef<ObjectMap<StandardMap>>, name: string): internal.Chrome.PluginConfig;
         findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory, transpileMap?: chrome.TranspileMap): internal.Chrome.PluginConfig;
-        createTranspiler(value: string): Null<FunctionType<string>>;
-        createConfig(value: string): Undef<StandardMap | string>;
-        createTransfomer(file: ExternalAsset, fileUri: string, sourcesContent: string): internal.Chrome.SourceMapInput;
-        transform(type: ExternalCategory, format: string, value: string, input: internal.Chrome.SourceMapInput): Promise<Void<[string, Map<string, internal.Chrome.SourceMapOutput>]>>;
+        loadOptions(value: internal.Chrome.ConfigOrTranspiler): Undef<internal.Chrome.ConfigOrTranspiler>;
+        loadConfig(value: string): Undef<StandardMap | string>;
+        loadTranspiler(value: string): Null<FunctionType<string>>;
+        createTransformer(file: ExternalAsset, fileUri: string, sourcesContent: string): internal.Chrome.SourceMapInput;
+        transform(type: ExternalCategory, format: string, value: string, input: internal.Chrome.SourceMapInput, transpileMap?: chrome.TranspileMap): Promise<Void<[string, Map<string, internal.Chrome.SourceMapOutput>]>>;
         formatContent(mimeType: string, format: string, value: string, input: internal.Chrome.SourceMapInput): Promise<Void<[string, Map<string, internal.Chrome.SourceMapOutput>]>>;
-        removeCss(source: string, styles: string[]): Undef<string>;
     }
 
     interface ICloud extends IModule {
@@ -342,6 +342,7 @@ declare namespace functions {
         getBundleContent(fileUri: string): Undef<string>;
         writeSourceMaps(fileUri: string, sourceMap: Map<string, internal.Chrome.SourceMapOutput>, parent?: ExternalAsset): Promise<unknown[]>;
         transformCss(file: ExternalAsset, content: string): Undef<string>;
+        removeCss(source: string, styles: string[]): Undef<string>;
         newImage(data: internal.FileData, ouputType: string, saveAs: string, command?: string): string;
         transformBuffer(data: internal.FileData): Promise<void>;
         writeBuffer(data: internal.FileData): void;

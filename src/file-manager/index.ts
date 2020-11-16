@@ -357,7 +357,7 @@ const FileManager = class extends Module implements IFileManager {
         if (mimeType) {
             if (mimeType.endsWith('text/css')) {
                 if (!file.preserve && this.dataMap.unusedStyles) {
-                    const result = Chrome.removeCss(content, this.dataMap.unusedStyles);
+                    const result = this.removeCss(content, this.dataMap.unusedStyles);
                     if (result) {
                         content = result;
                     }
@@ -392,7 +392,7 @@ const FileManager = class extends Module implements IFileManager {
                 if (mimeType) {
                     if (mimeType.endsWith('text/css')) {
                         if (!item.preserve && this.dataMap.unusedStyles) {
-                            const result = Chrome.removeCss(value, this.dataMap.unusedStyles);
+                            const result = this.removeCss(value, this.dataMap.unusedStyles);
                             if (result) {
                                 value = result;
                             }
@@ -466,6 +466,37 @@ const FileManager = class extends Module implements IFileManager {
         }
         return output;
     }
+    removeCss(source: string, styles: string[]) {
+        let output: Undef<string>,
+            pattern: Undef<RegExp>,
+            match: Null<RegExpExecArray>;
+        for (let value of styles) {
+            value = value.replace(/\./g, '\\.');
+            pattern = new RegExp(`^\\s*${value}\\s*\\{[^}]*\\}\\n*`, 'gm');
+            while (match = pattern.exec(source)) {
+                output = (output || source).replace(match[0], '');
+            }
+            if (output) {
+                source = output;
+            }
+            pattern = new RegExp(`^[^,]*(,?\\s*${value}\\s*[,{](\\s*)).*?\\{?`, 'gm');
+            while (match = pattern.exec(source)) {
+                const segment = match[1];
+                let replaceWith = '';
+                if (segment.trim().endsWith('{')) {
+                    replaceWith = ' {' + match[2];
+                }
+                else if (segment[0] === ',') {
+                    replaceWith = ', ';
+                }
+                output = (output || source).replace(match[0], match[0].replace(segment, replaceWith));
+            }
+            if (output) {
+                source = output;
+            }
+        }
+        return output;
+    }
     getBundleContent(fileUri: string) {
         const files = this.contentToAppend.get(fileUri);
         if (files) {
@@ -503,6 +534,7 @@ const FileManager = class extends Module implements IFileManager {
         return Promise.all(tasks);
     }
     async transformBuffer(data: FileData) {
+        const chrome = this.Chrome;
         const { file, fileUri } = data;
         const { format, mimeType } = file;
         switch (mimeType) {
@@ -737,8 +769,8 @@ const FileManager = class extends Module implements IFileManager {
                     .replace(/\s*<script[^>]*?data-chrome-template="([^"]|\\")+?"[^>]*>[\s\S]*?<\/script>\n*/ig, '')
                     .replace(/\s*<(script|link)[^>]+?data-chrome-file="exclude"[^>]*>\n*/ig, '')
                     .replace(/\s+data-(?:use|chrome-[\w-]+)="([^"]|\\")+?"/g, '');
-                if (format) {
-                    const result = await Chrome.transform('html', format, source, Chrome.createTransfomer(file, fileUri, source), this.dataMap.transpileMap);
+                if (format && chrome) {
+                    const result = await chrome.transform('html', format, source, chrome.createTransformer(file, fileUri, source), this.dataMap.transpileMap);
                     if (result) {
                         file.sourceUTF8 = result[0];
                         break;
@@ -748,9 +780,9 @@ const FileManager = class extends Module implements IFileManager {
                 break;
             }
             case 'text/html':
-                if (format) {
+                if (format && chrome) {
                     const source = this.getUTF8String(file, fileUri);
-                    const result = await Chrome.transform('html', format, source, Chrome.createTransfomer(file, fileUri, source), this.dataMap.transpileMap);
+                    const result = await chrome.transform('html', format, source, chrome.createTransformer(file, fileUri, source), this.dataMap.transpileMap);
                     if (result) {
                         file.sourceUTF8 = result[0];
                     }
@@ -767,7 +799,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 let source = this.getUTF8String(file, fileUri);
                 if (unusedStyles) {
-                    const result = Chrome.removeCss(source, unusedStyles);
+                    const result = this.removeCss(source, unusedStyles);
                     if (result) {
                         source = result;
                     }
@@ -784,8 +816,8 @@ const FileManager = class extends Module implements IFileManager {
                 if (bundle) {
                     source += bundle;
                 }
-                if (format) {
-                    const result = await Chrome.transform('css', format, source, Chrome.createTransfomer(file, fileUri, source), this.dataMap.transpileMap);
+                if (format && chrome) {
+                    const result = await chrome.transform('css', format, source, chrome.createTransformer(file, fileUri, source), this.dataMap.transpileMap);
                     if (result) {
                         source = result[0];
                         if (result[1].size) {
@@ -809,8 +841,8 @@ const FileManager = class extends Module implements IFileManager {
                 if (bundle) {
                     source += bundle;
                 }
-                if (format) {
-                    const result = await Chrome.transform('js', format, source, Chrome.createTransfomer(file, fileUri, source), this.dataMap.transpileMap);
+                if (format && chrome) {
+                    const result = await chrome.transform('js', format, source, chrome.createTransformer(file, fileUri, source), this.dataMap.transpileMap);
                     if (result) {
                         source = result[0];
                         if (result[1].size) {
