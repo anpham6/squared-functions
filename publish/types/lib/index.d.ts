@@ -175,9 +175,8 @@ declare namespace functions {
                 mappings: string;
             }
 
-            type Config = StandardMap | string;
-            type ConfigOrTranspiler = Config | FunctionType<string>;
-            type PluginConfig = [string, Undef<ConfigOrTranspiler>, Config];
+            type ConfigOrTranspiler = StandardMap | FunctionType<string>;
+            type PluginConfig = [string, Undef<ConfigOrTranspiler>, Undef<StandardMap>] | [];
         }
 
         interface FileData {
@@ -285,12 +284,11 @@ declare namespace functions {
         settings: settings.ChromeModule;
         findPlugin(settings: Undef<ObjectMap<StandardMap>>, name: string): internal.Chrome.PluginConfig;
         findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory, transpileMap?: chrome.TranspileMap): internal.Chrome.PluginConfig;
-        loadOptions(value: internal.Chrome.ConfigOrTranspiler): Undef<internal.Chrome.ConfigOrTranspiler>;
+        loadOptions(value: internal.Chrome.ConfigOrTranspiler | string): Undef<internal.Chrome.ConfigOrTranspiler>;
         loadConfig(value: string): Undef<StandardMap | string>;
         loadTranspiler(value: string): Null<FunctionType<string>>;
         createTransformer(file: ExternalAsset, fileUri: string, sourcesContent: string): internal.Chrome.SourceMapInput;
         transform(type: ExternalCategory, format: string, value: string, input: internal.Chrome.SourceMapInput, transpileMap?: chrome.TranspileMap): Promise<Void<[string, Map<string, internal.Chrome.SourceMapOutput>]>>;
-        formatContent(mimeType: string, format: string, value: string, input: internal.Chrome.SourceMapInput): Promise<Void<[string, Map<string, internal.Chrome.SourceMapOutput>]>>;
     }
 
     interface ICloud extends IModule {
@@ -373,8 +371,8 @@ declare namespace functions {
         getFileSize(fileUri: string): number;
         replaceExtension(value: string, ext: string): string;
         getTempDir(): string;
-        writeMessage(value: string, message: unknown, title?: string, color?: "green" | "yellow" | "blue" | "white" | "grey"): void;
-        writeFail(value: string, message: unknown): void;
+        writeMessage(value: string, message?: unknown, title?: string, color?: "green" | "yellow" | "blue" | "white" | "grey"): void;
+        writeFail(value: string, message?: unknown): void;
     }
 
     interface ModuleConstructor {

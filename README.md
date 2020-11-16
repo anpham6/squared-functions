@@ -271,7 +271,7 @@ chrome -> html | js | css -> npm package name -> custom name
             ["posthtml-include", { "root": "./", "encoding": "utf-8" }]
           ]
         },
-        "transform-config": {
+        "transform-output": {
           "directives": [
             { "name": "?php", "start": "<", "end": ">" }
           ]
@@ -287,8 +287,8 @@ chrome -> html | js | css -> npm package name -> custom name
     },
     "js": { // custom function (chrome -> eval_function: true)
       "terser": {
-        "minify-example": "function(context, value, config) { return context.minify(value, config).code; }", // "minify-example-config" creates scoped variable "config"
-        "minify-example-config": {
+        "minify-example": "function(context, value, output) { return context.minify(value, output).code; }", // "minify-example-output" creates scoped variable "output"
+        "minify-example-output": {
           "keep_classnames": true
         }
       },
@@ -296,11 +296,13 @@ chrome -> html | js | css -> npm package name -> custom name
         "es5-example": "./es5.js" // startsWith('./ | ../')
       },
       "rollup": {
-        "bundle": "./rollup.config.js",
         "bundle-es6": {
+          "plugins": [
+            ["@rollup/plugin-json", { compact: true }]
+          ],
           "external": ["lodash"]
         },
-        "bundle-es6-config": "./rollup.output.config.js" // supplemental JSON configuration settings use the "-config" suffix
+        "bundle-es6-output": "./rollup.output.config.json" // supplemental JSON configuration settings use the "-output" suffix
       }
     },
     "css": {
@@ -320,9 +322,9 @@ chrome -> html | js | css -> npm package name -> custom name
 ```javascript
 // es5.js
 
-function (context, value, config /* optional: "@babel/core-config" */) {
+function (context, value, output /* optional: "@babel/core-output" */) {
     const options = { presets: ['@babel/preset-env'] }; // <https://babeljs.io/docs/en/options>
-    return context.transformSync(value, options).code;
+    return context.transformSync(value, output).code;
 }
 ```
 
@@ -332,8 +334,8 @@ The same concept can be used inline anywhere using a &lt;script&gt; tag with the
 // "es5-example" is a custom name (chrome -> eval_text_template: true)
 
 <script type="text/template" data-chrome-template="js::@babel/core::es5-example">
-function (context, value, config /* optional */, input /* optional */) {
-    const options = { presets: ['@babel/preset-env'], sourceMaps: true };
+function (context, value, output, input /* optional */) {
+    const options = { ...output, presets: ['@babel/preset-env'], sourceMaps: true };
     const result = context.transformSync(value, options);
     if (result) {
         if (result.map) {

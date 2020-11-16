@@ -30,15 +30,15 @@ const Chrome = new class extends Module implements functions.IChrome {
                 for (const name in data) {
                     if (name === value) {
                         const options = this.loadOptions(data[name]);
-                        const config = this.loadConfig(data[name + '-config']);
+                        const config = this.loadConfig(data[name + '-output']);
                         if (options || config) {
-                            return [plugin, options || config, config];
+                            return [plugin, options, config];
                         }
                     }
                 }
             }
         }
-        return ([] as unknown) as PluginConfig;
+        return [];
     }
     findTranspiler(settings: Undef<ObjectMap<StandardMap>>, value: string, category: ExternalCategory, transpileMap?: TranspileMap): PluginConfig {
         if (transpileMap && this.settings.eval_text_template) {
@@ -48,7 +48,7 @@ const Chrome = new class extends Module implements functions.IChrome {
                 if (item) {
                     const result = this.loadOptions(item);
                     if (result) {
-                        return [name, result, this.loadConfig(data[name][value + '-config'])];
+                        return [name, result, this.loadConfig(data[name][value + '-output'])];
                     }
                     break;
                 }
@@ -56,59 +56,43 @@ const Chrome = new class extends Module implements functions.IChrome {
         }
         return this.findPlugin(settings, value);
     }
-    loadOptions(value: ConfigOrTranspiler): Undef<ConfigOrTranspiler> {
+    loadOptions(value: ConfigOrTranspiler | string): Undef<ConfigOrTranspiler> {
         if (typeof value === 'string') {
-            value = value.trim();
             if (this.settings.eval_function) {
                 const transpiler = this.loadTranspiler(value);
                 if (transpiler) {
                     return transpiler;
                 }
             }
-            return this.loadConfig(value);
         }
-        else if (typeof value === 'object') {
-            try {
-                return JSON.parse(JSON.stringify(value));
-            }
-            catch (err) {
-                this.writeFail(`Could not load options [JSON invalid]`, err);
-            }
-        }
-        else {
-            return value;
-        }
+        return this.loadConfig(value);
     }
-    loadConfig(value: Undef<StandardMap | string>): StandardMap | string {
-        if (typeof value ==='string' && validLocalPath(value)) {
-            try {
-                const content = fs.readFileSync(path.resolve(value), 'utf8').trim();
-                if (content) {
-                    try {
-                        const data = JSON.parse(content) as StandardMap;
-                        return data;
-                    }
-                    catch {
-                        return content;
-                    }
+    loadConfig(value: Undef<StandardMap | string>): Undef<StandardMap> {
+        if (typeof value ==='string') {
+            value = value.trim();
+            if (validLocalPath(value)) {
+                try {
+                    return JSON.parse(fs.readFileSync(path.resolve(value), 'utf8').trim()) as StandardMap;
+                }
+                catch (err) {
+                    this.writeFail(`Could not load config [${value}]`, err);
                 }
             }
-            catch (err) {
-                this.writeFail(`Could not load config [${value}]`, err);
-                value = '';
+            else {
+                this.writeFail('Only relateive paths are supported', value);
             }
         }
         else if (typeof value === 'object') {
             try {
                 return JSON.parse(JSON.stringify(value));
             }
-            catch {
-                value = '';
+            catch (err) {
+                this.writeFail(`Could not parse config [JSON invalid]`, err);
             }
         }
-        return value || {};
     }
     loadTranspiler(value: string): Null<FunctionType<string>> {
+        value = value.trim();
         if (validLocalPath(value)) {
             try {
                 value = fs.readFileSync(path.resolve(value), 'utf8').trim();
@@ -160,11 +144,15 @@ const Chrome = new class extends Module implements functions.IChrome {
             let valid: Undef<boolean>;
             const formatters = format.split('+');
             for (let i = 0, length = formatters.length; i < length; ++i) {
-                const [name, custom, config] = this.findTranspiler(data, formatters[i].trim(), type, transpileMap);
-                if (name) {
-                    try {
-                        if (typeof custom === 'function') {
-                            const result = custom(require(name), value, config, input);
+                const name = formatters[i].trim();
+                const [plugin, options, output] = this.findTranspiler(data, name, type, transpileMap);
+                if (plugin) {
+                    if (!options) {
+                        this.writeFail('Unable to load configuration', plugin);
+                    }
+                    else if (typeof options === 'function') {
+                        try {
+                            const result = options(require(plugin), value, output, input);
                             if (result && typeof result === 'string') {
                                 if (i === length - 1) {
                                     return [result, input.sourceMap];
@@ -173,12 +161,17 @@ const Chrome = new class extends Module implements functions.IChrome {
                                 valid = true;
                             }
                         }
-                        else {
-                            this._packageMap[name] ||= require(`./packages/${name}`).default;
-                            const result: Undef<string> = await this._packageMap[name](
+                        catch (err) {
+                            this.writeFail(`Install required? [npm i ${plugin}]`, err);
+                        }
+                    }
+                    else {
+                        try {
+                            this._packageMap[plugin] ||= require(`./packages/${plugin}`).default;
+                            const result: Undef<string> = await this._packageMap[plugin](
                                 value,
-                                typeof custom === 'object' ? custom : !custom && typeof config === 'object' ? config : custom || {},
-                                config,
+                                options,
+                                output,
                                 input
                             );
                             if (result) {
@@ -189,28 +182,19 @@ const Chrome = new class extends Module implements functions.IChrome {
                                 valid = true;
                             }
                         }
+                        catch (err) {
+                            this.writeFail(`Built-in transformer [${plugin}]`, err);
+                        }
                     }
-                    catch (err) {
-                        this.writeFail(`Install required? [npm i ${name}]`, err);
-                    }
+                }
+                else {
+                    this.writeFail('Process method not found', name);
                 }
             }
             if (valid) {
                 return [value, input.sourceMap];
             }
         }
-    }
-    formatContent(mimeType: string, format: string, value: string, input: SourceMapInput, transpileMap?: TranspileMap) {
-        if (mimeType.endsWith('text/html')) {
-            return this.transform('html', format, value, input, transpileMap);
-        }
-        else if (mimeType.endsWith('text/css')) {
-            return this.transform('css', format, value, input, transpileMap);
-        }
-        else if (mimeType.endsWith('text/javascript')) {
-            return this.transform('js', format, value, input, transpileMap);
-        }
-        return Promise.resolve();
     }
 }();
 

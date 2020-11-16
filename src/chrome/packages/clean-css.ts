@@ -2,7 +2,7 @@ const context = require('clean-css');
 
 type SourceMapInput = functions.internal.Chrome.SourceMapInput;
 
-export default async function (value: string, options: PlainObject, config: PlainObject, input: SourceMapInput) {
+export default async function (value: string, options: PlainObject, output: Undef<PlainObject>, input: SourceMapInput) {
     const sourceMap = input.map;
     if (sourceMap) {
         options.sourceMap = true;

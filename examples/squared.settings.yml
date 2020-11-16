@@ -18,7 +18,7 @@ chrome:
         function(context, value, config) {
           return context.minify(value, config).code;
         }
-      minify-example-config:
+      minify-example-output:
         keep_classnames: true
     "@babel/core":
       es5-example: ./es5.js
@@ -27,7 +27,7 @@ chrome:
       bundle-es6:
         external:
         - lodash
-      bundle-es6-config: ./rollup.output.config.js
+      bundle-es6-output: ./rollup.output.config.js
   css:
     node-sass:
       sass-example: >

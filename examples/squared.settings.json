@@ -22,8 +22,8 @@
       },
       "js": {
         "terser": {
-          "minify-example": "function(context, value, config) {\n  return context.minify(value, config).code;\n}\n",
-          "minify-example-config": {
+          "minify-example": "function(context, value, output) {\n  return context.minify(value, output).code;\n}\n",
+          "minify-example-output": {
             "keep_classnames": true
           }
         },
@@ -37,7 +37,7 @@
               "lodash"
             ]
           },
-          "bundle-es6-config": "./rollup.output.config.js"
+          "bundle-es6-output": "./rollup.output.config.js"
         }
       },
       "css": {
