@@ -102,18 +102,23 @@ Tasks can be performed with Gulp to take advantage of their pre-built plugin rep
 ```javascript
 // squared.settings.json
 
-"gulp": {
-  "minify": "./gulpfile.js"
-  "beautify": "./gulpfile.js",
-  "compress": "./gulpfile.android.js"
+{
+  "gulp": {
+    "minify": "./gulpfile.js"
+    "beautify": "./gulpfile.js",
+    "compress": "./gulpfile.android.js"
+  }
 }
 
 // chrome
-- selector: head > script:nth-of-type(1)
-  type: js
-  tasks:
-    - minify
-    - beautify
+{
+  "selector": "head > script:nth-of-type(1)",
+  "type": "js",
+  "tasks": [
+    "minify",
+    "beautify"
+  ]
+}
 
 // android
 const options = {
@@ -165,9 +170,11 @@ Bundling options are available with these HTML tag names.
 Files with the same path and filename will automatically create a bundle assuming there are no conflicts in call ordering.
 
 ```javascript
-- selector: head > script:nth-of-type(2), head > script:nth-of-type(3)
-  type: js
-  saveAs: js/modules2.js
+{
+  "selector": "head > script:nth-of-type(2), head > script:nth-of-type(3)",
+  "type": "js",
+  "saveAs": "js/modules2.js"
+}
 ```
 
 JS and CSS files can be bundled together with the "saveAs" or "exportAs" action. Multiple transformations per asset can be chained using the "+" symbol. Whitespace can be used between anything for readability.
@@ -340,8 +347,8 @@ function (context, value, config /* optional */, input /* optional */) {
 
 Here is the equivalent YAML settings and when available has higher precedence than JSON settings.
 
-- [squared.settings.yml](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.yml)
 - [squared.settings.json](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.json)
+- [squared.settings.yml](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.yml)
 
 ### Modifying content attributes
 
@@ -353,21 +360,35 @@ There are possible scenarios when a transformation may cause an asset type to ch
 ```
 
 ```javascript
-- selector: #sass-example
-  type: css
-  filename: prod.css
-  attributes:
-    - name: id
-    - name: rel
-      value: stylesheet
-    - name: type
-      value: text/css
-    - name: title
-      value: ""
-    - name: disabled
-      value: null
-  process:
-    - node-sass
+{
+  "selector": null,
+  "type": "css",
+  "filename": "prod.css",
+  "attributes": [
+    {
+      "name": "id"
+    },
+    {
+      "name": "rel",
+      "value": "stylesheet"
+    },
+    {
+      "name": "type",
+      "value": "text/css"
+    },
+    {
+      "name": "title",
+      "value": ""
+    },
+    {
+      "name": "disabled",
+      "value": null
+    }
+  ],
+  "process": [
+    "node-sass"
+  ]
+}
 ```
 
 ```xml
@@ -377,7 +398,7 @@ There are possible scenarios when a transformation may cause an asset type to ch
 
 ### External configuration
 
-YAML (yml/yaml) configuration is optional and is provided for those who prefer to separate the bundling and transformations from the HTML. Any assets inside the configuration file will override any settings either inline or from JavaScript. You can also use the equivalent in JSON (json/js) for configuring as well.
+JSON (json/js) configuration is optional and is provided for those who prefer to separate the bundling and transformations from the HTML. Any assets inside the configuration file will override any settings either inline or from JavaScript. You can also use the equivalent in YAML (yml/yaml) for configuring as well.
 
 ```javascript
 interface FileModifiers {
@@ -443,28 +464,38 @@ Other providers will be integrated similarly except for credential verification.
 ```javascript
 // NOTE: Optional fields are supported by all services
 
-- selector: #picture1
-  type: image
-  commands:
-    - png(100x200){90,180,270} // Uploaded with UUID filename
-  cloudStorage:
-    - service: s3
-      bucket: squared-001
-      accessKeyId: ********** // Using settings (optional)
-      secretAccessKey: ********** // Using settings (optional)
-      active: true // Rewrites "src" to cloud storage location (optional)
-      localStorage: false // Removes all files from archive or local disk (optional)
-      uploadAll: true // Include transforms (optional)
-      filename: picture1.webp // Bucket filename (optional)
-    - service: azure
-      container: squared-002
-      accountName: **********
-      accountKey: **********
-      apiEndpoint: "http://squaredjs.azureedge.net/squared-002" // e.g. CDN (optional)
-    - service: gcs
-      bucket: squared-003
-      keyFilename: ********** // Path to JSON credentials
-      settings: main // Load host configuration at instantiation (optional)
+{
+  "selector": "#picture1",
+  "type": "image",
+  "commands": [
+    "png(100x200){90,180,270}" // Uploaded with UUID filename
+  ],
+  "cloudStorage": [
+    {
+      "service": "s3",
+      "bucket": "squared-001",
+      "accessKeyId": "**********", // Using settings (optional)
+      "secretAccessKey": "**********", // Using settings (optional)
+      "active": true, // Rewrites "src" to cloud storage location (optional)
+      "localStorage": false, // Removes all files from archive or local disk (optional)
+      "uploadAll": true, // Include transforms (optional)
+      "filename": "picture1.webp" // Bucket filename (optional)
+    },
+    {
+      "service": "azure",
+      "container": "squared-002",
+      "accountName": "**********",
+      "accountKey": "**********",
+      "apiEndpoint": "http://squaredjs.azureedge.net/squared-002" // e.g. CDN (optional)
+    },
+    {
+      "service": "gcs",
+      "bucket": "squared-003",
+      "keyFilename": "**********", // Path to JSON credentials
+      "settings": "main" // Load host configuration at instantiation (optional)
+    }
+  ]
+}
 ```
 
 Inline commands are not supported. Serving CSS files from cloud storage or CDN requires every image inside the file to be hosted with an absolute URL.

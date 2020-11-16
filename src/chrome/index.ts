@@ -164,7 +164,7 @@ const Chrome = new class extends Module implements functions.IChrome {
                 if (name) {
                     try {
                         if (typeof custom === 'function') {
-                            const result = custom(require(name), value, typeof config === 'object' ? config : config, input);
+                            const result = custom(require(name), value, config, input);
                             if (result && typeof result === 'string') {
                                 if (i === length - 1) {
                                     return [result, input.sourceMap];
@@ -178,7 +178,7 @@ const Chrome = new class extends Module implements functions.IChrome {
                             const result: Undef<string> = await this._packageMap[name](
                                 value,
                                 typeof custom === 'object' ? custom : !custom && typeof config === 'object' ? config : custom || {},
-                                typeof config === 'object' ? config : config,
+                                config,
                                 input
                             );
                             if (result) {
