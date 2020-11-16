@@ -70,17 +70,16 @@ declare namespace functions {
             rootDir?: string;
             moveTo?: string;
             format?: string;
+            preserve?: boolean;
             tasks?: string[];
             attributes?: AttributeValue[];
             cloudStorage?: squared.CloudService[];
-            preserve?: boolean;
-            inlineContent?: string;
             exclude?: boolean;
             basePath?: string;
             bundleIndex?: number;
             trailingContent?: FormattableContent[];
             textContent?: string;
-            dataMap?: DataMap;
+            inlineContent?: string;
         }
 
         interface AttributeValue {
@@ -92,11 +91,6 @@ declare namespace functions {
             value: string;
             format?: string;
             preserve?: boolean;
-        }
-
-        interface DataMap {
-            unusedStyles?: string[];
-            transpileMap?: TranspileMap;
         }
 
         interface TranspileMap {
@@ -280,22 +274,30 @@ declare namespace functions {
         parseMethod(value: string): Undef<string[]>;
     }
 
-    interface IChrome extends IModule {
-        settings: settings.ChromeModule;
-        findPlugin(settings: Undef<ObjectMap<StandardMap>>, name: string): internal.Chrome.PluginConfig;
-        findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory, transpileMap?: chrome.TranspileMap): internal.Chrome.PluginConfig;
-        loadOptions(value: internal.Chrome.ConfigOrTranspiler | string): Undef<internal.Chrome.ConfigOrTranspiler>;
-        loadConfig(value: string): Undef<StandardMap | string>;
-        loadTranspiler(value: string): Null<FunctionType<string>>;
-        createTransformer(file: ExternalAsset, fileUri: string, sourcesContent: string): internal.Chrome.SourceMapInput;
-        transform(type: ExternalCategory, format: string, value: string, input: internal.Chrome.SourceMapInput, transpileMap?: chrome.TranspileMap): Promise<Void<[string, Map<string, internal.Chrome.SourceMapOutput>]>>;
-    }
-
     interface ICloud extends IModule {
         settings: settings.CloudModule;
         getService(data: Undef<squared.CloudService[]>): Undef<squared.CloudService>;
         hasService(data: squared.CloudService): data is squared.CloudService;
     }
+
+    interface IChrome extends IModule {
+        settings: settings.ChromeModule;
+        unusedStyles?: string[];
+        transpileMap?: chrome.TranspileMap;
+        findPlugin(settings: Undef<ObjectMap<StandardMap>>, name: string): internal.Chrome.PluginConfig;
+        findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory): internal.Chrome.PluginConfig;
+        loadOptions(value: internal.Chrome.ConfigOrTranspiler | string): Undef<internal.Chrome.ConfigOrTranspiler>;
+        loadConfig(value: string): Undef<StandardMap | string>;
+        loadTranspiler(value: string): Null<FunctionType<string>>;
+        createTransformer(file: ExternalAsset, fileUri: string, sourcesContent: string): internal.Chrome.SourceMapInput;
+        transform(type: ExternalCategory, format: string, value: string, input: internal.Chrome.SourceMapInput): Promise<Void<[string, Map<string, internal.Chrome.SourceMapOutput>]>>;
+    }
+
+    interface ChromeConstructor {
+        new(): IChrome;
+    }
+
+    const Chrome: ChromeConstructor;
 
     interface IFileManager extends IModule {
         serverRoot: string;
@@ -315,7 +317,6 @@ declare namespace functions {
         readonly dirname: string;
         readonly assets: ExternalAsset[];
         readonly postFinalize: FunctionType<void>;
-        readonly dataMap: chrome.DataMap;
         readonly baseAsset?: ExternalAsset;
         install(name: string, ...args: unknown[]): void;
         add(value: string): void;
@@ -356,7 +357,6 @@ declare namespace functions {
         moduleNode(): INode;
         moduleCompress(): ICompress;
         moduleImage(): IImage;
-        moduleChrome(): IChrome;
         moduleCloud(): ICloud;
         new(dirname: string, body: RequestBody, postFinalize: FunctionType<void>, productionRelease?: boolean): IFileManager;
     }
@@ -432,9 +432,10 @@ declare namespace functions {
         chrome?: settings.ChromeModule;
     }
 
-    interface RequestBody {
+    interface RequestBody extends PlainObject {
         assets: ExternalAsset[];
-        dataMap?: chrome.DataMap;
+        unusedStyles?: string[];
+        transpileMap?: chrome.TranspileMap;
     }
 
     interface ExternalAsset extends squared.FileAsset, chrome.ChromeAsset {

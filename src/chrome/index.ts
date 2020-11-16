@@ -5,6 +5,7 @@ import Module from '../module';
 
 type ExternalAsset = functions.ExternalAsset;
 type ExternalCategory = functions.ExternalCategory;
+type RequestBody = functions.RequestBody;
 
 type ChromeModule = functions.settings.ChromeModule;
 
@@ -18,8 +19,15 @@ type ConfigOrTranspiler = functions.internal.Chrome.ConfigOrTranspiler;
 
 const validLocalPath = (value: string) => /^\.?\.[\\/]/.test(value);
 
-const Chrome = new class extends Module implements functions.IChrome {
-    public settings: ChromeModule = {};
+const Chrome = class extends Module implements functions.IChrome {
+    public unusedStyles?: string[];
+    public transpileMap?: TranspileMap;
+
+    constructor (public settings: ChromeModule = {}, body: RequestBody) {
+        super();
+        this.unusedStyles = body.unusedStyles;
+        this.transpileMap = body.transpileMap;
+    }
 
     private _packageMap: ObjectMap<FunctionType<Undef<string>>> = {};
 
@@ -40,9 +48,9 @@ const Chrome = new class extends Module implements functions.IChrome {
         }
         return [];
     }
-    findTranspiler(settings: Undef<ObjectMap<StandardMap>>, value: string, category: ExternalCategory, transpileMap?: TranspileMap): PluginConfig {
-        if (transpileMap && this.settings.eval_text_template) {
-            const data = transpileMap[category];
+    findTranspiler(settings: Undef<ObjectMap<StandardMap>>, value: string, category: ExternalCategory): PluginConfig {
+        if (this.transpileMap && this.settings.eval_text_template) {
+            const data = this.transpileMap[category];
             for (const name in data) {
                 const item = data[name][value];
                 if (item) {
@@ -138,14 +146,14 @@ const Chrome = new class extends Module implements functions.IChrome {
             }
         }) as SourceMapInput;
     }
-    async transform(type: ExternalCategory, format: string, value: string, input: SourceMapInput, transpileMap?: TranspileMap): Promise<Void<[string, Map<string, SourceMapOutput>]>> {
+    async transform(type: ExternalCategory, format: string, value: string, input: SourceMapInput): Promise<Void<[string, Map<string, SourceMapOutput>]>> {
         const data = this.settings[type];
         if (data) {
             let valid: Undef<boolean>;
             const formatters = format.split('+');
             for (let i = 0, length = formatters.length; i < length; ++i) {
                 const name = formatters[i].trim();
-                const [plugin, options, output] = this.findTranspiler(data, name, type, transpileMap);
+                const [plugin, options, output] = this.findTranspiler(data, name, type);
                 if (plugin) {
                     if (!options) {
                         this.writeFail('Unable to load configuration', plugin);
@@ -196,7 +204,7 @@ const Chrome = new class extends Module implements functions.IChrome {
             }
         }
     }
-}();
+};
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = Chrome;
