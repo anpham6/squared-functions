@@ -203,7 +203,7 @@ Option (3): |
 <script data-chrome-file="saveAs:js/bundle2.js" src="/dist/chrome.framework.js"></script>
 ```
 
-Bundling with inline commands using a 1-2-1 format may cause the generated bundle to execute incorrectly. Other configuration methods will create a new file when it finds any conflicts.
+Bundling with inline commands using a 1-2-1 format may cause the generated bundle to execute incorrectly. Other configuration methods will create a new file when it finds any conflicts. The advantages of bundling this way gives you the ability to debug source code inside &lt;script&gt; elements.
 
 ### Raw assets: saveTo command
 
@@ -325,16 +325,16 @@ The same concept can be used inline anywhere using a &lt;script&gt; tag with the
 // "es5-example" is a custom name (chrome -> eval_text_template: true)
 
 <script type="text/template" data-chrome-template="js::@babel/core::es5-example">
-  function (context, value, config /* optional */, sourceMap /* optional */) {
-      const options = { presets: ['@babel/preset-env'], sourceMaps: true };
-      const result = context.transformSync(value, options);
-      if (result) {
-          if (result.map && result.map.mappings) {
-              sourceMap.set('babel', { value, map: result.map.mappings });
-          }
-          return result.code;
-      }
-  }
+function (context, value, config /* optional */, input /* optional */) {
+    const options = { presets: ['@babel/preset-env'], sourceMaps: true };
+    const result = context.transformSync(value, options);
+    if (result) {
+        if (result.map) {
+            input.nextMap('babel', result.map, result.code);
+        }
+        return result.code;
+    }
+}
 </script>
 ```
 

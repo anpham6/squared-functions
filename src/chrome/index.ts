@@ -3,12 +3,18 @@ import fs = require('fs-extra');
 
 import Module from '../module';
 
+type ExternalAsset = functions.ExternalAsset;
 type ExternalCategory = functions.ExternalCategory;
-type TranspileMap = functions.chrome.TranspileMap;
+
 type ChromeModule = functions.settings.ChromeModule;
-type SourceMapOutput = functions.internal.SourceMapOutput;
-type ConfigOrTranspiler = functions.internal.ConfigOrTranspiler;
-type PluginConfig = functions.internal.PluginConfig;
+
+type TranspileMap = functions.chrome.TranspileMap;
+
+type SourceMapInput = functions.internal.Chrome.SourceMapInput;
+type SourceMap = functions.internal.Chrome.SourceMap;
+type SourceMapOutput = functions.internal.Chrome.SourceMapOutput;
+type PluginConfig = functions.internal.Chrome.PluginConfig;
+type ConfigOrTranspiler = functions.internal.Chrome.ConfigOrTranspiler;
 
 const validLocalPath = (value: string) => /^\.?\.[\\/]/.test(value);
 
@@ -55,9 +61,9 @@ const Chrome = new class extends Module implements functions.IChrome {
             for (const name in data) {
                 const item = data[name][value];
                 if (item) {
-                    const options = this.createOptions(item);
-                    if (options) {
-                        return [name, options, this.createConfig(data[name][value + '-config'])];
+                    const result = this.createOptions(item);
+                    if (result) {
+                        return [name, result, this.createConfig(data[name][value + '-config'])];
                     }
                     break;
                 }
@@ -95,21 +101,54 @@ const Chrome = new class extends Module implements functions.IChrome {
         }
         return value || {};
     }
-    async transform(type: ExternalCategory, format: string, value: string, transpileMap?: TranspileMap): Promise<Void<[string, Map<string, SourceMapOutput>]>> {
+    createTransfomer(file: ExternalAsset, fileUri: string, sourcesContent: string) {
+        return Object.create({
+            file,
+            fileUri,
+            sourcesContent,
+            sourceMap: new Map<string, SourceMapOutput>(),
+            "nextMap": function(this: SourceMapInput, packageName: string, map: SourceMap | string, value: string, includeContent = true, url?: string) {
+                if (typeof map === 'string') {
+                    try {
+                        map = JSON.parse(map) as SourceMap;
+                    }
+                    catch {
+                        map = {} as SourceMap;
+                    }
+                }
+                if (map && typeof map === 'object' && !map.mappings) {
+                    if (this.packageName) {
+                        this.sourcesContent = this.sourceMap.get(this.packageName)!.value;
+                        this.packageName = '';
+                    }
+                    return;
+                }
+                if (!includeContent) {
+                    this.sourcesContent = null;
+                }
+                if (this.packageName) {
+                    this.sourceMap.delete(this.packageName);
+                }
+                this.map = map;
+                this.packageName = packageName;
+                this.sourceMap.set(packageName, { value, map, url, sourcesContent: this.sourcesContent });
+            }
+        }) as SourceMapInput;
+    }
+    async transform(type: ExternalCategory, format: string, value: string, input: SourceMapInput, transpileMap?: TranspileMap): Promise<Void<[string, Map<string, SourceMapOutput>]>> {
         const data = this.settings[type];
         if (data) {
             let valid: Undef<boolean>;
             const formatters = format.split('+');
-            const sourceMap = new Map<string, SourceMapOutput>();
             for (let i = 0, length = formatters.length; i < length; ++i) {
                 const [name, custom, config] = this.findTranspiler(data, formatters[i].trim(), type, transpileMap);
                 if (name) {
                     try {
                         if (typeof custom === 'function') {
-                            const result = custom(require(name), value, config, sourceMap);
+                            const result = custom(require(name), value, typeof config === 'object' ? { ...config } : config, input);
                             if (result && typeof result === 'string') {
                                 if (i === length - 1) {
-                                    return [result, sourceMap];
+                                    return [result, input.sourceMap];
                                 }
                                 value = result;
                                 valid = true;
@@ -121,11 +160,11 @@ const Chrome = new class extends Module implements functions.IChrome {
                                 value,
                                 typeof custom === 'object' ? { ...custom } : !custom && typeof config === 'object' ? { ...config } : custom || {},
                                 typeof config === 'object' ? { ...config } : config,
-                                sourceMap
+                                input
                             );
                             if (result) {
                                 if (i === length - 1) {
-                                    return [result, sourceMap];
+                                    return [result, input.sourceMap];
                                 }
                                 value = result;
                                 valid = true;
@@ -138,19 +177,19 @@ const Chrome = new class extends Module implements functions.IChrome {
                 }
             }
             if (valid) {
-                return [value, sourceMap];
+                return [value, input.sourceMap];
             }
         }
     }
-    formatContent(mimeType: string, format: string, value: string, transpileMap?: TranspileMap) {
+    formatContent(mimeType: string, format: string, value: string, input: SourceMapInput, transpileMap?: TranspileMap) {
         if (mimeType.endsWith('text/html')) {
-            return this.transform('html', format, value, transpileMap);
+            return this.transform('html', format, value, input, transpileMap);
         }
         else if (mimeType.endsWith('text/css')) {
-            return this.transform('css', format, value, transpileMap);
+            return this.transform('css', format, value, input, transpileMap);
         }
         else if (mimeType.endsWith('text/javascript')) {
-            return this.transform('js', format, value, transpileMap);
+            return this.transform('js', format, value, input, transpileMap);
         }
         return Promise.resolve();
     }

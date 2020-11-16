@@ -1,6 +1,6 @@
 const context = require('prettier');
 
-function setPrettierParser(options: PlainObject) {
+export default async function (value: string, options: PlainObject) {
     switch (options.parser) {
         case 'babel':
         case 'babel-flow':
@@ -37,12 +37,7 @@ function setPrettierParser(options: PlainObject) {
             options.plugins = [require('prettier/parser-yaml')];
             break;
         default:
-            options.plugins ||= [];
-            break;
+            return;
     }
-    return options;
-}
-
-export default async function (value: string, options: PlainObject) {
-    return context.format(value, setPrettierParser(options));
+    return context.format(value, options);
 }

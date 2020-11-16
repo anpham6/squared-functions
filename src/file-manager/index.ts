@@ -16,11 +16,16 @@ import Chrome from '../chrome';
 import Cloud from '../cloud';
 
 type Settings = functions.Settings;
-type RequestBody = functions.RequestBody;
-type ExternalAsset = functions.ExternalAsset;
 type IFileManager = functions.IFileManager;
 type IChrome = functions.IChrome;
 type ICloud = functions.ICloud;
+type RequestBody = functions.RequestBody;
+type ExternalAsset = functions.ExternalAsset;
+
+type CompressModule = functions.settings.CompressModule;
+type CloudModule = functions.settings.CloudModule;
+type GulpModule = functions.settings.GulpModule;
+type ChromeModule = functions.settings.ChromeModule;
 
 type FileResponseData = functions.squared.FileResponseData;
 type CompressFormat = functions.squared.CompressFormat;
@@ -29,14 +34,9 @@ type DataMap = functions.chrome.DataMap;
 
 type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
-type SourceMapOutput = functions.internal.SourceMapOutput;
+type SourceMapOutput = functions.internal.Chrome.SourceMapOutput;
 type CloudServiceHost = functions.external.CloudServiceHost;
 type CloudServiceUpload = functions.external.CloudServiceUpload;
-
-type CompressModule = functions.settings.CompressModule;
-type CloudModule = functions.settings.CloudModule;
-type GulpModule = functions.settings.GulpModule;
-type ChromeModule = functions.settings.ChromeModule;
 
 interface GulpData {
     gulpfile: string;
@@ -353,7 +353,7 @@ const FileManager = class extends Module implements IFileManager {
         return file.sourceUTF8 ||= file.buffer?.toString('utf8') || fs.readFileSync(fileUri || file.fileUri!, 'utf8');
     }
     async appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex: number) {
-        const { mimeType, format } = file;
+        const mimeType = file.mimeType;
         if (mimeType) {
             if (mimeType.endsWith('text/css')) {
                 if (!file.preserve && this.dataMap.unusedStyles) {
@@ -367,12 +367,6 @@ const FileManager = class extends Module implements IFileManager {
                     if (result) {
                         content = result;
                     }
-                }
-            }
-            if (format) {
-                const result = await Chrome.formatContent(mimeType, format, content, this.dataMap.transpileMap);
-                if (result) {
-                    content = result[0];
                 }
             }
         }
@@ -408,13 +402,6 @@ const FileManager = class extends Module implements IFileManager {
                             if (result) {
                                 value = result;
                             }
-                        }
-                    }
-                    if (item.format) {
-                        const result = await Chrome.formatContent(mimeType, item.format, value, this.dataMap.transpileMap);
-                        if (result) {
-                            output += '\n' + result[0];
-                            continue;
                         }
                     }
                 }
@@ -499,17 +486,19 @@ const FileManager = class extends Module implements IFileManager {
         const items = Array.from(sourceMap);
         for (let i = 0, length = items.length; i < length; ++i) {
             const [name, data] = items[i];
+            data.map.sources = [filename];
+            data.map.sourcesContent = [data.sourcesContent];
             let mapName: string;
             if (i < length - 1) {
-                mapName = data.filename || this.replaceExtension(filename, name + ext + '.map');
+                mapName = data.url || this.replaceExtension(filename, name + ext + '.map');
                 const sourceUri = path.join(pathname, mapName.replace(/\.map$/, ''));
                 tasks.push(fs.writeFile(sourceUri, data.value, 'utf8').then(() => this.add(sourceUri, parent)).catch(() => true));
             }
             else {
-                mapName = data.filename || filename + '.map';
+                mapName = data.url || filename + '.map';
             }
             const mapUri = path.join(pathname, mapName);
-            tasks.push(fs.writeFile(mapUri, data.map, 'utf8').then(() => this.add(mapUri, parent)).catch(err => this.writeFail(`Unable to generate source map [${name}]`, err)));
+            tasks.push(fs.writeFile(mapUri, JSON.stringify(data.map), 'utf8').then(() => this.add(mapUri, parent)).catch(err => this.writeFail(`Unable to generate source map [${name}]`, err)));
         }
         return Promise.all(tasks);
     }
@@ -749,7 +738,7 @@ const FileManager = class extends Module implements IFileManager {
                     .replace(/\s*<(script|link)[^>]+?data-chrome-file="exclude"[^>]*>\n*/ig, '')
                     .replace(/\s+data-(?:use|chrome-[\w-]+)="([^"]|\\")+?"/g, '');
                 if (format) {
-                    const result = await Chrome.transform('html', format, source, this.dataMap.transpileMap);
+                    const result = await Chrome.transform('html', format, source, Chrome.createTransfomer(file, fileUri, source), this.dataMap.transpileMap);
                     if (result) {
                         file.sourceUTF8 = result[0];
                         break;
@@ -760,7 +749,8 @@ const FileManager = class extends Module implements IFileManager {
             }
             case 'text/html':
                 if (format) {
-                    const result = await Chrome.transform('html', format, this.getUTF8String(file, fileUri), this.dataMap.transpileMap);
+                    const source = this.getUTF8String(file, fileUri);
+                    const result = await Chrome.transform('html', format, source, Chrome.createTransfomer(file, fileUri, source), this.dataMap.transpileMap);
                     if (result) {
                         file.sourceUTF8 = result[0];
                     }
@@ -795,7 +785,7 @@ const FileManager = class extends Module implements IFileManager {
                     source += bundle;
                 }
                 if (format) {
-                    const result = await Chrome.transform('css', format, source, this.dataMap.transpileMap);
+                    const result = await Chrome.transform('css', format, source, Chrome.createTransfomer(file, fileUri, source), this.dataMap.transpileMap);
                     if (result) {
                         source = result[0];
                         if (result[1].size) {
@@ -820,7 +810,7 @@ const FileManager = class extends Module implements IFileManager {
                     source += bundle;
                 }
                 if (format) {
-                    const result = await Chrome.transform('js', format, source, this.dataMap.transpileMap);
+                    const result = await Chrome.transform('js', format, source, Chrome.createTransfomer(file, fileUri, source), this.dataMap.transpileMap);
                     if (result) {
                         source = result[0];
                         if (result[1].size) {

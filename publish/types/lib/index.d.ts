@@ -107,7 +107,7 @@ declare namespace functions {
     }
 
     namespace internal {
-        namespace serve {
+        namespace Serve {
             interface Routing {
                 [key: string]: Route[];
             }
@@ -118,7 +118,7 @@ declare namespace functions {
             }
         }
 
-        namespace image {
+        namespace Image {
             interface UsingOptions {
                 data: FileData;
                 command?: string;
@@ -147,6 +147,39 @@ declare namespace functions {
             }
         }
 
+        namespace Chrome {
+            interface SourceMapInput {
+                file: ExternalAsset;
+                fileUri: string;
+                sourcesContent: Null<string>;
+                sourceMap: Map<string, SourceMapOutput>;
+                map?: SourceMap;
+                packageName?: string;
+                nextMap: (packageName: string, map: SourceMap | string, value: string, includeSources?: boolean, url?: string) => void;
+            }
+
+            interface SourceMapOutput {
+                value: string;
+                map: SourceMap;
+                sourcesContent: Null<string>;
+                url?: string;
+            }
+
+            interface SourceMap {
+                version: number;
+                file?: string;
+                sourceRoot?: string;
+                sources: string[];
+                sourcesContent?: Null<string>[];
+                names: string[];
+                mappings: string;
+            }
+
+            type Config = StandardMap | string;
+            type ConfigOrTranspiler = Config | FunctionType<string>;
+            type PluginConfig = [string, Undef<ConfigOrTranspiler>, Config];
+        }
+
         interface FileData {
             file: ExternalAsset;
             fileUri: string;
@@ -156,16 +189,6 @@ declare namespace functions {
             pathname: string;
             fileUri: string;
         }
-
-        interface SourceMapOutput {
-            value: string;
-            map: string;
-            filename?: string;
-        }
-
-        type Config = StandardMap | string;
-        type ConfigOrTranspiler = Config | FunctionType<string>;
-        type PluginConfig = [string, Undef<ConfigOrTranspiler>, Config];
     }
 
     namespace external {
@@ -249,23 +272,24 @@ declare namespace functions {
     }
 
     interface IImage extends IModule {
-        using(options: internal.image.UsingOptions): void;
-        parseCrop(value: string): Undef<internal.image.CropData>;
+        using(options: internal.Image.UsingOptions): void;
+        parseCrop(value: string): Undef<internal.Image.CropData>;
         parseOpacity(value: string): number;
-        parseQuality(value: string): Undef<internal.image.QualityData>;
-        parseResize(value: string): Undef<internal.image.ResizeData>;
-        parseRotation(value: string): Undef<internal.image.RotateData>;
+        parseQuality(value: string): Undef<internal.Image.QualityData>;
+        parseResize(value: string): Undef<internal.Image.ResizeData>;
+        parseRotation(value: string): Undef<internal.Image.RotateData>;
         parseMethod(value: string): Undef<string[]>;
     }
 
     interface IChrome extends IModule {
         settings: settings.ChromeModule;
-        findPlugin(settings: Undef<ObjectMap<StandardMap>>, name: string): internal.PluginConfig;
-        findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory, transpileMap?: chrome.TranspileMap): internal.PluginConfig;
+        findPlugin(settings: Undef<ObjectMap<StandardMap>>, name: string): internal.Chrome.PluginConfig;
+        findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory, transpileMap?: chrome.TranspileMap): internal.Chrome.PluginConfig;
         createTranspiler(value: string): Null<FunctionType<string>>;
         createConfig(value: string): Undef<StandardMap | string>;
-        transform(type: ExternalCategory, format: string, value: string, transpileMap?: chrome.TranspileMap): Promise<Void<[string, Map<string, internal.SourceMapOutput>]>>;
-        formatContent(mimeType: string, format: string, value: string, transpileMap?: chrome.TranspileMap): Promise<Void<[string, Map<string, internal.SourceMapOutput>]>>;
+        createTransfomer(file: ExternalAsset, fileUri: string, sourcesContent: string): internal.Chrome.SourceMapInput;
+        transform(type: ExternalCategory, format: string, value: string, input: internal.Chrome.SourceMapInput): Promise<Void<[string, Map<string, internal.Chrome.SourceMapOutput>]>>;
+        formatContent(mimeType: string, format: string, value: string, input: internal.Chrome.SourceMapInput): Promise<Void<[string, Map<string, internal.Chrome.SourceMapOutput>]>>;
         removeCss(source: string, styles: string[]): Undef<string>;
     }
 
@@ -316,7 +340,7 @@ declare namespace functions {
         appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex: number): Promise<string>;
         getTrailingContent(file: ExternalAsset): Promise<string>;
         getBundleContent(fileUri: string): Undef<string>;
-        writeSourceMaps(fileUri: string, sourceMap: Map<string, internal.SourceMapOutput>, parent?: ExternalAsset): Promise<unknown[]>;
+        writeSourceMaps(fileUri: string, sourceMap: Map<string, internal.Chrome.SourceMapOutput>, parent?: ExternalAsset): Promise<unknown[]>;
         transformCss(file: ExternalAsset, content: string): Undef<string>;
         newImage(data: internal.FileData, ouputType: string, saveAs: string, command?: string): string;
         transformBuffer(data: internal.FileData): Promise<void>;
@@ -362,10 +386,10 @@ declare namespace functions {
         instance: T;
         fileUri: string
         command: string
-        resizeData?: internal.image.ResizeData;
-        cropData?: internal.image.CropData;
-        rotateData?: internal.image.RotateData;
-        qualityData?: internal.image.QualityData;
+        resizeData?: internal.Image.ResizeData;
+        cropData?: internal.Image.CropData;
+        rotateData?: internal.Image.RotateData;
+        qualityData?: internal.Image.QualityData;
         opacityValue: number;
         errorHandler?: (err: Error) => void;
         method(): void;
@@ -374,7 +398,7 @@ declare namespace functions {
         opacity(): void;
         quality(): void;
         rotate(parent?: ExternalAsset, preRotate?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback): void;
-        write(output: string, options?: internal.image.UsingOptions): void;
+        write(output: string, options?: internal.Image.UsingOptions): void;
         finalize(output: string, callback: (result: string) => void): void;
         constructor(instance: T, fileUri: string, command?: string, finalAs?: string);
     }
@@ -402,7 +426,7 @@ declare namespace functions {
         request_post_limit?: string;
         env?: string;
         port?: StringMap;
-        routing?: internal.serve.Routing;
+        routing?: internal.Serve.Routing;
         compress?: settings.CompressModule;
         cloud?: settings.CloudModule;
         gulp?: settings.GulpModule;

@@ -1,9 +1,10 @@
 import Module from '../module';
 
-type CloudServiceClient = functions.external.CloudServiceClient;
-
 type CloudModule = functions.settings.CloudModule;
+
 type CloudService = functions.squared.CloudService;
+
+type CloudServiceClient = functions.external.CloudServiceClient;
 
 const serviceMap: ObjectMap<CloudServiceClient> = {};
 
