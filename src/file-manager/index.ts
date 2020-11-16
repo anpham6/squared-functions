@@ -1557,7 +1557,7 @@ const FileManager = class extends Module implements IFileManager {
                                                 }
                                                 else {
                                                     let filename: string;
-                                                    if (length > 1 && mimeType === 'text/javascript') {
+                                                    if (length > 1 && mimeType && mimeType.includes('text/')) {
                                                         filename = path.basename(fileUri);
                                                     }
                                                     else {

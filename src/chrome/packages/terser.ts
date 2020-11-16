@@ -2,7 +2,7 @@ const context = require('terser');
 
 type SourceMapOutput = functions.internal.SourceMapOutput;
 
-export default async function (value: string, options: StandardMap, config: ObjectString, sourceMap: Map<string, SourceMapOutput>) {
+export default async function (value: string, options: StandardMap, config: PlainObject, sourceMap: Map<string, SourceMapOutput>) {
     const map = options.sourceMap;
     let previousMap: Undef<[string, SourceMapOutput]>,
         filename: Undef<string>;

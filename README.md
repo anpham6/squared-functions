@@ -237,6 +237,7 @@ You can also define your own optimizations in squared.settings.json:
 * [npm i postcss](https://github.com/postcss/postcss)
 * [npm i prettier](https://github.com/prettier/prettier)
 * [npm i clean-css](https://github.com/jakubpawlowicz/clean-css)
+* [npm i posthtml](https://github.com/postcss/postcss)
 * [npm i html-minifier-terser](https://github.com/DanielRuf/html-minifier-terser)
 * [npm i html-minifier](https://github.com/kangax/html-minifier)
 
@@ -256,6 +257,19 @@ chrome -> html | js | css -> npm package name -> custom name
 {
   "chrome": {
     "html": { // built-in minifier
+      "posthtml": {
+        "transform": {
+          "plugins": [
+            ["posthtml-doctype", { "doctype": "HTML 5" }], // Plugins have be installed with NPM manually
+            ["posthtml-include", { "root": "./", "encoding": "utf-8" }]
+          ]
+        },
+        "transform-config": {
+          "directives": [
+            { "name": "?php", "start": "<", "end": ">" }
+          ]
+        }
+      },
       "prettier": {
         "beautify": {
           "parser": "html",

@@ -1,6 +1,6 @@
 const context = require('@babel/core');
 
-export default async function (value: string, options: PlainObject, config: ObjectString, sourceMap: Map<string, functions.internal.SourceMapOutput>) {
+export default async function (value: string, options: PlainObject, config: PlainObject, sourceMap: Map<string, functions.internal.SourceMapOutput>) {
     const result = context.transform(value, options);
     if (result) {
         if (result.map && result.map.mappings) {
