@@ -8,28 +8,28 @@ const Node = new class extends Module implements functions.INode {
     private _unc_read = false;
     private _unc_write = false;
 
-    enableDiskRead() {
+    setDiskRead() {
         this._disk_read = true;
     }
-    enableDiskWrite() {
+    setDiskWrite() {
         this._disk_write = true;
     }
-    enableUNCRead() {
+    setUNCRead() {
         this._unc_read = true;
     }
-    enableUNCWrite() {
+    setUNCWrite() {
         this._unc_write = true;
     }
-    canReadDisk() {
+    hasDiskRead() {
         return this._disk_read;
     }
-    canWriteDisk() {
+    hasDiskWrite() {
         return this._disk_write;
     }
-    canReadUNC() {
+    hasUNCRead() {
         return this._unc_read;
     }
-    canWriteUNC() {
+    hasUNCWrite() {
         return this._unc_write;
     }
     isFileURI(value: string) {
@@ -79,7 +79,7 @@ const Node = new class extends Module implements functions.INode {
             return origin + pathname.join('/') + '/' + value;
         }
     }
-    toPosixPath(value: string) {
+    toPosix(value: string) {
         return value.replace(/\\+/g, '/');
     }
 }();

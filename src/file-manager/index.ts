@@ -27,7 +27,7 @@ type CloudModule = functions.settings.CloudModule;
 type GulpModule = functions.settings.GulpModule;
 type ChromeModule = functions.settings.ChromeModule;
 
-type FileResponseData = functions.squared.FileResponseData;
+type ResponseData = functions.squared.ResponseData;
 type CompressFormat = functions.squared.CompressFormat;
 type CloudService = functions.squared.CloudService;
 
@@ -55,16 +55,16 @@ const FileManager = class extends Module implements IFileManager {
         if (!ignorePermissions) {
             const { disk_read, disk_write, unc_read, unc_write } = value;
             if (disk_read === true || disk_read === 'true') {
-                Node.enableDiskRead();
+                Node.setDiskRead();
             }
             if (disk_write === true || disk_write === 'true') {
-                Node.enableDiskWrite();
+                Node.setDiskWrite();
             }
             if (unc_read === true || unc_read === 'true') {
-                Node.enableUNCRead();
+                Node.setUNCRead();
             }
             if (unc_write === true || unc_write === 'true') {
-                Node.enableUNCWrite();
+                Node.setUNCWrite();
             }
         }
         if (value.compress) {
@@ -99,16 +99,16 @@ const FileManager = class extends Module implements IFileManager {
 
     public static checkPermissions(dirname: string, res?: Response) {
         if (Node.isDirectoryUNC(dirname)) {
-            if (!Node.canWriteUNC()) {
+            if (!Node.hasUNCWrite()) {
                 if (res) {
-                    res.json({ success: false, error: { hint: 'OPTION: --unc-write', message: 'Writing to UNC shares is not enabled.' } } as FileResponseData);
+                    res.json({ success: false, error: { hint: 'OPTION: --unc-write', message: 'Writing to UNC shares is not enabled.' } } as ResponseData);
                 }
                 return false;
             }
         }
-        else if (!Node.canWriteDisk()) {
+        else if (!Node.hasDiskWrite()) {
             if (res) {
-                res.json({ success: false, error: { hint: 'OPTION: --disk-write', message: 'Writing to disk is not enabled.' } } as FileResponseData);
+                res.json({ success: false, error: { hint: 'OPTION: --disk-write', message: 'Writing to disk is not enabled.' } } as ResponseData);
             }
             return false;
         }
@@ -122,7 +122,7 @@ const FileManager = class extends Module implements IFileManager {
         }
         catch (err) {
             if (res) {
-                res.json({ success: false, error: { hint: `DIRECTORY: ${dirname}`, message: err.toString() } } as FileResponseData);
+                res.json({ success: false, error: { hint: `DIRECTORY: ${dirname}`, message: err.toString() } } as ResponseData);
             }
             return false;
         }
@@ -134,9 +134,9 @@ const FileManager = class extends Module implements IFileManager {
     public cleared = false;
     public emptyDirectory = false;
     public productionRelease = false;
-    public Compress?: CompressModule;
     public Chrome?: IChrome;
     public Cloud?: ICloud;
+    public Compress?: CompressModule;
     public Gulp?: GulpModule;
     public basePath?: string;
     public baseAsset?: ExternalAsset;
@@ -304,7 +304,7 @@ const FileManager = class extends Module implements IFileManager {
                 const rootDir = asset.rootDir;
                 if (asset.moveTo === serverRoot) {
                     if (file.moveTo === serverRoot) {
-                        return Node.toPosixPath(path.join(asset.pathname, asset.filename));
+                        return Node.toPosix(path.join(asset.pathname, asset.filename));
                     }
                 }
                 else if (rootDir) {
@@ -312,7 +312,7 @@ const FileManager = class extends Module implements IFileManager {
                         return asset.filename;
                     }
                     else if (baseDir === rootDir) {
-                        return Node.toPosixPath(path.join(asset.pathname, asset.filename));
+                        return Node.toPosix(path.join(asset.pathname, asset.filename));
                     }
                 }
                 else {
@@ -327,7 +327,7 @@ const FileManager = class extends Module implements IFileManager {
         }
     }
     getAbsoluteUri(value: string, href: string) {
-        value = Node.toPosixPath(value);
+        value = Node.toPosix(value);
         let moveTo = '';
         if (value[0] === '/') {
             moveTo = this.serverRoot;
@@ -342,7 +342,7 @@ const FileManager = class extends Module implements IFileManager {
         return moveTo + value;
     }
     getFileUri(file: ExternalAsset, filename = file.filename) {
-        return Node.toPosixPath(path.join(file.moveTo || '', file.pathname, filename));
+        return Node.toPosix(path.join(file.moveTo || '', file.pathname, filename));
     }
     getUTF8String(file: ExternalAsset, fileUri?: string) {
         return file.sourceUTF8 ||= file.buffer?.toString('utf8') || fs.readFileSync(fileUri || file.fileUri!, 'utf8');
@@ -772,7 +772,7 @@ const FileManager = class extends Module implements IFileManager {
                     .replace(/\s*<(script|link)[^>]+?data-chrome-file="exclude"[^>]*>\n*/ig, '')
                     .replace(/\s+data-(?:use|chrome-[\w-]+)="([^"]|\\")+?"/g, '');
                 if (format && chrome) {
-                    const result = await chrome.transform('html', format, source, chrome.createTransformer(file, fileUri, source));
+                    const result = await chrome.transform('html', format, source, chrome.createSourceMap(file, fileUri, source));
                     if (result) {
                         file.sourceUTF8 = result[0];
                         break;
@@ -784,7 +784,7 @@ const FileManager = class extends Module implements IFileManager {
             case 'text/html':
                 if (format && chrome) {
                     const source = this.getUTF8String(file, fileUri);
-                    const result = await chrome.transform('html', format, source, chrome.createTransformer(file, fileUri, source));
+                    const result = await chrome.transform('html', format, source, chrome.createSourceMap(file, fileUri, source));
                     if (result) {
                         file.sourceUTF8 = result[0];
                     }
@@ -819,7 +819,7 @@ const FileManager = class extends Module implements IFileManager {
                     source += bundle;
                 }
                 if (format && chrome) {
-                    const result = await chrome.transform('css', format, source, chrome.createTransformer(file, fileUri, source));
+                    const result = await chrome.transform('css', format, source, chrome.createSourceMap(file, fileUri, source));
                     if (result) {
                         if (result[1].size) {
                             await this.writeSourceMaps(fileUri, result[1], file);
@@ -844,7 +844,7 @@ const FileManager = class extends Module implements IFileManager {
                     source += bundle;
                 }
                 if (format && chrome) {
-                    const result = await chrome.transform('js', format, source, chrome.createTransformer(file, fileUri, source));
+                    const result = await chrome.transform('js', format, source, chrome.createSourceMap(file, fileUri, source));
                     if (result) {
                         if (result[1].size) {
                             await this.writeSourceMaps(fileUri, result[1], file);
@@ -1233,7 +1233,7 @@ const FileManager = class extends Module implements IFileManager {
                                 .pipe(stream);
                             }
                     }
-                    else if (Node.canReadUNC() && Node.isFileUNC(uri) || Node.canReadDisk() && path.isAbsolute(uri)) {
+                    else if (Node.hasUNCRead() && Node.isFileUNC(uri) || Node.hasDiskRead() && path.isAbsolute(uri)) {
                         if (!checkQueue(file, fileUri)) {
                             this.performAsyncTask();
                             fs.copyFile(

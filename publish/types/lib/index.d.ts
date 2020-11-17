@@ -53,15 +53,18 @@ declare namespace functions {
             keyName: string;
         }
 
-        interface FileResponseData {
+        interface ResponseData {
             success: boolean;
+            data?: unknown;
             zipname?: string;
             bytes?: number;
             files?: string[];
-            error?: {
-                message: string;
-                hint?: string;
-            };
+            error?: ResponseError;
+        }
+
+        interface ResponseError {
+            message: string;
+            hint?: string;
         }
     }
 
@@ -233,21 +236,21 @@ declare namespace functions {
     }
 
     interface INode extends IModule {
-        enableDiskRead(): void;
-        enableDiskWrite(): void;
-        enableUNCRead(): void;
-        enableUNCWrite(): void;
-        canReadDisk(): boolean;
-        canWriteDisk(): boolean;
-        canReadUNC(): boolean;
-        canWriteUNC(): boolean;
+        setDiskRead(): void;
+        setDiskWrite(): void;
+        setUNCRead(): void;
+        setUNCWrite(): void;
+        hasDiskRead(): boolean;
+        hasDiskWrite(): boolean;
+        hasUNCRead(): boolean;
+        hasUNCWrite(): boolean;
         isFileURI(value: string): boolean;
         isFileUNC(value: string): boolean;
         isDirectoryUNC(value: string): boolean;
         fromSameOrigin(value: string, other: string): boolean;
         parsePath(value: string): Undef<string>;
         resolvePath(value: string, href: string, hostname?: boolean): Undef<string>;
-        toPosixPath(value: string): string;
+        toPosix(value: string): string;
     }
 
     interface ICompress extends IModule {
@@ -289,7 +292,7 @@ declare namespace functions {
         loadOptions(value: internal.Chrome.ConfigOrTranspiler | string): Undef<internal.Chrome.ConfigOrTranspiler>;
         loadConfig(value: string): Undef<StandardMap | string>;
         loadTranspiler(value: string): Null<FunctionType<string>>;
-        createTransformer(file: ExternalAsset, fileUri: string, sourcesContent: string): internal.Chrome.SourceMapInput;
+        createSourceMap(file: ExternalAsset, fileUri: string, sourcesContent: string): internal.Chrome.SourceMapInput;
         transform(type: ExternalCategory, format: string, value: string, input: internal.Chrome.SourceMapInput): Promise<Void<[string, Map<string, internal.Chrome.SourceMapOutput>]>>;
     }
 
@@ -308,6 +311,7 @@ declare namespace functions {
         basePath?: string;
         Chrome?: IChrome;
         Cloud?: ICloud;
+        Compress?: settings.CompressModule;
         Gulp?: settings.GulpModule;
         readonly files: Set<string>;
         readonly filesQueued: Set<string>;

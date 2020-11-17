@@ -2,12 +2,14 @@ const context = require('posthtml');
 
 function loadPlugins(plugins: [string, Undef<PlainObject>][]) {
     const result: unknown[] = [];
-    for (const plugin of plugins.filter(item => Array.isArray(item) && item.length)) {
-        try {
-            result.push(require(plugin[0])(plugin[1]));
-        }
-        catch (err) {
-            console.log(`posthtml: Install required? [npm i ${plugin[0]}]` + err);
+    for (const plugin of plugins.map(item => typeof item === 'string' ? [item] : Array.isArray(item) && item.length ? item : null)) {
+        if (plugin) {
+            try {
+                result.push(require(plugin[0])(plugin[1]));
+            }
+            catch (err) {
+                console.log(`posthtml: Install required? [npm i ${plugin[0]}]` + err);
+            }
         }
     }
     return result;

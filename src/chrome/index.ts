@@ -8,11 +8,10 @@ type ExternalCategory = functions.ExternalCategory;
 type RequestBody = functions.RequestBody;
 
 type ChromeModule = functions.settings.ChromeModule;
-
 type TranspileMap = functions.chrome.TranspileMap;
 
-type SourceMapInput = functions.internal.Chrome.SourceMapInput;
 type SourceMap = functions.internal.Chrome.SourceMap;
+type SourceMapInput = functions.internal.Chrome.SourceMapInput;
 type SourceMapOutput = functions.internal.Chrome.SourceMapOutput;
 type PluginConfig = functions.internal.Chrome.PluginConfig;
 type ConfigOrTranspiler = functions.internal.Chrome.ConfigOrTranspiler;
@@ -112,7 +111,7 @@ const Chrome = class extends Module implements functions.IChrome {
         }
         return value.startsWith('function') ? eval(`(${value})`) as FunctionType<string> : null;
     }
-    createTransformer(file: ExternalAsset, fileUri: string, sourcesContent: string) {
+    createSourceMap(file: ExternalAsset, fileUri: string, sourcesContent: string) {
         return Object.create({
             file,
             fileUri,
@@ -142,7 +141,7 @@ const Chrome = class extends Module implements functions.IChrome {
                 }
                 this.map = map;
                 this.packageName = packageName;
-                this.sourceMap.set(packageName, { value, map, url, sourcesContent: this.sourcesContent });
+                this.sourceMap.set(packageName, { value, map, sourcesContent: this.sourcesContent, url });
             }
         }) as SourceMapInput;
     }
@@ -162,9 +161,6 @@ const Chrome = class extends Module implements functions.IChrome {
                         try {
                             const result = options(require(plugin), value, output, input);
                             if (result && typeof result === 'string') {
-                                if (i === length - 1) {
-                                    return [result, input.sourceMap];
-                                }
                                 value = result;
                                 valid = true;
                             }
@@ -176,22 +172,14 @@ const Chrome = class extends Module implements functions.IChrome {
                     else {
                         try {
                             this._packageMap[plugin] ||= require(`./packages/${plugin}`).default;
-                            const result: Undef<string> = await this._packageMap[plugin](
-                                value,
-                                options,
-                                output,
-                                input
-                            );
+                            const result: Undef<string> = await this._packageMap[plugin](value, options, output, input );
                             if (result) {
-                                if (i === length - 1) {
-                                    return [result, input.sourceMap];
-                                }
                                 value = result;
                                 valid = true;
                             }
                         }
                         catch (err) {
-                            this.writeFail(`Built-in transformer [${plugin}]`, err);
+                            this.writeFail(`Transformer not found [${plugin}]`, err);
                         }
                     }
                 }
