@@ -117,7 +117,7 @@ const Chrome = class extends Module implements functions.IChrome {
             fileUri,
             sourcesContent,
             sourceMap: new Map<string, SourceMapOutput>(),
-            "nextMap": function(this: SourceMapInput, packageName: string, map: SourceMap | string, value: string, includeContent = true, url?: string) {
+            "nextMap": function(this: SourceMapInput, packageName: string, map: SourceMap | string, value: string, includeContent = true) {
                 if (typeof map === 'string') {
                     try {
                         map = JSON.parse(map) as SourceMap;
@@ -126,22 +126,10 @@ const Chrome = class extends Module implements functions.IChrome {
                         map = {} as SourceMap;
                     }
                 }
-                if (map && typeof map === 'object' && !map.mappings) {
-                    if (this.packageName) {
-                        this.sourcesContent = this.sourceMap.get(this.packageName)!.value;
-                        this.packageName = '';
-                    }
-                    return;
+                if (typeof map === 'object' && map.mappings) {
+                    this.map = map;
+                    this.sourceMap.set(packageName, { value, map, sourcesContent: includeContent ? this.sourcesContent : null });
                 }
-                if (!includeContent) {
-                    this.sourcesContent = null;
-                }
-                if (this.packageName) {
-                    this.sourceMap.delete(this.packageName);
-                }
-                this.map = map;
-                this.packageName = packageName;
-                this.sourceMap.set(packageName, { value, map, sourcesContent: this.sourcesContent, url });
             }
         }) as SourceMapInput;
     }

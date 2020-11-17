@@ -506,34 +506,42 @@ const FileManager = class extends Module implements IFileManager {
             return output;
         }
     }
-    async writeSourceMaps(fileUri: string, sourceMap: Map<string, SourceMapOutput>, parent?: ExternalAsset) {
-        const tasks: Promise<unknown>[] = [];
-        const pathname = path.dirname(fileUri);
+    writeSourceMap(file: ExternalAsset, fileUri: string, sourceData: [string, Map<string, SourceMapOutput>], sourceContent: string, modified: boolean) {
+        const items = Array.from(sourceData[1]);
+        const excludeSources = items.some(data => data[1].sourcesContent === null);
+        const [name, data] = items.pop()!;
         const filename = path.basename(fileUri);
-        const ext = path.extname(fileUri);
-        const items = Array.from(sourceMap);
-        for (let i = 0, length = items.length; i < length; ++i) {
-            const [name, data] = items[i];
-            const map = data.map;
-            let mapName: string;
-            if (i < length - 1) {
-                mapName = data.url || this.replaceExtension(filename, name + ext + '.map');
-                const sourceUri = path.join(pathname, mapName.replace(/\.map$/, ''));
-                map.file = path.basename(filename);
-                tasks.push(fs.writeFile(sourceUri, data.value, 'utf8').then(() => this.add(sourceUri, parent)).catch(() => true));
-            }
-            else {
-                mapName = data.url || filename + '.map';
-                map.file = filename;
-            }
-            map.sources = [];
-            if (data.sourcesContent !== null && (!Array.isArray(map.sourcesContent) || map.sourcesContent.length === 1 && !map.sourcesContent[0])) {
-                map.sourcesContent = [data.sourcesContent];
-            }
-            const mapUri = path.join(pathname, mapName);
-            tasks.push(fs.writeFile(mapUri, JSON.stringify(map), 'utf8').then(() => this.add(mapUri, parent)).catch(err => this.writeFail(`Unable to generate source map [${name}]`, err)));
+        const map = data.map;
+        const mapFile = filename + '.map';
+        map.file = filename;
+        if (map.sourceRoot && file.bundleRoot && !modified) {
+            const bundleRoot = file.bundleRoot;
+            map.sources = this.assets.filter(item => item.bundleId === file.bundleId).sort((a, b) => a.bundleIndex! - b.bundleIndex!).map(item => item.uri!.replace(bundleRoot, ''));
         }
-        return Promise.all(tasks);
+        else {
+            map.sources = ['unknown'];
+        }
+        if (!excludeSources) {
+            if (!Array.isArray(map.sourcesContent) || map.sourcesContent.length === 1 && !map.sourcesContent[0]) {
+                map.sourcesContent = [data.sourcesContent || sourceContent];
+            }
+        }
+        else {
+            delete map.sourcesContent;
+        }
+        sourceData[0] = sourceData[0].replace(/# sourceMappingURL=[\S\s]+$/, '# sourceMappingURL=' + mapFile);
+        try {
+            const mapUri = path.join(path.dirname(fileUri), mapFile);
+            fs.writeFileSync(
+                mapUri,
+                JSON.stringify(map),
+                'utf8'
+            );
+            this.add(mapUri, file);
+        }
+        catch (err) {
+            this.writeFail(`Unable to generate source map [${name}]`, err);
+        }
     }
     async transformBuffer(data: FileData) {
         const chrome = this.Chrome;
@@ -799,21 +807,25 @@ const FileManager = class extends Module implements IFileManager {
                 if (unusedStyles && !transform && !trailing && !bundle && (!format || !chrome)) {
                     break;
                 }
-                let source = this.getUTF8String(file, fileUri);
+                let source = this.getUTF8String(file, fileUri),
+                    modified = false;
                 if (unusedStyles) {
                     const result = this.removeCss(source, unusedStyles);
                     if (result) {
                         source = result;
+                        modified = true;
                     }
                 }
                 if (transform) {
                     const result = this.transformCss(file, source);
                     if (result) {
                         source = result;
+                        modified = true;
                     }
                 }
                 if (trailing) {
                     source += trailing;
+                    modified = true;
                 }
                 if (bundle) {
                     source += bundle;
@@ -822,7 +834,7 @@ const FileManager = class extends Module implements IFileManager {
                     const result = await chrome.transform('css', format, source, chrome.createSourceMap(file, fileUri, source));
                     if (result) {
                         if (result[1].size) {
-                            await this.writeSourceMaps(fileUri, result[1], file);
+                            this.writeSourceMap(file, fileUri, result, source, modified);
                         }
                         source = result[0];
                     }
@@ -836,9 +848,11 @@ const FileManager = class extends Module implements IFileManager {
                 if (!trailing && !bundle && !format) {
                     break;
                 }
-                let source = this.getUTF8String(file, fileUri);
+                let source = this.getUTF8String(file, fileUri),
+                    modified = false;
                 if (trailing) {
                     source += trailing;
+                    modified = true;
                 }
                 if (bundle) {
                     source += bundle;
@@ -847,7 +861,7 @@ const FileManager = class extends Module implements IFileManager {
                     const result = await chrome.transform('js', format, source, chrome.createSourceMap(file, fileUri, source));
                     if (result) {
                         if (result[1].size) {
-                            await this.writeSourceMaps(fileUri, result[1], file);
+                            this.writeSourceMap(file, fileUri, result, source, modified);
                         }
                         source = result[0];
                     }

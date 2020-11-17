@@ -79,7 +79,9 @@ declare namespace functions {
             cloudStorage?: squared.CloudService[];
             exclude?: boolean;
             basePath?: string;
+            bundleId?: number;
             bundleIndex?: number;
+            bundleRoot?: string;
             trailingContent?: FormattableContent[];
             textContent?: string;
             inlineContent?: string;
@@ -152,7 +154,7 @@ declare namespace functions {
                 sourceMap: Map<string, SourceMapOutput>;
                 map?: SourceMap;
                 packageName?: string;
-                nextMap: (packageName: string, map: SourceMap | string, value: string, includeSources?: boolean, url?: string) => void;
+                nextMap: (packageName: string, map: SourceMap | string, value: string, includeSources?: boolean) => void;
             }
 
             interface SourceMapOutput {
@@ -343,7 +345,7 @@ declare namespace functions {
         appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex: number): Promise<string>;
         getTrailingContent(file: ExternalAsset): Promise<string>;
         getBundleContent(fileUri: string): Undef<string>;
-        writeSourceMaps(fileUri: string, sourceMap: Map<string, internal.Chrome.SourceMapOutput>, parent?: ExternalAsset): Promise<unknown[]>;
+        writeSourceMap(file: ExternalAsset, fileUri: string, sourceData: [string, Map<string, internal.Chrome.SourceMapOutput>], sourceContent: string, modified: boolean): void;
         transformCss(file: ExternalAsset, content: string): Undef<string>;
         removeCss(source: string, styles: string[]): Undef<string>;
         newImage(data: internal.FileData, ouputType: string, saveAs: string, command?: string): string;
