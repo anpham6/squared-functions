@@ -167,7 +167,7 @@ const Chrome = class extends Module implements functions.IChrome {
                             }
                         }
                         catch (err) {
-                            this.writeFail(`Transformer not found [${plugin}]`, err);
+                            this.writeFail(`Transformer [${plugin}]`, err);
                         }
                     }
                 }

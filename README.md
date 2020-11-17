@@ -407,12 +407,19 @@ interface FileModifiers {
     preserve?: boolean; // type: css
     inline?: boolean; // type: js | css
     base64?: boolean; // type: image
-    compress?: CompressFormat[];
+    compress?: { format: string, level?: number }[];
+}
+
+interface OutputModifiers {
+    tasks?: string[];
+    watch?: boolean | { interval?: number | expires?: string }; // type: js | css | image (expires: 1h 1m 1s)
+    attributes?: { name: string, value?: string }[];
+    cloudStorage?: CloudService[];
     ignore?: boolean;
     exclude?: boolean;
 }
 
-interface AssetCommand extends FileModifiers {
+interface AssetCommand extends FileModifiers, OutputModifiers {
     selector?: string;
     type?: string;
     saveAs?: string; // type: js | css
@@ -422,8 +429,6 @@ interface AssetCommand extends FileModifiers {
     filename?: string; // type: html | ...image
     process?: string[]; // type: js | css
     commands?: string[]; // type: image
-    tasks?: string[];
-    attributes?: { name: string, value?: string }[],
     template?: {
         module?: string;
         identifier?: string;
@@ -518,7 +523,7 @@ squared.saveAs('index.zip', {
 });
 ```
 
-### Options: Production / saveAs
+### Options: Development / Production
 
 The entire page can similarly be transformed as a group using the "saveAs" attribute in options. Cloud storage can be used for all assets except HTML using the same configuration as element selectors.
 
@@ -539,7 +544,42 @@ squared.saveAs('index.zip', {
 }); 
 ```
 
-Setting the active cloud storage filename to a JS/CSS bundle will have no effect since it is possible more than one bundle will be created.
+Setting the active cloud storage filename to a JS/CSS bundle might not have any effect since it is possible more than one bundle will be created.
+
+```javascript
+// NOTE: js | css | image
+
+{
+  "selector": "script",
+  "type": "js",
+  "watch": {
+    "interval": 100,
+    "expires": "1h 1m 1s"
+  },
+  "process": [
+    "bundle",
+    "minify"
+  ],
+  "cloudStorage": [
+    {
+      "service": "s3",
+      "bucket": "squared-001",
+      "active": true,
+      "settings": 'main'
+    }
+  ]
+}
+
+squared.copyTo('/local/user/www', {
+    watch: true,
+    saveAs: {
+        script: { pathname: '../js', format: 'es5+es5-minify', watch: true },
+        link: { pathname: 'css', filename: 'bundle.css', watch: { interval: 500 } }
+    }
+});
+```
+
+File watching is available and uses HTTP HEAD requests to determine modifications which gives you the ability to watch files hosted on a different server or computer.
 
 ### Asset exclusion
 

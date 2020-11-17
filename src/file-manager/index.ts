@@ -48,7 +48,21 @@ interface GulpTask {
     data: GulpData;
 }
 
-const cloudUploadHostMap: ObjectMap<CloudServiceHost> = {};
+interface FileSource {
+    [key: string]: FileWatch;
+}
+
+interface FileWatch {
+    uri: string;
+    etag: string;
+    assets: ExternalAsset[];
+    expires: number;
+    interval: number;
+    timeout: NodeJS.Timeout;
+}
+
+const CLOUD_UPLOAD: ObjectMap<CloudServiceHost> = {};
+const WATCH_HTTP: ObjectMap<FileSource> = {};
 
 const FileManager = class extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {
@@ -132,12 +146,14 @@ const FileManager = class extends Module implements IFileManager {
     public serverRoot = '__serverroot__';
     public delayed = 0;
     public cleared = false;
+    public watchInterval = 200;
     public emptyDirectory = false;
     public productionRelease = false;
     public Chrome?: IChrome;
     public Cloud?: ICloud;
     public Compress?: CompressModule;
     public Gulp?: GulpModule;
+    public Watch?: boolean;
     public basePath?: string;
     public baseAsset?: ExternalAsset;
     public readonly assets: ExternalAsset[];
@@ -153,7 +169,7 @@ const FileManager = class extends Module implements IFileManager {
     constructor(
         public readonly dirname: string,
         body: RequestBody,
-        postFinalize: FunctionType<void>)
+        postFinalize: FunctionType<void> = () => undefined)
     {
         super();
         this.assets = body.assets;
@@ -162,36 +178,45 @@ const FileManager = class extends Module implements IFileManager {
     }
 
     install(name: string, ...args: unknown[]) {
-        if (typeof args[0] === 'object') {
-            switch (name) {
-                case 'compress':
-                    this.Compress = args[0] as CompressModule;
-                    break;
-                case 'cloud':
-                    Cloud.settings = args[0] as CloudModule;
-                    this.Cloud = Cloud;
-                    break;
-                case 'gulp':
-                    this.Gulp = args[0] as GulpModule;
-                    break;
-                case 'chrome': {
-                    const baseAsset = this.assets.find(item => item.basePath);
-                    if (baseAsset) {
-                        this.baseAsset = baseAsset;
-                        this.basePath = baseAsset.basePath;
-                        this.assets.sort((a, b) => {
-                            if (a === baseAsset) {
-                                return 1;
-                            }
-                            if (b === baseAsset) {
-                                return -1;
-                            }
-                            return 0;
-                        });
-                    }
-                    this.Chrome = new Chrome(args[0] as ChromeModule, this._body);
-                    break;
+        switch (name) {
+            case 'compress':
+                this.Compress = args[0] as CompressModule;
+                break;
+            case 'cloud':
+                Cloud.settings = args[0] as CloudModule;
+                this.Cloud = Cloud;
+                break;
+            case 'gulp':
+                this.Gulp = args[0] as GulpModule;
+                break;
+            case 'chrome': {
+                const baseAsset = this.assets.find(item => item.basePath);
+                if (baseAsset) {
+                    this.baseAsset = baseAsset;
+                    this.basePath = baseAsset.basePath;
+                    this.assets.sort((a, b) => {
+                        if (a.bundleId && a.bundleId === b.bundleId) {
+                            return a.bundleIndex! - b.bundleIndex!;
+                        }
+                        if (a === baseAsset) {
+                            return 1;
+                        }
+                        if (b === baseAsset) {
+                            return -1;
+                        }
+                        return 0;
+                    });
                 }
+                this.Chrome = new Chrome(args[0] as ChromeModule, this._body);
+                break;
+            }
+            case 'watch': {
+                const interval = args[0];
+                if (typeof interval === 'number' && interval > 0) {
+                    this.watchInterval = interval;
+                }
+                this.Watch = true;
+                break;
             }
         }
     }
@@ -626,6 +651,7 @@ const FileManager = class extends Module implements IFileManager {
                             replaceMinify();
                             if (replacing !== source) {
                                 item.inlineContent = id;
+                                item.watch = false;
                                 if (item.fileUri) {
                                     this.filesToRemove.add(item.fileUri);
                                 }
@@ -724,6 +750,7 @@ const FileManager = class extends Module implements IFileManager {
                             else if (item.mimeType.startsWith('image/') && item.format === 'base64') {
                                 value = uuid.v4();
                                 item.inlineBase64 = value;
+                                item.watch = false;
                             }
                             else {
                                 value = this.getFileUri(item);
@@ -1077,24 +1104,22 @@ const FileManager = class extends Module implements IFileManager {
                             verifyBundle(queue.content).then(resumeQueue);
                         }
                         else if (uri) {
-                            request(uri, (err, response) => {
+                            request(uri, (err, res) => {
                                 if (err) {
                                     this.writeFail(uri, err);
                                     notFound[uri] = true;
                                     queue!.invalid = true;
                                     resumeQueue();
                                 }
+                                else if (res.statusCode >= 300) {
+                                    this.writeFail(uri, res.statusCode + ' ' + res.statusMessage);
+                                    notFound[uri] = true;
+                                    queue!.invalid = true;
+                                    resumeQueue();
+                                }
                                 else {
-                                    const statusCode = response.statusCode;
-                                    if (statusCode >= 300) {
-                                        this.writeFail(uri, statusCode + ' ' + response.statusMessage);
-                                        notFound[uri] = true;
-                                        queue!.invalid = true;
-                                        resumeQueue();
-                                    }
-                                    else {
-                                        verifyBundle(response.body).then(resumeQueue);
-                                    }
+                                    queue!.etag = (res.headers['etag'] || res.headers['last-modified']) as string;
+                                    verifyBundle(res.body).then(resumeQueue);
                                 }
                             });
                         }
@@ -1233,6 +1258,9 @@ const FileManager = class extends Module implements IFileManager {
                             this.performAsyncTask();
                             request(uri)
                                 .on('response', response => {
+                                    if (this.Watch) {
+                                        file.etag = (response.headers['etag'] || response.headers['last-modified']) as string;
+                                    }
                                     const statusCode = response.statusCode;
                                     if (statusCode >= 300) {
                                         errorRequest(file, fileUri, statusCode + ' ' + response.statusMessage, stream);
@@ -1271,6 +1299,25 @@ const FileManager = class extends Module implements IFileManager {
     }
     async finalize() {
         let tasks: Promise<unknown>[] = [];
+        for (const [file, output] of this.filesToCompare) {
+            const fileUri = file.fileUri!;
+            let minFile = fileUri,
+                minSize = this.getFileSize(minFile);
+            for (const other of output) {
+                const size = this.getFileSize(other);
+                if (minSize === 0 || size > 0 && size < minSize) {
+                    this.filesToRemove.add(minFile);
+                    minFile = other;
+                    minSize = size;
+                }
+                else {
+                    this.filesToRemove.add(other);
+                }
+            }
+            if (minFile !== fileUri) {
+                this.replace(file, minFile);
+            }
+        }
         if (this.Chrome) {
             const inlineMap: StringMap = {};
             const base64Map: StringMap = {};
@@ -1308,25 +1355,6 @@ const FileManager = class extends Module implements IFileManager {
                     tasks = [];
                 }
             }
-            for (const [file, output] of this.filesToCompare) {
-                const fileUri = file.fileUri!;
-                let minFile = fileUri,
-                    minSize = this.getFileSize(minFile);
-                for (const other of output) {
-                    const size = this.getFileSize(other);
-                    if (minSize === 0 || size > 0 && size < minSize) {
-                        this.filesToRemove.add(minFile);
-                        minFile = other;
-                        minSize = size;
-                    }
-                    else {
-                        this.filesToRemove.add(other);
-                    }
-                }
-                if (minFile !== fileUri) {
-                    this.replace(file, minFile);
-                }
-            }
             for (const item of this.assets) {
                 if (!item.inlineBase64 || item.invalid) {
                     continue;
@@ -1343,8 +1371,7 @@ const FileManager = class extends Module implements IFileManager {
                 await Promise.all(tasks).catch(err => this.writeFail('Finalize: Cache base64', err));
                 tasks = [];
             }
-            const assets = this.assets.filter(item => !item.invalid);
-            const replaced = assets.filter(item => item.originalName);
+            const replaced = this.assets.filter(item => item.originalName && !item.invalid);
             if (replaced.length || Object.keys(base64Map) || this.productionRelease) {
                 const replaceContent = (file: ExternalAsset, value: string) => {
                     for (const id in base64Map) {
@@ -1358,17 +1385,19 @@ const FileManager = class extends Module implements IFileManager {
                     }
                     file.sourceUTF8 = value;
                 };
-                for (const item of assets) {
-                    switch (item.mimeType) {
-                        case '@text/html':
-                        case '@text/css':
-                            if (item.sourceUTF8 || item.buffer) {
-                                replaceContent(item, this.getUTF8String(item));
-                            }
-                            else {
-                                tasks.push(fs.readFile(item.fileUri!, 'utf8').then(data => replaceContent(item, data)));
-                            }
-                            break;
+                for (const item of this.assets) {
+                    if (!item.invalid) {
+                        switch (item.mimeType) {
+                            case '@text/html':
+                            case '@text/css':
+                                if (item.sourceUTF8 || item.buffer) {
+                                    replaceContent(item, this.getUTF8String(item));
+                                }
+                                else {
+                                    tasks.push(fs.readFile(item.fileUri!, 'utf8').then(data => replaceContent(item, data)));
+                                }
+                                break;
+                        }
                     }
                 }
             }
@@ -1376,15 +1405,15 @@ const FileManager = class extends Module implements IFileManager {
                 await Promise.all(tasks).catch(err => this.writeFail('Finalize: Replace UTF-8', err));
                 tasks = [];
             }
-            for (const item of assets) {
-                if (item.sourceUTF8) {
-                    tasks.push(fs.writeFile(item.fileUri!, item.sourceUTF8, 'utf8'));
-                }
+        }
+        for (const item of this.assets) {
+            if (item.sourceUTF8 && !item.invalid) {
+                tasks.push(fs.writeFile(item.fileUri!, item.sourceUTF8, 'utf8'));
             }
-            if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail('Finalize: Write UTF-8', err));
-                tasks = [];
-            }
+        }
+        if (tasks.length) {
+            await Promise.all(tasks).catch(err => this.writeFail('Finalize: Write modified files', err));
+            tasks = [];
         }
         for (const value of this.filesToRemove) {
             tasks.push(fs.unlink(value).then(() => this.delete(value)));
@@ -1548,7 +1577,7 @@ const FileManager = class extends Module implements IFileManager {
             const cssFiles: ExternalAsset[] = [];
             const getFiles = (item: ExternalAsset, data: CloudService) => {
                 const files = [item.fileUri!];
-                if (item.transforms && data.uploadAll) {
+                if (item.transforms && data.uploadAll && !item.cloudUri) {
                     files.push(...item.transforms);
                 }
                 return files;
@@ -1573,8 +1602,8 @@ const FileManager = class extends Module implements IFileManager {
                             Object.assign(config, data);
                             let uploadHandler: Undef<CloudServiceUpload>;
                             try {
-                                cloudUploadHostMap[service] ||= require(`../cloud/${service}/upload`);
-                                uploadHandler = cloudUploadHostMap[service].call(this, config);
+                                CLOUD_UPLOAD[service] ||= require(`../cloud/${service}/upload`);
+                                uploadHandler = CLOUD_UPLOAD[service].call(this, config);
                             }
                             catch (err) {
                                 this.writeFail(`${service} does not support upload function.`, err);
@@ -1595,21 +1624,26 @@ const FileManager = class extends Module implements IFileManager {
                                                     success('');
                                                 }
                                                 else {
-                                                    let filename: string,
-                                                        j = 0;
-                                                    do {
-                                                        if (length > 1 && mimeType && mimeType.includes('text/')) {
-                                                            filename = path.basename(fileUri);
-                                                        }
-                                                        else {
-                                                            filename = i === 0 && config.filename || (uuid.v4() + path.extname(fileUri));
-                                                        }
-                                                        if (j > 0) {
-                                                            filename = path.basename(fileUri).split('.').map((value, index) => value + (index === 0 ? '_' + j : '')).join('.');
-                                                        }
+                                                    let filename: string;
+                                                    if (item.cloudUri) {
+                                                        filename = path.basename(item.cloudUri);
                                                     }
-                                                    while (filenameMap[filename] && ++j);
-                                                    filenameMap[filename] = true;
+                                                    else {
+                                                        let j = 0;
+                                                        do {
+                                                            if (length > 1 && mimeType && mimeType.includes('text/')) {
+                                                                filename = path.basename(fileUri);
+                                                            }
+                                                            else {
+                                                                filename = i === 0 && config.filename || (uuid.v4() + path.extname(fileUri));
+                                                            }
+                                                            if (j > 0) {
+                                                                filename = path.basename(fileUri).split('.').map((value, index) => value + (index === 0 ? '_' + j : '')).join('.');
+                                                            }
+                                                        }
+                                                        while (filenameMap[filename] && ++j);
+                                                        filenameMap[filename] = true;
+                                                    }
                                                     uploadHandler!(buffer, success, { config, fileUri, filename, mimeType });
                                                 }
                                             });
@@ -1633,6 +1667,7 @@ const FileManager = class extends Module implements IFileManager {
                                             }
                                             cloudCssMap[item.inlineCssCloud] = fileUri;
                                         }
+                                        item.cloudUri = fileUri;
                                     }
                                     resolve();
                                 })
@@ -1763,6 +1798,124 @@ const FileManager = class extends Module implements IFileManager {
                                 }))
                             );
                         }
+                    }
+                }
+            }
+        }
+        if (this.Watch) {
+            const etagMap: StringMap = {};
+            const destMap: ObjectMap<ExternalAsset[]> = {};
+            for (const item of this.assets.sort((a, b) => a.etag ? -1 : b.etag ? 1 : 0)) {
+                const dest = this.getFileUri(item);
+                if (item.etag) {
+                    etagMap[item.uri!] = item.etag;
+                    (destMap[dest] ||= []).push(item);
+                }
+                else if (destMap[dest]) {
+                    item.etag = etagMap[item.uri!];
+                    destMap[dest].push(item);
+                }
+            }
+            for (const dest in destMap) {
+                const assets = destMap[dest];
+                assets.sort((a, b) => {
+                    if (a.bundleId && !b.bundleId) {
+                        return -1;
+                    }
+                    if (!a.bundleId && b.bundleId) {
+                        return 1;
+                    }
+                    return 0;
+                });
+                const leading = assets.find(item => typeof item.watch === 'object' && item.watch.interval! > 0);
+                WATCH_HTTP[dest] ||= {};
+                for (const item of assets) {
+                    if (item.originalName) {
+                        item.filename = item.originalName;
+                    }
+                    delete item.invalid;
+                    delete item.transforms;
+                    delete item.buffer;
+                    delete item.sourceUTF8;
+                    delete item.originalName;
+                    const watch = item.watch;
+                    if (watch && item.etag && item.uri) {
+                        let data = WATCH_HTTP[dest][item.uri];
+                        if (data) {
+                            data.assets = assets;
+                            clearInterval(data.timeout);
+                        }
+                        else {
+                            let interval: Undef<number>,
+                                expires = 0;
+                            if (typeof watch === 'object') {
+                                interval = watch.interval;
+                                if (watch.expires) {
+                                    const match = /(?:([\d.]+)\s*h\s*)?(?:([\d.]+)\s*m\s*)?(?:([\d.]+)\s*s\s*)?/i.exec(watch.expires);
+                                    if (match) {
+                                        if (match[1]) {
+                                            expires += parseFloat(match[1]) * 1000 * 60 * 60;
+                                        }
+                                        if (match[2]) {
+                                            expires += parseFloat(match[2]) * 1000 * 60;
+                                        }
+                                        if (match[3]) {
+                                            expires += parseFloat(match[3]) * 1000;
+                                        }
+                                        if (expires) {
+                                            expires += Date.now();
+                                        }
+                                    }
+                                }
+                            }
+                            interval ||= leading && typeof leading.watch === 'object' && leading.watch.interval || this.watchInterval;
+                            data = {
+                                uri: item.uri,
+                                etag: item.etag,
+                                assets,
+                                interval,
+                                expires
+                            } as FileWatch;
+                        }
+                        data.timeout = setInterval(() => {
+                            const req = request(data.uri, { method: 'HEAD' });
+                            req.on('response', res => {
+                                if (!data.expires || Date.now() < data.expires) {
+                                    const etag = (res.headers['etag'] || res.headers['last-modified']) as string;
+                                    if (etag) {
+                                        if (etag !== data.etag) {
+                                            data.etag = etag;
+                                            const manager = new FileManager(this.dirname, { ...this._body, assets: data.assets });
+                                            if (this.Compress) {
+                                                manager.install('compress', this.Compress);
+                                            }
+                                            if (this.Cloud) {
+                                                manager.install('cloud', this.Cloud.settings);
+                                            }
+                                            if (this.Gulp) {
+                                                manager.install('gulp', this.Gulp);
+                                            }
+                                            if (this.Chrome) {
+                                                manager.install('chrome', this.Chrome.settings);
+                                            }
+                                            manager.install('watch', this.watchInterval);
+                                            manager.processAssets();
+                                            this.writeMessage('File modification detected', data.uri, 'WATCH', 'yellow');
+                                        }
+                                        else {
+                                            return;
+                                        }
+                                    }
+                                }
+                                clearInterval(data.timeout);
+                                res.destroy();
+                            });
+                            req.on('error', err => {
+                                clearInterval(data.timeout);
+                                this.writeFail(`Unable to watch (${data.uri})`, err);
+                            });
+                        }, data.interval);
+                        WATCH_HTTP[dest][item.uri] = data;
                     }
                 }
             }

@@ -74,6 +74,7 @@ declare namespace functions {
             moveTo?: string;
             format?: string;
             preserve?: boolean;
+            watch?: boolean | WatchInterval;
             tasks?: string[];
             attributes?: AttributeValue[];
             cloudStorage?: squared.CloudService[];
@@ -85,6 +86,11 @@ declare namespace functions {
             trailingContent?: FormattableContent[];
             textContent?: string;
             inlineContent?: string;
+        }
+
+        interface WatchInterval {
+            interval?: number;
+            expires?: string;
         }
 
         interface AttributeValue {
@@ -353,7 +359,7 @@ declare namespace functions {
         writeBuffer(data: internal.FileData): void;
         finalizeImage: FileManagerWriteImageCallback;
         finalizeAsset(data: internal.FileData, parent?: ExternalAsset): Promise<void>;
-        processAssets(): void;
+        processAssets(watch?: boolean): void;
         finalize(): Promise<unknown[]>;
     }
 
@@ -364,7 +370,7 @@ declare namespace functions {
         moduleCompress(): ICompress;
         moduleImage(): IImage;
         moduleCloud(): ICloud;
-        new(dirname: string, body: RequestBody, postFinalize: FunctionType<void>, productionRelease?: boolean): IFileManager;
+        new(dirname: string, body: RequestBody, postFinalize?: FunctionType<void>): IFileManager;
     }
 
     const FileManager: FileManagerConstructor;
@@ -429,6 +435,7 @@ declare namespace functions {
         unc_write?: BoolString;
         cors?: CorsOptions;
         request_post_limit?: string;
+        watch_interval?: number;
         env?: string;
         port?: StringMap;
         routing?: internal.Serve.Routing;
@@ -446,14 +453,16 @@ declare namespace functions {
 
     interface ExternalAsset extends squared.FileAsset, chrome.ChromeAsset {
         fileUri?: string;
-        transforms?: string[];
-        invalid?: boolean;
+        cloudUri?: string;
         buffer?: Buffer;
         sourceUTF8?: string;
+        originalName?: string;
+        transforms?: string[];
         inlineBase64?: string;
         inlineCloud?: string;
         inlineCssCloud?: string;
-        originalName?: string;
+        etag?: string;
+        invalid?: boolean;
     }
 }
 
