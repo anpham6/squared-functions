@@ -334,7 +334,7 @@ The same concept can be used inline anywhere using a &lt;script&gt; tag with the
 // "es5-example" is a custom name (chrome -> eval_text_template: true)
 
 <script type="text/template" data-chrome-template="js::@babel/core::es5-example">
-function (context, value, output, input /* optional */) {
+function (context, value, output /* optional */, input /* optional */) {
     const options = { ...output, presets: ['@babel/preset-env'], sourceMaps: true };
     const result = context.transformSync(value, options);
     if (result) {
@@ -450,7 +450,7 @@ Here is the equivalent page using only inline commands with "data-chrome-file" a
 
 ### Cloud storage
 
-Manual installation of the SDK is required and an account with a cloud storage provider.
+Manual installation of the SDK is required including opening an account with at least one of these cloud storage provider.
 
 ```xml
 * Amazon AWS
@@ -466,7 +466,7 @@ Manual installation of the SDK is required and an account with a cloud storage p
   - GCS: https://cloud.google.com/free (5GB)
 ```
 
-Other providers will be integrated similarly except for credential verification.
+Other service providers can be integrated similarly except for credential verification.
 
 ```javascript
 // NOTE: Optional fields are supported by all services
@@ -505,7 +505,7 @@ Other providers will be integrated similarly except for credential verification.
 }
 ```
 
-Inline commands are not supported. Serving CSS files from cloud storage or CDN requires every image inside the file to be hosted with an absolute URL.
+Serving CSS files from cloud storage or CDN requires every image inside the file to be hosted with an absolute URL.
 
 ```javascript
 squared.saveAs('index.zip', {
@@ -522,6 +522,8 @@ squared.saveAs('index.zip', {
     }
 });
 ```
+
+Inline commands are not supported when using cloud storage.
 
 ### Options: Development / Production
 
@@ -579,7 +581,15 @@ squared.copyTo('/local/user/www', {
 });
 ```
 
-File watching is available and uses HTTP HEAD requests to determine modifications which gives you the ability to watch files hosted on a different server or computer.
+```xml
+<!-- chrome -->
+<script src="/common/system.js" data-chrome-watch="true"></script>
+
+<!-- android -->
+<img src="images/harbour1.jpg" data-android-watch="1000::1h 30m" />
+```
+
+File watching is available and uses HTTP HEAD requests to determine modifications. You can also watch any file that is served using HTTP on a different server or computer. The HTML page or any assets inlined cannot be watched since changes to the DOM structure requires a complete browser reload.
 
 ### Asset exclusion
 

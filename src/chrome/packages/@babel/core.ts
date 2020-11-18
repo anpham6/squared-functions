@@ -8,7 +8,7 @@ export default async function (value: string, options: PlainObject, output: Unde
         options.sourceMaps = true;
         options.inputSourceMap = sourceMap;
     }
-    const result = context.transform(value, options);
+    const result = await context.transform(value, options);
     if (result) {
         if (result.map) {
             input.nextMap('babel', result.map, result.code);

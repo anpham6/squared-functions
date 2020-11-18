@@ -160,7 +160,7 @@ declare namespace functions {
                 sourceMap: Map<string, SourceMapOutput>;
                 map?: SourceMap;
                 packageName?: string;
-                nextMap: (packageName: string, map: SourceMap | string, value: string, includeSources?: boolean) => void;
+                nextMap: (packageName: string, map: SourceMap | string, value: string, includeSources?: boolean) => boolean;
             }
 
             interface SourceMapOutput {
@@ -318,7 +318,7 @@ declare namespace functions {
         productionRelease: boolean;
         basePath?: string;
         Chrome?: IChrome;
-        Cloud?: ICloud;
+        Cloud?: settings.CloudModule;
         Compress?: settings.CompressModule;
         Gulp?: settings.GulpModule;
         readonly files: Set<string>;

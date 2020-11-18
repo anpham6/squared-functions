@@ -18,7 +18,6 @@ import Cloud from '../cloud';
 type Settings = functions.Settings;
 type IFileManager = functions.IFileManager;
 type IChrome = functions.IChrome;
-type ICloud = functions.ICloud;
 type RequestBody = functions.RequestBody;
 type ExternalAsset = functions.ExternalAsset;
 
@@ -150,7 +149,7 @@ const FileManager = class extends Module implements IFileManager {
     public emptyDirectory = false;
     public productionRelease = false;
     public Chrome?: IChrome;
-    public Cloud?: ICloud;
+    public Cloud?: CloudModule;
     public Compress?: CompressModule;
     public Gulp?: GulpModule;
     public Watch?: boolean;
@@ -184,7 +183,7 @@ const FileManager = class extends Module implements IFileManager {
                 break;
             case 'cloud':
                 Cloud.settings = args[0] as CloudModule;
-                this.Cloud = Cloud;
+                this.Cloud = Cloud.settings;
                 break;
             case 'gulp':
                 this.Gulp = args[0] as GulpModule;
@@ -1568,7 +1567,6 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
         if (this.Cloud) {
-            const cloudSettings = this.Cloud.settings;
             const cloudMap: ObjectMap<ExternalAsset> = {};
             const cloudCssMap: StringMap = {};
             const localStorage = new Map<ExternalAsset, CloudService>();
@@ -1594,7 +1592,7 @@ const FileManager = class extends Module implements IFileManager {
                         }
                         tasks.push(new Promise(resolve => {
                             const service = data.service;
-                            const settings = cloudSettings[service];
+                            const settings = this.Cloud![service];
                             const config = {} as CloudService;
                             if (settings && data.settings) {
                                 Object.assign(config, settings[data.settings]);
@@ -1890,7 +1888,7 @@ const FileManager = class extends Module implements IFileManager {
                                                 manager.install('compress', this.Compress);
                                             }
                                             if (this.Cloud) {
-                                                manager.install('cloud', this.Cloud.settings);
+                                                manager.install('cloud', this.Cloud);
                                             }
                                             if (this.Gulp) {
                                                 manager.install('gulp', this.Gulp);

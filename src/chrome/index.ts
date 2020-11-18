@@ -129,7 +129,9 @@ const Chrome = class extends Module implements functions.IChrome {
                 if (typeof map === 'object' && map.mappings) {
                     this.map = map;
                     this.sourceMap.set(packageName, { value, map, sourcesContent: includeContent ? this.sourcesContent : null });
+                    return true;
                 }
+                return false;
             }
         }) as SourceMapInput;
     }
