@@ -4,7 +4,7 @@ export interface S3CloudService extends functions.squared.CloudService, awsCore.
     bucket: string;
 }
 
-const validateS3 = (data: S3CloudService, settings: awsCore.ConfigurationOptions) => !!(data.bucket && ((data.accessKeyId || settings.accessKeyId) && (data.secretAccessKey || settings.secretAccessKey)));
+const validateS3 = (config: S3CloudService) => !!(config.bucket && (config.accessKeyId || config.secretAccessKey));
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = validateS3;

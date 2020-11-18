@@ -29,6 +29,8 @@ declare namespace functions {
             base64?: string;
             commands?: string[];
             compress?: CompressFormat[];
+            watch?: boolean | WatchInterval;
+            tasks?: string[];
         }
 
         interface CompressFormat {
@@ -53,6 +55,11 @@ declare namespace functions {
             keyName: string;
         }
 
+        interface WatchInterval {
+            interval?: number;
+            expires?: string;
+        }
+
         interface ResponseData {
             success: boolean;
             data?: unknown;
@@ -74,23 +81,16 @@ declare namespace functions {
             moveTo?: string;
             format?: string;
             preserve?: boolean;
-            watch?: boolean | WatchInterval;
-            tasks?: string[];
             attributes?: AttributeValue[];
             cloudStorage?: squared.CloudService[];
-            exclude?: boolean;
             basePath?: string;
             bundleId?: number;
             bundleIndex?: number;
             bundleRoot?: string;
-            trailingContent?: FormattableContent[];
             textContent?: string;
+            trailingContent?: FormattableContent[];
             inlineContent?: string;
-        }
-
-        interface WatchInterval {
-            interval?: number;
-            expires?: string;
+            exclude?: boolean;
         }
 
         interface AttributeValue {
@@ -100,7 +100,6 @@ declare namespace functions {
 
         interface FormattableContent {
             value: string;
-            format?: string;
             preserve?: boolean;
         }
 
@@ -208,8 +207,8 @@ declare namespace functions {
             accountKey: string;
         }
 
-        type CloudServiceClient = (data: squared.CloudService, settings: StandardMap) => boolean;
-        type CloudServiceHost = (this: IFileManager, config: squared.CloudService) => CloudServiceUpload;
+        type CloudServiceClient = (config: squared.CloudService) => boolean;
+        type CloudServiceHost = (this: IFileManager, config: squared.CloudService, serviceName: string) => CloudServiceUpload;
         type CloudServiceUpload = (buffer: Buffer, success: (value?: unknown) => void, options: CloudUploadOptions) => void;
     }
 

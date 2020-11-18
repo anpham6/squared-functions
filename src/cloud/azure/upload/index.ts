@@ -7,7 +7,7 @@ interface CloudUploadOptions extends functions.external.CloudUploadOptions {
     config: AzureCloudService;
 }
 
-function uploadHandlerAzure(this: IFileManager, config: AzureCloudService) {
+function uploadHandlerAzure(this: IFileManager, config: AzureCloudService, serviceName: string) {
     let container: azure.ContainerClient;
     try {
         const { BlobServiceClient, StorageSharedKeyCredential } = require('@azure/storage-blob');
@@ -16,7 +16,7 @@ function uploadHandlerAzure(this: IFileManager, config: AzureCloudService) {
         container = blobServiceClient.getContainerClient(config.container);
     }
     catch (err) {
-        this.writeFail('Install SDK? [npm i @azure/storage-blob]', 'Azure');
+        this.writeFail('Install SDK? [npm i @azure/storage-blob]', serviceName);
         throw err;
     }
     return (buffer: Buffer, success: (value?: unknown) => void, options: CloudUploadOptions) => {
@@ -24,11 +24,11 @@ function uploadHandlerAzure(this: IFileManager, config: AzureCloudService) {
         blob.upload(buffer, buffer.byteLength, { blobHTTPHeaders: { blobContentType: options.mimeType } })
             .then(() => {
                 const url = (config.apiEndpoint ? config.apiEndpoint.replace(/\/*$/, '') : `https://${config.accountName}.blob.core.windows.net/${config.container}`) + '/' + options.filename;
-                this.writeMessage('Upload', url, 'Azure');
+                this.writeMessage('Upload', url, serviceName);
                 success(url);
             })
             .catch(err => {
-                this.writeFail(`Azure: Upload failed (${options.fileUri})`, err);
+                this.writeFail(`${serviceName}: Upload failed (${options.fileUri})`, err);
                 success('');
             });
     };

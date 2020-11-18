@@ -464,6 +464,10 @@ Manual installation of the SDK is required including opening an account with at 
 * Google
   - npm install @google-cloud/storage
   - GCS: https://cloud.google.com/free (5GB)
+
+* Oracle
+  - npm install aws-sdk (uses S3 compatibility API)
+  - OCI: https://www.oracle.com/cloud/free/ (10GB)
 ```
 
 Other service providers can be integrated similarly except for credential verification.
@@ -500,6 +504,15 @@ Other service providers can be integrated similarly except for credential verifi
       "bucket": "squared-003",
       "keyFilename": "**********", // Path to JSON credentials
       "settings": "main" // Load host configuration at instantiation (optional)
+    },
+    {
+      "service": "oci",
+      "bucket": "squared-004",
+      "region": "us-phoenix-1", // Using settings (optional)
+      "namespace": "abcdefghijkl", // Using settings (optional)
+      "accessKeyId": "**********", // Using settings (optional)
+      "secretAccessKey": "**********", // Using settings (optional)
+      "settings": "main"
     }
   ]
 }
@@ -549,7 +562,7 @@ squared.saveAs('index.zip', {
 Setting the active cloud storage filename to a JS/CSS bundle might not have any effect since it is possible more than one bundle will be created.
 
 ```javascript
-// NOTE: js | css | image
+// NOTE: js | css | image | video | audio
 
 {
   "selector": "script",

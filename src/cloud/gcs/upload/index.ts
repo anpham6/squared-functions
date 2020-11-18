@@ -8,14 +8,14 @@ type IFileManager = functions.IFileManager;
 
 type CloudUploadOptions = functions.external.CloudUploadOptions;
 
-function uploadHandlerGCS(this: IFileManager, config: GCSCloudService) {
+function uploadHandlerGCS(this: IFileManager, config: GCSCloudService, serviceName: string) {
     let storage: gcs.Storage;
     try {
         const { Storage } = require('@google-cloud/storage');
         storage = new Storage(config);
     }
     catch (err) {
-        this.writeFail('Install SDK? [npm i @google-cloud/storage]', 'GCS');
+        this.writeFail('Install SDK? [npm i @google-cloud/storage]', serviceName);
         throw err;
     }
     return (buffer: Buffer, success: (value?: unknown) => void, options: CloudUploadOptions) => {
@@ -25,12 +25,12 @@ function uploadHandlerGCS(this: IFileManager, config: GCSCloudService) {
         }
         storage.bucket(config.bucket).upload(options.fileUri, { contentType: options.mimeType }, (err, result) => {
             if (err || !result) {
-                this.writeFail(`GCS: Upload failed (${options.fileUri})`, err);
+                this.writeFail(`${serviceName}: Upload failed (${options.fileUri})`, err);
                 success('');
             }
             else {
                 const url = config.apiEndpoint ? config.apiEndpoint.replace(/\/*$/, '') + '/' + options.filename : `https://storage.googleapis.com/${config.bucket}/${options.filename}`;
-                this.writeMessage('Upload', url, 'GCS');
+                this.writeMessage('Upload', url, serviceName);
                 success(url);
             }
         });

@@ -4,7 +4,7 @@ export interface AzureCloudService extends functions.squared.CloudService, Stora
     container: string;
 }
 
-const validateAzure = (service: AzureCloudService, settings: StorageSharedKeyCredential) => !!(service.container && (service.accountName || settings.accountName) && (service.accountKey || settings.accountKey));
+const validateAzure = (config: AzureCloudService) => !!(config.container && (config.accountName || config.accountKey));
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = validateAzure;

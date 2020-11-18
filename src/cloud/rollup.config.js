@@ -66,5 +66,27 @@ export default [
             banner: `/* @squared-functions/cloud/gcs/upload ${version}\n   https://github.com/anpham6/squared-functions */\n`
         },
         plugins: []
+    },
+    {
+        input: './build/cloud/oci/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/cloud/oci/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/cloud/oci ${version}\n   https://github.com/anpham6/squared-functions */\n`
+        },
+        plugins: []
+    },
+    {
+        input: './build/cloud/oci/upload/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/cloud/oci/upload/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/cloud/oci/upload ${version}\n   https://github.com/anpham6/squared-functions */\n`
+        },
+        plugins: []
     }
 ];

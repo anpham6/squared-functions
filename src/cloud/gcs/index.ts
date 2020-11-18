@@ -4,7 +4,7 @@ export interface GCSCloudService extends functions.squared.CloudService, GoogleA
     bucket: string;
 }
 
-const validateGCS = (data: GCSCloudService, settings: GoogleAuthOptions) => !!(data.bucket && (data.keyFile || settings.keyFilename));
+const validateGCS = (config: GCSCloudService) => !!(config.bucket && (config.keyFile || config.keyFilename));
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = validateGCS;
