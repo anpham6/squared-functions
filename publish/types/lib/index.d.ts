@@ -49,6 +49,7 @@ declare namespace functions {
             publicAccess?: boolean;
             settings?: string;
             objects?: CloudObject[];
+            overwrite?: boolean;
             [key: string]: Undef<unknown>;
         }
 

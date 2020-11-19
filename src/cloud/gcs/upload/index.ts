@@ -10,6 +10,8 @@ type IFileManager = functions.IFileManager;
 
 type CloudUploadOptions = functions.external.CloudUploadOptions<GCSCloudCredentials>;
 
+const BUCKET_MAP: ObjectMap<boolean> = {};
+
 function uploadHandlerGCS(this: IFileManager, credentials: GCSCloudCredentials, serviceName: string) {
     let storage: gcs.Storage;
     try {
@@ -22,22 +24,28 @@ function uploadHandlerGCS(this: IFileManager, credentials: GCSCloudCredentials, 
     }
     return async (buffer: Buffer, success: (value?: unknown) => void, options: CloudUploadOptions) => {
         const { active, apiEndpoint, publicAccess } = options.config;
-        let bucketName = credentials.bucket;
-        if (!bucketName) {
+        let bucketName = credentials.bucket || uuid.v4();
+        if (!BUCKET_MAP[bucketName]) {
             try {
-                const keyFile = require(path.resolve(credentials.keyFilename || credentials.keyFile!));
-                storage.projectId = keyFile.project_id;
-                const [result] = await storage.createBucket(uuid.v4(), credentials);
-                bucketName = result.name;
-                this.writeMessage('Bucket created', bucketName, serviceName, 'blue');
-                if (publicAccess || active && publicAccess !== false) {
-                    await result.acl.default.add({ entity: 'allUsers', role: 'READER' }).catch(err => this.writeFail(`${serviceName}: Unable to give public access to bucket [${bucketName!}]`, err));
+                const [exists] = await storage.bucket(bucketName).exists();
+                if (!exists) {
+                    const keyFile = require(path.resolve(credentials.keyFilename || credentials.keyFile!));
+                    storage.projectId = keyFile.project_id;
+                    const [result] = await storage.createBucket(bucketName, credentials);
+                    bucketName = result.name;
+                    this.writeMessage('Bucket created', bucketName, serviceName, 'blue');
+                    if (publicAccess || active && publicAccess !== false) {
+                        await result.acl.default.add({ entity: 'allUsers', role: 'READER' }).catch(err => this.writeFail(`${serviceName}: Unable to give public access to bucket [${bucketName}]`, err));
+                    }
                 }
+                BUCKET_MAP[bucketName] = true;
             }
             catch (err) {
-                this.writeFail(`${serviceName}: Unable to create bucket`, err);
-                success('');
-                return;
+                if (err.code !== 409) {
+                    this.writeFail(`${serviceName}: Unable to create bucket`, err);
+                    success('');
+                    return;
+                }
             }
         }
         if (path.basename(options.fileUri) !== options.filename) {
@@ -50,7 +58,7 @@ function uploadHandlerGCS(this: IFileManager, credentials: GCSCloudCredentials, 
                 success('');
             }
             else {
-                const url = (apiEndpoint ? apiEndpoint.replace(/\/*$/, '') : 'https://storage.googleapis.com/' + bucketName!) + '/' + options.filename;
+                const url = (apiEndpoint ? apiEndpoint.replace(/\/*$/, '') : 'https://storage.googleapis.com/' + bucketName) + '/' + options.filename;
                 this.writeMessage('Upload', url, serviceName);
                 success(url);
             }

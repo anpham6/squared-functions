@@ -1622,24 +1622,23 @@ const FileManager = class extends Module implements IFileManager {
                                                         success('');
                                                     }
                                                     else {
-                                                        let filename: string;
+                                                        let filename: Undef<string>;
                                                         if (item.cloudUri) {
                                                             filename = path.basename(item.cloudUri);
                                                         }
                                                         else {
-                                                            let j = 0;
-                                                            do {
-                                                                if (length > 1 && mimeType && mimeType.includes('text/')) {
+                                                            if (i === 0) {
+                                                                if (config.filename && (!filenameMap[config.filename] || config.overwrite)) {
+                                                                    filename = config.filename;
+                                                                }
+                                                                else if (config.overwrite) {
                                                                     filename = path.basename(fileUri);
                                                                 }
-                                                                else {
-                                                                    filename = i === 0 && config.filename || (uuid.v4() + path.extname(fileUri));
-                                                                }
-                                                                if (j > 0) {
-                                                                    filename = path.basename(fileUri).split('.').map((value, index) => value + (index === 0 ? '_' + j : '')).join('.');
-                                                                }
                                                             }
-                                                            while (filenameMap[filename] && ++j);
+                                                            else if (config.overwrite) {
+                                                                filename = path.basename(fileUri);
+                                                            }
+                                                            filename ||= uuid.v4() + path.extname(fileUri);
                                                             filenameMap[filename] = true;
                                                         }
                                                         uploadHandler(buffer, success, { config, serviceConfig, fileUri, filename, mimeType });

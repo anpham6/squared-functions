@@ -490,7 +490,8 @@ Other service providers can be integrated similarly except for credential verifi
       "active": true, // Rewrites "src" to cloud storage location (optional)
       "localStorage": false, // Removes all files from archive or local disk (optional)
       "uploadAll": true, // Include transforms (optional)
-      "filename": "picture1.webp" // Bucket filename (optional)
+      "filename": "picture1.webp" // Choose a different bucket filename (optional)
+      "overwrite": false // Always use current filename (optional)
     },
     {
       "service": "azure",

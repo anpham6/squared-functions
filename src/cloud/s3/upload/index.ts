@@ -8,6 +8,8 @@ type IFileManager = functions.IFileManager;
 
 type CloudUploadOptions = functions.external.CloudUploadOptions<S3CloudCredentials>;
 
+const BUCKET_MAP: ObjectMap<boolean> = {};
+
 function uploadHandlerS3(this: IFileManager, credentials: S3CloudCredentials, serviceName: string) {
     let s3: aws.S3;
     try {
@@ -19,25 +21,39 @@ function uploadHandlerS3(this: IFileManager, credentials: S3CloudCredentials, se
         throw err;
     }
     return async (buffer: Buffer, success: (value?: unknown) => void, options: CloudUploadOptions) => {
-        let Bucket = credentials.bucket,
-            ACL: Undef<string>;
-        if (!Bucket) {
-            const { active, publicAccess } = options.config;
-            Bucket = uuid.v4();
-            const bucketRequest = { Bucket } as aws.S3.CreateBucketRequest;
-            if (credentials.region) {
-                bucketRequest.CreateBucketConfiguration = { LocationConstraint: credentials.region };
+        const Bucket = credentials.bucket || uuid.v4();
+        const bucketService = serviceName + Bucket;
+        let ACL: Undef<string>;
+        if (!BUCKET_MAP[bucketService]) {
+            try {
+                await s3.headBucket({ Bucket }).promise();
+                BUCKET_MAP[bucketService] = true;
             }
-            if (publicAccess || active && publicAccess !== false) {
-                ACL = 'public-read';
+            catch (err) {
+                if (err.code === 'NotFound') {
+                    BUCKET_MAP[bucketService] = false;
+                }
             }
-            const result = await new Promise(resolve => s3.createBucket(bucketRequest, err => resolve(err)));
-            if (result) {
-                this.writeFail(`${serviceName}: Unable to create bucket`, result);
+            try {
+                if (!BUCKET_MAP[bucketService]) {
+                    const { active, publicAccess } = options.config;
+                    const bucketRequest = { Bucket } as aws.S3.CreateBucketRequest;
+                    if (credentials.region) {
+                        bucketRequest.CreateBucketConfiguration = { LocationConstraint: credentials.region };
+                    }
+                    if (publicAccess || active && publicAccess !== false) {
+                        ACL = 'public-read';
+                    }
+                    await s3.createBucket(bucketRequest).promise();
+                    this.writeMessage('Bucket created', Bucket, serviceName, 'blue');
+                }
+                BUCKET_MAP[bucketService] = true;
+            }
+            catch (err) {
+                this.writeFail(`${serviceName}: Unable to create bucket`, err);
                 success('');
                 return;
             }
-            this.writeMessage('Bucket created', Bucket, serviceName, 'blue');
         }
         s3.upload({ Bucket, Key: options.filename, ACL, Body: buffer, ContentType: options.mimeType }, (err, result) => {
             if (err) {

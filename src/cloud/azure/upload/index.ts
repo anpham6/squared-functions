@@ -7,6 +7,8 @@ import uuid = require('uuid');
 type IFileManager = functions.IFileManager;
 type CloudUploadOptions = functions.external.CloudUploadOptions<AzureCloudCredentials>;
 
+const BUCKET_MAP: ObjectMap<boolean> = {};
+
 function uploadHandlerAzure(this: IFileManager, credentials: AzureCloudCredentials, serviceName: string) {
     let blobServiceClient: azure.BlobServiceClient;
     try {
@@ -19,29 +21,30 @@ function uploadHandlerAzure(this: IFileManager, credentials: AzureCloudCredentia
         throw err;
     }
     return async (buffer: Buffer, success: (value?: unknown) => void, options: CloudUploadOptions) => {
-        let container = credentials.container,
-            containerClient: azure.ContainerClient;
-        if (!container) {
-            containerClient = blobServiceClient.getContainerClient(container = uuid.v4());
+        const container = credentials.container || uuid.v4(),
+            containerClient = blobServiceClient.getContainerClient(container);
+        if (!BUCKET_MAP[container]) {
             try {
-                const { active, publicAccess } = options.config;
-                await containerClient.create({ access: publicAccess || active && publicAccess !== false ? 'blob' : 'container' });
-                this.writeMessage('Container created', container, serviceName, 'blue');
+                if (!await containerClient.exists()) {
+                    const { active, publicAccess } = options.config;
+                    await containerClient.create({ access: publicAccess || active && publicAccess !== false ? 'blob' : 'container' });
+                    this.writeMessage('Container created', container, serviceName, 'blue');
+                }
+                BUCKET_MAP[container] = true;
             }
             catch (err) {
-                this.writeFail(`${serviceName}: Unable to create container`, err);
-                success('');
-                return;
+                if (err.code !== 'ContainerAlreadyExists') {
+                    this.writeFail(`${serviceName}: Unable to create container`, err);
+                    success('');
+                    return;
+                }
             }
-        }
-        else {
-            containerClient = blobServiceClient.getContainerClient(container);
         }
         containerClient.getBlockBlobClient(options.filename)
             .upload(buffer, buffer.byteLength, { blobHTTPHeaders: { blobContentType: options.mimeType } })
                 .then(() => {
                     const apiEndpoint = options.config.apiEndpoint;
-                    const url = (apiEndpoint ? apiEndpoint.replace(/\/*$/, '') : `https://${credentials.accountName}.blob.core.windows.net/${container!}`) + '/' + options.filename;
+                    const url = (apiEndpoint ? apiEndpoint.replace(/\/*$/, '') : `https://${credentials.accountName}.blob.core.windows.net/${container}`) + '/' + options.filename;
                     this.writeMessage('Upload', url, serviceName);
                     success(url);
                 })
