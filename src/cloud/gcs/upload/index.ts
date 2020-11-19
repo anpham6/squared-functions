@@ -8,11 +8,12 @@ import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
 
-type CloudUploadOptions = functions.external.CloudUploadOptions<GCSCloudCredentials>;
+type CloudUploadOptions = functions.internal.Cloud.CloudUploadOptions<GCSCloudCredentials>;
+type CloudUploadCallback = functions.internal.Cloud.CloudUploadCallback;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function uploadHandlerGCS(this: IFileManager, credentials: GCSCloudCredentials, serviceName: string) {
+function uploadGCS(this: IFileManager, credentials: GCSCloudCredentials, serviceName: string): CloudUploadCallback {
     let storage: gcs.Storage;
     try {
         const { Storage } = require('@google-cloud/storage');
@@ -22,8 +23,8 @@ function uploadHandlerGCS(this: IFileManager, credentials: GCSCloudCredentials, 
         this.writeFail('Install SDK? [npm i @google-cloud/storage]', serviceName);
         throw err;
     }
-    return async (buffer: Buffer, success: (value?: unknown) => void, options: CloudUploadOptions) => {
-        const { active, apiEndpoint, publicAccess } = options.config;
+    return async (buffer: Buffer, options: CloudUploadOptions, success: (value?: unknown) => void) => {
+        const { active, apiEndpoint, publicAccess } = options.upload;
         let bucketName = credentials.bucket || uuid.v4();
         if (!BUCKET_MAP[bucketName]) {
             try {
@@ -38,7 +39,6 @@ function uploadHandlerGCS(this: IFileManager, credentials: GCSCloudCredentials, 
                         await result.acl.default.add({ entity: 'allUsers', role: 'READER' }).catch(err => this.writeFail(`${serviceName}: Unable to give public access to bucket [${bucketName}]`, err));
                     }
                 }
-                BUCKET_MAP[bucketName] = true;
             }
             catch (err) {
                 if (err.code !== 409) {
@@ -47,29 +47,30 @@ function uploadHandlerGCS(this: IFileManager, credentials: GCSCloudCredentials, 
                     return;
                 }
             }
+            BUCKET_MAP[bucketName] = true;
         }
         if (path.basename(options.fileUri) !== options.filename) {
             options.fileUri = this.getTempDir() + options.filename;
             fs.writeFileSync(options.fileUri, buffer);
         }
         storage.bucket(bucketName).upload(options.fileUri, { contentType: options.mimeType }, err => {
-            if (err) {
-                this.writeFail(`${serviceName}: Upload failed (${options.fileUri})`, err);
-                success('');
+            if (!err) {
+                const url = (apiEndpoint ? apiEndpoint.replace(/\/*$/, '') : 'https://storage.googleapis.com/' + bucketName) + '/' + options.filename;
+                this.writeMessage('Upload success', url, serviceName);
+                success(url);
             }
             else {
-                const url = (apiEndpoint ? apiEndpoint.replace(/\/*$/, '') : 'https://storage.googleapis.com/' + bucketName) + '/' + options.filename;
-                this.writeMessage('Upload', url, serviceName);
-                success(url);
+                this.writeFail(`${serviceName}: Upload failed (${options.fileUri})`, err);
+                success('');
             }
         });
     };
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = uploadHandlerGCS;
-    module.exports.default = uploadHandlerGCS;
+    module.exports = uploadGCS;
+    module.exports.default = uploadGCS;
     module.exports.__esModule = true;
 }
 
-export default uploadHandlerGCS;
+export default uploadGCS;

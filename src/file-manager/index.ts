@@ -21,15 +21,16 @@ type IChrome = functions.IChrome;
 type RequestBody = functions.RequestBody;
 type ExternalAsset = functions.ExternalAsset;
 
+type ResponseData = functions.squared.ResponseData;
+type CompressFormat = functions.squared.CompressFormat;
+type CloudService = functions.squared.CloudService;
+type CloudServiceUpload = functions.squared.CloudServiceUpload;
+type CloudUploadCallback = functions.internal.Cloud.CloudUploadCallback;
+
 type CompressModule = functions.settings.CompressModule;
 type CloudModule = functions.settings.CloudModule;
 type GulpModule = functions.settings.GulpModule;
 type ChromeModule = functions.settings.ChromeModule;
-
-type ResponseData = functions.squared.ResponseData;
-type CompressFormat = functions.squared.CompressFormat;
-type CloudService = functions.squared.CloudService;
-
 type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
 type SourceMapOutput = functions.internal.Chrome.SourceMapOutput;
@@ -435,7 +436,7 @@ const FileManager = class extends Module implements IFileManager {
         return output;
     }
     transformCss(file: ExternalAsset, source: string) {
-        const getCloudUUID = (item: Undef<ExternalAsset>, url: string) => item && Cloud.getService(item.cloudStorage) ? item.inlineCssCloud ||= uuid.v4() : url;
+        const getCloudUUID = (item: Undef<ExternalAsset>, url: string) => item && Cloud.getService(item.cloudStorage, 'upload') ? item.inlineCssCloud ||= uuid.v4() : url;
         let output: Undef<string>;
         for (const item of this.assets) {
             if (item.base64 && item.uri && !item.textContent && !item.invalid) {
@@ -657,7 +658,7 @@ const FileManager = class extends Module implements IFileManager {
                         }
                         else if (bundleIndex === 0 || bundleIndex === -1) {
                             let value: string;
-                            if (Cloud.getService(item.cloudStorage)) {
+                            if (Cloud.getService(item.cloudStorage, 'upload')) {
                                 value = uuid.v4();
                                 item.inlineCloud = value;
                             }
@@ -741,7 +742,7 @@ const FileManager = class extends Module implements IFileManager {
                             if (relativeUri) {
                                 segments.push(relativeUri);
                             }
-                            if (Cloud.getService(item.cloudStorage)) {
+                            if (Cloud.getService(item.cloudStorage, 'upload')) {
                                 value = uuid.v4();
                                 item.inlineCloud = value;
                             }
@@ -781,7 +782,7 @@ const FileManager = class extends Module implements IFileManager {
                         }
                         else if (item.base64) {
                             let value: string;
-                            if (Cloud.getService(item.cloudStorage)) {
+                            if (Cloud.getService(item.cloudStorage, 'upload')) {
                                 value = uuid.v4();
                                 item.inlineCloud = value;
                             }
@@ -1568,50 +1569,44 @@ const FileManager = class extends Module implements IFileManager {
         if (this.Cloud) {
             const cloudMap: ObjectMap<ExternalAsset> = {};
             const cloudCssMap: StringMap = {};
-            const localStorage = new Map<ExternalAsset, CloudService>();
+            const localStorage = new Map<ExternalAsset, CloudServiceUpload>();
             const filenameMap: ObjectMap<boolean> = {};
             const htmlFiles = this.getHtmlPages();
             const cssFiles: ExternalAsset[] = [];
-            const getFiles = (item: ExternalAsset, data: CloudService) => {
+            const getFiles = (item: ExternalAsset, data: CloudServiceUpload) => {
                 const files = [item.fileUri!];
-                if (item.transforms && data.uploadAll) {
+                if (item.transforms && data.all) {
                     files.push(...!item.cloudUri ? item.transforms : item.transforms.filter(value => value.endsWith('.map')));
                 }
                 return files;
             };
             const uploadFiles = (item: ExternalAsset, mimeType = item.mimeType) => {
                 mimeType &&= mimeType.replace(/^[^a-z]+/, '');
-                const cloudMain = Cloud.getService(item.cloudStorage);
-                for (const config of item.cloudStorage!) {
-                    if (Cloud.hasService(config)) {
-                        if (config === cloudMain && config.localStorage === false) {
-                            localStorage.set(item, config);
+                const cloudMain = Cloud.getService(item.cloudStorage, 'upload');
+                for (const data of item.cloudStorage!) {
+                    if (Cloud.hasService(data, 'upload')) {
+                        const service = data.service.trim();
+                        const upload = data.upload!;
+                        const settings: PlainObject = data.settings && this.Cloud![service] ? { ...this.Cloud![service][data.settings] } : {};
+                        if (data === cloudMain && upload.localStorage === false) {
+                            localStorage.set(item, upload);
                         }
                         tasks.push(new Promise(resolve => {
-                            const service = config.service;
-                            const settings = config.settings && this.Cloud![service] as Undef<PlainObject>;
-                            const serviceConfig = settings ? Object.assign({}, settings[config.settings!]) : {};
-                            for (const attr in config) {
+                            const credentials = Object.assign({}, settings);
+                            for (const attr in data) {
                                 switch (attr) {
                                     case 'service':
-                                    case 'active':
-                                    case 'localStorage':
-                                    case 'uploadAll':
-                                    case 'filename':
-                                    case 'apiEndpoint':
-                                    case 'publicAccess':
-                                    case 'settings':
-                                    case 'objects':
+                                    case 'upload':
                                         continue;
                                     default:
-                                        serviceConfig[attr] = config[attr];
+                                        credentials[attr] = data[attr];
                                         break;
                                 }
                             }
                             try {
-                                const uploadHandler = require(`../cloud/${service}/upload`).call(this, serviceConfig, service.toUpperCase());
+                                const uploadHandler = require(`../cloud/${service}/upload`).call(this, credentials, service.toUpperCase()) as CloudUploadCallback;
                                 const uploadTasks: Promise<string>[] = [];
-                                const files = getFiles(item, config);
+                                const files = getFiles(item, upload);
                                 for (let i = 0, length = files.length; i < length; ++i) {
                                     const fileUri = files[i];
                                     if (i === 0 || this.has(fileUri)) {
@@ -1628,20 +1623,20 @@ const FileManager = class extends Module implements IFileManager {
                                                         }
                                                         else {
                                                             if (i === 0) {
-                                                                if (config.filename && (!filenameMap[config.filename] || config.overwrite)) {
-                                                                    filename = config.filename;
+                                                                if (upload.filename && (!filenameMap[upload.filename] || upload.overwrite)) {
+                                                                    filename = upload.filename;
                                                                 }
-                                                                else if (config.overwrite) {
+                                                                else if (upload.overwrite) {
                                                                     filename = path.basename(fileUri);
                                                                 }
                                                             }
-                                                            else if (config.overwrite) {
+                                                            else if (upload.overwrite) {
                                                                 filename = path.basename(fileUri);
                                                             }
                                                             filename ||= uuid.v4() + path.extname(fileUri);
                                                             filenameMap[filename] = true;
                                                         }
-                                                        uploadHandler(buffer, success, { config, serviceConfig, fileUri, filename, mimeType });
+                                                        uploadHandler(buffer, { upload, credentials, fileUri, filename, mimeType }, success);
                                                     }
                                                 });
                                             })
@@ -1651,7 +1646,7 @@ const FileManager = class extends Module implements IFileManager {
                                 Promise.all(uploadTasks)
                                     .then(result => {
                                         const fileUri = result[0];
-                                        if (fileUri && config === cloudMain) {
+                                        if (fileUri && data === cloudMain) {
                                             if (item.inlineCloud) {
                                                 for (const content of htmlFiles) {
                                                     content.sourceUTF8 = this.getUTF8String(content).replace(item.inlineCloud, fileUri);

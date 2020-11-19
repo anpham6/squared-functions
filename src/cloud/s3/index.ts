@@ -1,6 +1,6 @@
-import type * as awsCore from 'aws-sdk/lib/core';
+import type * as aws from 'aws-sdk/lib/core';
 
-export interface S3CloudCredentials extends awsCore.ConfigurationOptions {
+export interface S3CloudCredentials extends aws.ConfigurationOptions {
     bucket?: string;
     endpoint?: string;
 }

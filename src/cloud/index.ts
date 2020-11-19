@@ -1,33 +1,38 @@
 import Module from '../module';
 
-type CloudModule = functions.settings.CloudModule;
+type CloudFunctions = functions.CloudFunctions;
 
 type CloudService = functions.squared.CloudService;
+type CloudServiceAction = functions.squared.CloudServiceAction;
+type CloudModule = functions.settings.CloudModule;
 
-type CloudServiceClient = functions.external.CloudServiceClient;
+type CloudServiceClient = functions.internal.Cloud.CloudServiceClient;
 
 const serviceMap: ObjectMap<CloudServiceClient> = {};
 
 const Cloud = new class extends Module implements functions.ICloud {
     settings: CloudModule = {};
 
-    getService(data: Undef<CloudService[]>) {
+    getService(data: Undef<CloudService[]>, functionName: CloudFunctions) {
         if (data) {
             for (const item of data) {
-                if (this.hasService(item)) {
-                    if (item.active) {
-                        return item;
-                    }
+                const service = this.hasService(item, functionName);
+                if (service && service.active) {
+                    return item;
                 }
             }
         }
     }
-    hasService(data: CloudService): data is CloudService {
-        const cloud = this.settings || {};
-        const service = data.service && data.service.trim();
-        const settings = data.settings && cloud[service] ? cloud[service][data.settings] : {};
+    hasService(data: CloudService, functionName: CloudFunctions): CloudServiceAction | false {
         try {
-            return (serviceMap[service] ||= require(`../cloud/${service}`) as CloudServiceClient)({ ...settings, ...data });
+            const action = data[functionName] as Undef<CloudServiceAction>;
+            if (action) {
+                const service = data.service.trim();
+                const settings: PlainObject = data.settings && this.settings?.[service]?.[data.settings] || {};
+                if ((serviceMap[service] ||= require(`../cloud/${service}`) as CloudServiceClient)({ ...settings, ...data })) {
+                    return action;
+                }
+            }
         }
         catch {
         }

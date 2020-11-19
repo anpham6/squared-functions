@@ -4,11 +4,11 @@ import tinify = require('tinify');
 
 import Module from '../module';
 
-type CompressFormat = functions.squared.CompressFormat;
-
 type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTaskCallback;
 type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
 type FileOutputCallback = functions.FileOutputCallback;
+
+type CompressFormat = functions.squared.CompressFormat;
 
 type NodeBuiltInCompressionMethod = "createWriteStreamAsGzip" | "createWriteStreamAsBrotli";
 

@@ -11,6 +11,7 @@ declare namespace functions {
     type BoolString = boolean | string;
     type ExternalCategory = "html" | "css" | "js";
     type FileCompressFormat = "gz" | "br";
+    type CloudFunctions = "upload";
     type FileManagerWriteImageCallback = (data: internal.FileData, output: string, command: string, compress?: squared.CompressFormat, error?: Null<Error>) => void;
     type FileManagerPerformAsyncTaskCallback = () => void;
     type FileManagerCompleteAsyncTaskCallback = (value?: unknown, parent?: ExternalAsset) => void;
@@ -39,22 +40,23 @@ declare namespace functions {
             condition?: string;
         }
 
-        interface CloudService {
+        interface CloudService extends ObjectMap<unknown> {
             service: string;
-            active?: boolean;
-            localStorage?: boolean;
-            uploadAll?: boolean;
-            filename?: string;
-            apiEndpoint?: string;
-            publicAccess?: boolean;
             settings?: string;
-            objects?: CloudObject[];
-            overwrite?: boolean;
-            [key: string]: Undef<unknown>;
+            upload?: CloudServiceUpload;
         }
 
-        interface CloudObject extends Partial<LocationUri> {
-            keyName: string;
+        interface CloudServiceAction {
+            active?: boolean;
+        }
+
+        interface CloudServiceUpload extends CloudServiceAction {
+            filename?: string;
+            localStorage?: boolean;
+            apiEndpoint?: string;
+            all?: boolean;
+            publicAccess?: boolean;
+            overwrite?: boolean;
         }
 
         interface WatchInterval {
@@ -185,6 +187,20 @@ declare namespace functions {
             type PluginConfig = [string, Undef<ConfigOrTranspiler>, Undef<StandardMap>] | [];
         }
 
+        namespace Cloud {
+            interface CloudUploadOptions<T>{
+                upload: squared.CloudServiceUpload;
+                credentials: T;
+                filename: string;
+                fileUri: string;
+                mimeType?: string;
+            }
+
+            type CloudServiceClient = (config: squared.CloudService) => boolean;
+            type CloudServiceHost = (this: IFileManager, credentials: PlainObject, serviceName: string) => CloudUploadCallback;
+            type CloudUploadCallback = (buffer: Buffer, options: CloudUploadOptions<unknown>, success: (value?: unknown) => void) => void;
+        }
+
         interface FileData {
             file: ExternalAsset;
             fileUri: string;
@@ -197,22 +213,12 @@ declare namespace functions {
     }
 
     namespace external {
-        interface CloudUploadOptions<T>{
-            config: squared.CloudService;
-            credentials: T;
-            filename: string;
-            fileUri: string;
-            mimeType?: string;
+        namespace Cloud {
+            interface StorageSharedKeyCredential {
+                accountName: string;
+                accountKey: string;
+            }
         }
-
-        interface StorageSharedKeyCredential {
-            accountName: string;
-            accountKey: string;
-        }
-
-        type CloudServiceClient = (config: squared.CloudService) => boolean;
-        type CloudServiceHost = (this: IFileManager, config: PlainObject, serviceName: string) => CloudServiceUpload;
-        type CloudServiceUpload = (buffer: Buffer, success: (value?: unknown) => void, options: CloudUploadOptions<unknown>) => void;
     }
 
     namespace settings {
@@ -227,7 +233,7 @@ declare namespace functions {
                 [key: string]: ConfigurationOptions;
             };
             azure?: {
-                [key: string]: external.StorageSharedKeyCredential;
+                [key: string]: external.Cloud.StorageSharedKeyCredential;
             };
             gcs?: {
                 [key: string]: GoogleAuthOptions;
@@ -289,8 +295,8 @@ declare namespace functions {
 
     interface ICloud extends IModule {
         settings: settings.CloudModule;
-        getService(data: Undef<squared.CloudService[]>): Undef<squared.CloudService>;
-        hasService(data: squared.CloudService): data is squared.CloudService;
+        getService(data: Undef<squared.CloudService[]>, functionName: CloudFunctions): Undef<squared.CloudService>;
+        hasService(data: squared.CloudService, functionName: CloudFunctions): squared.CloudServiceAction | false;
     }
 
     interface IChrome extends IModule {

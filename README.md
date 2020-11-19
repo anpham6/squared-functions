@@ -411,8 +411,6 @@ interface FileModifiers {
 }
 
 interface OutputModifiers {
-    tasks?: string[];
-    watch?: boolean | { interval?: number | expires?: string }; // type: js | css | image (expires: 1h 1m 1s)
     attributes?: { name: string, value?: string }[];
     cloudStorage?: CloudService[];
     ignore?: boolean;
@@ -429,6 +427,8 @@ interface AssetCommand extends FileModifiers, OutputModifiers {
     filename?: string; // type: html | ...image
     process?: string[]; // type: js | css
     commands?: string[]; // type: image
+    tasks?: string[];
+    watch?: boolean | { interval?: number | expires?: string }; // type: js | css | image (expires: 1h 1m 1s)
     template?: {
         module?: string;
         identifier?: string;
@@ -487,34 +487,39 @@ Other service providers can be integrated similarly except for credential verifi
       "bucket": "squared-001",
       "accessKeyId": "**********", // Using settings (optional)
       "secretAccessKey": "**********", // Using settings (optional)
-      "active": true, // Rewrites "src" to cloud storage location (optional)
-      "localStorage": false, // Removes all files from archive or local disk (optional)
-      "uploadAll": true, // Include transforms (optional)
-      "filename": "picture1.webp" // Choose a different bucket filename (optional)
-      "overwrite": false // Always use current filename (optional)
+      "upload": {
+        "active": false, // Rewrites "src" to cloud storage location (optional)
+        "localStorage": true, // Removes all files from archive or local disk (optional)
+        "filename": "picture1.webp" // Choose a different bucket filename (optional)
+        "all": false, // Include transforms (optional)
+        "overwrite": false // Always use current filename (optional)
+      }
     },
     {
       "service": "azure",
       "container": "squared-002",
       "accountName": "**********",
       "accountKey": "**********",
-      "apiEndpoint": "http://squaredjs.azureedge.net/squared-002" // e.g. CDN (optional)
+      "upload": {
+        "apiEndpoint": "http://squaredjs.azureedge.net/squared-002" // e.g. CDN (optional)
+      }
     },
     {
       "service": "gcs",
       "bucket": "squared-003", // Can be generated automatically (optional)
-      "publicAccess": false, // Only applies when a bucket is created (optional: "true" when active is "true")
       "keyFilename": "./gcs.json", // Path to JSON credentials
       "settings": "main" // Load host configuration at instantiation (optional)
+      "upload": {
+        "publicAccess": false // Only applies when a bucket is created (optional: "true" when active is "true")
+      }
     },
     {
       "service": "oci",
-      "bucket": "squared-004", // System defined buckets are private
+      "bucket": "squared-004", // New buckets are private when using S3 API
       "region": "us-phoenix-1", // Using settings (optional)
       "namespace": "abcdefghijkl", // Using settings (optional)
       "accessKeyId": "**********", // Using settings (optional)
-      "secretAccessKey": "**********", // Using settings (optional)
-      "settings": "main"
+      "secretAccessKey": "**********" // Using settings (optional)
     }
   ]
 }
@@ -530,8 +535,10 @@ squared.saveAs('index.zip', {
             cloudStorage: [{
                 service: 's3',
                 bucket: 'squared-001',
-                active: true,
-                settings: 'main'
+                settings: 'main',
+                upload: {
+                    active: true
+                }
             }]
         }
     }

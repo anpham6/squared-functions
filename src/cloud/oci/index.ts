@@ -1,6 +1,6 @@
-import type * as awsCore from 'aws-sdk/lib/core';
+import type * as aws from 'aws-sdk/lib/core';
 
-export interface OCICloudCredentials extends awsCore.ConfigurationOptions {
+export interface OCICloudCredentials extends aws.ConfigurationOptions, PlainObject {
     region: string;
     namespace: string;
     bucket: string;
