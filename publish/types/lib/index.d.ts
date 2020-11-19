@@ -188,17 +188,18 @@ declare namespace functions {
         }
 
         namespace Cloud {
-            interface CloudUploadOptions<T>{
+            interface UploadOptions<T>{
                 upload: squared.CloudServiceUpload;
                 credentials: T;
                 fileUri: string;
+                fileGroup: [Buffer | string, string][];
                 filename?: string;
                 mimeType?: string;
             }
 
-            type CloudServiceClient = (config: squared.CloudService) => boolean;
-            type CloudServiceHost = (this: IFileManager, credentials: PlainObject, serviceName: string) => CloudUploadCallback;
-            type CloudUploadCallback = (buffer: Buffer, options: CloudUploadOptions<unknown>, success: (value?: unknown) => void) => void;
+            type ServiceClient = (config: squared.CloudService) => boolean;
+            type ServiceHost = (this: IFileManager, credentials: PlainObject, serviceName: string) => UploadCallback;
+            type UploadCallback = (buffer: Buffer, options: UploadOptions<unknown>, success: (value?: unknown) => void) => void;
         }
 
         interface FileData {

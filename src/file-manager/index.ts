@@ -25,7 +25,6 @@ type ResponseData = functions.squared.ResponseData;
 type CompressFormat = functions.squared.CompressFormat;
 type CloudService = functions.squared.CloudService;
 type CloudServiceUpload = functions.squared.CloudServiceUpload;
-type CloudUploadCallback = functions.internal.Cloud.CloudUploadCallback;
 
 type CompressModule = functions.settings.CompressModule;
 type CloudModule = functions.settings.CloudModule;
@@ -34,6 +33,7 @@ type ChromeModule = functions.settings.ChromeModule;
 type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
 type SourceMapOutput = functions.internal.Chrome.SourceMapOutput;
+type UploadCallback = functions.internal.Cloud.UploadCallback;
 
 interface GulpData {
     gulpfile: string;
@@ -1606,10 +1606,18 @@ const FileManager = class extends Module implements IFileManager {
             const cssFiles: ExternalAsset[] = [];
             const getFiles = (item: ExternalAsset, data: CloudServiceUpload) => {
                 const files = [item.fileUri!];
+                const transforms: string[] = [];
                 if (item.transforms && data.all) {
-                    files.push(...!item.cloudUri ? item.transforms : item.transforms.filter(value => /\.(map|gz|br)$/.test(value)));
+                    for (const value of item.transforms) {
+                        if (/\.(map|gz|br)$/.test(value)) {
+                            files.push(value);
+                        }
+                        else if (!item.cloudUri) {
+                            transforms.push(value);
+                        }
+                    }
                 }
-                return files;
+                return [files, transforms];
             };
             const uploadFiles = (item: ExternalAsset, mimeType = item.mimeType) => {
                 mimeType &&= mimeType.replace(/^[^a-z]+/, '');
@@ -1635,46 +1643,61 @@ const FileManager = class extends Module implements IFileManager {
                                 }
                             }
                             try {
-                                const uploadHandler = require(`../cloud/${service}/upload`).call(this, credentials, service.toUpperCase()) as CloudUploadCallback;
+                                const uploadHandler = require(`../cloud/${service}/upload`).call(this, credentials, service.toUpperCase()) as UploadCallback;
                                 const uploadTasks: Promise<string>[] = [];
                                 const files = getFiles(item, upload);
                                 let basename: Undef<string>;
                                 for (let i = 0, length = files.length; i < length; ++i) {
-                                    const fileUri = files[i];
-                                    if (i === 0 || this.has(fileUri)) {
-                                        uploadTasks.push(
-                                            new Promise(success => {
-                                                fs.readFile(fileUri, (err, buffer) => {
-                                                    if (err) {
-                                                        success('');
+                                    const group = files[i];
+                                    for (const fileUri of group) {
+                                        if (i === 0 || this.has(fileUri)) {
+                                            const fileGroup: [Buffer | string, string][] = [];
+                                            if (i === 0) {
+                                                for (let j = 1; j < group.length; ++j) {
+                                                    try {
+                                                        fileGroup.push([service === 'gcs' ? group[j] : fs.readFileSync(group[j]), path.extname(group[j])]);
                                                     }
-                                                    else {
-                                                        let filename: Undef<string>;
-                                                        if (i === 0) {
-                                                            if (item.cloudUri) {
-                                                                filename = path.basename(item.cloudUri);
-                                                            }
-                                                            else if (upload.filename) {
-                                                                filename = upload.filename;
-                                                            }
-                                                            else if (upload.overwrite) {
-                                                                filename = path.basename(fileUri);
-                                                            }
-                                                            if (filename) {
-                                                                basename = filename;
-                                                            }
-                                                        }
-                                                        if (basename) {
-                                                            const match = /\.(map|gz|br)$/.exec(fileUri);
-                                                            if (match) {
-                                                                filename = basename + match[0];
-                                                            }
-                                                        }
-                                                        uploadHandler(buffer, { upload, credentials, fileUri, filename, mimeType }, success);
+                                                    catch {
                                                     }
-                                                });
-                                            })
-                                        );
+                                                }
+                                            }
+                                            uploadTasks.push(
+                                                new Promise(success => {
+                                                    fs.readFile(fileUri, (err, buffer) => {
+                                                        if (err) {
+                                                            success('');
+                                                        }
+                                                        else {
+                                                            let filename: Undef<string>;
+                                                            if (i === 0) {
+                                                                if (item.cloudUri) {
+                                                                    filename = path.basename(item.cloudUri);
+                                                                }
+                                                                else if (upload.filename) {
+                                                                    filename = upload.filename;
+                                                                }
+                                                                else if (upload.overwrite) {
+                                                                    filename = path.basename(fileUri);
+                                                                }
+                                                                if (filename) {
+                                                                    basename = filename;
+                                                                }
+                                                            }
+                                                            if (basename) {
+                                                                const match = /\.(map|gz|br)$/.exec(fileUri);
+                                                                if (match) {
+                                                                    filename = basename + match[0];
+                                                                }
+                                                            }
+                                                            uploadHandler(buffer, { upload, credentials, fileUri, fileGroup, filename, mimeType }, success);
+                                                        }
+                                                    });
+                                                })
+                                            );
+                                            if (i === 0) {
+                                                break;
+                                            }
+                                        }
                                     }
                                 }
                                 Promise.all(uploadTasks)
@@ -1778,18 +1801,23 @@ const FileManager = class extends Module implements IFileManager {
             }
             const emptyDir = new Set<string>();
             for (const [item, data] of localStorage) {
-                tasks.push(
-                    ...getFiles(item, data).map(value => fs.unlink(value)
-                        .then(() => {
-                            let dir = this.dirname;
-                            for (const seg of path.dirname(value).substring(this.dirname.length + 1).split(/[\\/]/)) {
-                                dir += path.sep + seg;
-                                emptyDir.add(dir);
-                            }
-                            this.delete(value);
-                        })
-                        .catch(() => this.delete(value)))
-                );
+                for (const group of getFiles(item, data)) {
+                    if (group.length) {
+                        tasks.push(
+                            ...group.map(value => {
+                                return fs.unlink(value).then(() => {
+                                    let dir = this.dirname;
+                                    for (const seg of path.dirname(value).substring(this.dirname.length + 1).split(/[\\/]/)) {
+                                        dir += path.sep + seg;
+                                        emptyDir.add(dir);
+                                    }
+                                    this.delete(value);
+                                })
+                                .catch(() => this.delete(value));
+                            })
+                        );
+                    }
+                }
             }
             if (tasks.length) {
                 await Promise.all(tasks).catch(err => this.writeFail('Finalize: Delete cloud temp files', err));

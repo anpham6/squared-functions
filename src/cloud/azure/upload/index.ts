@@ -7,12 +7,12 @@ import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
 
-type CloudUploadOptions = functions.internal.Cloud.CloudUploadOptions<AzureCloudCredentials>;
-type CloudUploadCallback = functions.internal.Cloud.CloudUploadCallback;
+type UploadOptions = functions.internal.Cloud.UploadOptions<AzureCloudCredentials>;
+type UploadCallback = functions.internal.Cloud.UploadCallback;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function uploadAzure(this: IFileManager, credentials: AzureCloudCredentials, serviceName: string): CloudUploadCallback {
+function uploadAzure(this: IFileManager, credentials: AzureCloudCredentials, serviceName: string): UploadCallback {
     let blobServiceClient: azure.BlobServiceClient;
     try {
         const { BlobServiceClient, StorageSharedKeyCredential } = require('@azure/storage-blob');
@@ -23,7 +23,7 @@ function uploadAzure(this: IFileManager, credentials: AzureCloudCredentials, ser
         this.writeFail('Install SDK? [npm i @azure/storage-blob]', serviceName);
         throw err;
     }
-    return async (buffer: Buffer, options: CloudUploadOptions, success: (value?: unknown) => void) => {
+    return async (buffer: Buffer, options: UploadOptions, success: (value?: unknown) => void) => {
         const container = credentials.container || uuid.v4();
         const containerClient = blobServiceClient.getContainerClient(container);
         const fileUri = options.fileUri;
@@ -63,17 +63,30 @@ function uploadAzure(this: IFileManager, credentials: AzureCloudCredentials, ser
                 this.writeMessage(`File renamed [${filename}]`, filename = uuid.v4() + path.extname(fileUri), serviceName, 'yellow');
             }
         }
-        containerClient.getBlockBlobClient(filename).upload(buffer, buffer.byteLength, { blobHTTPHeaders: { blobContentType: options.mimeType } })
-            .then(() => {
-                const apiEndpoint = options.upload.apiEndpoint;
-                const url = (apiEndpoint ? apiEndpoint.replace(/\/*$/, '') : `https://${credentials.accountName}.blob.core.windows.net/${container}`) + '/' + filename;
-                this.writeMessage('Upload success', url, serviceName);
-                success(url);
-            })
-            .catch(err => {
-                this.writeFail(`${serviceName}: Upload failed (${fileUri})`, err);
-                success('');
-            });
+        const Key = [filename];
+        const Body = [buffer];
+        const ContentType = [options.mimeType];
+        const apiEndpoint = options.upload.apiEndpoint;
+        for (const item of options.fileGroup) {
+            Body.push(item[0] as Buffer);
+            Key.push(filename + item[1]);
+        }
+        for (let i = 0; i < Key.length; ++i) {
+            containerClient.getBlockBlobClient(Key[i]).upload(Body[i], Body[i].byteLength, { blobHTTPHeaders: { blobContentType: ContentType[i] } })
+                .then(() => {
+                    const url = (apiEndpoint ? apiEndpoint.replace(/\/*$/, '') : `https://${credentials.accountName}.blob.core.windows.net/${container}`) + '/' + Key[i];
+                    this.writeMessage('Upload success', url, serviceName);
+                    if (i === 0) {
+                        success(url);
+                    }
+                })
+                .catch(err => {
+                    if (i === 0) {
+                        this.writeFail(`${serviceName}: Upload failed (${fileUri})`, err);
+                        success('');
+                    }
+                });
+        }
     };
 }
 

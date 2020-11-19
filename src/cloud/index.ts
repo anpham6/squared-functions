@@ -6,9 +6,9 @@ type CloudService = functions.squared.CloudService;
 type CloudServiceAction = functions.squared.CloudServiceAction;
 type CloudModule = functions.settings.CloudModule;
 
-type CloudServiceClient = functions.internal.Cloud.CloudServiceClient;
+type ServiceClient = functions.internal.Cloud.ServiceClient;
 
-const serviceMap: ObjectMap<CloudServiceClient> = {};
+const serviceMap: ObjectMap<ServiceClient> = {};
 
 const Cloud = new class extends Module implements functions.ICloud {
     settings: CloudModule = {};
@@ -29,7 +29,7 @@ const Cloud = new class extends Module implements functions.ICloud {
             if (action) {
                 const service = data.service.trim();
                 const settings: PlainObject = data.settings && this.settings?.[service]?.[data.settings] || {};
-                if ((serviceMap[service] ||= require(`../cloud/${service}`) as CloudServiceClient)({ ...settings, ...data })) {
+                if ((serviceMap[service] ||= require(`../cloud/${service}`) as ServiceClient)({ ...settings, ...data })) {
                     return action;
                 }
             }

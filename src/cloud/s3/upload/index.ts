@@ -7,12 +7,12 @@ import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
 
-type CloudUploadOptions = functions.internal.Cloud.CloudUploadOptions<S3CloudCredentials>;
-type CloudUploadCallback = functions.internal.Cloud.CloudUploadCallback;
+type UploadOptions = functions.internal.Cloud.UploadOptions<S3CloudCredentials>;
+type UploadCallback = functions.internal.Cloud.UploadCallback;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function uploadS3(this: IFileManager, credentials: S3CloudCredentials, serviceName: string): CloudUploadCallback {
+function uploadS3(this: IFileManager, credentials: S3CloudCredentials, serviceName: string): UploadCallback {
     let s3: aws.S3;
     try {
         const S3 = require('aws-sdk/clients/s3') as Constructor<aws.S3>;
@@ -22,7 +22,7 @@ function uploadS3(this: IFileManager, credentials: S3CloudCredentials, serviceNa
         this.writeFail('Install SDK? [npm i aws-sdk]', serviceName);
         throw err;
     }
-    return async (buffer: Buffer, options: CloudUploadOptions, success: (value?: unknown) => void) => {
+    return async (buffer: Buffer, options: UploadOptions, success: (value?: unknown) => void) => {
         const Bucket = credentials.bucket || uuid.v4();
         const bucketService = serviceName + Bucket;
         let ACL: Undef<string>;
@@ -52,11 +52,12 @@ function uploadS3(this: IFileManager, credentials: S3CloudCredentials, serviceNa
                 return;
             }
         }
-        let Key = options.filename;
-        if (!Key) {
-            Key = path.basename(options.fileUri);
-            const renameFile = () => this.writeMessage(`File renamed [${Key!}]`, Key = uuid.v4() + path.extname(options.fileUri), serviceName, 'yellow');
-            await s3.headObject({ Bucket, Key })
+        const fileUri = options.fileUri;
+        let filename = options.filename;
+        if (!filename) {
+            filename = path.basename(fileUri);
+            const renameFile = () => this.writeMessage(`File renamed [${filename!}]`, filename = uuid.v4() + path.extname(fileUri), serviceName, 'yellow');
+            await s3.headObject({ Bucket, Key: filename })
                 .promise()
                 .then(() => renameFile())
                 .catch(err => {
@@ -65,18 +66,29 @@ function uploadS3(this: IFileManager, credentials: S3CloudCredentials, serviceNa
                     }
                 });
         }
-        s3.upload({ Bucket, Key, ACL, Body: buffer, ContentType: options.mimeType }, (err, result) => {
-            if (!err) {
-                const apiEndpoint = options.upload.apiEndpoint;
-                const url = apiEndpoint ? apiEndpoint.replace(/\/*$/, '') + '/' + Key : result.Location;
-                this.writeMessage('Upload success', url, serviceName);
-                success(url);
-            }
-            else {
-                this.writeFail(`${serviceName}: Upload failed (${options.fileUri})`, err);
-                success('');
-            }
-        });
+        const Key = [filename];
+        const Body = [buffer];
+        const ContentType = [options.mimeType];
+        const apiEndpoint = options.upload.apiEndpoint;
+        for (const item of options.fileGroup) {
+            Body.push(item[0] as Buffer);
+            Key.push(filename + item[1]);
+        }
+        for (let i = 0; i < Key.length; ++i) {
+            s3.upload({ Bucket, Key: Key[i], ACL, Body: Body[i], ContentType: ContentType[i] }, (err, result) => {
+                if (!err) {
+                    const url = apiEndpoint ? apiEndpoint.replace(/\/*$/, '') + '/' + Key[i] : result.Location;
+                    this.writeMessage('Upload success', url, serviceName);
+                    if (i === 0) {
+                        success(url);
+                    }
+                }
+                else if (i === 0) {
+                    this.writeFail(`${serviceName}: Upload failed (${fileUri})`, err);
+                    success('');
+                }
+            });
+        }
     };
 }
 
