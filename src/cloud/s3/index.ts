@@ -1,10 +1,10 @@
 import type * as awsCore from 'aws-sdk/lib/core';
 
-export interface S3CloudService extends functions.squared.CloudService, awsCore.ConfigurationOptions {
-    bucket: string;
+export interface S3CloudCredentials extends awsCore.ConfigurationOptions {
+    bucket?: string;
 }
 
-const validateS3 = (config: S3CloudService) => !!(config.bucket && (config.accessKeyId || config.secretAccessKey));
+const validateS3 = (config: S3CloudCredentials) => !!(config.accessKeyId || config.secretAccessKey);
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = validateS3;

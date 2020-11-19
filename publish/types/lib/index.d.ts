@@ -46,6 +46,7 @@ declare namespace functions {
             uploadAll?: boolean;
             filename?: string;
             apiEndpoint?: string;
+            publicAccess?: boolean;
             settings?: string;
             objects?: CloudObject[];
             [key: string]: Undef<unknown>;
@@ -195,8 +196,9 @@ declare namespace functions {
     }
 
     namespace external {
-        interface CloudUploadOptions {
+        interface CloudUploadOptions<T>{
             config: squared.CloudService;
+            credentials: T;
             filename: string;
             fileUri: string;
             mimeType?: string;
@@ -208,8 +210,8 @@ declare namespace functions {
         }
 
         type CloudServiceClient = (config: squared.CloudService) => boolean;
-        type CloudServiceHost = (this: IFileManager, config: squared.CloudService, serviceName: string) => CloudServiceUpload;
-        type CloudServiceUpload = (buffer: Buffer, success: (value?: unknown) => void, options: CloudUploadOptions) => void;
+        type CloudServiceHost = (this: IFileManager, config: PlainObject, serviceName: string) => CloudServiceUpload;
+        type CloudServiceUpload = (buffer: Buffer, success: (value?: unknown) => void, options: CloudUploadOptions<unknown>) => void;
     }
 
     namespace settings {

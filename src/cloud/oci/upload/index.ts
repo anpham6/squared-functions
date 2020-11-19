@@ -1,12 +1,12 @@
-import type { OCICloudService } from '../index';
+import type { OCICloudCredentials } from '../index';
 
 type IFileManager = functions.IFileManager;
 
-function uploadHandlerOCI(this: IFileManager, config: OCICloudService, serviceName: string) {
-    config.endpoint = `https://${config.namespace}.compat.objectstorage.${config.region}.oraclecloud.com`;
-    config.s3ForcePathStyle = true;
-    config.signatureVersion = 'v4';
-    return require('../../s3/upload').call(this, config, serviceName);
+function uploadHandlerOCI(this: IFileManager, credentials: OCICloudCredentials, serviceName: string) {
+    credentials.endpoint = `https://${credentials.namespace}.compat.objectstorage.${credentials.region}.oraclecloud.com`;
+    credentials.s3ForcePathStyle = true;
+    credentials.signatureVersion = 'v4';
+    return require('../../s3/upload').call(this, credentials, serviceName);
 }
 
 if (typeof module !== 'undefined' && module.exports) {

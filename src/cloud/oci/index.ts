@@ -1,12 +1,13 @@
 import type * as awsCore from 'aws-sdk/lib/core';
 
-export interface OCICloudService extends functions.squared.CloudService, awsCore.ConfigurationOptions {
+export interface OCICloudCredentials extends awsCore.ConfigurationOptions {
     region: string;
     namespace: string;
     bucket: string;
+    endpoint?: string;
 }
 
-const validateOCI = (config: OCICloudService) => !!(config.region && config.namespace && (config.accessKeyId || config.secretAccessKey));
+const validateOCI = (config: OCICloudCredentials) => !!(config.region && config.namespace && (config.accessKeyId || config.secretAccessKey));
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = validateOCI;

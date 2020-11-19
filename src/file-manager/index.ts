@@ -33,7 +33,6 @@ type CloudService = functions.squared.CloudService;
 type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
 type SourceMapOutput = functions.internal.Chrome.SourceMapOutput;
-type CloudServiceUpload = functions.external.CloudServiceUpload;
 
 interface GulpData {
     gulpfile: string;
@@ -1583,90 +1582,99 @@ const FileManager = class extends Module implements IFileManager {
             const uploadFiles = (item: ExternalAsset, mimeType = item.mimeType) => {
                 mimeType &&= mimeType.replace(/^[^a-z]+/, '');
                 const cloudMain = Cloud.getService(item.cloudStorage);
-                for (const data of item.cloudStorage!) {
-                    if (Cloud.hasService(data)) {
-                        if (data === cloudMain && data.localStorage === false) {
-                            localStorage.set(item, data);
+                for (const config of item.cloudStorage!) {
+                    if (Cloud.hasService(config)) {
+                        if (config === cloudMain && config.localStorage === false) {
+                            localStorage.set(item, config);
                         }
                         tasks.push(new Promise(resolve => {
-                            const service = data.service;
-                            const settings = this.Cloud![service];
-                            const config = {} as CloudService;
-                            if (settings && data.settings) {
-                                Object.assign(config, settings[data.settings]);
+                            const service = config.service;
+                            const settings = config.settings && this.Cloud![service] as Undef<PlainObject>;
+                            const serviceConfig = settings ? Object.assign({}, settings[config.settings!]) : {};
+                            for (const attr in config) {
+                                switch (attr) {
+                                    case 'service':
+                                    case 'active':
+                                    case 'localStorage':
+                                    case 'uploadAll':
+                                    case 'filename':
+                                    case 'apiEndpoint':
+                                    case 'publicAccess':
+                                    case 'settings':
+                                    case 'objects':
+                                        continue;
+                                    default:
+                                        serviceConfig[attr] = config[attr];
+                                        break;
+                                }
                             }
-                            Object.assign(config, data);
-                            let uploadHandler: Undef<CloudServiceUpload>;
                             try {
-                                uploadHandler = require(`../cloud/${service}/upload`).call(this, config, service.toUpperCase());
+                                const uploadHandler = require(`../cloud/${service}/upload`).call(this, serviceConfig, service.toUpperCase());
+                                const uploadTasks: Promise<string>[] = [];
+                                const files = getFiles(item, config);
+                                for (let i = 0, length = files.length; i < length; ++i) {
+                                    const fileUri = files[i];
+                                    if (i === 0 || this.has(fileUri)) {
+                                        uploadTasks.push(
+                                            new Promise(success => {
+                                                fs.readFile(fileUri, (err, buffer) => {
+                                                    if (err) {
+                                                        success('');
+                                                    }
+                                                    else {
+                                                        let filename: string;
+                                                        if (item.cloudUri) {
+                                                            filename = path.basename(item.cloudUri);
+                                                        }
+                                                        else {
+                                                            let j = 0;
+                                                            do {
+                                                                if (length > 1 && mimeType && mimeType.includes('text/')) {
+                                                                    filename = path.basename(fileUri);
+                                                                }
+                                                                else {
+                                                                    filename = i === 0 && config.filename || (uuid.v4() + path.extname(fileUri));
+                                                                }
+                                                                if (j > 0) {
+                                                                    filename = path.basename(fileUri).split('.').map((value, index) => value + (index === 0 ? '_' + j : '')).join('.');
+                                                                }
+                                                            }
+                                                            while (filenameMap[filename] && ++j);
+                                                            filenameMap[filename] = true;
+                                                        }
+                                                        uploadHandler(buffer, success, { config, serviceConfig, fileUri, filename, mimeType });
+                                                    }
+                                                });
+                                            })
+                                        );
+                                    }
+                                }
+                                Promise.all(uploadTasks)
+                                    .then(result => {
+                                        const fileUri = result[0];
+                                        if (fileUri && config === cloudMain) {
+                                            if (item.inlineCloud) {
+                                                for (const content of htmlFiles) {
+                                                    content.sourceUTF8 = this.getUTF8String(content).replace(item.inlineCloud, fileUri);
+                                                    delete cloudMap[item.inlineCloud];
+                                                }
+                                            }
+                                            else if (item.inlineCssCloud) {
+                                                for (const content of htmlFiles) {
+                                                    content.sourceUTF8 = this.getUTF8String(content).replace(new RegExp(item.inlineCssCloud, 'g'), fileUri);
+                                                }
+                                                cloudCssMap[item.inlineCssCloud] = fileUri;
+                                            }
+                                            item.cloudUri = fileUri;
+                                        }
+                                        resolve();
+                                    })
+                                    .catch(() => resolve());
                             }
                             catch (err) {
                                 this.writeFail(`${service} does not support upload function.`, err);
-                            }
-                            if (typeof uploadHandler !== 'function') {
                                 resolve();
-                                return;
                             }
-                            const upload: Promise<string>[] = [];
-                            const files = getFiles(item, data);
-                            for (let i = 0, length = files.length; i < length; ++i) {
-                                const fileUri = files[i];
-                                if (i === 0 || this.has(fileUri)) {
-                                    upload.push(
-                                        new Promise(success => {
-                                            fs.readFile(fileUri, (err, buffer) => {
-                                                if (err) {
-                                                    success('');
-                                                }
-                                                else {
-                                                    let filename: string;
-                                                    if (item.cloudUri) {
-                                                        filename = path.basename(item.cloudUri);
-                                                    }
-                                                    else {
-                                                        let j = 0;
-                                                        do {
-                                                            if (length > 1 && mimeType && mimeType.includes('text/')) {
-                                                                filename = path.basename(fileUri);
-                                                            }
-                                                            else {
-                                                                filename = i === 0 && config.filename || (uuid.v4() + path.extname(fileUri));
-                                                            }
-                                                            if (j > 0) {
-                                                                filename = path.basename(fileUri).split('.').map((value, index) => value + (index === 0 ? '_' + j : '')).join('.');
-                                                            }
-                                                        }
-                                                        while (filenameMap[filename] && ++j);
-                                                        filenameMap[filename] = true;
-                                                    }
-                                                    uploadHandler!(buffer, success, { config, fileUri, filename, mimeType });
-                                                }
-                                            });
-                                        })
-                                    );
-                                }
-                            }
-                            Promise.all(upload)
-                                .then(result => {
-                                    const fileUri = result[0];
-                                    if (fileUri && data === cloudMain) {
-                                        if (item.inlineCloud) {
-                                            for (const content of htmlFiles) {
-                                                content.sourceUTF8 = this.getUTF8String(content).replace(item.inlineCloud, fileUri);
-                                                delete cloudMap[item.inlineCloud];
-                                            }
-                                        }
-                                        else if (item.inlineCssCloud) {
-                                            for (const content of htmlFiles) {
-                                                content.sourceUTF8 = this.getUTF8String(content).replace(new RegExp(item.inlineCssCloud, 'g'), fileUri);
-                                            }
-                                            cloudCssMap[item.inlineCssCloud] = fileUri;
-                                        }
-                                        item.cloudUri = fileUri;
-                                    }
-                                    resolve();
-                                })
-                                .catch(() => resolve());
                         }));
                     }
                 }

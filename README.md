@@ -501,13 +501,14 @@ Other service providers can be integrated similarly except for credential verifi
     },
     {
       "service": "gcs",
-      "bucket": "squared-003",
-      "keyFilename": "**********", // Path to JSON credentials
+      "bucket": "squared-003", // Can be generated automatically (optional)
+      "publicAccess": false, // Only applies when a bucket is created (optional: "true" when active is "true")
+      "keyFilename": "./gcs.json", // Path to JSON credentials
       "settings": "main" // Load host configuration at instantiation (optional)
     },
     {
       "service": "oci",
-      "bucket": "squared-004",
+      "bucket": "squared-004", // System defined buckets are private
       "region": "us-phoenix-1", // Using settings (optional)
       "namespace": "abcdefghijkl", // Using settings (optional)
       "accessKeyId": "**********", // Using settings (optional)
