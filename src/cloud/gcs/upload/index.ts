@@ -49,18 +49,37 @@ function uploadGCS(this: IFileManager, credentials: GCSCloudCredentials, service
             }
             BUCKET_MAP[bucketName] = true;
         }
-        if (path.basename(options.fileUri) !== options.filename) {
-            options.fileUri = this.getTempDir() + options.filename;
-            fs.writeFileSync(options.fileUri, buffer);
+        const bucket = storage.bucket(bucketName);
+        let { fileUri, filename } = options;
+        if (!filename) {
+            filename = path.basename(fileUri);
+            let exists = true;
+            try {
+                [exists] = await bucket.file(filename).exists();
+            }
+            catch {
+            }
+            if (exists) {
+                this.writeMessage(`File renamed [${filename}]`, filename = uuid.v4() + path.extname(fileUri), serviceName, 'yellow');
+            }
         }
-        storage.bucket(bucketName).upload(options.fileUri, { contentType: options.mimeType }, err => {
+        if (path.basename(fileUri) !== filename) {
+            try {
+                fs.writeFileSync(fileUri = this.getTempDir() + filename, buffer);
+            }
+            catch (err) {
+                this.writeFail(`${serviceName}: Unable to write buffer (${fileUri})`, err);
+                success('');
+            }
+        }
+        bucket.upload(fileUri, { contentType: options.mimeType }, err => {
             if (!err) {
-                const url = (apiEndpoint ? apiEndpoint.replace(/\/*$/, '') : 'https://storage.googleapis.com/' + bucketName) + '/' + options.filename;
+                const url = (apiEndpoint ? apiEndpoint.replace(/\/*$/, '') : 'https://storage.googleapis.com/' + bucketName) + '/' + filename;
                 this.writeMessage('Upload success', url, serviceName);
                 success(url);
             }
             else {
-                this.writeFail(`${serviceName}: Upload failed (${options.fileUri})`, err);
+                this.writeFail(`${serviceName}: Upload failed (${fileUri})`, err);
                 success('');
             }
         });

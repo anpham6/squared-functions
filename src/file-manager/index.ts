@@ -1355,16 +1355,15 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             for (const item of this.assets) {
-                if (!item.inlineBase64 || item.invalid) {
-                    continue;
+                if (item.inlineBase64 && !item.invalid) {
+                    const mimeType = mime.lookup(item.fileUri!) || item.mimeType!;
+                    tasks.push(
+                        fs.readFile(item.fileUri!).then((data: Buffer) => {
+                            base64Map[item.inlineBase64!] = `data:${mimeType};base64,${data.toString('base64')}`;
+                            item.invalid = true;
+                        })
+                    );
                 }
-                const mimeType = mime.lookup(item.fileUri!) || item.mimeType!;
-                tasks.push(
-                    fs.readFile(item.fileUri!).then((data: Buffer) => {
-                        base64Map[item.inlineBase64!] = `data:${mimeType};base64,${data.toString('base64')}`;
-                        item.invalid = true;
-                    })
-                );
             }
             if (tasks.length) {
                 await Promise.all(tasks).catch(err => this.writeFail('Finalize: Cache base64', err));
@@ -1566,17 +1565,49 @@ const FileManager = class extends Module implements IFileManager {
                 tasks = [];
             }
         }
+        if (this.Compress) {
+            for (const item of this.assets) {
+                if (!item.invalid) {
+                    const fileUri = item.fileUri!;
+                    if (this.has(fileUri)) {
+                        const gz = Compress.findFormat(item.compress, 'gz');
+                        if (gz) {
+                            tasks.push(
+                                new Promise(resolve => Compress.tryFile(fileUri, gz, undefined, (result: string) => {
+                                    if (result) {
+                                        this.add(result, item);
+                                    }
+                                    resolve();
+                                }))
+                            );
+                        }
+                        if (Node.checkVersion(11, 7)) {
+                            const br = Compress.findFormat(item.compress, 'br');
+                            if (br) {
+                                tasks.push(
+                                    new Promise(resolve => Compress.tryFile(fileUri, br, undefined, (result: string) => {
+                                        if (result) {
+                                            this.add(result, item);
+                                        }
+                                        resolve();
+                                    }))
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
         if (this.Cloud) {
             const cloudMap: ObjectMap<ExternalAsset> = {};
             const cloudCssMap: StringMap = {};
             const localStorage = new Map<ExternalAsset, CloudServiceUpload>();
-            const filenameMap: ObjectMap<boolean> = {};
             const htmlFiles = this.getHtmlPages();
             const cssFiles: ExternalAsset[] = [];
             const getFiles = (item: ExternalAsset, data: CloudServiceUpload) => {
                 const files = [item.fileUri!];
                 if (item.transforms && data.all) {
-                    files.push(...!item.cloudUri ? item.transforms : item.transforms.filter(value => value.endsWith('.map')));
+                    files.push(...!item.cloudUri ? item.transforms : item.transforms.filter(value => /\.(map|gz|br)$/.test(value)));
                 }
                 return files;
             };
@@ -1607,6 +1638,7 @@ const FileManager = class extends Module implements IFileManager {
                                 const uploadHandler = require(`../cloud/${service}/upload`).call(this, credentials, service.toUpperCase()) as CloudUploadCallback;
                                 const uploadTasks: Promise<string>[] = [];
                                 const files = getFiles(item, upload);
+                                let basename: Undef<string>;
                                 for (let i = 0, length = files.length; i < length; ++i) {
                                     const fileUri = files[i];
                                     if (i === 0 || this.has(fileUri)) {
@@ -1618,23 +1650,25 @@ const FileManager = class extends Module implements IFileManager {
                                                     }
                                                     else {
                                                         let filename: Undef<string>;
-                                                        if (item.cloudUri) {
-                                                            filename = path.basename(item.cloudUri);
-                                                        }
-                                                        else {
-                                                            if (i === 0) {
-                                                                if (upload.filename && (!filenameMap[upload.filename] || upload.overwrite)) {
-                                                                    filename = upload.filename;
-                                                                }
-                                                                else if (upload.overwrite) {
-                                                                    filename = path.basename(fileUri);
-                                                                }
+                                                        if (i === 0) {
+                                                            if (item.cloudUri) {
+                                                                filename = path.basename(item.cloudUri);
+                                                            }
+                                                            else if (upload.filename) {
+                                                                filename = upload.filename;
                                                             }
                                                             else if (upload.overwrite) {
                                                                 filename = path.basename(fileUri);
                                                             }
-                                                            filename ||= uuid.v4() + path.extname(fileUri);
-                                                            filenameMap[filename] = true;
+                                                            if (filename) {
+                                                                basename = filename;
+                                                            }
+                                                        }
+                                                        if (basename) {
+                                                            const match = /\.(map|gz|br)$/.exec(fileUri);
+                                                            if (match) {
+                                                                filename = basename + match[0];
+                                                            }
                                                         }
                                                         uploadHandler(buffer, { upload, credentials, fileUri, filename, mimeType }, success);
                                                     }
@@ -1765,40 +1799,6 @@ const FileManager = class extends Module implements IFileManager {
                         fs.rmdirSync(value);
                     }
                     catch {
-                    }
-                }
-            }
-        }
-        if (this.Compress) {
-            for (const item of this.assets) {
-                if (item.invalid) {
-                    continue;
-                }
-                const fileUri = item.fileUri!;
-                if (this.has(fileUri)) {
-                    const gz = Compress.findFormat(item.compress, 'gz');
-                    if (gz) {
-                        tasks.push(
-                            new Promise(resolve => Compress.tryFile(fileUri, gz, undefined, (result: string) => {
-                                if (result) {
-                                    this.add(result);
-                                }
-                                resolve();
-                            }))
-                        );
-                    }
-                    if (Node.checkVersion(11, 7)) {
-                        const br = Compress.findFormat(item.compress, 'br');
-                        if (br) {
-                            tasks.push(
-                                new Promise(resolve => Compress.tryFile(fileUri, br, undefined, (result: string) => {
-                                    if (result) {
-                                        this.add(result);
-                                    }
-                                    resolve();
-                                }))
-                            );
-                        }
                     }
                 }
             }

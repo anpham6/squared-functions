@@ -568,7 +568,7 @@ squared.saveAs('index.zip', {
 }); 
 ```
 
-Setting the active cloud storage filename to a JS/CSS bundle might not have any effect since it is possible more than one bundle will be created.
+Setting the active cloud storage filename to a JS/CSS bundle will not have any effect since usually more than one bundle will be created.
 
 ```javascript
 // NOTE: js | css | image | video | audio
@@ -588,8 +588,10 @@ Setting the active cloud storage filename to a JS/CSS bundle might not have any 
     {
       "service": "s3",
       "bucket": "squared-001",
-      "active": true,
-      "settings": 'main'
+      "settings": "main",
+      "upload": {
+        "active": true
+      }
     }
   ]
 }

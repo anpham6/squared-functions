@@ -191,8 +191,8 @@ declare namespace functions {
             interface CloudUploadOptions<T>{
                 upload: squared.CloudServiceUpload;
                 credentials: T;
-                filename: string;
                 fileUri: string;
+                filename?: string;
                 mimeType?: string;
             }
 

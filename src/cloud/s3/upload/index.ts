@@ -2,6 +2,7 @@ import type * as aws from 'aws-sdk';
 
 import type { S3CloudCredentials } from '../index';
 
+import path = require('path');
 import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
@@ -26,13 +27,10 @@ function uploadS3(this: IFileManager, credentials: S3CloudCredentials, serviceNa
         const bucketService = serviceName + Bucket;
         let ACL: Undef<string>;
         if (!BUCKET_MAP[bucketService]) {
-            try {
-                await s3.headBucket({ Bucket }).promise();
-                BUCKET_MAP[bucketService] = true;
-            }
-            catch (err) {
-                BUCKET_MAP[bucketService] = false;
-            }
+            await s3.headBucket({ Bucket })
+                .promise()
+                .then(() => BUCKET_MAP[bucketService] = true)
+                .catch(() => BUCKET_MAP[bucketService] = false);
             try {
                 if (!BUCKET_MAP[bucketService]) {
                     const { active, publicAccess } = options.upload;
@@ -54,10 +52,23 @@ function uploadS3(this: IFileManager, credentials: S3CloudCredentials, serviceNa
                 return;
             }
         }
-        s3.upload({ Bucket, Key: options.filename, ACL, Body: buffer, ContentType: options.mimeType }, (err, result) => {
+        let Key = options.filename;
+        if (!Key) {
+            Key = path.basename(options.fileUri);
+            const renameFile = () => this.writeMessage(`File renamed [${Key!}]`, Key = uuid.v4() + path.extname(options.fileUri), serviceName, 'yellow');
+            await s3.headObject({ Bucket, Key })
+                .promise()
+                .then(() => renameFile())
+                .catch(err => {
+                    if (err.code !== 'NotFound') {
+                        renameFile();
+                    }
+                });
+        }
+        s3.upload({ Bucket, Key, ACL, Body: buffer, ContentType: options.mimeType }, (err, result) => {
             if (!err) {
                 const apiEndpoint = options.upload.apiEndpoint;
-                const url = apiEndpoint ? apiEndpoint.replace(/\/*$/, '') + '/' + options.filename : result.Location;
+                const url = apiEndpoint ? apiEndpoint.replace(/\/*$/, '') + '/' + Key : result.Location;
                 this.writeMessage('Upload success', url, serviceName);
                 success(url);
             }

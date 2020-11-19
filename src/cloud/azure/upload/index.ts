@@ -2,6 +2,7 @@ import type * as azure from '@azure/storage-blob';
 
 import type { AzureCloudCredentials } from '../index';
 
+import path = require('path');
 import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
@@ -25,6 +26,7 @@ function uploadAzure(this: IFileManager, credentials: AzureCloudCredentials, ser
     return async (buffer: Buffer, options: CloudUploadOptions, success: (value?: unknown) => void) => {
         const container = credentials.container || uuid.v4();
         const containerClient = blobServiceClient.getContainerClient(container);
+        const fileUri = options.fileUri;
         if (!BUCKET_MAP[container]) {
             try {
                 if (!await containerClient.exists()) {
@@ -42,15 +44,34 @@ function uploadAzure(this: IFileManager, credentials: AzureCloudCredentials, ser
             }
             BUCKET_MAP[container] = true;
         }
-        containerClient.getBlockBlobClient(options.filename).upload(buffer, buffer.byteLength, { blobHTTPHeaders: { blobContentType: options.mimeType } })
+        let filename = options.filename;
+        if (!filename) {
+            filename = path.basename(fileUri);
+            let exists = false;
+            try {
+                for await (const blob of containerClient.listBlobsFlat({ includeUncommitedBlobs: true })) {
+                    if (blob.name === filename) {
+                        exists = true;
+                        break;
+                    }
+                }
+            }
+            catch {
+                exists = true;
+            }
+            if (exists) {
+                this.writeMessage(`File renamed [${filename}]`, filename = uuid.v4() + path.extname(fileUri), serviceName, 'yellow');
+            }
+        }
+        containerClient.getBlockBlobClient(filename).upload(buffer, buffer.byteLength, { blobHTTPHeaders: { blobContentType: options.mimeType } })
             .then(() => {
                 const apiEndpoint = options.upload.apiEndpoint;
-                const url = (apiEndpoint ? apiEndpoint.replace(/\/*$/, '') : `https://${credentials.accountName}.blob.core.windows.net/${container}`) + '/' + options.filename;
+                const url = (apiEndpoint ? apiEndpoint.replace(/\/*$/, '') : `https://${credentials.accountName}.blob.core.windows.net/${container}`) + '/' + filename;
                 this.writeMessage('Upload success', url, serviceName);
                 success(url);
             })
             .catch(err => {
-                this.writeFail(`${serviceName}: Upload failed (${options.fileUri})`, err);
+                this.writeFail(`${serviceName}: Upload failed (${fileUri})`, err);
                 success('');
             });
     };
