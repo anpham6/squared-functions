@@ -1661,7 +1661,7 @@ const FileManager = class extends Module implements IFileManager {
                         tasks.push(new Promise<void>(resolve => {
                             try {
                                 const credential = createCredential(data);
-                                const uploadHandler = (require(`../cloud/${service}/upload`) as UploadHost).call(this, credential, service.toUpperCase());
+                                const uploadHandler = (require(`../cloud/${service}/upload`) as UploadHost).call(this, service.toUpperCase(), credential);
                                 const uploadTasks: Promise<string>[] = [];
                                 const files = getFiles(item, upload);
                                 let basename: Undef<string>;
@@ -1877,11 +1877,11 @@ const FileManager = class extends Module implements IFileManager {
                 if (item.cloudStorage) {
                     for (const data of item.cloudStorage) {
                         if (Cloud.hasService('download', data)) {
-                            const { active, filename, overwrite } = data.download!;
+                            const { active, pathname, filename, overwrite } = data.download!;
                             if (filename) {
-                                const service = data.service;
+                                const service = data.service.toUpperCase();
                                 const fileUri = !item.invalid && item.fileUri;
-                                let downloadUri = fileUri ? path.join(path.dirname(fileUri), filename) : path.resolve(this.dirname, item.pathname ? item.pathname.replace(/^([\\/]+|[A-Za-z]:)/, '') : '', filename),
+                                let downloadUri = fileUri ? path.join(path.dirname(fileUri), filename) : path.join(this.dirname, pathname ? pathname.replace(/^([\\/]+|[A-Za-z]:)/, '') : '', filename),
                                     valid = false;
                                 if (fs.existsSync(downloadUri)) {
                                     if (active || overwrite) {
@@ -1896,7 +1896,7 @@ const FileManager = class extends Module implements IFileManager {
                                         fs.mkdirpSync(path.dirname(downloadUri));
                                     }
                                     catch (err) {
-                                        this.writeFail(`Download failed [${service.toUpperCase()}][${filename}]`, err);
+                                        this.writeFail(`Download failed [${service}][${filename}]`, err);
                                         continue;
                                     }
                                     valid = true;
@@ -1905,10 +1905,15 @@ const FileManager = class extends Module implements IFileManager {
                                     downloadMap[downloadUri] = true;
                                     tasks.push(new Promise<void>(resolve => {
                                         try {
-                                            (require(`../cloud/${service}/download`) as DownloadHost).call(this, createCredential(data), service.toUpperCase(), filename, (buffer: unknown) => {
-                                                if (buffer) {
+                                            (require(`../cloud/${service.toLowerCase()}/download`) as DownloadHost).call(this, service, createCredential(data), filename, (value: Null<Buffer | string>) => {
+                                                if (value) {
                                                     try {
-                                                        fs.writeFileSync(downloadUri, buffer as Buffer);
+                                                        if (typeof value === 'string') {
+                                                            fs.moveSync(value, downloadUri, { overwrite: true });
+                                                        }
+                                                        else {
+                                                            fs.writeFileSync(downloadUri, value);
+                                                        }
                                                         this.add(downloadUri);
                                                     }
                                                     catch (err) {

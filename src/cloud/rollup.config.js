@@ -90,6 +90,17 @@ export default [
         plugins: []
     },
     {
+        input: './build/cloud/gcs/download/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/cloud/gcs/download/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/cloud/gcs/download ${version}\n   https://github.com/anpham6/squared-functions */\n`
+        },
+        plugins: []
+    },
+    {
         input: './build/cloud/oci/index.js',
         treeshake: false,
         output: {

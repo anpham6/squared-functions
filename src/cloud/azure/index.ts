@@ -1,4 +1,4 @@
-export interface AzureCloudCredential extends functions.external.Cloud.StorageSharedKeyCredential {
+export interface AzureCloudCredential extends functions.external.Cloud.StorageSharedKeyCredential, PlainObject {
     container?: string;
 }
 

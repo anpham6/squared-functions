@@ -486,6 +486,12 @@ Other service providers can be integrated similarly except for credential verifi
         "filename": "picture1.webp" // Choose a different bucket filename (optional)
         "all": false, // Include transforms (optional)
         "overwrite": false // Always use current filename (optional)
+      },
+      "download": {
+        "filename": "picture2.png",
+        "pathname": "download/images", // Base directory when empty (optional)
+        "active": false, // Always write file or rename to main file when same extension (optional)
+        "overwrite": false // Always write file (optional)
       }
     },
     {

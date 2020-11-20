@@ -4,7 +4,9 @@ import type { AzureCloudCredential } from '../index';
 
 type IFileManager = functions.IFileManager;
 
-async function downloadAzure(this: IFileManager, credential: AzureCloudCredential, serviceName: string, blobName: string, success: (value?: unknown) => void) {
+type DownloadHost = functions.internal.Cloud.DownloadHost;
+
+async function downloadAzure(this: IFileManager, service: string, credential: AzureCloudCredential, blobName: string, success: (value: Null<Buffer>) => void) {
     const container = credential.container;
     if (container) {
         try {
@@ -17,21 +19,21 @@ async function downloadAzure(this: IFileManager, credential: AzureCloudCredentia
                 .getBlockBlobClient(blobName)
                 .downloadToBuffer()
                 .then(buffer => {
-                    this.writeMessage('Download success', location, serviceName);
+                    this.writeMessage('Download success', location, service);
                     success(buffer);
                 })
                 .catch(err => {
-                    this.writeFail(`Download failed [${serviceName}][${location}]`, err);
+                    this.writeFail(`Download failed [${service}][${location}]`, err);
                     success(null);
                 });
         }
         catch (err) {
-            this.writeFail(`Install ${serviceName} SDK? [npm i @azure/storage-blob]`);
+            this.writeFail(`Install ${service} SDK? [npm i @azure/storage-blob]`);
             throw err;
         }
     }
     else {
-        this.writeFail(`Container not specified [${serviceName}][container:${blobName}]`);
+        this.writeFail(`Container not specified [${service}][container:${blobName}]`);
         success(null);
     }
 }
@@ -42,4 +44,4 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports.__esModule = true;
 }
 
-export default downloadAzure;
+export default downloadAzure as DownloadHost;

@@ -8,11 +8,12 @@ import uuid = require('uuid');
 type IFileManager = functions.IFileManager;
 
 type UploadOptions = functions.internal.Cloud.UploadOptions<AzureCloudCredential>;
+type UploadHost = functions.internal.Cloud.UploadHost;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function uploadAzure(this: IFileManager, credential: AzureCloudCredential, serviceName: string): UploadCallback {
+function uploadAzure(this: IFileManager, service: string, credential: AzureCloudCredential): UploadCallback {
     let blobServiceClient: azure.BlobServiceClient;
     try {
         const { BlobServiceClient, StorageSharedKeyCredential } = require('@azure/storage-blob');
@@ -20,10 +21,10 @@ function uploadAzure(this: IFileManager, credential: AzureCloudCredential, servi
         blobServiceClient = new BlobServiceClient(`https://${credential.accountName}.blob.core.windows.net`, sharedKeyCredential) as azure.BlobServiceClient;
     }
     catch (err) {
-        this.writeFail(`Install ${serviceName} SDK? [npm i @azure/storage-blob]`);
+        this.writeFail(`Install ${service} SDK? [npm i @azure/storage-blob]`);
         throw err;
     }
-    return async (buffer: Buffer, options: UploadOptions, success: (value?: unknown) => void) => {
+    return async (buffer: Buffer, options: UploadOptions, success: (value: string) => void) => {
         const container = credential.container || uuid.v4();
         const containerClient = blobServiceClient.getContainerClient(container);
         const fileUri = options.fileUri;
@@ -32,12 +33,12 @@ function uploadAzure(this: IFileManager, credential: AzureCloudCredential, servi
                 if (!await containerClient.exists()) {
                     const { active, publicAccess } = options.upload;
                     await containerClient.create({ access: publicAccess || active && publicAccess !== false ? 'blob' : 'container' });
-                    this.writeMessage('Container created', container, serviceName, 'blue');
+                    this.writeMessage('Container created', container, service, 'blue');
                 }
             }
             catch (err) {
                 if (err.code !== 'ContainerAlreadyExists') {
-                    this.writeFail(`Unable to create container [${serviceName}][${container}]`, err);
+                    this.writeFail(`Create container failed [${service}][${container}]`, err);
                     success('');
                     return;
                 }
@@ -60,7 +61,7 @@ function uploadAzure(this: IFileManager, credential: AzureCloudCredential, servi
                 exists = true;
             }
             if (exists) {
-                this.writeMessage(`File renamed [${filename}]`, filename = uuid.v4() + path.extname(fileUri), serviceName, 'yellow');
+                this.writeMessage(`File renamed [${filename}]`, filename = uuid.v4() + path.extname(fileUri), service, 'yellow');
             }
         }
         const Key = [filename];
@@ -75,14 +76,14 @@ function uploadAzure(this: IFileManager, credential: AzureCloudCredential, servi
             containerClient.getBlockBlobClient(Key[i]).upload(Body[i], Body[i].byteLength, { blobHTTPHeaders: { blobContentType: ContentType[i] } })
                 .then(() => {
                     const url = (apiEndpoint ? this.toPosix(apiEndpoint) : `https://${credential.accountName}.blob.core.windows.net/${container}`) + '/' + Key[i];
-                    this.writeMessage('Upload success', url, serviceName);
+                    this.writeMessage('Upload success', url, service);
                     if (i === 0) {
                         success(url);
                     }
                 })
                 .catch(err => {
                     if (i === 0) {
-                        this.writeFail(`Upload failed [${serviceName}][${fileUri}]`, err);
+                        this.writeFail(`Upload failed [${service}][${fileUri}]`, err);
                         success('');
                     }
                 });
@@ -96,4 +97,4 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports.__esModule = true;
 }
 
-export default uploadAzure;
+export default uploadAzure as UploadHost;
