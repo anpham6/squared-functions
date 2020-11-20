@@ -28,7 +28,7 @@ async function downloadS3(this: IFileManager, credential: S3CloudCredential, ser
         }
     }
     else {
-        this.writeFail(`Bucket name not specified [${serviceName}][${Key}]`);
+        this.writeFail(`Bucket not specified [${serviceName}][bucket:${Key}]`);
         success(null);
     }
 }

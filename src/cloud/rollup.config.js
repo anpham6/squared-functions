@@ -57,6 +57,17 @@ export default [
         plugins: []
     },
     {
+        input: './build/cloud/azure/download/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/cloud/azure/download/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/cloud/azure/download ${version}\n   https://github.com/anpham6/squared-functions */\n`
+        },
+        plugins: []
+    },
+    {
         input: './build/cloud/gcs/index.js',
         treeshake: false,
         output: {

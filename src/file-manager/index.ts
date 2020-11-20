@@ -1872,50 +1872,58 @@ const FileManager = class extends Module implements IFileManager {
                     }
                 }
             }
+            const downloadMap: ObjectMap<boolean> = {};
             for (const item of this.assets) {
                 if (item.cloudStorage) {
                     for (const data of item.cloudStorage) {
                         if (Cloud.hasService('download', data)) {
                             const { active, filename, overwrite } = data.download!;
                             if (filename) {
-                                tasks.push(new Promise<void>(resolve => {
-                                    const service = data.service;
+                                const service = data.service;
+                                const fileUri = !item.invalid && item.fileUri;
+                                let downloadUri = fileUri ? path.join(path.dirname(fileUri), filename) : path.resolve(this.dirname, item.pathname ? item.pathname.replace(/^([\\/]+|[A-Za-z]:)/, '') : '', filename),
+                                    valid = false;
+                                if (fs.existsSync(downloadUri)) {
+                                    if (active || overwrite) {
+                                        valid = true;
+                                    }
+                                }
+                                else {
+                                    if (active && fileUri && path.extname(fileUri) === path.extname(downloadUri)) {
+                                        downloadUri = fileUri;
+                                    }
                                     try {
-                                        (require(`../cloud/${service}/download`) as DownloadHost).call(this, createCredential(data), service.toUpperCase(), filename, (buffer: unknown) => {
-                                            if (buffer) {
-                                                const fileUri = !item.invalid && item.fileUri;
-                                                let downloadUri = fileUri ? path.join(path.dirname(fileUri), filename) : path.resolve(this.dirname, item.pathname ? item.pathname.replace(/^([\\/]+|[A-Za-z]:)/, '') : '', filename),
-                                                    valid = false;
-                                                try {
-                                                    if (fs.existsSync(downloadUri)) {
-                                                        if (active || overwrite) {
-                                                            valid = true;
-                                                        }
-                                                    }
-                                                    else {
-                                                        if (active && fileUri && path.extname(fileUri) === path.extname(downloadUri)) {
-                                                            downloadUri = fileUri;
-                                                        }
-                                                        fs.mkdirpSync(path.dirname(downloadUri));
-                                                        valid = true;
-                                                    }
-                                                    if (valid) {
+                                        fs.mkdirpSync(path.dirname(downloadUri));
+                                    }
+                                    catch (err) {
+                                        this.writeFail(`Download failed [${service.toUpperCase()}][${filename}]`, err);
+                                        continue;
+                                    }
+                                    valid = true;
+                                }
+                                if (valid && !downloadMap[downloadUri]) {
+                                    downloadMap[downloadUri] = true;
+                                    tasks.push(new Promise<void>(resolve => {
+                                        try {
+                                            (require(`../cloud/${service}/download`) as DownloadHost).call(this, createCredential(data), service.toUpperCase(), filename, (buffer: unknown) => {
+                                                if (buffer) {
+                                                    try {
                                                         fs.writeFileSync(downloadUri, buffer as Buffer);
                                                         this.add(downloadUri);
                                                     }
+                                                    catch (err) {
+                                                        this.writeFail(`Write buffer [${service}][${downloadUri}]`, err);
+                                                    }
                                                 }
-                                                catch (err) {
-                                                    this.writeFail(`Write buffer [${service}][${downloadUri}]`, err);
-                                                }
-                                            }
+                                                resolve();
+                                            });
+                                        }
+                                        catch (err) {
+                                            this.writeFail(`${service} does not support download function.`, err);
                                             resolve();
-                                        });
-                                    }
-                                    catch (err) {
-                                        this.writeFail(`${service} does not support download function.`, err);
-                                        resolve();
-                                    }
-                                }));
+                                        }
+                                    }));
+                                }
                             }
                         }
                     }
