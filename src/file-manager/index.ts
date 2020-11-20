@@ -1337,7 +1337,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                return Promise.all(tasks);
+                return Promise.all(tasks).catch(err => this.writeFail(`Compress [${fileUri}]`, err));
             }
         }
     }
@@ -1616,6 +1616,7 @@ const FileManager = class extends Module implements IFileManager {
             const cloudMap: ObjectMap<ExternalAsset> = {};
             const cloudCssMap: ObjectMap<ExternalAsset> = {};
             const localStorage = new Map<ExternalAsset, CloudServiceUpload>();
+            const bucketGroup = uuid.v4();
             const htmlFiles = this.getHtmlPages();
             const cssFiles: ExternalAsset[] = [];
             const getFiles = (item: ExternalAsset, data: CloudServiceUpload) => {
@@ -1708,7 +1709,7 @@ const FileManager = class extends Module implements IFileManager {
                                                                     filename = basename + match[0];
                                                                 }
                                                             }
-                                                            uploadHandler(buffer, { upload, credential, fileUri, fileGroup, filename, mimeType }, success);
+                                                            uploadHandler(buffer, { upload, credential, fileUri, fileGroup, bucketGroup, filename, mimeType }, success);
                                                         }
                                                     });
                                                 })

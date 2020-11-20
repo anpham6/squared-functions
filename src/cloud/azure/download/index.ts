@@ -23,7 +23,7 @@ async function downloadAzure(this: IFileManager, service: string, credential: Az
                     success(buffer);
                 })
                 .catch(err => {
-                    this.writeFail(`Download failed [${service}][${location}]`, err);
+                    this.writeMessage(`Download failed [${location}]`, err, service, 'red');
                     success(null);
                 });
         }
@@ -33,7 +33,7 @@ async function downloadAzure(this: IFileManager, service: string, credential: Az
         }
     }
     else {
-        this.writeFail(`Container not specified [${service}][container:${blobName}]`);
+        this.writeMessage('Container not specified', blobName, service, 'red');
         success(null);
     }
 }

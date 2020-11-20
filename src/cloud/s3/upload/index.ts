@@ -24,7 +24,7 @@ function uploadS3(this: IFileManager, service: string, credential: S3CloudCreden
         throw err;
     }
     return async (buffer: Buffer, options: UploadOptions, success: (value: string) => void) => {
-        const Bucket = credential.bucket || uuid.v4();
+        const Bucket = credential.bucket || options.bucketGroup;
         const bucketService = service + Bucket;
         if (!BUCKET_MAP[bucketService]) {
             const result = await s3.headBucket({ Bucket })
@@ -42,7 +42,7 @@ function uploadS3(this: IFileManager, service: string, credential: S3CloudCreden
                             return BUCKET_MAP[bucketService] = true;
                         })
                         .catch(err => {
-                            this.writeFail(`Unable to create bucket [${service}][${Bucket}]`, err);
+                            this.writeMessage(`Unable to create bucket [${Bucket}]`, err, service, 'red');
                             return false;
                         });
                 });
@@ -84,7 +84,7 @@ function uploadS3(this: IFileManager, service: string, credential: S3CloudCreden
                     }
                 }
                 else if (i === 0) {
-                    this.writeFail(`Upload failed [${service}][${fileUri}]`, err);
+                    this.writeMessage(`Upload failed [${fileUri}]`, err, service, 'red');
                     success('');
                 }
             });

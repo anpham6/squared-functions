@@ -25,7 +25,7 @@ function uploadAzure(this: IFileManager, service: string, credential: AzureCloud
         throw err;
     }
     return async (buffer: Buffer, options: UploadOptions, success: (value: string) => void) => {
-        const container = credential.container || uuid.v4();
+        const container = credential.container || options.bucketGroup;
         const containerClient = blobServiceClient.getContainerClient(container);
         const fileUri = options.fileUri;
         if (!BUCKET_MAP[container]) {
@@ -38,7 +38,7 @@ function uploadAzure(this: IFileManager, service: string, credential: AzureCloud
             }
             catch (err) {
                 if (err.code !== 'ContainerAlreadyExists') {
-                    this.writeFail(`Create container failed [${service}][${container}]`, err);
+                    this.writeMessage(`Unable to create container [${container}]`, err, service, 'red');
                     success('');
                     return;
                 }
@@ -83,7 +83,7 @@ function uploadAzure(this: IFileManager, service: string, credential: AzureCloud
                 })
                 .catch(err => {
                     if (i === 0) {
-                        this.writeFail(`Upload failed [${service}][${fileUri}]`, err);
+                        this.writeMessage(`Upload failed [${Key[i]}]`, err, service, 'red');
                         success('');
                     }
                 });

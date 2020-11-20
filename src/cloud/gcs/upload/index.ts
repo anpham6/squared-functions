@@ -26,7 +26,7 @@ function uploadGCS(this: IFileManager, service: string, credential: GCSCloudCred
     }
     return async (buffer: Buffer, options: UploadOptions, success: (value: string) => void) => {
         const { active, apiEndpoint, publicAccess } = options.upload;
-        let bucketName = credential.bucket || uuid.v4();
+        let bucketName = credential.bucket || options.bucketGroup;
         if (!BUCKET_MAP[bucketName]) {
             try {
                 const [exists] = await storage.bucket(bucketName).exists();
@@ -37,13 +37,15 @@ function uploadGCS(this: IFileManager, service: string, credential: GCSCloudCred
                     bucketName = result.name;
                     this.writeMessage('Bucket created', bucketName, service, 'blue');
                     if (publicAccess || active && publicAccess !== false) {
-                        await result.acl.default.add({ entity: 'allUsers', role: 'READER' }).catch(err => this.writeFail(`Unable to give public access [${service}][${bucketName}]`, err));
+                        await result.acl.default
+                            .add({ entity: 'allUsers', role: 'READER' })
+                            .catch(err => this.writeMessage(`Unable to give public access [${bucketName}]`, err, service, 'yellow'));
                     }
                 }
             }
             catch (err) {
                 if (err.code !== 409) {
-                    this.writeFail(`Unable to create bucket [${service}][${bucketName}]`, err);
+                    this.writeMessage(`Unable to create bucket [${bucketName}]`, err, service, 'red');
                     success('');
                     return;
                 }
@@ -89,7 +91,7 @@ function uploadGCS(this: IFileManager, service: string, credential: GCSCloudCred
                         fs.writeFileSync(sourceUri, Body[0]);
                     }
                     catch (err) {
-                        this.writeFail(`Unable to write buffer [${service}][${fileUri}]`, err);
+                        this.writeMessage(`Unable to write buffer [${fileUri}]`, err, service, 'red');
                         success('');
                         return;
                     }
@@ -99,7 +101,9 @@ function uploadGCS(this: IFileManager, service: string, credential: GCSCloudCred
                         fs.copyFileSync(fileUri + path.extname(Key[i]), sourceUri);
                     }
                     catch (err) {
-                        this.writeFail(`Unable to copy file [${service}][${fileUri}]`, err);
+                        this.writeMessage(`Unable to copy file [${fileUri}]`, err, service, 'red');
+                        success('');
+                        return;
                     }
                 }
             }
@@ -112,7 +116,7 @@ function uploadGCS(this: IFileManager, service: string, credential: GCSCloudCred
                     }
                 }
                 else if (i === 0) {
-                    this.writeFail(`Upload failed [${service}][${sourceUri}]`, err);
+                    this.writeMessage(`Upload failed [${sourceUri}]`, err, service, 'red');
                     success('');
                 }
             });

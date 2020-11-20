@@ -30,6 +30,7 @@ declare namespace functions {
             base64?: string;
             commands?: string[];
             compress?: CompressFormat[];
+            cloudStorage?: CloudService[];
             watch?: boolean | WatchInterval;
             tasks?: string[];
         }
@@ -89,7 +90,6 @@ declare namespace functions {
             format?: string;
             preserve?: boolean;
             attributes?: AttributeValue[];
-            cloudStorage?: squared.CloudService[];
             basePath?: string;
             bundleId?: number;
             bundleIndex?: number;
@@ -196,6 +196,7 @@ declare namespace functions {
                 credential: T;
                 fileUri: string;
                 fileGroup: [Buffer | string, string][];
+                bucketGroup: string;
                 filename?: string;
                 mimeType?: string;
             }
@@ -397,7 +398,7 @@ declare namespace functions {
         replaceExtension(value: string, ext: string): string;
         getTempDir(): string;
         toPosix(value: string, filename?: string): string;
-        writeMessage(value: string, message?: unknown, title?: string, color?: "green" | "yellow" | "blue" | "white" | "grey"): void;
+        writeMessage(value: string, message?: unknown, title?: string, color?: "red" | "yellow" | "green" | "blue" | "white" | "grey"): void;
         writeFail(value: string, message?: unknown): void;
     }
 

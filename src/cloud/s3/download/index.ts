@@ -19,7 +19,7 @@ async function downloadS3(this: IFileManager, service: string, credential: S3Clo
                     success(data.Body as Buffer);
                 }
                 else {
-                    this.writeFail(`Download failed [${service}][${Location}]`, err);
+                    this.writeMessage(`Download failed [${Location}]`, err, service, 'red');
                     success(null);
                 }
             });
@@ -30,7 +30,7 @@ async function downloadS3(this: IFileManager, service: string, credential: S3Clo
         }
     }
     else {
-        this.writeFail(`Bucket not specified [${service}][bucket:${Key}]`);
+        this.writeMessage('Bucket not specified', Key, service, 'red');
         success(null);
     }
 }

@@ -46,7 +46,7 @@ const Module = class implements functions.IModule {
     toPosix(value: string, filename?: string) {
         return value.replace(/\\+/g, '/').replace(/\/+$/, '') + (filename ? '/' + filename : '');
     }
-    writeMessage(value: string, message?: unknown, title = 'SUCCESS', color: "green" | "yellow" | "blue" | "white" | "grey" = 'green') {
+    writeMessage(value: string, message?: unknown, title = 'SUCCESS', color: "red" | "yellow" | "green" | "blue" | "white" | "grey" = 'green') {
         try {
             console.log(`${chalk.bold[color](title)}: ${value}` + getMessage(message));
         }

@@ -34,7 +34,7 @@ async function downloadGCS(this: IFileManager, service: string, credential: GCSC
                     success(destination);
                 })
                 .catch((err: Error) => {
-                    this.writeFail(`Download failed [${service}][${location}]`, err);
+                    this.writeMessage(`Download failed [${location}]`, err, service, 'red');
                     success('');
                 });
 
@@ -45,7 +45,7 @@ async function downloadGCS(this: IFileManager, service: string, credential: GCSC
         }
     }
     else {
-        this.writeFail(`Container not specified [${service}][bucket:${filename}]`);
+        this.writeMessage(`Container not specified`, filename, service, 'red');
         success('');
     }
 }
