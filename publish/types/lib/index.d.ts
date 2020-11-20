@@ -11,7 +11,7 @@ declare namespace functions {
     type BoolString = boolean | string;
     type ExternalCategory = "html" | "css" | "js";
     type FileCompressFormat = "gz" | "br";
-    type CloudFunctions = "upload";
+    type CloudFunctions = "upload" | "download";
     type FileManagerWriteImageCallback = (data: internal.FileData, output: string, command: string, compress?: squared.CompressFormat, error?: Null<Error>) => void;
     type FileManagerPerformAsyncTaskCallback = () => void;
     type FileManagerCompleteAsyncTaskCallback = (value?: unknown, parent?: ExternalAsset) => void;
@@ -44,20 +44,23 @@ declare namespace functions {
             service: string;
             settings?: string;
             upload?: CloudServiceUpload;
+            download?: CloudServiceDownload;
         }
 
         interface CloudServiceAction {
             active?: boolean;
+            filename?: string;
+            overwrite?: boolean;
         }
 
         interface CloudServiceUpload extends CloudServiceAction {
-            filename?: string;
             localStorage?: boolean;
             apiEndpoint?: string;
             all?: boolean;
             publicAccess?: boolean;
-            overwrite?: boolean;
         }
+
+        interface CloudServiceDownload extends CloudServiceAction {}
 
         interface WatchInterval {
             interval?: number;
@@ -198,7 +201,8 @@ declare namespace functions {
             }
 
             type ServiceClient = (config: squared.CloudService) => boolean;
-            type ServiceHost = (this: IFileManager, credential: PlainObject, serviceName: string) => UploadCallback;
+            type UploadHost = (this: IFileManager, credential: PlainObject, serviceName: string) => UploadCallback;
+            type DownloadHost = (this: IFileManager, credential: PlainObject, serviceName: string, filename: string, success: (value?: unknown) => void) => void;
             type UploadCallback = (buffer: Buffer, options: UploadOptions<unknown>, success: (value?: unknown) => void) => void;
         }
 
@@ -267,7 +271,6 @@ declare namespace functions {
         fromSameOrigin(value: string, other: string): boolean;
         parsePath(value: string): Undef<string>;
         resolvePath(value: string, href: string, hostname?: boolean): Undef<string>;
-        toPosix(value: string): string;
     }
 
     interface ICompress extends IModule {
@@ -369,7 +372,8 @@ declare namespace functions {
         finalizeImage: FileManagerWriteImageCallback;
         finalizeAsset(data: internal.FileData, parent?: ExternalAsset): Promise<void>;
         processAssets(watch?: boolean): void;
-        finalize(): Promise<unknown[]>;
+        compressFile(file: ExternalAsset): Promise<unknown>;
+        finalize(): Promise<void>;
     }
 
     interface FileManagerConstructor {
@@ -392,6 +396,7 @@ declare namespace functions {
         getFileSize(fileUri: string): number;
         replaceExtension(value: string, ext: string): string;
         getTempDir(): string;
+        toPosix(value: string, filename?: string): string;
         writeMessage(value: string, message?: unknown, title?: string, color?: "green" | "yellow" | "blue" | "white" | "grey"): void;
         writeFail(value: string, message?: unknown): void;
     }
@@ -470,6 +475,7 @@ declare namespace functions {
         inlineBase64?: string;
         inlineCloud?: string;
         inlineCssCloud?: string;
+        inlineMap?: StringMap;
         etag?: string;
         invalid?: boolean;
     }

@@ -20,7 +20,7 @@ function uploadGCS(this: IFileManager, credential: GCSCloudCredential, serviceNa
         storage = new Storage(credential);
     }
     catch (err) {
-        this.writeFail('Install SDK? [npm i @google-cloud/storage]', serviceName);
+        this.writeFail(`Install ${serviceName} SDK? [npm i @google-cloud/storage]`);
         throw err;
     }
     return async (buffer: Buffer, options: UploadOptions, success: (value?: unknown) => void) => {
@@ -36,13 +36,13 @@ function uploadGCS(this: IFileManager, credential: GCSCloudCredential, serviceNa
                     bucketName = result.name;
                     this.writeMessage('Bucket created', bucketName, serviceName, 'blue');
                     if (publicAccess || active && publicAccess !== false) {
-                        await result.acl.default.add({ entity: 'allUsers', role: 'READER' }).catch(err => this.writeFail(`${serviceName}: Unable to give public access to bucket [${bucketName}]`, err));
+                        await result.acl.default.add({ entity: 'allUsers', role: 'READER' }).catch(err => this.writeFail(`Unable to give public access [${serviceName}][${bucketName}]`, err));
                     }
                 }
             }
             catch (err) {
                 if (err.code !== 409) {
-                    this.writeFail(`${serviceName}: Unable to create bucket`, err);
+                    this.writeFail(`Unable to create bucket [${serviceName}][${bucketName}]`, err);
                     success('');
                     return;
                 }
@@ -88,7 +88,7 @@ function uploadGCS(this: IFileManager, credential: GCSCloudCredential, serviceNa
                         fs.writeFileSync(sourceUri, Body[0]);
                     }
                     catch (err) {
-                        this.writeFail(`${serviceName}: Unable to write buffer (${fileUri})`, err);
+                        this.writeFail(`Unable to write buffer [${serviceName}][${fileUri}]`, err);
                         success('');
                         return;
                     }
@@ -98,20 +98,20 @@ function uploadGCS(this: IFileManager, credential: GCSCloudCredential, serviceNa
                         fs.copyFileSync(fileUri + path.extname(Key[i]), sourceUri);
                     }
                     catch (err) {
-                        this.writeFail(`${serviceName}: Unable to copy file (${fileUri})`, err);
+                        this.writeFail(`Unable to copy file [${serviceName}][${fileUri}]`, err);
                     }
                 }
             }
             bucket.upload(sourceUri, { contentType: ContentType[i] }, err => {
                 if (!err) {
-                    const url = (apiEndpoint ? apiEndpoint.replace(/\/+$/, '') : 'https://storage.googleapis.com/' + bucketName) + '/' + Key[i];
+                    const url = (apiEndpoint ? this.toPosix(apiEndpoint) : 'https://storage.googleapis.com/' + bucketName) + '/' + Key[i];
                     this.writeMessage('Upload success', url, serviceName);
                     if (i === 0) {
                         success(url);
                     }
                 }
                 else if (i === 0) {
-                    this.writeFail(`${serviceName}: Upload failed (${fileUri})`, err);
+                    this.writeFail(`Upload failed [${serviceName}][${sourceUri}]`, err);
                     success('');
                 }
             });

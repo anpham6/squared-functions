@@ -20,7 +20,7 @@ function uploadAzure(this: IFileManager, credential: AzureCloudCredential, servi
         blobServiceClient = new BlobServiceClient(`https://${credential.accountName}.blob.core.windows.net`, sharedKeyCredential) as azure.BlobServiceClient;
     }
     catch (err) {
-        this.writeFail('Install SDK? [npm i @azure/storage-blob]', serviceName);
+        this.writeFail(`Install ${serviceName} SDK? [npm i @azure/storage-blob]`);
         throw err;
     }
     return async (buffer: Buffer, options: UploadOptions, success: (value?: unknown) => void) => {
@@ -37,7 +37,7 @@ function uploadAzure(this: IFileManager, credential: AzureCloudCredential, servi
             }
             catch (err) {
                 if (err.code !== 'ContainerAlreadyExists') {
-                    this.writeFail(`${serviceName}: Unable to create container`, err);
+                    this.writeFail(`Unable to create container [${serviceName}][${container}]`, err);
                     success('');
                     return;
                 }
@@ -74,7 +74,7 @@ function uploadAzure(this: IFileManager, credential: AzureCloudCredential, servi
         for (let i = 0; i < Key.length; ++i) {
             containerClient.getBlockBlobClient(Key[i]).upload(Body[i], Body[i].byteLength, { blobHTTPHeaders: { blobContentType: ContentType[i] } })
                 .then(() => {
-                    const url = (apiEndpoint ? apiEndpoint.replace(/\/+$/, '') : `https://${credential.accountName}.blob.core.windows.net/${container}`) + '/' + Key[i];
+                    const url = (apiEndpoint ? this.toPosix(apiEndpoint) : `https://${credential.accountName}.blob.core.windows.net/${container}`) + '/' + Key[i];
                     this.writeMessage('Upload success', url, serviceName);
                     if (i === 0) {
                         success(url);
@@ -82,7 +82,7 @@ function uploadAzure(this: IFileManager, credential: AzureCloudCredential, servi
                 })
                 .catch(err => {
                     if (i === 0) {
-                        this.writeFail(`${serviceName}: Upload failed (${fileUri})`, err);
+                        this.writeFail(`Upload failed [${serviceName}][${fileUri}]`, err);
                         success('');
                     }
                 });

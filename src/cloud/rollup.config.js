@@ -24,6 +24,17 @@ export default [
         plugins: []
     },
     {
+        input: './build/cloud/s3/download/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/cloud/s3/download/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/cloud/s3/download ${version}\n   https://github.com/anpham6/squared-functions */\n`
+        },
+        plugins: []
+    },
+    {
         input: './build/cloud/azure/index.js',
         treeshake: false,
         output: {
@@ -86,6 +97,17 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/cloud/oci/upload ${version}\n   https://github.com/anpham6/squared-functions */\n`
+        },
+        plugins: []
+    },
+    {
+        input: './build/cloud/oci/download/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/cloud/oci/download/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/cloud/oci/download ${version}\n   https://github.com/anpham6/squared-functions */\n`
         },
         plugins: []
     }

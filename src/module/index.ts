@@ -43,6 +43,9 @@ const Module = class implements functions.IModule {
     getTempDir() {
         return process.cwd() + path.sep + 'temp' + path.sep;
     }
+    toPosix(value: string, filename?: string) {
+        return value.replace(/\\+/g, '/').replace(/\/+$/, '') + (filename ? '/' + filename : '');
+    }
     writeMessage(value: string, message?: unknown, title = 'SUCCESS', color: "green" | "yellow" | "blue" | "white" | "grey" = 'green') {
         try {
             console.log(`${chalk.bold[color](title)}: ${value}` + getMessage(message));

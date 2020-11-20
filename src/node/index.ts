@@ -79,9 +79,6 @@ const Node = new class extends Module implements functions.INode {
             return origin + pathname.join('/') + '/' + value;
         }
     }
-    toPosix(value: string) {
-        return value.replace(/\\+/g, '/');
-    }
 }();
 
 if (typeof module !== 'undefined' && module.exports) {

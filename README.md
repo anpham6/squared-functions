@@ -77,14 +77,7 @@ const options = {
             pathname: 'images',
             filename: 'pencil.png',
             mimeType: 'image/png',
-            commands: ['jpeg'],
-            uri: 'http://localhost:3000/common/images/pencil.png'
-        },
-        {
-            pathname: 'images',
-            filename: 'pencil.png',
-            mimeType: 'image/png',
-            commands: ['bmp@(50000,100000)'],
+            commands: ['jpeg', 'bmp@(50000,100000)'],
             uri: 'http://localhost:3000/common/images/pencil.png'
         }
     ]

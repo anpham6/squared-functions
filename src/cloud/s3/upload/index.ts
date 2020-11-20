@@ -19,7 +19,7 @@ function uploadS3(this: IFileManager, credential: S3CloudCredential, serviceName
         s3 = new S3(credential);
     }
     catch (err) {
-        this.writeFail('Install SDK? [npm i aws-sdk]', serviceName);
+        this.writeFail(`Install ${serviceName} SDK? [npm i aws-sdk]`);
         throw err;
     }
     return async (buffer: Buffer, options: UploadOptions, success: (value?: unknown) => void) => {
@@ -41,7 +41,7 @@ function uploadS3(this: IFileManager, credential: S3CloudCredential, serviceName
                             return BUCKET_MAP[bucketService] = true;
                         })
                         .catch(err => {
-                            this.writeFail(`${serviceName}: Unable to create bucket`, err);
+                            this.writeFail(`Unable to create bucket [${serviceName}][${Bucket}]`, err);
                             return false;
                         });
                 });
@@ -76,14 +76,14 @@ function uploadS3(this: IFileManager, credential: S3CloudCredential, serviceName
         for (let i = 0; i < Key.length; ++i) {
             s3.upload({ Bucket, Key: Key[i], ACL, Body: Body[i], ContentType: ContentType[i] }, (err, result) => {
                 if (!err) {
-                    const url = apiEndpoint ? apiEndpoint.replace(/\/+$/, '') + '/' + Key[i] : result.Location;
+                    const url = apiEndpoint ? this.toPosix(apiEndpoint, Key[i]) : result.Location;
                     this.writeMessage('Upload success', url, serviceName);
                     if (i === 0) {
                         success(url);
                     }
                 }
                 else if (i === 0) {
-                    this.writeFail(`${serviceName}: Upload failed (${fileUri})`, err);
+                    this.writeFail(`Upload failed [${serviceName}][${fileUri}]`, err);
                     success('');
                 }
             });

@@ -33,7 +33,8 @@ type ChromeModule = functions.settings.ChromeModule;
 type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
 type SourceMapOutput = functions.internal.Chrome.SourceMapOutput;
-type UploadCallback = functions.internal.Cloud.UploadCallback;
+type UploadHost = functions.internal.Cloud.UploadHost;
+type DownloadHost = functions.internal.Cloud.DownloadHost;
 
 interface GulpData {
     gulpfile: string;
@@ -437,7 +438,15 @@ const FileManager = class extends Module implements IFileManager {
         return output;
     }
     transformCss(file: ExternalAsset, source: string) {
-        const getCloudUUID = (item: Undef<ExternalAsset>, url: string) => item && Cloud.getService('upload', item.cloudStorage) ? item.inlineCssCloud ||= uuid.v4() : url;
+        const getCloudUUID = (item: Undef<ExternalAsset>, url: string) => {
+            if (item && Cloud.getService('upload', item.cloudStorage)) {
+                const value = uuid.v4();
+                item.inlineCssCloud = value;
+                (file.inlineMap ||= {})[value] = url;
+                return value;
+            }
+            return url;
+        };
         let output: Undef<string>;
         for (const item of this.assets) {
             if (item.base64 && item.uri && !item.textContent && !item.invalid) {
@@ -1297,6 +1306,41 @@ const FileManager = class extends Module implements IFileManager {
         this.cleared = true;
         this.performFinalize();
     }
+    async compressFile(file: ExternalAsset) {
+        const fileUri = file.fileUri!;
+        if (this.has(fileUri)) {
+            const tasks: Promise<void>[] = [];
+            const gz = Compress.findFormat(file.compress, 'gz');
+            if (gz) {
+                this.writeMessage('Compressing file...', fileUri + '.gz', 'GZ', 'yellow');
+                tasks.push(
+                    new Promise<void>(resolve => Compress.tryFile(fileUri, gz, undefined, (result: string) => {
+                        if (result) {
+                            this.add(result, file);
+                        }
+                        resolve();
+                    }))
+                );
+            }
+            if (Node.checkVersion(11, 7)) {
+                const br = Compress.findFormat(file.compress, 'br');
+                if (br) {
+                    this.writeMessage('Compressing file...', fileUri + '.br', 'BR', 'yellow');
+                    tasks.push(
+                        new Promise<void>(resolve => Compress.tryFile(fileUri, br, undefined, (result: string) => {
+                            if (result) {
+                                this.add(result, file);
+                            }
+                            resolve();
+                        }))
+                    );
+                }
+            }
+            if (tasks.length) {
+                return Promise.all(tasks);
+            }
+        }
+    }
     async finalize() {
         let tasks: Promise<unknown>[] = [];
         for (const [file, output] of this.filesToCompare) {
@@ -1444,6 +1488,7 @@ const FileManager = class extends Module implements IFileManager {
                             }
                             dirMap.get(origDir)!.items.push(item.fileUri!);
                             scheduled.add(task);
+                            delete item.sourceUTF8;
                         }
                     }
                 }
@@ -1566,42 +1611,10 @@ const FileManager = class extends Module implements IFileManager {
                 tasks = [];
             }
         }
-        if (this.Compress) {
-            for (const item of this.assets) {
-                if (!item.invalid) {
-                    const fileUri = item.fileUri!;
-                    if (this.has(fileUri)) {
-                        const gz = Compress.findFormat(item.compress, 'gz');
-                        if (gz) {
-                            tasks.push(
-                                new Promise<void>(resolve => Compress.tryFile(fileUri, gz, undefined, (result: string) => {
-                                    if (result) {
-                                        this.add(result, item);
-                                    }
-                                    resolve();
-                                }))
-                            );
-                        }
-                        if (Node.checkVersion(11, 7)) {
-                            const br = Compress.findFormat(item.compress, 'br');
-                            if (br) {
-                                tasks.push(
-                                    new Promise<void>(resolve => Compress.tryFile(fileUri, br, undefined, (result: string) => {
-                                        if (result) {
-                                            this.add(result, item);
-                                        }
-                                        resolve();
-                                    }))
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        const compressMap = new WeakSet<ExternalAsset>();
         if (this.Cloud) {
             const cloudMap: ObjectMap<ExternalAsset> = {};
-            const cloudCssMap: StringMap = {};
+            const cloudCssMap: ObjectMap<ExternalAsset> = {};
             const localStorage = new Map<ExternalAsset, CloudServiceUpload>();
             const htmlFiles = this.getHtmlPages();
             const cssFiles: ExternalAsset[] = [];
@@ -1620,6 +1633,21 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 return [files, transforms];
             };
+            const createCredential = (data: CloudService) => {
+                const credential = Object.assign({}, data.settings && this.Cloud![data.service] ? { ...this.Cloud![data.service][data.settings] } : {});
+                for (const attr in data) {
+                    switch (attr) {
+                        case 'service':
+                        case 'upload':
+                        case 'download':
+                            continue;
+                        default:
+                            credential[attr] = data[attr];
+                            break;
+                    }
+                }
+                return credential;
+            };
             const uploadFiles = (item: ExternalAsset, mimeType = item.mimeType) => {
                 mimeType &&= mimeType.replace(/^[^a-z]+/, '');
                 const cloudMain = Cloud.getService('upload', item.cloudStorage);
@@ -1627,24 +1655,13 @@ const FileManager = class extends Module implements IFileManager {
                     if (Cloud.hasService('upload', data)) {
                         const service = data.service.trim();
                         const upload = data.upload!;
-                        const settings: PlainObject = data.settings && this.Cloud![service] ? { ...this.Cloud![service][data.settings] } : {};
                         if (data === cloudMain && upload.localStorage === false) {
                             localStorage.set(item, upload);
                         }
                         tasks.push(new Promise<void>(resolve => {
-                            const credential = Object.assign({}, settings);
-                            for (const attr in data) {
-                                switch (attr) {
-                                    case 'service':
-                                    case 'upload':
-                                        continue;
-                                    default:
-                                        credential[attr] = data[attr];
-                                        break;
-                                }
-                            }
                             try {
-                                const uploadHandler = require(`../cloud/${service}/upload`).call(this, credential, service.toUpperCase()) as UploadCallback;
+                                const credential = createCredential(data);
+                                const uploadHandler = (require(`../cloud/${service}/upload`) as UploadHost).call(this, credential, service.toUpperCase());
                                 const uploadTasks: Promise<string>[] = [];
                                 const files = getFiles(item, upload);
                                 let basename: Undef<string>;
@@ -1713,10 +1730,14 @@ const FileManager = class extends Module implements IFileManager {
                                                 }
                                             }
                                             else if (item.inlineCssCloud) {
+                                                const pattern = new RegExp(item.inlineCssCloud, 'g');
                                                 for (const content of htmlFiles) {
-                                                    content.sourceUTF8 = this.getUTF8String(content).replace(new RegExp(item.inlineCssCloud, 'g'), fileUri);
+                                                    content.sourceUTF8 = this.getUTF8String(content).replace(pattern, fileUri);
                                                 }
-                                                cloudCssMap[item.inlineCssCloud] = fileUri;
+                                                for (const content of cssFiles) {
+                                                    content.sourceUTF8 = this.getUTF8String(content).replace(pattern, fileUri);
+                                                }
+                                                delete cloudCssMap[item.inlineCssCloud];
                                             }
                                             item.cloudUri = fileUri;
                                         }
@@ -1732,12 +1753,17 @@ const FileManager = class extends Module implements IFileManager {
                     }
                 }
             };
-            let modifiedHtml: Undef<boolean>;
+            let modifiedHtml: Undef<boolean>,
+                modifiedCss: Undef<boolean>;
             for (const item of this.assets) {
                 if (item.cloudStorage && !item.invalid) {
                     if (item.inlineCloud) {
                         cloudMap[item.inlineCloud] = item;
                         modifiedHtml = true;
+                    }
+                    else if (item.inlineCssCloud) {
+                        cloudCssMap[item.inlineCssCloud] = item;
+                        modifiedCss = true;
                     }
                     switch (item.mimeType) {
                         case '@text/html':
@@ -1746,6 +1772,8 @@ const FileManager = class extends Module implements IFileManager {
                             cssFiles.push(item);
                             break;
                         default:
+                            await this.compressFile(item);
+                            compressMap.add(item);
                             uploadFiles(item);
                             break;
                     }
@@ -1755,28 +1783,30 @@ const FileManager = class extends Module implements IFileManager {
                 await Promise.all(tasks).catch(err => this.writeFail('Upload raw assets to cloud storage [finalize]', err));
                 tasks = [];
             }
-            if (Object.keys(cloudCssMap).length) {
+            if (modifiedCss) {
                 for (const item of cssFiles) {
-                    tasks.push(
-                        new Promise<void>(resolve => {
-                            fs.readFile(item.fileUri!, 'utf8')
-                                .then(content => {
-                                    for (const id in cloudCssMap) {
-                                        content = content.replace(new RegExp(id, 'g'), cloudCssMap[id]!);
-                                    }
-                                    fs.writeFile(item.fileUri!, content, 'utf8', () => resolve());
-                                })
-                                .catch(() => resolve());
-                        })
-                    );
+                    let sourceUTF8 = this.getUTF8String(item);
+                    for (const id in cloudCssMap) {
+                        const file = cloudCssMap[id];
+                        const inlineMap = file.inlineMap;
+                        if (inlineMap) {
+                            for (const location in inlineMap) {
+                                sourceUTF8 = sourceUTF8.replace(id, inlineMap[location]!);
+                            }
+                        }
+                        localStorage.delete(file);
+                    }
+                    tasks.push(fs.writeFile(item.fileUri!, sourceUTF8, 'utf8'));
                 }
-                if (tasks.length) {
-                    await Promise.all(tasks);
-                    tasks = [];
-                }
+            }
+            if (tasks.length) {
+                await Promise.all(tasks).catch(err => this.writeFail('Update CSS [finalize]', err));
+                tasks = [];
             }
             for (const item of cssFiles) {
                 if (item.cloudStorage) {
+                    await this.compressFile(item);
+                    compressMap.add(item);
                     uploadFiles(item, 'text/css');
                 }
             }
@@ -1798,6 +1828,8 @@ const FileManager = class extends Module implements IFileManager {
                     }
                     try {
                         fs.writeFileSync(item.fileUri!, sourceUTF8, 'utf8');
+                        await this.compressFile(item);
+                        compressMap.add(item);
                         if (upload) {
                             uploadFiles(item, 'text/html');
                             await Promise.all(tasks).catch(err => this.writeFail('Upload HTML to cloud storage [finalize]', err));
@@ -1805,7 +1837,7 @@ const FileManager = class extends Module implements IFileManager {
                         }
                     }
                     catch (err) {
-                        this.writeFail('Unable to update HTML page [finalize]', err);
+                        this.writeFail('Update HTML [finalize]', err);
                     }
                 }
             }
@@ -1839,6 +1871,70 @@ const FileManager = class extends Module implements IFileManager {
                     catch {
                     }
                 }
+            }
+            for (const item of this.assets) {
+                if (item.cloudStorage) {
+                    for (const data of item.cloudStorage) {
+                        if (Cloud.hasService('download', data)) {
+                            const { active, filename, overwrite } = data.download!;
+                            if (filename) {
+                                tasks.push(new Promise<void>(resolve => {
+                                    const service = data.service;
+                                    try {
+                                        (require(`../cloud/${service}/download`) as DownloadHost).call(this, createCredential(data), service.toUpperCase(), filename, (buffer: unknown) => {
+                                            if (buffer) {
+                                                const fileUri = !item.invalid && item.fileUri;
+                                                let downloadUri = fileUri ? path.join(path.dirname(fileUri), filename) : path.resolve(this.dirname, item.pathname ? item.pathname.replace(/^([\\/]+|[A-Za-z]:)/, '') : '', filename),
+                                                    valid = false;
+                                                try {
+                                                    if (fs.existsSync(downloadUri)) {
+                                                        if (active || overwrite) {
+                                                            valid = true;
+                                                        }
+                                                    }
+                                                    else {
+                                                        if (active && fileUri && path.extname(fileUri) === path.extname(downloadUri)) {
+                                                            downloadUri = fileUri;
+                                                        }
+                                                        fs.mkdirpSync(path.dirname(downloadUri));
+                                                        valid = true;
+                                                    }
+                                                    if (valid) {
+                                                        fs.writeFileSync(downloadUri, buffer as Buffer);
+                                                        this.add(downloadUri);
+                                                    }
+                                                }
+                                                catch (err) {
+                                                    this.writeFail(`Write buffer [${service}][${downloadUri}]`, err);
+                                                }
+                                            }
+                                            resolve();
+                                        });
+                                    }
+                                    catch (err) {
+                                        this.writeFail(`${service} does not support download function.`, err);
+                                        resolve();
+                                    }
+                                }));
+                            }
+                        }
+                    }
+                }
+            }
+            if (tasks.length) {
+                await Promise.all(tasks).catch(err => this.writeFail('Download from cloud storage [finalize]', err));
+                tasks = [];
+            }
+        }
+        if (this.Compress) {
+            for (const item of this.assets) {
+                if (!item.invalid && !compressMap.has(item)) {
+                    tasks.push(this.compressFile(item));
+                }
+            }
+            if (tasks.length) {
+                await Promise.all(tasks).catch(err => this.writeFail('Compress files [finalize]', err));
+                tasks = [];
             }
         }
         if (this.Watch) {
@@ -1879,6 +1975,9 @@ const FileManager = class extends Module implements IFileManager {
                     delete item.buffer;
                     delete item.sourceUTF8;
                     delete item.originalName;
+                    delete item.inlineMap;
+                    delete item.inlineCloud;
+                    delete item.inlineCssCloud;
                     const watch = item.watch;
                     if (watch && item.etag && item.uri) {
                         let data = WATCH_HTTP[dest][item.uri];
@@ -1968,10 +2067,6 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
         }
-        return Promise.all(tasks).catch(err => {
-            this.writeFail('Compress files [finalize]', err);
-            return err;
-        });
     }
 };
 
