@@ -362,15 +362,16 @@ const FileManager = class extends Module implements IFileManager {
     getFileUri(file: ExternalAsset, filename = file.filename) {
         return Node.toPosix(path.join(file.moveTo || '', file.pathname, filename));
     }
-    getUTF8String(file: ExternalAsset, fileUri?: string) {
+    getUTF8String(file: ExternalAsset, fileUri = file.fileUri) {
         if (!file.sourceUTF8) {
             if (file.buffer) {
                 file.sourceUTF8 = file.buffer.toString('utf8');
             }
             try {
-                file.sourceUTF8 = fs.readFileSync(fileUri || file.fileUri!, 'utf8');
+                file.sourceUTF8 = fs.readFileSync(fileUri!, 'utf8');
             }
-            catch {
+            catch (err) {
+                this.writeFail(`File not found [${fileUri!}]`, err);
             }
         }
         return file.sourceUTF8 || '';
@@ -436,7 +437,7 @@ const FileManager = class extends Module implements IFileManager {
         return output;
     }
     transformCss(file: ExternalAsset, source: string) {
-        const getCloudUUID = (item: Undef<ExternalAsset>, url: string) => item && Cloud.getService(item.cloudStorage, 'upload') ? item.inlineCssCloud ||= uuid.v4() : url;
+        const getCloudUUID = (item: Undef<ExternalAsset>, url: string) => item && Cloud.getService('upload', item.cloudStorage) ? item.inlineCssCloud ||= uuid.v4() : url;
         let output: Undef<string>;
         for (const item of this.assets) {
             if (item.base64 && item.uri && !item.textContent && !item.invalid) {
@@ -658,7 +659,7 @@ const FileManager = class extends Module implements IFileManager {
                         }
                         else if (bundleIndex === 0 || bundleIndex === -1) {
                             let value: string;
-                            if (Cloud.getService(item.cloudStorage, 'upload')) {
+                            if (Cloud.getService('upload', item.cloudStorage)) {
                                 value = uuid.v4();
                                 item.inlineCloud = value;
                             }
@@ -742,7 +743,7 @@ const FileManager = class extends Module implements IFileManager {
                             if (relativeUri) {
                                 segments.push(relativeUri);
                             }
-                            if (Cloud.getService(item.cloudStorage, 'upload')) {
+                            if (Cloud.getService('upload', item.cloudStorage)) {
                                 value = uuid.v4();
                                 item.inlineCloud = value;
                             }
@@ -782,7 +783,7 @@ const FileManager = class extends Module implements IFileManager {
                         }
                         else if (item.base64) {
                             let value: string;
-                            if (Cloud.getService(item.cloudStorage, 'upload')) {
+                            if (Cloud.getService('upload', item.cloudStorage)) {
                                 value = uuid.v4();
                                 item.inlineCloud = value;
                             }
@@ -1500,7 +1501,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 return 0;
             });
-            const resumeThread = (item: GulpTask, callback: () => void) => {
+            const resumeThread = (item: GulpTask, callback: (value?: unknown) => void) => {
                 const { task, origDir, data } = item;
                 const tempDir = this.getTempDir() + uuid.v4();
                 try {
@@ -1548,7 +1549,7 @@ const FileManager = class extends Module implements IFileManager {
                 tasks.push(new Promise(resolve => resumeThread(item, resolve)));
             }
             if (itemsSync.length) {
-                tasks.push(new Promise(resolve => {
+                tasks.push(new Promise<void>(resolve => {
                     (function nextTask(this: IFileManager) {
                         const item = itemsSync.shift();
                         if (item) {
@@ -1573,7 +1574,7 @@ const FileManager = class extends Module implements IFileManager {
                         const gz = Compress.findFormat(item.compress, 'gz');
                         if (gz) {
                             tasks.push(
-                                new Promise(resolve => Compress.tryFile(fileUri, gz, undefined, (result: string) => {
+                                new Promise<void>(resolve => Compress.tryFile(fileUri, gz, undefined, (result: string) => {
                                     if (result) {
                                         this.add(result, item);
                                     }
@@ -1585,7 +1586,7 @@ const FileManager = class extends Module implements IFileManager {
                             const br = Compress.findFormat(item.compress, 'br');
                             if (br) {
                                 tasks.push(
-                                    new Promise(resolve => Compress.tryFile(fileUri, br, undefined, (result: string) => {
+                                    new Promise<void>(resolve => Compress.tryFile(fileUri, br, undefined, (result: string) => {
                                         if (result) {
                                             this.add(result, item);
                                         }
@@ -1621,29 +1622,29 @@ const FileManager = class extends Module implements IFileManager {
             };
             const uploadFiles = (item: ExternalAsset, mimeType = item.mimeType) => {
                 mimeType &&= mimeType.replace(/^[^a-z]+/, '');
-                const cloudMain = Cloud.getService(item.cloudStorage, 'upload');
+                const cloudMain = Cloud.getService('upload', item.cloudStorage);
                 for (const data of item.cloudStorage!) {
-                    if (Cloud.hasService(data, 'upload')) {
+                    if (Cloud.hasService('upload', data)) {
                         const service = data.service.trim();
                         const upload = data.upload!;
                         const settings: PlainObject = data.settings && this.Cloud![service] ? { ...this.Cloud![service][data.settings] } : {};
                         if (data === cloudMain && upload.localStorage === false) {
                             localStorage.set(item, upload);
                         }
-                        tasks.push(new Promise(resolve => {
-                            const credentials = Object.assign({}, settings);
+                        tasks.push(new Promise<void>(resolve => {
+                            const credential = Object.assign({}, settings);
                             for (const attr in data) {
                                 switch (attr) {
                                     case 'service':
                                     case 'upload':
                                         continue;
                                     default:
-                                        credentials[attr] = data[attr];
+                                        credential[attr] = data[attr];
                                         break;
                                 }
                             }
                             try {
-                                const uploadHandler = require(`../cloud/${service}/upload`).call(this, credentials, service.toUpperCase()) as UploadCallback;
+                                const uploadHandler = require(`../cloud/${service}/upload`).call(this, credential, service.toUpperCase()) as UploadCallback;
                                 const uploadTasks: Promise<string>[] = [];
                                 const files = getFiles(item, upload);
                                 let basename: Undef<string>;
@@ -1657,7 +1658,8 @@ const FileManager = class extends Module implements IFileManager {
                                                     try {
                                                         fileGroup.push([service === 'gcs' ? group[j] : fs.readFileSync(group[j]), path.extname(group[j])]);
                                                     }
-                                                    catch {
+                                                    catch (err) {
+                                                        this.writeFail(`File not found [${group[j]!}]`, err);
                                                     }
                                                 }
                                             }
@@ -1689,7 +1691,7 @@ const FileManager = class extends Module implements IFileManager {
                                                                     filename = basename + match[0];
                                                                 }
                                                             }
-                                                            uploadHandler(buffer, { upload, credentials, fileUri, fileGroup, filename, mimeType }, success);
+                                                            uploadHandler(buffer, { upload, credential, fileUri, fileGroup, filename, mimeType }, success);
                                                         }
                                                     });
                                                 })
@@ -1757,7 +1759,7 @@ const FileManager = class extends Module implements IFileManager {
             if (Object.keys(cloudCssMap).length) {
                 for (const item of cssFiles) {
                     tasks.push(
-                        new Promise(resolve => {
+                        new Promise<void>(resolve => {
                             fs.readFile(item.fileUri!, 'utf8')
                                 .then(content => {
                                     for (const id in cloudCssMap) {
@@ -1858,6 +1860,7 @@ const FileManager = class extends Module implements IFileManager {
                     return 0;
                 });
                 const leading = assets.find(item => item.bundleId && typeof item.watch === 'object' && item.watch.interval! > 0);
+                const watchInterval = leading && typeof leading.watch === 'object' && leading.watch.interval || 0;
                 WATCH_HTTP[dest] ||= {};
                 for (const item of assets) {
                     if (item.originalName) {
@@ -1901,8 +1904,7 @@ const FileManager = class extends Module implements IFileManager {
                                     }
                                 }
                             }
-                            interval ||= leading && typeof leading.watch === 'object' && leading.watch.interval || 0;
-                            interval = Math.max(interval, 0) || this.watchInterval;
+                            interval = Math.max(interval || watchInterval, 0) || this.watchInterval;
                             data = {
                                 uri: item.uri,
                                 etag: item.etag,
@@ -1947,7 +1949,6 @@ const FileManager = class extends Module implements IFileManager {
                                     this.writeMessage(`...Expired [since:${formatDate(data.start)}]`, data.uri, 'WATCH', 'grey');
                                 }
                                 clearInterval(data.timeout);
-                                res.destroy();
                             });
                             req.on('error', err => {
                                 clearInterval(data.timeout);

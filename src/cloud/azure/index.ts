@@ -1,8 +1,8 @@
-export interface AzureCloudCredentials extends functions.external.Cloud.StorageSharedKeyCredential {
+export interface AzureCloudCredential extends functions.external.Cloud.StorageSharedKeyCredential {
     container?: string;
 }
 
-const validateAzure = (config: AzureCloudCredentials) => !!(config.accountName || config.accountKey);
+const validateAzure = (config: AzureCloudCredential) => !!(config.accountName && config.accountKey);
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = validateAzure;

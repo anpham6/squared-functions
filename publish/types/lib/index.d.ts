@@ -190,7 +190,7 @@ declare namespace functions {
         namespace Cloud {
             interface UploadOptions<T>{
                 upload: squared.CloudServiceUpload;
-                credentials: T;
+                credential: T;
                 fileUri: string;
                 fileGroup: [Buffer | string, string][];
                 filename?: string;
@@ -198,7 +198,7 @@ declare namespace functions {
             }
 
             type ServiceClient = (config: squared.CloudService) => boolean;
-            type ServiceHost = (this: IFileManager, credentials: PlainObject, serviceName: string) => UploadCallback;
+            type ServiceHost = (this: IFileManager, credential: PlainObject, serviceName: string) => UploadCallback;
             type UploadCallback = (buffer: Buffer, options: UploadOptions<unknown>, success: (value?: unknown) => void) => void;
         }
 
@@ -296,8 +296,8 @@ declare namespace functions {
 
     interface ICloud extends IModule {
         settings: settings.CloudModule;
-        getService(data: Undef<squared.CloudService[]>, functionName: CloudFunctions): Undef<squared.CloudService>;
-        hasService(data: squared.CloudService, functionName: CloudFunctions): squared.CloudServiceAction | false;
+        getService(functionName: CloudFunctions, data: Undef<squared.CloudService[]>): Undef<squared.CloudService>;
+        hasService(functionName: CloudFunctions, data: squared.CloudService): squared.CloudServiceAction | false;
     }
 
     interface IChrome extends IModule {

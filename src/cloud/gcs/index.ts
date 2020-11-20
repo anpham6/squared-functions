@@ -1,12 +1,12 @@
 import type { GoogleAuthOptions } from 'google-auth-library';
 
-export interface GCSCloudCredentials extends GoogleAuthOptions {
+export interface GCSCloudCredential extends GoogleAuthOptions {
     bucket?: string;
     location?: string;
     storageClass?: "STANDARD" | "NEARLINE" | "COLDLINE" | "ARCHIVE";
 }
 
-const validateGCS = (config: GCSCloudCredentials) => !!(config.keyFile || config.keyFilename);
+const validateGCS = (config: GCSCloudCredential) => !!(config.keyFile || config.keyFilename);
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = validateGCS;

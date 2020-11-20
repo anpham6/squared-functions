@@ -1,15 +1,15 @@
-import type { OCICloudCredentials } from '../index';
+import type { OCICloudCredential } from '../index';
 
 type IFileManager = functions.IFileManager;
 
 type ServiceHost = functions.internal.Cloud.ServiceHost;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 
-function uploadOCI(this: IFileManager, credentials: OCICloudCredentials, serviceName: string): UploadCallback {
-    credentials.endpoint = `https://${credentials.namespace}.compat.objectstorage.${credentials.region}.oraclecloud.com`;
-    credentials.s3ForcePathStyle = true;
-    credentials.signatureVersion = 'v4';
-    return (require('../../s3/upload') as ServiceHost).call(this, credentials, serviceName);
+function uploadOCI(this: IFileManager, credential: OCICloudCredential, serviceName: string): UploadCallback {
+    credential.endpoint = `https://${credential.namespace}.compat.objectstorage.${credential.region}.oraclecloud.com`;
+    credential.s3ForcePathStyle = true;
+    credential.signatureVersion = 'v4';
+    return (require('../../s3/upload') as ServiceHost).call(this, credential, serviceName);
 }
 
 if (typeof module !== 'undefined' && module.exports) {

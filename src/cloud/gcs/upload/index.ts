@@ -1,6 +1,6 @@
 import type * as gcs from '@google-cloud/storage';
 
-import type { GCSCloudCredentials } from '../index';
+import type { GCSCloudCredential } from '../index';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -8,16 +8,16 @@ import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
 
-type UploadOptions = functions.internal.Cloud.UploadOptions<GCSCloudCredentials>;
+type UploadOptions = functions.internal.Cloud.UploadOptions<GCSCloudCredential>;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function uploadGCS(this: IFileManager, credentials: GCSCloudCredentials, serviceName: string): UploadCallback {
+function uploadGCS(this: IFileManager, credential: GCSCloudCredential, serviceName: string): UploadCallback {
     let storage: gcs.Storage;
     try {
         const { Storage } = require('@google-cloud/storage');
-        storage = new Storage(credentials);
+        storage = new Storage(credential);
     }
     catch (err) {
         this.writeFail('Install SDK? [npm i @google-cloud/storage]', serviceName);
@@ -25,14 +25,14 @@ function uploadGCS(this: IFileManager, credentials: GCSCloudCredentials, service
     }
     return async (buffer: Buffer, options: UploadOptions, success: (value?: unknown) => void) => {
         const { active, apiEndpoint, publicAccess } = options.upload;
-        let bucketName = credentials.bucket || uuid.v4();
+        let bucketName = credential.bucket || uuid.v4();
         if (!BUCKET_MAP[bucketName]) {
             try {
                 const [exists] = await storage.bucket(bucketName).exists();
                 if (!exists) {
-                    const keyFile = require(path.resolve(credentials.keyFilename || credentials.keyFile!));
+                    const keyFile = require(path.resolve(credential.keyFilename || credential.keyFile!));
                     storage.projectId = keyFile.project_id;
-                    const [result] = await storage.createBucket(bucketName, credentials);
+                    const [result] = await storage.createBucket(bucketName, credential);
                     bucketName = result.name;
                     this.writeMessage('Bucket created', bucketName, serviceName, 'blue');
                     if (publicAccess || active && publicAccess !== false) {

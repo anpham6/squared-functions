@@ -123,7 +123,7 @@ const Chrome = class extends Module implements functions.IChrome {
                         map = JSON.parse(map) as SourceMap;
                     }
                     catch {
-                        map = {} as SourceMap;
+                        return false;
                     }
                 }
                 if (typeof map === 'object' && map.mappings) {

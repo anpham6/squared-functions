@@ -1,30 +1,30 @@
 import type * as azure from '@azure/storage-blob';
 
-import type { AzureCloudCredentials } from '../index';
+import type { AzureCloudCredential } from '../index';
 
 import path = require('path');
 import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
 
-type UploadOptions = functions.internal.Cloud.UploadOptions<AzureCloudCredentials>;
+type UploadOptions = functions.internal.Cloud.UploadOptions<AzureCloudCredential>;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function uploadAzure(this: IFileManager, credentials: AzureCloudCredentials, serviceName: string): UploadCallback {
+function uploadAzure(this: IFileManager, credential: AzureCloudCredential, serviceName: string): UploadCallback {
     let blobServiceClient: azure.BlobServiceClient;
     try {
         const { BlobServiceClient, StorageSharedKeyCredential } = require('@azure/storage-blob');
-        const sharedKeyCredential = new StorageSharedKeyCredential(credentials.accountName, credentials.accountKey) as azure.StorageSharedKeyCredential;
-        blobServiceClient = new BlobServiceClient(`https://${credentials.accountName}.blob.core.windows.net`, sharedKeyCredential) as azure.BlobServiceClient;
+        const sharedKeyCredential = new StorageSharedKeyCredential(credential.accountName, credential.accountKey) as azure.StorageSharedKeyCredential;
+        blobServiceClient = new BlobServiceClient(`https://${credential.accountName}.blob.core.windows.net`, sharedKeyCredential) as azure.BlobServiceClient;
     }
     catch (err) {
         this.writeFail('Install SDK? [npm i @azure/storage-blob]', serviceName);
         throw err;
     }
     return async (buffer: Buffer, options: UploadOptions, success: (value?: unknown) => void) => {
-        const container = credentials.container || uuid.v4();
+        const container = credential.container || uuid.v4();
         const containerClient = blobServiceClient.getContainerClient(container);
         const fileUri = options.fileUri;
         if (!BUCKET_MAP[container]) {
@@ -74,7 +74,7 @@ function uploadAzure(this: IFileManager, credentials: AzureCloudCredentials, ser
         for (let i = 0; i < Key.length; ++i) {
             containerClient.getBlockBlobClient(Key[i]).upload(Body[i], Body[i].byteLength, { blobHTTPHeaders: { blobContentType: ContentType[i] } })
                 .then(() => {
-                    const url = (apiEndpoint ? apiEndpoint.replace(/\/*$/, '') : `https://${credentials.accountName}.blob.core.windows.net/${container}`) + '/' + Key[i];
+                    const url = (apiEndpoint ? apiEndpoint.replace(/\/*$/, '') : `https://${credential.accountName}.blob.core.windows.net/${container}`) + '/' + Key[i];
                     this.writeMessage('Upload success', url, serviceName);
                     if (i === 0) {
                         success(url);
