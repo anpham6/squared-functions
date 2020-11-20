@@ -531,6 +531,18 @@ Serving CSS files from cloud storage or CDN requires every image inside the file
 squared.saveAs('index.zip', {
     configUri: 'http://localhost:3000/chrome/bundle.yml',
     saveAs: {
+        html: {
+            cloudStorage: [{ // Create static website
+                service: 's3',
+                bucket: 'squared-001',
+                settings: 'main',
+                upload: {
+                    active: true,
+                    apiEndpoint: 'https://squared-001.s3.us-west-2.amazonaws.com',
+                    overwrite: true
+                }
+            }]
+        },
         image: { // Non-element images using url() method
             cloudStorage: [{
                 service: 's3',

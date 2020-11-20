@@ -1351,7 +1351,7 @@ const FileManager = class extends Module implements IFileManager {
                             }
                         }
                     })
-                    .catch(err => this.writeFail('Finalize: Inline UTF-8', err));
+                    .catch(err => this.writeFail('Inline UTF-8 [finalize]', err));
                     tasks = [];
                 }
             }
@@ -1367,7 +1367,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail('Finalize: Cache base64', err));
+                await Promise.all(tasks).catch(err => this.writeFail('Cache base64 [finalize]', err));
                 tasks = [];
             }
             const replaced = this.assets.filter(item => item.originalName && !item.invalid);
@@ -1401,7 +1401,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail('Finalize: Replace UTF-8', err));
+                await Promise.all(tasks).catch(err => this.writeFail('Replace UTF-8 [finalize]', err));
                 tasks = [];
             }
         }
@@ -1411,14 +1411,14 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail('Finalize: Write modified files', err));
+            await Promise.all(tasks).catch(err => this.writeFail('Write modified files [finalize]', err));
             tasks = [];
         }
         for (const value of this.filesToRemove) {
             tasks.push(fs.unlink(value).then(() => this.delete(value)));
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail('Finalize: Delete temp files', err));
+            await Promise.all(tasks).catch(err => this.writeFail('Delete temp files [finalize]', err));
             tasks = [];
         }
         if (this.Gulp) {
@@ -1562,7 +1562,7 @@ const FileManager = class extends Module implements IFileManager {
                 }));
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail('Finalize: exec tasks', err));
+                await Promise.all(tasks).catch(err => this.writeFail('Exec tasks [finalize]', err));
                 tasks = [];
             }
         }
@@ -1741,7 +1741,6 @@ const FileManager = class extends Module implements IFileManager {
                     }
                     switch (item.mimeType) {
                         case '@text/html':
-                            htmlFiles.push(item);
                             break;
                         case '@text/css':
                             cssFiles.push(item);
@@ -1753,7 +1752,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail('Finalize: Upload raw assets to cloud storage', err));
+                await Promise.all(tasks).catch(err => this.writeFail('Upload raw assets to cloud storage [finalize]', err));
                 tasks = [];
             }
             if (Object.keys(cloudCssMap).length) {
@@ -1782,22 +1781,31 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail('Finalize: Upload CSS to cloud storage', err));
+                await Promise.all(tasks).catch(err => this.writeFail('Upload CSS to cloud storage [finalize]', err));
                 tasks = [];
             }
             if (modifiedHtml) {
-                for (const content of htmlFiles) {
-                    let sourceUTF8 = this.getUTF8String(content);
+                for (const item of htmlFiles) {
+                    let sourceUTF8 = this.getUTF8String(item);
                     for (const id in cloudMap) {
                         const file = cloudMap[id];
                         sourceUTF8 = sourceUTF8.replace(id, this.getFileUri(file));
                         localStorage.delete(file);
                     }
+                    const upload = Cloud.getService('upload', item.cloudStorage)?.upload;
+                    if (upload && upload.apiEndpoint) {
+                        sourceUTF8 = sourceUTF8.replace(new RegExp(escapeRegexp(upload.apiEndpoint.replace(/\/+$/, '') + '/'), 'g'), '');
+                    }
                     try {
-                        fs.writeFileSync(content.fileUri!, sourceUTF8, 'utf8');
+                        fs.writeFileSync(item.fileUri!, sourceUTF8, 'utf8');
+                        if (upload) {
+                            uploadFiles(item, 'text/html');
+                            await Promise.all(tasks).catch(err => this.writeFail('Upload HTML to cloud storage [finalize]', err));
+                            tasks = [];
+                        }
                     }
                     catch (err) {
-                        this.writeFail(`Finalize: Replace URL from cloud storage`, err);
+                        this.writeFail('Unable to update HTML page [finalize]', err);
                     }
                 }
             }
@@ -1822,7 +1830,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail('Finalize: Delete cloud temp files', err));
+                await Promise.all(tasks).catch(err => this.writeFail('Delete cloud temp files [finalize]', err));
                 tasks = [];
                 for (const value of Array.from(emptyDir).reverse()) {
                     try {
@@ -1837,7 +1845,7 @@ const FileManager = class extends Module implements IFileManager {
             const etagMap: StringMap = {};
             const destMap: ObjectMap<ExternalAsset[]> = {};
             const formatDate = (value: number) => new Date(value).toLocaleString().replace(/\/20\d+, /, '@').replace(/:\d+ (AM|PM)$/, (...match) => match[1]);
-            for (const item of this.assets.sort((a, b) => a.etag ? -1 : b.etag ? 1 : 0)) {
+            for (const item of this.assets.slice(0).sort((a, b) => a.etag ? -1 : b.etag ? 1 : 0)) {
                 const dest = this.getFileUri(item);
                 if (item.etag) {
                     etagMap[item.uri!] = item.etag;
@@ -1961,7 +1969,7 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
         return Promise.all(tasks).catch(err => {
-            this.writeFail('Finalize: Compress files', err);
+            this.writeFail('Compress files [finalize]', err);
             return err;
         });
     }

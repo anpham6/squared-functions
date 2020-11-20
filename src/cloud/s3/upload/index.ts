@@ -76,7 +76,7 @@ function uploadS3(this: IFileManager, credential: S3CloudCredential, serviceName
         for (let i = 0; i < Key.length; ++i) {
             s3.upload({ Bucket, Key: Key[i], ACL, Body: Body[i], ContentType: ContentType[i] }, (err, result) => {
                 if (!err) {
-                    const url = apiEndpoint ? apiEndpoint.replace(/\/*$/, '') + '/' + Key[i] : result.Location;
+                    const url = apiEndpoint ? apiEndpoint.replace(/\/+$/, '') + '/' + Key[i] : result.Location;
                     this.writeMessage('Upload success', url, serviceName);
                     if (i === 0) {
                         success(url);

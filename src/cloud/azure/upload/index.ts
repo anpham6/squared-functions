@@ -74,7 +74,7 @@ function uploadAzure(this: IFileManager, credential: AzureCloudCredential, servi
         for (let i = 0; i < Key.length; ++i) {
             containerClient.getBlockBlobClient(Key[i]).upload(Body[i], Body[i].byteLength, { blobHTTPHeaders: { blobContentType: ContentType[i] } })
                 .then(() => {
-                    const url = (apiEndpoint ? apiEndpoint.replace(/\/*$/, '') : `https://${credential.accountName}.blob.core.windows.net/${container}`) + '/' + Key[i];
+                    const url = (apiEndpoint ? apiEndpoint.replace(/\/+$/, '') : `https://${credential.accountName}.blob.core.windows.net/${container}`) + '/' + Key[i];
                     this.writeMessage('Upload success', url, serviceName);
                     if (i === 0) {
                         success(url);
