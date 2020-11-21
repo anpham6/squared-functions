@@ -8,7 +8,7 @@ import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
 
-type UploadOptions = functions.internal.Cloud.UploadOptions<GCSCloudCredential>;
+type UploadData = functions.internal.Cloud.UploadData<GCSCloudCredential>;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 type UploadHost = functions.internal.Cloud.UploadHost;
 
@@ -24,9 +24,13 @@ function uploadGCS(this: IFileManager, service: string, credential: GCSCloudCred
         this.writeFail(`Install ${service} SDK? [npm i @google-cloud/storage]`);
         throw err;
     }
-    return async (buffer: Buffer, options: UploadOptions, success: (value: string) => void) => {
-        const { active, apiEndpoint, publicAccess } = options.upload;
-        let bucketName = credential.bucket || options.bucketGroup;
+    return async (data: UploadData, success: (value: string) => void) => {
+        if (!credential.bucket) {
+            data.storage.bucket = data.bucketGroup;
+            credential.bucket = data.bucketGroup;
+        }
+        const { active, apiEndpoint, publicAccess } = data.upload;
+        let bucketName = credential.bucket;
         if (!BUCKET_MAP[bucketName]) {
             try {
                 const [exists] = await storage.bucket(bucketName).exists();
@@ -53,8 +57,8 @@ function uploadGCS(this: IFileManager, service: string, credential: GCSCloudCred
             BUCKET_MAP[bucketName] = true;
         }
         const bucket = storage.bucket(bucketName);
-        const fileUri = options.fileUri;
-        let filename = options.filename;
+        const fileUri = data.fileUri;
+        let filename = data.filename;
         if (!filename) {
             filename = path.basename(fileUri);
             let exists = true;
@@ -68,9 +72,9 @@ function uploadGCS(this: IFileManager, service: string, credential: GCSCloudCred
             }
         }
         const Key = [filename];
-        const Body: [Buffer, ...string[]] = [buffer];
-        const ContentType = [options.mimeType];
-        for (const item of options.fileGroup) {
+        const Body: [Buffer, ...string[]] = [data.buffer];
+        const ContentType = [data.mimeType];
+        for (const item of data.fileGroup) {
             Body.push(item[0] as string);
             Key.push(filename + item[1]);
         }

@@ -1659,16 +1659,16 @@ const FileManager = class extends Module implements IFileManager {
             const uploadFiles = (item: ExternalAsset, mimeType = item.mimeType) => {
                 mimeType &&= mimeType.replace(/^[^a-z]+/, '');
                 const cloudMain = Cloud.getService('upload', item.cloudStorage);
-                for (const data of item.cloudStorage!) {
-                    if (Cloud.hasService('upload', data)) {
-                        const service = data.service.trim();
-                        const upload = data.upload!;
-                        if (data === cloudMain && upload.localStorage === false) {
+                for (const storage of item.cloudStorage!) {
+                    if (Cloud.hasService('upload', storage)) {
+                        const service = storage.service.trim();
+                        const upload = storage.upload!;
+                        if (storage === cloudMain && upload.localStorage === false) {
                             localStorage.set(item, upload);
                         }
                         tasks.push(new Promise<void>(resolve => {
                             try {
-                                const credential = createCredential(data);
+                                const credential = createCredential(storage);
                                 const uploadHandler = (require(`../cloud/${service}/upload`) as UploadHost).call(this, service.toUpperCase(), credential);
                                 const uploadTasks: Promise<string>[] = [];
                                 const files = getFiles(item, upload);
@@ -1716,7 +1716,7 @@ const FileManager = class extends Module implements IFileManager {
                                                                     filename = basename + match[0];
                                                                 }
                                                             }
-                                                            uploadHandler(buffer, { upload, credential, fileUri, fileGroup, bucketGroup, filename, mimeType }, success);
+                                                            uploadHandler({ buffer, storage, upload, credential, fileUri, fileGroup, bucketGroup, filename, mimeType }, success);
                                                         }
                                                     });
                                                 })
@@ -1729,7 +1729,7 @@ const FileManager = class extends Module implements IFileManager {
                                 }
                                 Promise.all(uploadTasks)
                                     .then(result => {
-                                        if (data === cloudMain && result[0]) {
+                                        if (storage === cloudMain && result[0]) {
                                             let cloudUri = result[0];
                                             if (apiEndpoint) {
                                                 cloudUri = cloudUri.replace(apiEndpoint, '');

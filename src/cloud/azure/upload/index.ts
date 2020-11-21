@@ -7,7 +7,7 @@ import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
 
-type UploadOptions = functions.internal.Cloud.UploadOptions<AzureCloudCredential>;
+type UploadData = functions.internal.Cloud.UploadData<AzureCloudCredential>;
 type UploadHost = functions.internal.Cloud.UploadHost;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 
@@ -24,14 +24,18 @@ function uploadAzure(this: IFileManager, service: string, credential: AzureCloud
         this.writeFail(`Install ${service} SDK? [npm i @azure/storage-blob]`);
         throw err;
     }
-    return async (buffer: Buffer, options: UploadOptions, success: (value: string) => void) => {
-        const container = credential.container || options.bucketGroup;
+    return async (data: UploadData, success: (value: string) => void) => {
+        if (!credential.container) {
+            data.storage.container = data.bucketGroup;
+            credential.container = data.bucketGroup;
+        }
+        const container = credential.container;
         const containerClient = blobServiceClient.getContainerClient(container);
-        const fileUri = options.fileUri;
+        const fileUri = data.fileUri;
         if (!BUCKET_MAP[container]) {
             try {
                 if (!await containerClient.exists()) {
-                    const { active, publicAccess } = options.upload;
+                    const { active, publicAccess } = data.upload;
                     await containerClient.create({ access: publicAccess || active && publicAccess !== false ? 'blob' : 'container' });
                     this.writeMessage('Container created', container, service, 'blue');
                 }
@@ -45,7 +49,7 @@ function uploadAzure(this: IFileManager, service: string, credential: AzureCloud
             }
             BUCKET_MAP[container] = true;
         }
-        let filename = options.filename;
+        let filename = data.filename;
         if (!filename) {
             filename = path.basename(fileUri);
             let exists = false;
@@ -65,10 +69,10 @@ function uploadAzure(this: IFileManager, service: string, credential: AzureCloud
             }
         }
         const Key = [filename];
-        const Body = [buffer];
-        const ContentType = [options.mimeType];
-        const apiEndpoint = options.upload.apiEndpoint;
-        for (const item of options.fileGroup) {
+        const Body = [data.buffer];
+        const ContentType = [data.mimeType];
+        const apiEndpoint = data.upload.apiEndpoint;
+        for (const item of data.fileGroup) {
             Body.push(item[0] as Buffer);
             Key.push(filename + item[1]);
         }

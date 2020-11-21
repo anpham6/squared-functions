@@ -7,7 +7,7 @@ import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
 
-type UploadOptions = functions.internal.Cloud.UploadOptions<S3CloudCredential>;
+type UploadData = functions.internal.Cloud.UploadData<S3CloudCredential>;
 type UploadHost = functions.internal.Cloud.UploadHost;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 
@@ -23,8 +23,12 @@ function uploadS3(this: IFileManager, service: string, credential: S3CloudCreden
         this.writeFail(`Install ${service} SDK? [npm i aws-sdk]`);
         throw err;
     }
-    return async (buffer: Buffer, options: UploadOptions, success: (value: string) => void) => {
-        const Bucket = credential.bucket || options.bucketGroup;
+    return async (data: UploadData, success: (value: string) => void) => {
+        if (!credential.bucket) {
+            data.storage.bucket = data.bucketGroup;
+            credential.bucket = data.bucketGroup;
+        }
+        const Bucket = credential.bucket;
         const bucketService = service + Bucket;
         if (!BUCKET_MAP[bucketService]) {
             const result = await s3.headBucket({ Bucket })
@@ -51,8 +55,8 @@ function uploadS3(this: IFileManager, service: string, credential: S3CloudCreden
                 return;
             }
         }
-        const fileUri = options.fileUri;
-        let filename = options.filename;
+        const fileUri = data.fileUri;
+        let filename = data.filename;
         if (!filename) {
             const renameFile = () => this.writeMessage(`File renamed [${filename!}]`, filename = uuid.v4() + path.extname(fileUri), service, 'yellow');
             filename = path.basename(fileUri);
@@ -65,12 +69,12 @@ function uploadS3(this: IFileManager, service: string, credential: S3CloudCreden
                     }
                 });
         }
-        const { active, publicAccess, apiEndpoint } = options.upload;
+        const { active, publicAccess, apiEndpoint } = data.upload;
         const ACL = publicAccess || active && publicAccess !== false ? 'public-read' : '';
         const Key = [filename];
-        const Body = [buffer];
-        const ContentType = [options.mimeType];
-        for (const item of options.fileGroup) {
+        const Body = [data.buffer];
+        const ContentType = [data.mimeType];
+        for (const item of data.fileGroup) {
             Body.push(item[0] as Buffer);
             Key.push(filename + item[1]);
         }
