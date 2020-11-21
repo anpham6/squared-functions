@@ -61,7 +61,9 @@ declare namespace functions {
             publicAccess?: boolean;
         }
 
-        interface CloudServiceDownload extends CloudServiceAction, Partial<LocationUri> {}
+        interface CloudServiceDownload extends CloudServiceAction, Partial<LocationUri> {
+            versionId?: string;
+        }
 
         interface WatchInterval {
             interval?: number;
@@ -205,7 +207,7 @@ declare namespace functions {
 
             type ServiceClient = (config: squared.CloudService) => boolean;
             type UploadHost = (this: IFileManager, service: string, credential: PlainObject) => UploadCallback;
-            type DownloadHost = (this: IFileManager, service: string, credential: PlainObject, filename: string, success: (value: Null<Buffer | string>) => void) => void;
+            type DownloadHost = (this: IFileManager, service: string, credential: PlainObject, filename: string, versionId: Undef<string>, success: (value: Null<Buffer | string>) => void) => void;
             type UploadCallback = (options: UploadData<unknown>, success: (value: string) => void) => void;
         }
 

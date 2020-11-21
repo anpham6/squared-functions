@@ -6,13 +6,13 @@ type IFileManager = functions.IFileManager;
 
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 
-async function downloadS3(this: IFileManager, service: string, credential: S3CloudCredential, Key: string, success: (value: Null<Buffer>) => void) {
+async function downloadS3(this: IFileManager, service: string, credential: S3CloudCredential, Key: string, VersionId: Undef<string>, success: (value: Null<Buffer>) => void) {
     const Bucket = credential.bucket;
     if (Bucket) {
         try {
             const S3 = require('aws-sdk/clients/s3') as Constructor<aws.S3>;
             const s3 = new S3(credential);
-            s3.getObject({ Bucket, Key }, (err, data) => {
+            s3.getObject({ Bucket, Key, VersionId }, (err, data) => {
                 const Location = Bucket + '/' + Key;
                 if (!err) {
                     this.writeMessage('Download success', Location, service);

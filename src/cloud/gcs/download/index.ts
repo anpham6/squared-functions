@@ -10,7 +10,7 @@ type IFileManager = functions.IFileManager;
 
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 
-async function downloadGCS(this: IFileManager, service: string, credential: GCSCloudCredential, filename: string, success: (value: string) => void) {
+async function downloadGCS(this: IFileManager, service: string, credential: GCSCloudCredential, filename: string, generation: Undef<string>, success: (value: string) => void) {
     const bucket = credential.bucket;
     if (bucket) {
         try {
@@ -22,15 +22,14 @@ async function downloadGCS(this: IFileManager, service: string, credential: GCSC
             catch {
                 tempDir = this.getTempDir();
             }
-            const location = bucket + '/' + filename;
             const destination = tempDir + filename;
             const storage = new Storage(credential) as gcs.Storage;
             storage
                 .bucket(bucket)
-                .file(filename)
+                .file(filename, { generation })
                 .download({ destination })
                 .then(() => {
-                    this.writeMessage('Download success', location, service);
+                    this.writeMessage('Download success', bucket + '/' + filename, service);
                     success(destination);
                 })
                 .catch((err: Error) => {

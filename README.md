@@ -489,6 +489,7 @@ Other service providers can be integrated similarly except for credential verifi
       },
       "download": {
         "filename": "picture2.png",
+        "versionId": "12345", // Retrieve a previous file snapshot (optional)
         "pathname": "download/images", // Base directory when empty (optional)
         "active": false, // Always write file or rename to main file when same extension (optional)
         "overwrite": false // Always write file (optional)

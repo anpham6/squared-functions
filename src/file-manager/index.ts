@@ -1891,7 +1891,7 @@ const FileManager = class extends Module implements IFileManager {
                 if (item.cloudStorage) {
                     for (const data of item.cloudStorage) {
                         if (Cloud.hasService('download', data)) {
-                            const { active, pathname, filename, overwrite } = data.download!;
+                            const { active, pathname, filename, versionId, overwrite } = data.download!;
                             if (filename) {
                                 const service = data.service.toUpperCase();
                                 const fileUri = !item.invalid && item.fileUri;
@@ -1919,7 +1919,7 @@ const FileManager = class extends Module implements IFileManager {
                                     downloadMap[downloadUri] = true;
                                     tasks.push(new Promise<void>(resolve => {
                                         try {
-                                            (require(`../cloud/${service.toLowerCase()}/download`) as DownloadHost).call(this, service, createCredential(data), filename, (value: Null<Buffer | string>) => {
+                                            (require(`../cloud/${service.toLowerCase()}/download`) as DownloadHost).call(this, service, createCredential(data), filename, versionId, (value: Null<Buffer | string>) => {
                                                 if (value) {
                                                     try {
                                                         if (typeof value === 'string') {
