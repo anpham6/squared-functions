@@ -89,6 +89,8 @@ declare namespace functions {
     }
 
     namespace chrome {
+        type UnusedStyles = string[];
+
         interface ChromeAsset {
             rootDir?: string;
             moveTo?: string;
@@ -135,10 +137,12 @@ declare namespace functions {
         }
 
         namespace Image {
+            type CompressFormat = squared.CompressFormat;
+
             interface UsingOptions {
                 data: FileData;
                 command?: string;
-                compress?: squared.CompressFormat;
+                compress?: CompressFormat;
                 callback?: FileManagerWriteImageCallback;
             }
 
@@ -196,10 +200,14 @@ declare namespace functions {
         }
 
         namespace Cloud {
+            type CloudService = squared.CloudService;
+            type CloudServiceUpload = squared.CloudServiceUpload;
+            type CloudServiceDownload = squared.CloudServiceDownload;
+
             interface UploadData<T> {
                 buffer: Buffer;
-                storage: squared.CloudService;
-                upload: squared.CloudServiceUpload;
+                service: CloudService;
+                upload: CloudServiceUpload;
                 credential: T;
                 fileUri: string;
                 fileGroup: [Buffer | string, string][];
@@ -208,9 +216,13 @@ declare namespace functions {
                 mimeType?: string;
             }
 
-            type ServiceClient = (config: squared.CloudService) => boolean;
+            interface ServiceClient {
+                validate: (config: CloudService) => boolean;
+                setCredential?: (credential: PlainObject) => void;
+            }
+
             type UploadHost = (this: IFileManager, service: string, credential: PlainObject) => UploadCallback;
-            type DownloadHost = (this: IFileManager, service: string, credential: PlainObject, download: squared.CloudServiceDownload, success: (value: Null<Buffer | string>) => void) => void;
+            type DownloadHost = (this: IFileManager, service: string, credential: PlainObject, download: CloudServiceDownload, success: (value: Null<Buffer | string>) => void) => void;
             type UploadCallback = (data: UploadData<unknown>, success: (value: string) => void) => void;
         }
 
@@ -255,12 +267,9 @@ declare namespace functions {
 
         interface GulpModule extends StringMap {}
 
-        interface ChromeModule {
+        interface ChromeModule extends Partial<chrome.TranspileMap> {
             eval_function?: boolean;
             eval_text_template?: boolean;
-            html?: ObjectMap<StandardMap>;
-            css?: ObjectMap<StandardMap>;
-            js?: ObjectMap<StandardMap>;
         }
     }
 
@@ -470,7 +479,7 @@ declare namespace functions {
 
     interface RequestBody extends PlainObject {
         assets: ExternalAsset[];
-        unusedStyles?: string[];
+        unusedStyles?: chrome.UnusedStyles;
         transpileMap?: chrome.TranspileMap;
     }
 
@@ -484,7 +493,7 @@ declare namespace functions {
         inlineBase64?: string;
         inlineCloud?: string;
         inlineCssCloud?: string;
-        inlineMap?: StringMap;
+        inlineCssMap?: StringMap;
         etag?: string;
         invalid?: boolean;
     }

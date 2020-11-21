@@ -12,7 +12,7 @@ type UploadCallback = functions.internal.Cloud.UploadCallback;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function uploadAzure(this: IFileManager, service: string, credential: AzureCloudCredential): UploadCallback {
+function upload(this: IFileManager, service: string, credential: AzureCloudCredential): UploadCallback {
     let blobServiceClient: azure.BlobServiceClient;
     try {
         const { BlobServiceClient, StorageSharedKeyCredential } = require('@azure/storage-blob');
@@ -25,7 +25,7 @@ function uploadAzure(this: IFileManager, service: string, credential: AzureCloud
     }
     return async (data: UploadData, success: (value: string) => void) => {
         if (!credential.container) {
-            data.storage.container = data.bucketGroup;
+            data.service.container = data.bucketGroup;
             credential.container = data.bucketGroup;
         }
         const container = credential.container;
@@ -96,9 +96,9 @@ function uploadAzure(this: IFileManager, service: string, credential: AzureCloud
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = uploadAzure;
-    module.exports.default = uploadAzure;
-    module.exports.__esModule = true;
+    module.exports = upload;
+    module.exports.default = upload;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }
 
-export default uploadAzure as UploadHost;
+export default upload as UploadHost;

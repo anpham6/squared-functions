@@ -12,7 +12,7 @@ type UploadCallback = functions.internal.Cloud.UploadCallback;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function uploadS3(this: IFileManager, service: string, credential: S3CloudCredential): UploadCallback {
+function upload(this: IFileManager, service: string, credential: S3CloudCredential): UploadCallback {
     let s3: aws.S3;
     try {
         const S3 = require('aws-sdk/clients/s3') as Constructor<aws.S3>;
@@ -24,7 +24,7 @@ function uploadS3(this: IFileManager, service: string, credential: S3CloudCreden
     }
     return async (data: UploadData, success: (value: string) => void) => {
         if (!credential.bucket) {
-            data.storage.bucket = data.bucketGroup;
+            data.service.bucket = data.bucketGroup;
             credential.bucket = data.bucketGroup;
         }
         const Bucket = credential.bucket;
@@ -78,9 +78,9 @@ function uploadS3(this: IFileManager, service: string, credential: S3CloudCreden
             Key.push(filename + item[1]);
         }
         for (let i = 0; i < Key.length; ++i) {
-            s3.upload({ Bucket, Key: Key[i], ACL, Body: Body[i], ContentType: ContentType[i] }, (err, result) => {
+            s3.upload({ Bucket, Key: Key[i], ACL, Body: Body[i], ContentType: ContentType[i] }, (err, { Location }) => {
                 if (!err) {
-                    const url = apiEndpoint ? this.toPosix(apiEndpoint, Key[i]) : result.Location;
+                    const url = apiEndpoint ? this.toPosix(apiEndpoint, Key[i]) : Location;
                     this.writeMessage('Upload success', url, service);
                     if (i === 0) {
                         success(url);
@@ -96,9 +96,9 @@ function uploadS3(this: IFileManager, service: string, credential: S3CloudCreden
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = uploadS3;
-    module.exports.default = uploadS3;
-    module.exports.__esModule = true;
+    module.exports = upload;
+    module.exports.default = upload;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }
 
-export default uploadS3 as UploadHost;
+export default upload as UploadHost;

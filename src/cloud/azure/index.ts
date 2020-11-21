@@ -2,12 +2,12 @@ export interface AzureCloudCredential extends functions.external.Cloud.StorageSh
     container?: string;
 }
 
-const validateAzure = (config: AzureCloudCredential) => !!(config.accountName && config.accountKey);
+const validate = (config: AzureCloudCredential) => !!(config.accountName && config.accountKey);
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = validateAzure;
-    module.exports.default = validateAzure;
-    module.exports.__esModule = true;
+    module.exports = { validate };
+    module.exports.default = validate;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }
 
-export default validateAzure;
+export default validate;

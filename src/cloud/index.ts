@@ -39,7 +39,7 @@ const Cloud = new class extends Module implements functions.ICloud {
             const service = data.service.trim();
             try {
                 const settings: PlainObject = data.settings && this.settings?.[service]?.[data.settings] || {};
-                if ((serviceMap[service] ||= require(`../cloud/${service}`) as ServiceClient)({ ...settings, ...data })) {
+                if ((serviceMap[service] ||= require(`../cloud/${service}`) as ServiceClient).validate({ ...settings, ...data })) {
                     return action;
                 }
             }
@@ -54,7 +54,7 @@ const Cloud = new class extends Module implements functions.ICloud {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = Cloud;
     module.exports.default = Cloud;
-    module.exports.__esModule = true;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }
 
 export default Cloud;

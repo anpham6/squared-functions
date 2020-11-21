@@ -6,12 +6,12 @@ export interface GCSCloudCredential extends GoogleAuthOptions {
     storageClass?: "STANDARD" | "NEARLINE" | "COLDLINE" | "ARCHIVE";
 }
 
-const validateGCS = (config: GCSCloudCredential) => !!(config.keyFile || config.keyFilename);
+const validate = (config: GCSCloudCredential) => !!(config.keyFile || config.keyFilename);
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = validateGCS;
-    module.exports.default = validateGCS;
-    module.exports.__esModule = true;
+    module.exports = { validate };
+    module.exports.default = validate;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }
 
-export default validateGCS;
+export default validate;

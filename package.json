@@ -1,6 +1,6 @@
 {
   "name": "squared-functions",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Parent folder for @squared-functions packages.",
   "scripts": {
     "dev": "npm run build && copyfiles -a ./publish/**/* -u 1 ../squared/node_modules/@squared-functions",

@@ -13,12 +13,12 @@ export function setCredential(credential: OCICloudCredential) {
     credential.signatureVersion = 'v4';
 }
 
-const validateOCI = (config: OCICloudCredential) => !!(config.region && config.namespace && config.accessKeyId && config.secretAccessKey);
+const validate = (config: OCICloudCredential) => !!(config.region && config.namespace && config.accessKeyId && config.secretAccessKey);
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = validateOCI;
-    module.exports.default = validateOCI;
-    module.exports.__esModule = true;
+    module.exports = { validate, setCredential };
+    module.exports.default = validate;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }
 
-export default validateOCI;
+export default validate;

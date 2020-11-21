@@ -13,7 +13,7 @@ type UploadHost = functions.internal.Cloud.UploadHost;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function uploadGCS(this: IFileManager, service: string, credential: GCSCloudCredential): UploadCallback {
+function upload(this: IFileManager, service: string, credential: GCSCloudCredential): UploadCallback {
     let storage: gcs.Storage;
     try {
         const { Storage } = require('@google-cloud/storage');
@@ -25,7 +25,7 @@ function uploadGCS(this: IFileManager, service: string, credential: GCSCloudCred
     }
     return async (data: UploadData, success: (value: string) => void) => {
         if (!credential.bucket) {
-            data.storage.bucket = data.bucketGroup;
+            data.service.bucket = data.bucketGroup;
             credential.bucket = data.bucketGroup;
         }
         const { active, apiEndpoint, publicAccess } = data.upload;
@@ -128,9 +128,9 @@ function uploadGCS(this: IFileManager, service: string, credential: GCSCloudCred
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = uploadGCS;
-    module.exports.default = uploadGCS;
-    module.exports.__esModule = true;
+    module.exports = upload;
+    module.exports.default = upload;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }
 
-export default uploadGCS as UploadHost;
+export default upload as UploadHost;

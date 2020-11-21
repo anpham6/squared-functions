@@ -187,7 +187,7 @@ const Chrome = class extends Module implements functions.IChrome {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = Chrome;
     module.exports.default = Chrome;
-    module.exports.__esModule = true;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }
 
 export default Chrome;

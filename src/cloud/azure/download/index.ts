@@ -6,20 +6,20 @@ type IFileManager = functions.IFileManager;
 type CloudServiceDownload = functions.squared.CloudServiceDownload;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 
-async function downloadAzure(this: IFileManager, service: string, credential: AzureCloudCredential, download: CloudServiceDownload, success: (value: Null<Buffer>) => void) {
+async function download(this: IFileManager, service: string, credential: AzureCloudCredential, data: CloudServiceDownload, success: (value: Null<Buffer>) => void) {
     const container = credential.container;
     if (container) {
         try {
             const { BlobServiceClient, StorageSharedKeyCredential } = require('@azure/storage-blob');
             const sharedKeyCredential = new StorageSharedKeyCredential(credential.accountName, credential.accountKey) as azure.StorageSharedKeyCredential;
             const blobServiceClient = new BlobServiceClient(`https://${credential.accountName}.blob.core.windows.net`, sharedKeyCredential) as azure.BlobServiceClient;
-            const blobClient = blobServiceClient.getContainerClient(container).getBlockBlobClient(download.filename);
-            const location = container + '/' + download.filename;
+            const blobClient = blobServiceClient.getContainerClient(container).getBlockBlobClient(data.filename);
+            const location = container + '/' + data.filename;
             blobClient.downloadToBuffer()
                 .then(buffer => {
                     this.writeMessage('Download success', location, service);
                     success(buffer);
-                    if (download.deleteStorage) {
+                    if (data.deleteStorage) {
                         blobClient.delete()
                             .then(() => this.writeMessage('Delete success', location, service, 'grey'))
                             .catch(err => {
@@ -40,15 +40,15 @@ async function downloadAzure(this: IFileManager, service: string, credential: Az
         }
     }
     else {
-        this.writeMessage('Container not specified', download.filename, service, 'red');
+        this.writeMessage('Container not specified', data.filename, service, 'red');
         success(null);
     }
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = downloadAzure;
-    module.exports.default = downloadAzure;
-    module.exports.__esModule = true;
+    module.exports = download;
+    module.exports.default = download;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }
 
-export default downloadAzure as DownloadHost;
+export default download as DownloadHost;

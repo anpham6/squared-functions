@@ -10,7 +10,7 @@ type IFileManager = functions.IFileManager;
 type CloudServiceDownload = functions.squared.CloudServiceDownload;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 
-async function downloadGCS(this: IFileManager, service: string, credential: GCSCloudCredential, download: CloudServiceDownload, success: (value: string) => void) {
+async function download(this: IFileManager, service: string, credential: GCSCloudCredential, data: CloudServiceDownload, success: (value: string) => void) {
     const bucket = credential.bucket;
     if (bucket) {
         try {
@@ -22,16 +22,16 @@ async function downloadGCS(this: IFileManager, service: string, credential: GCSC
             catch {
                 tempDir = this.getTempDir();
             }
-            const filename = download.filename;
+            const filename = data.filename;
             const destination = tempDir + filename;
             const storage = new Storage(credential) as gcs.Storage;
-            const file = storage.bucket(bucket).file(filename, { generation: download.versionId });
+            const file = storage.bucket(bucket).file(filename, { generation: data.versionId });
             file.download({ destination })
                 .then(() => {
                     const location = bucket + '/' + filename;
                     this.writeMessage('Download success', location, service);
                     success(destination);
-                    if (download.deleteStorage) {
+                    if (data.deleteStorage) {
                         file.delete({ ignoreNotFound: true }, err => {
                             if (!err) {
                                 this.writeMessage('Delete success', location, service, 'grey');
@@ -54,15 +54,15 @@ async function downloadGCS(this: IFileManager, service: string, credential: GCSC
         }
     }
     else {
-        this.writeMessage(`Container not specified`, download.filename, service, 'red');
+        this.writeMessage(`Container not specified`, data.filename, service, 'red');
         success('');
     }
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = downloadGCS;
-    module.exports.default = downloadGCS;
-    module.exports.__esModule = true;
+    module.exports = download;
+    module.exports.default = download;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }
 
-export default downloadGCS as DownloadHost;
+export default download as DownloadHost;

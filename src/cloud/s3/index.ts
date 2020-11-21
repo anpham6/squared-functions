@@ -5,12 +5,12 @@ export interface S3CloudCredential extends aws.ConfigurationOptions {
     endpoint?: string;
 }
 
-const validateS3 = (config: S3CloudCredential) => !!(config.accessKeyId && config.secretAccessKey);
+const validate = (config: S3CloudCredential) => !!(config.accessKeyId && config.secretAccessKey);
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = validateS3;
-    module.exports.default = validateS3;
-    module.exports.__esModule = true;
+    module.exports = { validate };
+    module.exports.default = validate;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }
 
-export default validateS3;
+export default validate;

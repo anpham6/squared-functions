@@ -434,7 +434,7 @@ const Image = new class extends Module implements functions.IImage {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = Image;
     module.exports.default = Image;
-    module.exports.__esModule = true;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }
 
 export default Image;

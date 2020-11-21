@@ -62,7 +62,7 @@ const Module = class implements functions.IModule {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = Module;
     module.exports.default = Module;
-    module.exports.__esModule = true;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }
 
 export default Module;

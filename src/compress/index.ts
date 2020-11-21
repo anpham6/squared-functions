@@ -134,7 +134,7 @@ const Compress = new class extends Module implements functions.ICompress {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = Compress;
     module.exports.default = Compress;
-    module.exports.__esModule = true;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }
 
 export default Compress;
