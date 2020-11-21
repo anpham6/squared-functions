@@ -1,6 +1,6 @@
 {
   "name": "squared-functions",
-  "version": "0.6.3",
+  "version": "0.7.0",
   "description": "Parent folder for @squared-functions packages.",
   "scripts": {
     "dev": "npm run build && copyfiles -a ./publish/**/* -u 1 ../squared/node_modules/@squared-functions",
@@ -16,6 +16,11 @@
   "keywords": [
     "squared",
     "express",
+    "aws",
+    "s3",
+    "azure",
+    "gcs",
+    "oci",
     "serverless"
   ],
   "author": "An Pham <anpham6@gmail.com>",
@@ -36,9 +41,9 @@
     "@types/uuid": "^8.3.0",
     "@typescript-eslint/eslint-plugin": "^4.8.1",
     "@typescript-eslint/parser": "^4.8.1",
-    "aws-sdk": "^2.796.0",
+    "aws-sdk": "^2.797.0",
     "copyfiles": "^2.4.0",
-    "eslint": "^7.13.0",
+    "eslint": "^7.14.0",
     "jimp": "^0.16.1",
     "rimraf": "^3.0.2",
     "rollup": "^2.33.3",

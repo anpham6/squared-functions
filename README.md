@@ -1,4 +1,4 @@
-### squared-functions 0.5
+### squared-functions 0.7
 
 These are some of the available options when creating archives or copying files with squared 2.1.
 
@@ -480,6 +480,7 @@ Other service providers can be integrated similarly except for credential verifi
       "bucket": "squared-001",
       "accessKeyId": "**********", // Using settings (optional)
       "secretAccessKey": "**********", // Using settings (optional)
+      "settings": "main" // Load host configuration at instantiation (optional)
       "upload": {
         "active": false, // Rewrites "src" to cloud storage location (optional)
         "localStorage": true, // Removes all files from archive or local disk (optional)
@@ -492,7 +493,8 @@ Other service providers can be integrated similarly except for credential verifi
         "versionId": "12345", // Retrieve a previous file snapshot (optional)
         "pathname": "download/images", // Base directory when empty (optional)
         "active": false, // Always write file or rename to main file when same extension (optional)
-        "overwrite": false // Always write file (optional)
+        "overwrite": false, // Always write file (optional)
+        "deleteObject": false // Remove if download success (optional)
       }
     },
     {
@@ -508,7 +510,6 @@ Other service providers can be integrated similarly except for credential verifi
       "service": "gcs",
       "bucket": "squared-003", // Can be generated automatically (optional)
       "keyFilename": "./gcs.json", // Path to JSON credentials
-      "settings": "main" // Load host configuration at instantiation (optional)
       "upload": {
         "publicAccess": false // Only applies when a bucket is created (optional: "true" when active is "true")
       }
@@ -516,10 +517,10 @@ Other service providers can be integrated similarly except for credential verifi
     {
       "service": "oci",
       "bucket": "squared-004", // New buckets are private when using S3 API
-      "region": "us-phoenix-1", // Using settings (optional)
-      "namespace": "abcdefghijkl", // Using settings (optional)
-      "accessKeyId": "**********", // Using settings (optional)
-      "secretAccessKey": "**********" // Using settings (optional)
+      "region": "us-phoenix-1",
+      "namespace": "abcdefghijkl",
+      "accessKeyId": "**********",
+      "secretAccessKey": "**********"
     }
   ]
 }
