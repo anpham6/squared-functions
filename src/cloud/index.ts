@@ -1,11 +1,9 @@
 import Module from '../module';
 
 type CloudFunctions = functions.CloudFunctions;
-
 type CloudService = functions.squared.CloudService;
 type CloudServiceAction = functions.squared.CloudServiceAction;
 type CloudModule = functions.settings.CloudModule;
-
 type ServiceClient = functions.internal.Cloud.ServiceClient;
 
 const serviceMap: ObjectMap<ServiceClient> = {};
@@ -13,6 +11,18 @@ const serviceMap: ObjectMap<ServiceClient> = {};
 const Cloud = new class extends Module implements functions.ICloud {
     settings: CloudModule = {};
 
+    getBucket(data: CloudService) {
+        let result: Undef<string>;
+        switch (data.service) {
+            case 'azure':
+                result = data.container as Undef<string>;
+                break;
+            default:
+                result = data.bucket as Undef<string>;
+                break;
+        }
+        return result || '';
+    }
     getService(functionName: CloudFunctions, data: Undef<CloudService[]>) {
         if (data) {
             for (const item of data) {

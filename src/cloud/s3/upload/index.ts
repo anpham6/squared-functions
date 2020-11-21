@@ -6,7 +6,6 @@ import path = require('path');
 import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
-
 type UploadData = functions.internal.Cloud.UploadData<S3CloudCredential>;
 type UploadHost = functions.internal.Cloud.UploadHost;
 type UploadCallback = functions.internal.Cloud.UploadCallback;

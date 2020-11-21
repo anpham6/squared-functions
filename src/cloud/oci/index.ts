@@ -7,6 +7,12 @@ export interface OCICloudCredential extends aws.ConfigurationOptions, PlainObjec
     endpoint?: string;
 }
 
+export function setCredential(credential: OCICloudCredential) {
+    credential.endpoint = `https://${credential.namespace}.compat.objectstorage.${credential.region}.oraclecloud.com`;
+    credential.s3ForcePathStyle = true;
+    credential.signatureVersion = 'v4';
+}
+
 const validateOCI = (config: OCICloudCredential) => !!(config.region && config.namespace && config.accessKeyId && config.secretAccessKey);
 
 if (typeof module !== 'undefined' && module.exports) {

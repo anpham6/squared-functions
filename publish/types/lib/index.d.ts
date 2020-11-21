@@ -61,8 +61,11 @@ declare namespace functions {
             publicAccess?: boolean;
         }
 
-        interface CloudServiceDownload extends CloudServiceAction, Partial<LocationUri> {
+        interface CloudServiceDownload extends CloudServiceAction {
+            filename: string;
+            pathname?: string;
             versionId?: string;
+            deleteStorage?: string;
         }
 
         interface WatchInterval {
@@ -193,7 +196,7 @@ declare namespace functions {
         }
 
         namespace Cloud {
-            interface UploadData<T>{
+            interface UploadData<T> {
                 buffer: Buffer;
                 storage: squared.CloudService;
                 upload: squared.CloudServiceUpload;
@@ -207,8 +210,8 @@ declare namespace functions {
 
             type ServiceClient = (config: squared.CloudService) => boolean;
             type UploadHost = (this: IFileManager, service: string, credential: PlainObject) => UploadCallback;
-            type DownloadHost = (this: IFileManager, service: string, credential: PlainObject, filename: string, versionId: Undef<string>, success: (value: Null<Buffer | string>) => void) => void;
-            type UploadCallback = (options: UploadData<unknown>, success: (value: string) => void) => void;
+            type DownloadHost = (this: IFileManager, service: string, credential: PlainObject, download: squared.CloudServiceDownload, success: (value: Null<Buffer | string>) => void) => void;
+            type UploadCallback = (data: UploadData<unknown>, success: (value: string) => void) => void;
         }
 
         interface FileData {
@@ -304,6 +307,7 @@ declare namespace functions {
 
     interface ICloud extends IModule {
         settings: settings.CloudModule;
+        getBucket(data: squared.CloudService): string;
         getService(functionName: CloudFunctions, data: Undef<squared.CloudService[]>): Undef<squared.CloudService>;
         hasService(functionName: CloudFunctions, data: squared.CloudService): squared.CloudServiceAction | false;
     }

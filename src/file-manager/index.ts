@@ -1886,12 +1886,12 @@ const FileManager = class extends Module implements IFileManager {
                     }
                 }
             }
-            const downloadMap: ObjectMap<boolean> = {};
+            const downloadMap: ObjectMap<Set<string>> = {};
             for (const item of this.assets) {
                 if (item.cloudStorage) {
                     for (const data of item.cloudStorage) {
                         if (Cloud.hasService('download', data)) {
-                            const { active, pathname, filename, versionId, overwrite } = data.download!;
+                            const { active, pathname, filename, overwrite } = data.download!;
                             if (filename) {
                                 const service = data.service.toUpperCase();
                                 const fileUri = !item.invalid && item.fileUri;
@@ -1915,33 +1915,43 @@ const FileManager = class extends Module implements IFileManager {
                                     }
                                     valid = true;
                                 }
-                                if (valid && !downloadMap[downloadUri]) {
-                                    downloadMap[downloadUri] = true;
-                                    tasks.push(new Promise<void>(resolve => {
-                                        try {
-                                            (require(`../cloud/${service.toLowerCase()}/download`) as DownloadHost).call(this, service, createCredential(data), filename, versionId, (value: Null<Buffer | string>) => {
-                                                if (value) {
-                                                    try {
-                                                        if (typeof value === 'string') {
-                                                            fs.moveSync(value, downloadUri, { overwrite: true });
+                                if (valid) {
+                                    const location = service + Cloud.getBucket(data) + filename;
+                                    if (downloadMap[location]) {
+                                        downloadMap[location].add(downloadUri);
+                                    }
+                                    else {
+                                        downloadMap[location] = new Set<string>([downloadUri]);
+                                        tasks.push(new Promise<void>(resolve => {
+                                            try {
+                                                (require(`../cloud/${service.toLowerCase()}/download`) as DownloadHost).call(this, service, createCredential(data), data.download!, (value: Null<Buffer | string>) => {
+                                                    if (value) {
+                                                        try {
+                                                            const items = Array.from(downloadMap[location]);
+                                                            for (let i = 0, length = items.length; i < length; ++i) {
+                                                                const destUri = items[i];
+                                                                if (typeof value === 'string') {
+                                                                    fs[i === length - 1 ? 'moveSync' : 'copySync'](value, destUri, { overwrite: true });
+                                                                }
+                                                                else {
+                                                                    fs.writeFileSync(destUri, value);
+                                                                }
+                                                                this.add(destUri);
+                                                            }
                                                         }
-                                                        else {
-                                                            fs.writeFileSync(downloadUri, value);
+                                                        catch (err) {
+                                                            this.writeFail(`Write buffer [${service}]`, err);
                                                         }
-                                                        this.add(downloadUri);
                                                     }
-                                                    catch (err) {
-                                                        this.writeFail(`Write buffer [${service}]`, err);
-                                                    }
-                                                }
+                                                    resolve();
+                                                });
+                                            }
+                                            catch (err) {
+                                                this.writeFail(`${service} does not support download function.`, err);
                                                 resolve();
-                                            });
-                                        }
-                                        catch (err) {
-                                            this.writeFail(`${service} does not support download function.`, err);
-                                            resolve();
-                                        }
-                                    }));
+                                            }
+                                        }));
+                                    }
                                 }
                             }
                         }

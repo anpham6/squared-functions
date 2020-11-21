@@ -7,10 +7,10 @@ import fs = require('fs-extra');
 import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
-
+type CloudServiceDownload = functions.squared.CloudServiceDownload;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 
-async function downloadGCS(this: IFileManager, service: string, credential: GCSCloudCredential, filename: string, generation: Undef<string>, success: (value: string) => void) {
+async function downloadGCS(this: IFileManager, service: string, credential: GCSCloudCredential, download: CloudServiceDownload, success: (value: string) => void) {
     const bucket = credential.bucket;
     if (bucket) {
         try {
@@ -22,15 +22,25 @@ async function downloadGCS(this: IFileManager, service: string, credential: GCSC
             catch {
                 tempDir = this.getTempDir();
             }
+            const filename = download.filename;
             const destination = tempDir + filename;
             const storage = new Storage(credential) as gcs.Storage;
-            storage
-                .bucket(bucket)
-                .file(filename, { generation })
-                .download({ destination })
+            const file = storage.bucket(bucket).file(filename, { generation: download.versionId });
+            file.download({ destination })
                 .then(() => {
-                    this.writeMessage('Download success', bucket + '/' + filename, service);
+                    const location = bucket + '/' + filename;
+                    this.writeMessage('Download success', location, service);
                     success(destination);
+                    if (download.deleteStorage) {
+                        file.delete({ ignoreNotFound: true }, err => {
+                            if (!err) {
+                                this.writeMessage('Delete success', location, service, 'grey');
+                            }
+                            else {
+                                this.writeMessage(`Delete failed [${location}]`, err, service, 'red');
+                            }
+                        });
+                    }
                 })
                 .catch((err: Error) => {
                     this.writeMessage('Download failed', err, service, 'red');
@@ -44,7 +54,7 @@ async function downloadGCS(this: IFileManager, service: string, credential: GCSC
         }
     }
     else {
-        this.writeMessage(`Container not specified`, filename, service, 'red');
+        this.writeMessage(`Container not specified`, download.filename, service, 'red');
         success('');
     }
 }

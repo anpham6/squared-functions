@@ -3,26 +3,34 @@ import type * as azure from '@azure/storage-blob';
 import type { AzureCloudCredential } from '../index';
 
 type IFileManager = functions.IFileManager;
-
+type CloudServiceDownload = functions.squared.CloudServiceDownload;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 
-async function downloadAzure(this: IFileManager, service: string, credential: AzureCloudCredential, blobName: string, versionId: Undef<string>, success: (value: Null<Buffer>) => void) {
+async function downloadAzure(this: IFileManager, service: string, credential: AzureCloudCredential, download: CloudServiceDownload, success: (value: Null<Buffer>) => void) {
     const container = credential.container;
     if (container) {
         try {
             const { BlobServiceClient, StorageSharedKeyCredential } = require('@azure/storage-blob');
             const sharedKeyCredential = new StorageSharedKeyCredential(credential.accountName, credential.accountKey) as azure.StorageSharedKeyCredential;
             const blobServiceClient = new BlobServiceClient(`https://${credential.accountName}.blob.core.windows.net`, sharedKeyCredential) as azure.BlobServiceClient;
-            blobServiceClient
-                .getContainerClient(container)
-                .getBlockBlobClient(blobName)
-                .downloadToBuffer()
+            const blobClient = blobServiceClient.getContainerClient(container).getBlockBlobClient(download.filename);
+            const location = container + '/' + download.filename;
+            blobClient.downloadToBuffer()
                 .then(buffer => {
-                    this.writeMessage('Download success', container + '/' + blobName, service);
+                    this.writeMessage('Download success', location, service);
                     success(buffer);
+                    if (download.deleteStorage) {
+                        blobClient.delete()
+                            .then(() => this.writeMessage('Delete success', location, service, 'grey'))
+                            .catch(err => {
+                                if (err.code !== 'BlobNotFound') {
+                                    this.writeMessage(`Delete failed [${location}]`, err, service, 'red');
+                                }
+                            });
+                    }
                 })
                 .catch(err => {
-                    this.writeMessage('Download failed', err, service, 'red');
+                    this.writeMessage(`Download failed [${location}]`, err, service, 'red');
                     success(null);
                 });
         }
@@ -32,7 +40,7 @@ async function downloadAzure(this: IFileManager, service: string, credential: Az
         }
     }
     else {
-        this.writeMessage('Container not specified', blobName, service, 'red');
+        this.writeMessage('Container not specified', download.filename, service, 'red');
         success(null);
     }
 }

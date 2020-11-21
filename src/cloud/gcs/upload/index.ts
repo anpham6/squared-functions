@@ -7,7 +7,6 @@ import fs = require('fs-extra');
 import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
-
 type UploadData = functions.internal.Cloud.UploadData<GCSCloudCredential>;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 type UploadHost = functions.internal.Cloud.UploadHost;
