@@ -22,7 +22,7 @@ async function downloadGCS(this: IFileManager, service: string, credential: GCSC
             catch {
                 tempDir = this.getTempDir();
             }
-            const location = bucket + ':' + filename;
+            const location = bucket + '/' + filename;
             const destination = tempDir + filename;
             const storage = new Storage(credential) as gcs.Storage;
             storage
@@ -34,7 +34,7 @@ async function downloadGCS(this: IFileManager, service: string, credential: GCSC
                     success(destination);
                 })
                 .catch((err: Error) => {
-                    this.writeMessage(`Download failed [${location}]`, err, service, 'red');
+                    this.writeMessage('Download failed', err, service, 'red');
                     success('');
                 });
 

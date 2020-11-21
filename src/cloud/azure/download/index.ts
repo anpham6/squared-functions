@@ -11,7 +11,7 @@ async function downloadAzure(this: IFileManager, service: string, credential: Az
     if (container) {
         try {
             const { BlobServiceClient, StorageSharedKeyCredential } = require('@azure/storage-blob');
-            const location = container + ':' + blobName;
+            const location = container + '/' + blobName;
             const sharedKeyCredential = new StorageSharedKeyCredential(credential.accountName, credential.accountKey) as azure.StorageSharedKeyCredential;
             const blobServiceClient = new BlobServiceClient(`https://${credential.accountName}.blob.core.windows.net`, sharedKeyCredential) as azure.BlobServiceClient;
             blobServiceClient
@@ -23,7 +23,7 @@ async function downloadAzure(this: IFileManager, service: string, credential: Az
                     success(buffer);
                 })
                 .catch(err => {
-                    this.writeMessage(`Download failed [${location}]`, err, service, 'red');
+                    this.writeMessage('Download failed', err, service, 'red');
                     success(null);
                 });
         }

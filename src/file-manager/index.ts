@@ -440,10 +440,10 @@ const FileManager = class extends Module implements IFileManager {
     transformCss(file: ExternalAsset, source: string) {
         const getCloudUUID = (item: Undef<ExternalAsset>, url: string) => {
             if (item && Cloud.getService('upload', item.cloudStorage)) {
-                const value = uuid.v4();
-                item.inlineCssCloud = value;
-                (file.inlineMap ||= {})[value] = url;
-                return value;
+                if (!item.inlineCssCloud) {
+                    (file.inlineMap ||= {})[item.inlineCssCloud = uuid.v4()] = url;
+                }
+                return item.inlineCssCloud;
             }
             return url;
         };
@@ -1619,6 +1619,13 @@ const FileManager = class extends Module implements IFileManager {
             const bucketGroup = uuid.v4();
             const htmlFiles = this.getHtmlPages();
             const cssFiles: ExternalAsset[] = [];
+            let apiEndpoint: Undef<RegExp>;
+            if (htmlFiles.length === 1) {
+                const upload = Cloud.getService('upload', htmlFiles[0].cloudStorage)?.upload;
+                if (upload && upload.apiEndpoint) {
+                    apiEndpoint = new RegExp(escapeRegexp(this.toPosix(upload.apiEndpoint) + '/'), 'g');
+                }
+            }
             const getFiles = (item: ExternalAsset, data: CloudServiceUpload) => {
                 const files = [item.fileUri!];
                 const transforms: string[] = [];
@@ -1677,7 +1684,7 @@ const FileManager = class extends Module implements IFileManager {
                                                         fileGroup.push([service === 'gcs' ? group[j] : fs.readFileSync(group[j]), path.extname(group[j])]);
                                                     }
                                                     catch (err) {
-                                                        this.writeFail(`File not found [${group[j]!}]`, err);
+                                                        this.writeFail('File not found', err);
                                                     }
                                                 }
                                             }
@@ -1722,25 +1729,31 @@ const FileManager = class extends Module implements IFileManager {
                                 }
                                 Promise.all(uploadTasks)
                                     .then(result => {
-                                        const fileUri = result[0];
-                                        if (fileUri && data === cloudMain) {
+                                        if (data === cloudMain && result[0]) {
+                                            let cloudUri = result[0];
+                                            if (apiEndpoint) {
+                                                cloudUri = cloudUri.replace(apiEndpoint, '');
+                                            }
                                             if (item.inlineCloud) {
                                                 for (const content of htmlFiles) {
-                                                    content.sourceUTF8 = this.getUTF8String(content).replace(item.inlineCloud, fileUri);
+                                                    content.sourceUTF8 = this.getUTF8String(content).replace(item.inlineCloud, cloudUri);
                                                     delete cloudMap[item.inlineCloud];
                                                 }
                                             }
                                             else if (item.inlineCssCloud) {
                                                 const pattern = new RegExp(item.inlineCssCloud, 'g');
                                                 for (const content of htmlFiles) {
-                                                    content.sourceUTF8 = this.getUTF8String(content).replace(pattern, fileUri);
+                                                    content.sourceUTF8 = this.getUTF8String(content).replace(pattern, cloudUri);
                                                 }
                                                 for (const content of cssFiles) {
-                                                    content.sourceUTF8 = this.getUTF8String(content).replace(pattern, fileUri);
+                                                    if (content.inlineMap) {
+                                                        content.sourceUTF8 = this.getUTF8String(content).replace(pattern, cloudUri);
+                                                        modifiedCss!.add(content);
+                                                    }
                                                 }
                                                 delete cloudCssMap[item.inlineCssCloud];
                                             }
-                                            item.cloudUri = fileUri;
+                                            item.cloudUri = cloudUri;
                                         }
                                         resolve();
                                     })
@@ -1755,7 +1768,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
             };
             let modifiedHtml: Undef<boolean>,
-                modifiedCss: Undef<boolean>;
+                modifiedCss: Undef<Set<ExternalAsset>>;
             for (const item of this.assets) {
                 if (item.cloudStorage && !item.invalid) {
                     if (item.inlineCloud) {
@@ -1764,7 +1777,7 @@ const FileManager = class extends Module implements IFileManager {
                     }
                     else if (item.inlineCssCloud) {
                         cloudCssMap[item.inlineCssCloud] = item;
-                        modifiedCss = true;
+                        modifiedCss = new Set();
                     }
                     switch (item.mimeType) {
                         case '@text/html':
@@ -1785,19 +1798,18 @@ const FileManager = class extends Module implements IFileManager {
                 tasks = [];
             }
             if (modifiedCss) {
-                for (const item of cssFiles) {
-                    let sourceUTF8 = this.getUTF8String(item);
-                    for (const id in cloudCssMap) {
-                        const file = cloudCssMap[id];
-                        const inlineMap = file.inlineMap;
-                        if (inlineMap) {
-                            for (const location in inlineMap) {
-                                sourceUTF8 = sourceUTF8.replace(id, inlineMap[location]!);
-                            }
+                for (const id in cloudCssMap) {
+                    for (const item of cssFiles) {
+                        const inlineMap = item.inlineMap;
+                        if (inlineMap && inlineMap[id]) {
+                            item.sourceUTF8 = this.getUTF8String(item).replace(new RegExp(id, 'g'), inlineMap[id]!);
+                            modifiedCss.add(item);
                         }
-                        localStorage.delete(file);
                     }
-                    tasks.push(fs.writeFile(item.fileUri!, sourceUTF8, 'utf8'));
+                    localStorage.delete(cloudCssMap[id]);
+                }
+                if (modifiedCss.size) {
+                    tasks.push(...Array.from(modifiedCss).map(item => fs.writeFile(item.fileUri!, item.sourceUTF8, 'utf8')));
                 }
             }
             if (tasks.length) {
@@ -1823,24 +1835,25 @@ const FileManager = class extends Module implements IFileManager {
                         sourceUTF8 = sourceUTF8.replace(id, this.getFileUri(file));
                         localStorage.delete(file);
                     }
-                    const upload = Cloud.getService('upload', item.cloudStorage)?.upload;
-                    if (upload && upload.apiEndpoint) {
-                        sourceUTF8 = sourceUTF8.replace(new RegExp(escapeRegexp(upload.apiEndpoint.replace(/\/+$/, '') + '/'), 'g'), '');
+                    if (apiEndpoint) {
+                        sourceUTF8 = sourceUTF8.replace(apiEndpoint, '');
                     }
                     try {
                         fs.writeFileSync(item.fileUri!, sourceUTF8, 'utf8');
-                        await this.compressFile(item);
-                        compressMap.add(item);
-                        if (upload) {
-                            uploadFiles(item, 'text/html');
-                            await Promise.all(tasks).catch(err => this.writeFail('Upload HTML to cloud storage [finalize]', err));
-                            tasks = [];
-                        }
                     }
                     catch (err) {
                         this.writeFail('Update HTML [finalize]', err);
                     }
+                    await this.compressFile(item);
+                    compressMap.add(item);
+                    if (item.cloudStorage && item.cloudStorage.some(storage => Cloud.hasService('upload', storage))) {
+                        uploadFiles(item, 'text/html');
+                    }
                 }
+            }
+            if (tasks.length) {
+                await Promise.all(tasks).catch(err => this.writeFail('Upload HTML to cloud storage [finalize]', err));
+                tasks = [];
             }
             const emptyDir = new Set<string>();
             for (const [item, data] of localStorage) {
@@ -1897,7 +1910,7 @@ const FileManager = class extends Module implements IFileManager {
                                         fs.mkdirpSync(path.dirname(downloadUri));
                                     }
                                     catch (err) {
-                                        this.writeFail(`Download failed [${service}][${filename}]`, err);
+                                        this.writeFail('Unable to create directory', err);
                                         continue;
                                     }
                                     valid = true;
@@ -1918,7 +1931,7 @@ const FileManager = class extends Module implements IFileManager {
                                                         this.add(downloadUri);
                                                     }
                                                     catch (err) {
-                                                        this.writeFail(`Write buffer [${service}][${downloadUri}]`, err);
+                                                        this.writeFail(`Write buffer [${service}]`, err);
                                                     }
                                                 }
                                                 resolve();

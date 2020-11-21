@@ -13,7 +13,7 @@ async function downloadS3(this: IFileManager, service: string, credential: S3Clo
             const S3 = require('aws-sdk/clients/s3') as Constructor<aws.S3>;
             const s3 = new S3(credential);
             s3.getObject({ Bucket, Key }, (err, data) => {
-                const Location = Bucket + ':' + Key;
+                const Location = Bucket + '/' + Key;
                 if (!err) {
                     this.writeMessage('Download success', Location, service);
                     success(data.Body as Buffer);

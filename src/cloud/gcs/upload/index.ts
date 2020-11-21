@@ -74,10 +74,10 @@ function uploadGCS(this: IFileManager, service: string, credential: GCSCloudCred
             Body.push(item[0] as string);
             Key.push(filename + item[1]);
         }
-        const renamed = path.basename(fileUri) !== filename;
         for (let i = 0; i < Key.length; ++i) {
+            const transformUri = fileUri + path.extname(Key[i]);
             let sourceUri = i === 0 ? fileUri : Body[i] as string;
-            if (renamed) {
+            if (i === 0 || transformUri !== sourceUri) {
                 let tempDir = this.getTempDir() + uuid.v4() + path.sep;
                 try {
                     fs.mkdirpSync(tempDir);
@@ -98,7 +98,7 @@ function uploadGCS(this: IFileManager, service: string, credential: GCSCloudCred
                 }
                 else {
                     try {
-                        fs.copyFileSync(fileUri + path.extname(Key[i]), sourceUri);
+                        fs.copyFileSync(transformUri, sourceUri);
                     }
                     catch (err) {
                         this.writeMessage(`Unable to copy file [${fileUri}]`, err, service, 'red');
