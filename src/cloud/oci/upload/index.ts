@@ -6,7 +6,7 @@ type IFileManager = functions.IFileManager;
 type UploadHost = functions.internal.Cloud.UploadHost;
 
 function upload(this: IFileManager, service: string, credential: OCICloudCredential) {
-    setCredential(credential);
+    setCredential.call(this, credential);
     return (require('../../s3/upload') as UploadHost).call(this, service, credential);
 }
 

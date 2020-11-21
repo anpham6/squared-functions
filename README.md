@@ -449,6 +449,7 @@ Manual installation of the SDK is required including opening an account with at 
 * Amazon AWS
   - npm install aws-sdk
   - S3: https://aws.amazon.com/free (5GB)
+  - OCI: https://www.oracle.com/cloud/free/ (10GB)
 
 * Microsoft
   - npm install @azure/storage-blob
@@ -459,8 +460,8 @@ Manual installation of the SDK is required including opening an account with at 
   - GCS: https://cloud.google.com/free (5GB)
 
 * Oracle
-  - npm install aws-sdk (uses S3 compatibility API)
-  - OCI: https://www.oracle.com/cloud/free/ (10GB)
+  - OCI: Uses S3 compatibility API
+  - Cannot create new public buckets
 ```
 
 Other service providers can be integrated similarly except for credential verification.
@@ -510,8 +511,10 @@ Other service providers can be integrated similarly except for credential verifi
       "service": "gcs",
       "bucket": "squared-003", // Can be generated automatically (optional)
       "keyFilename": "./gcs.json", // Path to JSON credentials
+      "publicRead": false, // New buckets (optional: Not supported OCI)
       "upload": {
-        "publicAccess": false // Only applies when a bucket is created (optional: "true" when active is "true")
+        "active": true, // Implicity "publicRead: true" except when explicitly "publicRead: false"
+        "publicRead": false // Uses ACL (optional: Not supported Azure and OCI)
       }
     },
     {

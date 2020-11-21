@@ -3,11 +3,11 @@ import type { OCICloudCredential } from '../index';
 import { setCredential } from '../index';
 
 type IFileManager = functions.IFileManager;
-type CloudServiceDownload = functions.squared.CloudServiceDownload;
+type DownloadData = functions.internal.Cloud.DownloadData<OCICloudCredential>;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 
-async function download(this: IFileManager, service: string, credential: OCICloudCredential, data: CloudServiceDownload, success: (value?: unknown) => void) {
-    setCredential(credential);
+async function download(this: IFileManager, service: string, credential: OCICloudCredential, data: DownloadData, success: (value?: unknown) => void) {
+    setCredential.call(this, credential);
     return (require('../../s3/download') as DownloadHost).call(this, service, credential, data, success);
 }
 

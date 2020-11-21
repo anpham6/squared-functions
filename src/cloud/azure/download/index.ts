@@ -3,23 +3,23 @@ import type * as azure from '@azure/storage-blob';
 import type { AzureCloudCredential } from '../index';
 
 type IFileManager = functions.IFileManager;
-type CloudServiceDownload = functions.squared.CloudServiceDownload;
+type DownloadData = functions.internal.Cloud.DownloadData<AzureCloudCredential>;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 
-async function download(this: IFileManager, service: string, credential: AzureCloudCredential, data: CloudServiceDownload, success: (value: Null<Buffer>) => void) {
+async function download(this: IFileManager, service: string, credential: AzureCloudCredential, data: DownloadData, success: (value: Null<Buffer>) => void) {
     const container = credential.container;
     if (container) {
         try {
             const { BlobServiceClient, StorageSharedKeyCredential } = require('@azure/storage-blob');
             const sharedKeyCredential = new StorageSharedKeyCredential(credential.accountName, credential.accountKey) as azure.StorageSharedKeyCredential;
             const blobServiceClient = new BlobServiceClient(`https://${credential.accountName}.blob.core.windows.net`, sharedKeyCredential) as azure.BlobServiceClient;
-            const blobClient = blobServiceClient.getContainerClient(container).getBlockBlobClient(data.filename);
-            const location = container + '/' + data.filename;
+            const blobClient = blobServiceClient.getContainerClient(container).getBlockBlobClient(data.download.filename);
+            const location = container + '/' + data.download.filename;
             blobClient.downloadToBuffer()
                 .then(buffer => {
                     this.writeMessage('Download success', location, service);
                     success(buffer);
-                    if (data.deleteStorage) {
+                    if (data.download.deleteStorage) {
                         blobClient.delete()
                             .then(() => this.writeMessage('Delete success', location, service, 'grey'))
                             .catch(err => {
@@ -40,7 +40,7 @@ async function download(this: IFileManager, service: string, credential: AzureCl
         }
     }
     else {
-        this.writeMessage('Container not specified', data.filename, service, 'red');
+        this.writeMessage('Container not specified', data.download.filename, service, 'red');
         success(null);
     }
 }

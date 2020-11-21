@@ -154,7 +154,7 @@ const FileManager = class extends Module implements IFileManager {
     public Compress?: CompressModule;
     public Gulp?: GulpModule;
     public Watch?: boolean;
-    public basePath?: string;
+    public baseUrl?: string;
     public baseAsset?: ExternalAsset;
     public readonly assets: ExternalAsset[];
     public readonly files = new Set<string>();
@@ -187,10 +187,10 @@ const FileManager = class extends Module implements IFileManager {
                 this.Gulp = args[0] as GulpModule;
                 break;
             case 'chrome': {
-                const baseAsset = this.assets.find(item => item.basePath);
+                const baseAsset = this.assets.find(item => item.baseUrl);
                 if (baseAsset) {
                     this.baseAsset = baseAsset;
-                    this.basePath = baseAsset.basePath;
+                    this.baseUrl = baseAsset.baseUrl;
                     this.assets.sort((a, b) => {
                         if (a.bundleId && a.bundleId === b.bundleId) {
                             return a.bundleIndex! - b.bundleIndex!;
@@ -495,7 +495,7 @@ const FileManager = class extends Module implements IFileManager {
                 const asset = this.findAsset(url);
                 if (asset) {
                     const pathname = file.pathname;
-                    const count = pathname && pathname !== '/' && !file.basePath ? pathname.split(/[\\/]/).length : 0;
+                    const count = pathname && pathname !== '/' && !file.baseUrl ? pathname.split(/[\\/]/).length : 0;
                     output = (output || source).replace(match[0], `url(${getCloudUUID(asset, (count ? '../'.repeat(count) : '') + this.getFileUri(asset))})`);
                 }
             }
@@ -727,7 +727,7 @@ const FileManager = class extends Module implements IFileManager {
                         html = source;
                     }
                 }
-                const basePath = this.basePath;
+                const baseUrl = this.baseUrl;
                 for (const item of this.assets) {
                     if (item === file || item.content || item.bundleIndex !== undefined || item.inlineContent || !item.uri || item.invalid) {
                         continue;
@@ -740,8 +740,8 @@ const FileManager = class extends Module implements IFileManager {
                             let value: string,
                                 relativeUri: Undef<string>,
                                 ascending: Undef<boolean>;
-                            if (basePath) {
-                                relativeUri = uri.replace(basePath, '');
+                            if (baseUrl) {
+                                relativeUri = uri.replace(baseUrl, '');
                                 if (relativeUri === uri) {
                                     relativeUri = '';
                                 }
@@ -1926,7 +1926,8 @@ const FileManager = class extends Module implements IFileManager {
                                         downloadMap[location] = new Set<string>([downloadUri]);
                                         tasks.push(new Promise<void>(resolve => {
                                             try {
-                                                (require(`../cloud/${service.toLowerCase()}/download`) as DownloadHost).call(this, service, createCredential(data), data.download!, (value: Null<Buffer | string>) => {
+                                                const credential = createCredential(data);
+                                                (require(`../cloud/${service.toLowerCase()}/download`) as DownloadHost).call(this, service, credential, { service: data, credential, download: data.download! }, (value: Null<Buffer | string>) => {
                                                     if (value) {
                                                         try {
                                                             const items = Array.from(downloadMap[location]);

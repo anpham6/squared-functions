@@ -46,6 +46,7 @@ declare namespace functions {
             settings?: string;
             upload?: CloudServiceUpload;
             download?: CloudServiceDownload;
+            publicRead?: boolean;
         }
 
         interface CloudServiceAction {
@@ -58,7 +59,7 @@ declare namespace functions {
             localStorage?: boolean;
             apiEndpoint?: string;
             all?: boolean;
-            publicAccess?: boolean;
+            publicRead?: boolean;
         }
 
         interface CloudServiceDownload extends CloudServiceAction {
@@ -97,7 +98,7 @@ declare namespace functions {
             format?: string;
             preserve?: boolean;
             attributes?: AttributeValue[];
-            basePath?: string;
+            baseUrl?: string;
             bundleId?: number;
             bundleIndex?: number;
             bundleRoot?: string;
@@ -204,11 +205,14 @@ declare namespace functions {
             type CloudServiceUpload = squared.CloudServiceUpload;
             type CloudServiceDownload = squared.CloudServiceDownload;
 
-            interface UploadData<T> {
-                buffer: Buffer;
+            interface FunctionData<T> {
                 service: CloudService;
-                upload: CloudServiceUpload;
                 credential: T;
+            }
+
+            interface UploadData<T> extends FunctionData<T> {
+                upload: CloudServiceUpload;
+                buffer: Buffer;
                 fileUri: string;
                 fileGroup: [Buffer | string, string][];
                 bucketGroup: string;
@@ -216,13 +220,19 @@ declare namespace functions {
                 mimeType?: string;
             }
 
+            interface DownloadData<T> extends FunctionData<T> {
+                download: CloudServiceDownload;
+            }
+
             interface ServiceClient {
                 validate: (config: CloudService) => boolean;
-                setCredential?: (credential: PlainObject) => void;
+                setCredential?: (this: IFileManager, credential: PlainObject) => void;
+                setPublicRead?: (this: IFileManager, ...args: unknown[]) => void;
             }
 
             type UploadHost = (this: IFileManager, service: string, credential: PlainObject) => UploadCallback;
-            type DownloadHost = (this: IFileManager, service: string, credential: PlainObject, download: CloudServiceDownload, success: (value: Null<Buffer | string>) => void) => void;
+            type DownloadHost = (this: IFileManager, service: string, credential: PlainObject, data: DownloadData<unknown>, success: (value: Null<Buffer | string>) => void) => void;
+
             type UploadCallback = (data: UploadData<unknown>, success: (value: string) => void) => void;
         }
 
@@ -346,7 +356,7 @@ declare namespace functions {
         cleared: boolean;
         emptyDirectory: boolean;
         productionRelease: boolean;
-        basePath?: string;
+        baseUrl?: string;
         Chrome?: IChrome;
         Cloud?: settings.CloudModule;
         Compress?: settings.CompressModule;

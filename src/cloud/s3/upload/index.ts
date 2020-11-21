@@ -5,6 +5,8 @@ import type { S3CloudCredential } from '../index';
 import path = require('path');
 import uuid = require('uuid');
 
+import { setPublicRead } from '../index';
+
 type IFileManager = functions.IFileManager;
 type UploadData = functions.internal.Cloud.UploadData<S3CloudCredential>;
 type UploadHost = functions.internal.Cloud.UploadHost;
@@ -29,10 +31,10 @@ function upload(this: IFileManager, service: string, credential: S3CloudCredenti
         }
         const Bucket = credential.bucket;
         const bucketService = service + Bucket;
-        if (!BUCKET_MAP[bucketService]) {
-            const result = await s3.headBucket({ Bucket })
+        if (!BUCKET_MAP[bucketService] || data.service.publicRead) {
+             const result = await s3.headBucket({ Bucket })
                 .promise()
-                .then(() => BUCKET_MAP[bucketService] = true)
+                .then(() => true)
                 .catch(async () => {
                     const bucketRequest = { Bucket } as aws.S3.CreateBucketRequest;
                     if (credential.region) {
@@ -42,7 +44,11 @@ function upload(this: IFileManager, service: string, credential: S3CloudCredenti
                         .promise()
                         .then(() => {
                             this.writeMessage('Bucket created', Bucket, service, 'blue');
-                            return BUCKET_MAP[bucketService] = true;
+                            BUCKET_MAP[bucketService] = true;
+                            if (data.service.publicRead) {
+                                setPublicRead.call(this, s3, Bucket, service);
+                            }
+                            return true;
                         })
                         .catch(err => {
                             this.writeMessage(`Unable to create bucket [${Bucket}]`, err, service, 'red');
@@ -68,8 +74,8 @@ function upload(this: IFileManager, service: string, credential: S3CloudCredenti
                     }
                 });
         }
-        const { active, publicAccess, apiEndpoint } = data.upload;
-        const ACL = publicAccess || active && publicAccess !== false ? 'public-read' : '';
+        const { active, publicRead, apiEndpoint } = data.upload;
+        const ACL = publicRead || active && publicRead !== false ? 'public-read' : '';
         const Key = [filename];
         const Body = [data.buffer];
         const ContentType = [data.mimeType];
@@ -78,9 +84,9 @@ function upload(this: IFileManager, service: string, credential: S3CloudCredenti
             Key.push(filename + item[1]);
         }
         for (let i = 0; i < Key.length; ++i) {
-            s3.upload({ Bucket, Key: Key[i], ACL, Body: Body[i], ContentType: ContentType[i] }, (err, { Location }) => {
+            s3.upload({ Bucket, Key: Key[i], ACL, Body: Body[i], ContentType: ContentType[i] }, (err, result) => {
                 if (!err) {
-                    const url = apiEndpoint ? this.toPosix(apiEndpoint, Key[i]) : Location;
+                    const url = apiEndpoint ? this.toPosix(apiEndpoint, Key[i]) : result.Location;
                     this.writeMessage('Upload success', url, service);
                     if (i === 0) {
                         success(url);

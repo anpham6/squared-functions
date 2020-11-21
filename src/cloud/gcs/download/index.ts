@@ -7,12 +7,12 @@ import fs = require('fs-extra');
 import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
-type CloudServiceDownload = functions.squared.CloudServiceDownload;
+type DownloadData = functions.internal.Cloud.DownloadData<GCSCloudCredential>;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 
-async function download(this: IFileManager, service: string, credential: GCSCloudCredential, data: CloudServiceDownload, success: (value: string) => void) {
-    const bucket = credential.bucket;
-    if (bucket) {
+async function download(this: IFileManager, service: string, credential: GCSCloudCredential, data: DownloadData, success: (value: string) => void) {
+    const bucketName = credential.bucket;
+    if (bucketName) {
         try {
             const { Storage } = require('@google-cloud/storage');
             let tempDir = this.getTempDir() + uuid.v4() + path.sep;
@@ -22,16 +22,17 @@ async function download(this: IFileManager, service: string, credential: GCSClou
             catch {
                 tempDir = this.getTempDir();
             }
-            const filename = data.filename;
+            const filename = data.download.filename;
             const destination = tempDir + filename;
             const storage = new Storage(credential) as gcs.Storage;
-            const file = storage.bucket(bucket).file(filename, { generation: data.versionId });
+            const bucket = storage.bucket(bucketName);
+            const file = bucket.file(filename, { generation: data.download.versionId });
             file.download({ destination })
                 .then(() => {
-                    const location = bucket + '/' + filename;
+                    const location = bucketName + '/' + filename;
                     this.writeMessage('Download success', location, service);
                     success(destination);
-                    if (data.deleteStorage) {
+                    if (data.download.deleteStorage) {
                         file.delete({ ignoreNotFound: true }, err => {
                             if (!err) {
                                 this.writeMessage('Delete success', location, service, 'grey');
@@ -46,7 +47,6 @@ async function download(this: IFileManager, service: string, credential: GCSClou
                     this.writeMessage('Download failed', err, service, 'red');
                     success('');
                 });
-
         }
         catch (err) {
             this.writeFail(`Install ${service} SDK? [npm i @google-cloud/storage]`);
@@ -54,7 +54,7 @@ async function download(this: IFileManager, service: string, credential: GCSClou
         }
     }
     else {
-        this.writeMessage(`Container not specified`, data.filename, service, 'red');
+        this.writeMessage(`Container not specified`, data.download.filename, service, 'red');
         success('');
     }
 }

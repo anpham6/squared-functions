@@ -34,8 +34,8 @@ function upload(this: IFileManager, service: string, credential: AzureCloudCrede
         if (!BUCKET_MAP[container]) {
             try {
                 if (!await containerClient.exists()) {
-                    const { active, publicAccess } = data.upload;
-                    await containerClient.create({ access: publicAccess || active && publicAccess !== false ? 'blob' : 'container' });
+                    const { active, publicRead } = data.upload;
+                    await containerClient.create({ access: data.service.publicRead || publicRead || active && publicRead !== false ? 'blob' : 'container' });
                     this.writeMessage('Container created', container, service, 'blue');
                 }
             }
