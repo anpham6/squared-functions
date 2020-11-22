@@ -44,7 +44,7 @@ const Cloud = new class extends Module implements functions.ICloud {
                 }
             }
             catch (err) {
-                this.writeFail(`Cloud provider not found [${service}]`, err);
+                this.writeFail(['Cloud provider not found', service], err);
             }
         }
         return false;

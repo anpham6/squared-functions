@@ -20,7 +20,7 @@ function upload(this: IFileManager, service: string, credential: AzureCloudCrede
         blobServiceClient = new BlobServiceClient(`https://${credential.accountName}.blob.core.windows.net`, sharedKeyCredential) as azure.BlobServiceClient;
     }
     catch (err) {
-        this.writeFail(`Install ${service} SDK? [npm i @azure/storage-blob]`);
+        this.writeFail([`Install ${service} SDK?`, 'npm i @azure/storage-blob']);
         throw err;
     }
     return async (data: UploadData, success: (value: string) => void) => {
@@ -36,12 +36,12 @@ function upload(this: IFileManager, service: string, credential: AzureCloudCrede
                 if (!await containerClient.exists()) {
                     const { active, publicRead } = data.upload;
                     await containerClient.create({ access: data.service.publicRead || publicRead || active && publicRead !== false ? 'blob' : 'container' });
-                    this.writeMessage('Container created', container, service, 'blue');
+                    this.formatMessage(service, 'Container created', container, 'blue');
                 }
             }
             catch (err) {
                 if (err.code !== 'ContainerAlreadyExists') {
-                    this.writeMessage(`Unable to create container [${container}]`, err, service, 'red');
+                    this.formatMessage(service, ['Unable to create container', container], err, 'red');
                     success('');
                     return;
                 }
@@ -64,7 +64,7 @@ function upload(this: IFileManager, service: string, credential: AzureCloudCrede
                 exists = true;
             }
             if (exists) {
-                this.writeMessage(`File renamed [${filename}]`, filename = uuid.v4() + path.extname(fileUri), service, 'yellow');
+                this.formatMessage(service, ['File renamed', filename], filename = uuid.v4() + path.extname(fileUri), 'yellow');
             }
         }
         const Key = [filename];
@@ -80,14 +80,14 @@ function upload(this: IFileManager, service: string, credential: AzureCloudCrede
                 .upload(Body[i], Body[i].byteLength, { blobHTTPHeaders: { blobContentType: ContentType[i] } })
                 .then(() => {
                     const url = (apiEndpoint ? this.toPosix(apiEndpoint) : `https://${credential.accountName}.blob.core.windows.net/${container}`) + '/' + Key[i];
-                    this.writeMessage('Upload success', url, service);
+                    this.formatMessage(service, 'Upload success', url);
                     if (i === 0) {
                         success(url);
                     }
                 })
                 .catch(err => {
                     if (i === 0) {
-                        this.writeMessage(`Upload failed [${Key[i]}]`, err, service, 'red');
+                        this.formatMessage(service, ['Upload failed', Key[i]], err, 'red');
                         success('');
                     }
                 });

@@ -1,8 +1,10 @@
+import type { BackgroundColor, ForegroundColor } from 'chalk';
+
 import path = require('path');
 import fs = require('fs');
 import chalk = require('chalk');
 
-const getMessage = (value: unknown) => value !== undefined && value !== null ? ` (${value as string})` : '';
+const getMessage = (value: unknown) => value ? ` (${value as string})` : '';
 
 const Module = class implements functions.IModule {
     public major: number;
@@ -46,16 +48,20 @@ const Module = class implements functions.IModule {
     toPosix(value: string, filename?: string) {
         return value.replace(/\\+/g, '/').replace(/\/+$/, '') + (filename ? '/' + filename : '');
     }
-    writeMessage(value: string, message?: unknown, title = 'SUCCESS', color: "red" | "yellow" | "green" | "blue" | "white" | "grey" = 'green') {
+    writeFail(value: string | [string, string], message?: unknown) {
+        this.formatMessage('FAIL', value, message, 'white', 'bgRed');
+    }
+    formatMessage(title: string, value: string | [string, string], message?: unknown, color: typeof ForegroundColor = 'green', bgColor: typeof BackgroundColor = 'bgBlack') {
+        value = Array.isArray(value) ? value[0].padEnd(30) + chalk.blackBright('[') + (value[1].length > 28 ? value[1].substring(0, 25) + '...' : chalk.blackBright('_'.repeat(28 - value[1].length)) + value[1] + chalk.blackBright(']')) : value.padEnd(60);
+        this.writeMessage(title.padEnd(5), value, message, color, bgColor);
+    }
+    writeMessage(title: string, value: string, message?: unknown, color: typeof ForegroundColor = 'green', bgColor: typeof BackgroundColor = 'bgBlack') {
         try {
-            console.log(`${chalk.bold[color](title)}: ${value}` + getMessage(message));
+            console.log(`${chalk[bgColor].bold[color](title)}: ${value}` + getMessage(message));
         }
         catch {
             console.log(`${title}: ${value}` + getMessage(message));
         }
-    }
-    writeFail(value: string, message?: unknown) {
-        console.log(`${chalk.bgRed.bold.white('FAIL')}: ${value}` + getMessage(message));
     }
 };
 

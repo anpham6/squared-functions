@@ -82,7 +82,7 @@ const Chrome = class extends Module implements functions.IChrome {
                     return JSON.parse(fs.readFileSync(path.resolve(value), 'utf8').trim()) as StandardMap;
                 }
                 catch (err) {
-                    this.writeFail(`Could not load config [${value}]`, err);
+                    this.writeFail(['Could not load config', value], err);
                 }
             }
             else {
@@ -94,7 +94,7 @@ const Chrome = class extends Module implements functions.IChrome {
                 return JSON.parse(JSON.stringify(value));
             }
             catch (err) {
-                this.writeFail(`Could not parse config [JSON invalid]`, err);
+                this.writeFail(['Could not parse config', 'JSON invalid'], err);
             }
         }
     }
@@ -105,7 +105,7 @@ const Chrome = class extends Module implements functions.IChrome {
                 value = fs.readFileSync(path.resolve(value), 'utf8').trim();
             }
             catch (err) {
-                this.writeFail(`Could not load function [${value}]`, err);
+                this.writeFail(['Could not load function', value], err);
                 return null;
             }
         }
@@ -156,7 +156,7 @@ const Chrome = class extends Module implements functions.IChrome {
                             }
                         }
                         catch (err) {
-                            this.writeFail(`Install required? [npm i ${plugin}]`, err);
+                            this.writeFail(['Install required?', `npm i ${plugin}`], err);
                         }
                     }
                     else {
@@ -169,7 +169,7 @@ const Chrome = class extends Module implements functions.IChrome {
                             }
                         }
                         catch (err) {
-                            this.writeFail(`Transformer [${plugin}]`, err);
+                            this.writeFail(['Transformer', plugin], err);
                         }
                     }
                 }

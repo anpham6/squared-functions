@@ -24,7 +24,7 @@ function getPublicReadPolicy(bucket: string) {
 export function setPublicRead(this: IFileManager, s3: aws.S3, Bucket: string, service = 'S3') {
     s3.putBucketPolicy({ Bucket, Policy: getPublicReadPolicy(Bucket) }, err => {
         if (err) {
-            this.writeMessage(`Unable to grant public-read [${Bucket}]`, err, service, 'yellow');
+            this.formatMessage(service, ['Unable to grant public-read', Bucket], err, 'yellow');
         }
     });
 }

@@ -3,6 +3,7 @@
 import type { Response } from 'express';
 import type { CorsOptions } from 'cors';
 import type { WriteStream } from 'fs';
+import type { BackgroundColor, ForegroundColor } from 'chalk';
 
 import type { ConfigurationOptions } from 'aws-sdk/lib/core';
 import type { GoogleAuthOptions } from 'google-auth-library';
@@ -425,8 +426,9 @@ declare namespace functions {
         replaceExtension(value: string, ext: string): string;
         getTempDir(): string;
         toPosix(value: string, filename?: string): string;
-        writeMessage(value: string, message?: unknown, title?: string, color?: "red" | "yellow" | "green" | "blue" | "white" | "grey"): void;
-        writeFail(value: string, message?: unknown): void;
+        writeFail(value: string | [string, string], message?: unknown): void;
+        formatMessage(title: string, value: string | [string, string], message?: unknown, color?: typeof ForegroundColor, bgColor?: typeof BackgroundColor): void;
+        writeMessage(title: string, value: string, message?: unknown, color?: typeof ForegroundColor, bgColor?: typeof BackgroundColor): void;
     }
 
     interface ModuleConstructor {

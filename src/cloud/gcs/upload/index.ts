@@ -22,7 +22,7 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
         storage = new Storage(credential);
     }
     catch (err) {
-        this.writeFail(`Install ${service} SDK? [npm i @google-cloud/storage]`);
+        this.writeFail([`Install ${service} SDK?`, 'npm i @google-cloud/storage']);
         throw err;
     }
     return async (data: UploadData, success: (value: string) => void) => {
@@ -40,7 +40,7 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
                     storage.projectId = keyFile.project_id;
                     [bucket] = await storage.createBucket(bucketName, credential);
                     bucketName = bucket.name;
-                    this.writeMessage('Bucket created', bucketName, service, 'blue');
+                    this.formatMessage(service, 'Bucket created', bucketName, 'blue');
                     if (data.service.publicRead) {
                         bucket.makePublic().then(() => setPublicRead.call(this, bucket!.acl.default, bucketName, true));
                     }
@@ -48,7 +48,7 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
             }
             catch (err) {
                 if (err.code !== 409) {
-                    this.writeMessage(`Unable to create bucket [${bucketName}]`, err, service, 'red');
+                    this.formatMessage(service, ['Unable to create bucket', bucketName], err, 'red');
                     success('');
                     return;
                 }
@@ -67,7 +67,7 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
             catch {
             }
             if (exists) {
-                this.writeMessage(`File renamed [${filename}]`, filename = uuid.v4() + path.extname(fileUri), service, 'yellow');
+                this.formatMessage(service, ['File renamed', filename], filename = uuid.v4() + path.extname(fileUri), 'yellow');
             }
         }
         const Key = [filename];
@@ -94,7 +94,7 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
                         fs.writeFileSync(srcUri, Body[0]);
                     }
                     catch (err) {
-                        this.writeMessage(`Unable to write buffer [${fileUri}]`, err, service, 'red');
+                        this.formatMessage(service, ['Unable to write buffer', fileUri], err, 'red');
                         success('');
                         return;
                     }
@@ -104,7 +104,7 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
                         fs.copyFileSync(destUri, srcUri);
                     }
                     catch (err) {
-                        this.writeMessage(`Unable to copy file [${fileUri}]`, err, service, 'red');
+                        this.formatMessage(service, ['Unable to copy file', fileUri], err, 'red');
                         success('');
                         return;
                     }
@@ -114,7 +114,7 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
                 if (!err) {
                     const { active, apiEndpoint, publicRead } = data.upload;
                     const url = (apiEndpoint ? this.toPosix(apiEndpoint) : 'https://storage.googleapis.com/' + bucketName) + '/' + Key[i];
-                    this.writeMessage('Upload success', url, service);
+                    this.formatMessage(service, 'Upload success', url);
                     if (i === 0) {
                         success(url);
                     }
@@ -123,7 +123,7 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
                     }
                 }
                 else if (i === 0) {
-                    this.writeMessage(`Upload failed [${srcUri}]`, err, service, 'red');
+                    this.formatMessage(service, ['Upload failed', srcUri], err, 'red');
                     success('');
                 }
             });

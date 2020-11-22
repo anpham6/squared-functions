@@ -235,7 +235,7 @@ const FileManager = class extends Module implements IFileManager {
                     fs.renameSync(replaceWith, fileUri);
                 }
                 catch (err) {
-                    this.writeFail(replaceWith, err);
+                    this.writeFail(['Unable to rename file', replaceWith], err);
                 }
             }
             else {
@@ -373,7 +373,7 @@ const FileManager = class extends Module implements IFileManager {
                 file.sourceUTF8 = fs.readFileSync(fileUri!, 'utf8');
             }
             catch (err) {
-                this.writeFail(`File not found [${fileUri!}]`, err);
+                this.writeFail(['File not found', fileUri!], err);
             }
         }
         return file.sourceUTF8 || '';
@@ -575,7 +575,7 @@ const FileManager = class extends Module implements IFileManager {
             this.add(mapUri, file);
         }
         catch (err) {
-            this.writeFail(`Unable to generate source map [${name}]`, err);
+            this.writeFail(['Unable to generate source map', name], err);
         }
     }
     async transformBuffer(data: FileData) {
@@ -941,7 +941,7 @@ const FileManager = class extends Module implements IFileManager {
                     fs.copyFileSync(fileUri, output);
                 }
                 catch (err) {
-                    this.writeFail(fileUri, err);
+                    this.writeFail(['Unable to copy file', fileUri], err);
                     return '';
                 }
             }
@@ -974,7 +974,7 @@ const FileManager = class extends Module implements IFileManager {
                     });
                 }
                 catch (err) {
-                    this.writeFail(data.fileUri, err);
+                    this.writeFail(['Unable to compress image', data.fileUri], err);
                     this.finalizeAsset(data);
                 }
                 return;
@@ -984,7 +984,7 @@ const FileManager = class extends Module implements IFileManager {
     }
     finalizeImage(data: FileData, output: string, command: string, compress?: CompressFormat, error?: Null<Error>) {
         if (error) {
-            this.writeFail(output, error);
+            this.writeFail(['Unable to finalize image', output], error);
             this.completeAsyncTask();
         }
         else {
@@ -1014,7 +1014,7 @@ const FileManager = class extends Module implements IFileManager {
             if (compress) {
                 Compress.tryImage(output, (result: string, err: Null<Error>) => {
                     if (err) {
-                        this.writeFail(output, err);
+                        this.writeFail(['Unable to compress image', output], err);
                     }
                     this.completeAsyncTask(result || output, parent);
                 });
@@ -1115,14 +1115,8 @@ const FileManager = class extends Module implements IFileManager {
                         }
                         else if (uri) {
                             request(uri, (err, res) => {
-                                if (err) {
-                                    this.writeFail(uri, err);
-                                    notFound[uri] = true;
-                                    queue!.invalid = true;
-                                    resumeQueue();
-                                }
-                                else if (res.statusCode >= 300) {
-                                    this.writeFail(uri, res.statusCode + ' ' + res.statusMessage);
+                                if (err || res.statusCode >= 300) {
+                                    this.writeFail(['Unable to download file', uri], err || res.statusCode + ' ' + res.statusMessage);
                                     notFound[uri] = true;
                                     queue!.invalid = true;
                                     resumeQueue();
@@ -1160,7 +1154,7 @@ const FileManager = class extends Module implements IFileManager {
                 this.writeBuffer({ file, fileUri });
             }
         };
-        const errorRequest = (file: ExternalAsset, fileUri: string, message: Error | string, stream?: fs.WriteStream) => {
+        const errorRequest = (file: ExternalAsset, fileUri: string, err: Error | string, stream?: fs.WriteStream) => {
             const uri = file.uri!;
             if (!notFound[uri]) {
                 if (appending[fileUri]) {
@@ -1179,7 +1173,7 @@ const FileManager = class extends Module implements IFileManager {
                 catch {
                 }
             }
-            this.writeFail(uri, message);
+            this.writeFail(['Unable to download file', uri], err);
             file.invalid = true;
             delete processing[fileUri];
         };
@@ -1209,14 +1203,14 @@ const FileManager = class extends Module implements IFileManager {
                         fs.emptyDirSync(pathname);
                     }
                     catch (err) {
-                        this.writeFail(pathname, err);
+                        this.writeFail(['Unable to empty directory', pathname], err);
                     }
                 }
                 try {
                     fs.mkdirpSync(pathname);
                 }
                 catch (err) {
-                    this.writeFail(pathname, err);
+                    this.writeFail(['Unable to create directory', pathname], err);
                     file.invalid = true;
                 }
                 emptyDir.add(pathname);
@@ -1313,7 +1307,7 @@ const FileManager = class extends Module implements IFileManager {
             const tasks: Promise<void>[] = [];
             const gz = Compress.findFormat(file.compress, 'gz');
             if (gz) {
-                this.writeMessage('Compressing file...', fileUri + '.gz', 'GZ', 'yellow');
+                this.formatMessage('GZ', 'Compressing file...', fileUri + '.gz', 'yellow');
                 tasks.push(
                     new Promise<void>(resolve => Compress.tryFile(fileUri, gz, undefined, (result: string) => {
                         if (result) {
@@ -1326,7 +1320,7 @@ const FileManager = class extends Module implements IFileManager {
             if (Node.checkVersion(11, 7)) {
                 const br = Compress.findFormat(file.compress, 'br');
                 if (br) {
-                    this.writeMessage('Compressing file...', fileUri + '.br', 'BR', 'yellow');
+                    this.formatMessage('BR', 'Compressing file...', fileUri + '.br', 'yellow');
                     tasks.push(
                         new Promise<void>(resolve => Compress.tryFile(fileUri, br, undefined, (result: string) => {
                             if (result) {
@@ -1338,7 +1332,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                return Promise.all(tasks).catch(err => this.writeFail(`Compress [${fileUri}]`, err));
+                return Promise.all(tasks).catch(err => this.writeFail(['Compress', fileUri], err));
             }
         }
     }
@@ -1396,7 +1390,7 @@ const FileManager = class extends Module implements IFileManager {
                             }
                         }
                     })
-                    .catch(err => this.writeFail('Inline UTF-8 [finalize]', err));
+                    .catch(err => this.writeFail(['Inline UTF-8', 'finalize'], err));
                     tasks = [];
                 }
             }
@@ -1412,7 +1406,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail('Cache base64 [finalize]', err));
+                await Promise.all(tasks).catch(err => this.writeFail(['Cache base64', 'finalize'], err));
                 tasks = [];
             }
             const replaced = this.assets.filter(item => item.originalName && !item.invalid);
@@ -1446,7 +1440,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail('Replace UTF-8 [finalize]', err));
+                await Promise.all(tasks).catch(err => this.writeFail(['Replace UTF-8', 'finalize'], err));
                 tasks = [];
             }
         }
@@ -1456,14 +1450,14 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail('Write modified files [finalize]', err));
+            await Promise.all(tasks).catch(err => this.writeFail(['Write modified files', 'finalize'], err));
             tasks = [];
         }
         for (const value of this.filesToRemove) {
             tasks.push(fs.unlink(value).then(() => this.delete(value)));
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail('Delete temp files [finalize]', err));
+            await Promise.all(tasks).catch(err => this.writeFail(['Delete temp files', 'finalize'], err));
             tasks = [];
         }
         if (this.Gulp) {
@@ -1570,24 +1564,24 @@ const FileManager = class extends Module implements IFileManager {
                                                         }))
                                                         .then(() => callback())
                                                         .catch(errWrite => {
-                                                            this.writeFail('gulp: Unable to replace original files', errWrite);
+                                                            this.writeFail(['Unable to replace original files', `gulp:${task}`], errWrite);
                                                             callback();
                                                         });
                                                 }
                                             });
                                         })
-                                        .catch(error => this.writeFail('gulp: Unable to delete original files', error));
+                                        .catch(error => this.writeFail(['Unable to delete original files', `gulp:${task}`], error));
                                 }
                                 else {
-                                    this.writeFail(`gulp: exec (${task}:${path.basename(data.gulpfile)})`, err);
+                                    this.writeFail(['Exec', `gulp:${task}`], err);
                                     callback();
                                 }
                             });
                         })
-                        .catch(err => this.writeFail('gulp: Unable to copy original files', err));
+                        .catch(err => this.writeFail(['Unable to copy original files', `gulp:${task}`], err));
                 }
                 catch (err) {
-                    this.writeFail(`gulp: ${task}`, err);
+                    this.writeFail(['Unknown', `gulp:${task}`], err);
                     callback();
                 }
             };
@@ -1608,7 +1602,7 @@ const FileManager = class extends Module implements IFileManager {
                 }));
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail('Exec tasks [finalize]', err));
+                await Promise.all(tasks).catch(err => this.writeFail(['Exec tasks', 'finalize'], err));
                 tasks = [];
             }
         }
@@ -1649,6 +1643,7 @@ const FileManager = class extends Module implements IFileManager {
                         case 'service':
                         case 'upload':
                         case 'download':
+                        case 'publicRead':
                             continue;
                         default:
                             credential[attr] = data[attr];
@@ -1657,9 +1652,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 return credential;
             };
-            const getMimeType = (value: string) => mime.lookup(value) || undefined;
             const uploadFiles = (item: ExternalAsset, mimeType = item.mimeType) => {
-                mimeType ||= getMimeType(item.fileUri!);
                 const cloudMain = Cloud.getService('upload', item.cloudStorage);
                 for (const storage of item.cloudStorage!) {
                     if (Cloud.hasService('upload', storage)) {
@@ -1718,7 +1711,7 @@ const FileManager = class extends Module implements IFileManager {
                                                                     filename = basename + match[0];
                                                                 }
                                                             }
-                                                            uploadHandler({ buffer, service: storage, upload, credential, fileUri, fileGroup, bucketGroup, filename, mimeType: i === 0 ? mimeType : getMimeType(fileUri) }, success);
+                                                            uploadHandler({ buffer, service: storage, upload, credential, fileUri, fileGroup, bucketGroup, filename, mimeType: mimeType || mime.lookup(fileUri) || undefined }, success);
                                                         }
                                                     });
                                                 })
@@ -1762,7 +1755,7 @@ const FileManager = class extends Module implements IFileManager {
                                     .catch(() => resolve());
                             }
                             catch (err) {
-                                this.writeFail(`${service} does not support upload function.`, err);
+                                this.writeFail(['Upload function not supported', service], err);
                                 resolve();
                             }
                         }));
@@ -1796,7 +1789,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail('Upload raw assets to cloud storage [finalize]', err));
+                await Promise.all(tasks).catch(err => this.writeFail(['Upload raw assets to cloud storage', 'finalize'], err));
                 tasks = [];
             }
             if (modifiedCss) {
@@ -1815,7 +1808,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail('Update CSS [finalize]', err));
+                await Promise.all(tasks).catch(err => this.writeFail(['Update CSS', 'finalize'], err));
                 tasks = [];
             }
             for (const item of cssFiles) {
@@ -1826,7 +1819,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail('Upload CSS to cloud storage [finalize]', err));
+                await Promise.all(tasks).catch(err => this.writeFail(['Upload CSS to cloud storage', 'finalize'], err));
                 tasks = [];
             }
             if (modifiedHtml) {
@@ -1844,7 +1837,7 @@ const FileManager = class extends Module implements IFileManager {
                         fs.writeFileSync(item.fileUri!, sourceUTF8, 'utf8');
                     }
                     catch (err) {
-                        this.writeFail('Update HTML [finalize]', err);
+                        this.writeFail(['Update HTML', 'finalize'], err);
                     }
                     await this.compressFile(item);
                     compressMap.add(item);
@@ -1854,7 +1847,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail('Upload HTML to cloud storage [finalize]', err));
+                await Promise.all(tasks).catch(err => this.writeFail(['Upload HTML to cloud storage', 'finalize'], err));
                 tasks = [];
             }
             const emptyDir = new Set<string>();
@@ -1878,7 +1871,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail('Delete cloud temp files [finalize]', err));
+                await Promise.all(tasks).catch(err => this.writeFail(['Delete cloud temp files', 'finalize'], err));
                 tasks = [];
                 for (const value of Array.from(emptyDir).reverse()) {
                     try {
@@ -1943,14 +1936,14 @@ const FileManager = class extends Module implements IFileManager {
                                                             }
                                                         }
                                                         catch (err) {
-                                                            this.writeFail(`Write buffer [${service}]`, err);
+                                                            this.writeFail(['Write buffer', service], err);
                                                         }
                                                     }
                                                     resolve();
                                                 });
                                             }
                                             catch (err) {
-                                                this.writeFail(`${service} does not support download function.`, err);
+                                                this.writeFail(['Download function not supported', service], err);
                                                 resolve();
                                             }
                                         }));
@@ -1962,7 +1955,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail('Download from cloud storage [finalize]', err));
+                await Promise.all(tasks).catch(err => this.writeFail(['Download from cloud storage', 'finalize'], err));
                 tasks = [];
             }
         }
@@ -1973,7 +1966,7 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail('Compress files [finalize]', err));
+                await Promise.all(tasks).catch(err => this.writeFail(['Compress files', 'finalize'], err));
                 tasks = [];
             }
         }
@@ -2057,7 +2050,7 @@ const FileManager = class extends Module implements IFileManager {
                                 start,
                                 expires
                             } as FileWatch;
-                            this.writeMessage(`Start [${interval}ms until ${expires ? formatDate(expires) : 'never'}]`, data.uri, 'WATCH', 'blue');
+                            this.formatMessage('WATCH', ['Start', `${interval}ms ${expires ? formatDate(expires) : 'never'}`], data.uri, 'blue');
                         }
                         data.timeout = setInterval(() => {
                             const req = request(data.uri, { method: 'HEAD' });
@@ -2082,7 +2075,7 @@ const FileManager = class extends Module implements IFileManager {
                                             }
                                             manager.install('watch', this.watchInterval);
                                             manager.processAssets();
-                                            this.writeMessage('File modified', data.uri, 'WATCH', 'yellow');
+                                            this.formatMessage('WATCH', 'File modified', data.uri, 'yellow');
                                         }
                                         else {
                                             return;
@@ -2090,13 +2083,13 @@ const FileManager = class extends Module implements IFileManager {
                                     }
                                 }
                                 else if (data.expires) {
-                                    this.writeMessage(`Expired [since ${formatDate(data.start)}]`, data.uri, 'WATCH', 'grey');
+                                    this.formatMessage('WATCH', ['Expired', `since ${formatDate(data.start)}`], data.uri, 'grey');
                                 }
                                 clearInterval(data.timeout);
                             });
                             req.on('error', err => {
                                 clearInterval(data.timeout);
-                                this.writeFail(`Unable to watch [${data.uri}]`, err);
+                                this.writeFail(['Unable to watch', data.uri], err);
                             });
                         }, data.interval);
                         WATCH_HTTP[dest][item.uri] = data;

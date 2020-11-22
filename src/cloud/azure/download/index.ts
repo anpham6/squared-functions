@@ -17,30 +17,30 @@ async function download(this: IFileManager, service: string, credential: AzureCl
             const location = container + '/' + data.download.filename;
             blobClient.downloadToBuffer()
                 .then(buffer => {
-                    this.writeMessage('Download success', location, service);
+                    this.formatMessage(service, 'Download success', location);
                     success(buffer);
                     if (data.download.deleteStorage) {
                         blobClient.delete()
-                            .then(() => this.writeMessage('Delete success', location, service, 'grey'))
+                            .then(() => this.formatMessage(service, 'Delete success', location, 'grey'))
                             .catch(err => {
                                 if (err.code !== 'BlobNotFound') {
-                                    this.writeMessage(`Delete failed [${location}]`, err, service, 'red');
+                                    this.formatMessage(service, ['Delete failed', location], err, 'red');
                                 }
                             });
                     }
                 })
                 .catch(err => {
-                    this.writeMessage(`Download failed [${location}]`, err, service, 'red');
+                    this.formatMessage(service, ['Download failed', location], err, 'red');
                     success(null);
                 });
         }
         catch (err) {
-            this.writeFail(`Install ${service} SDK? [npm i @azure/storage-blob]`);
+            this.writeFail([`Install ${service} SDK?`, 'npm i @azure/storage-blob']);
             throw err;
         }
     }
     else {
-        this.writeMessage('Container not specified', data.download.filename, service, 'red');
+        this.formatMessage(service, 'Container not specified', data.download.filename, 'red');
         success(null);
     }
 }

@@ -65,7 +65,7 @@ class JimpProxy implements functions.ImageProxy<jimp> {
                             this.instance = this.instance[name]();
                         }
                         catch (err) {
-                            Image.writeFail(`jimp: ${name}`, err);
+                            Image.writeFail(['Method not supported', `jimp:${name}`], err);
                         }
                         break;
                 }
@@ -168,7 +168,7 @@ class JimpProxy implements functions.ImageProxy<jimp> {
                 const output = this.fileUri.substring(0, index) + '.' + value + this.fileUri.substring(index);
                 img.write(output, err => {
                     if (err) {
-                        Image.writeFail(output, err);
+                        Image.writeFail(['Unable to rotate image', output], err);
                         if (postWrite) {
                             postWrite();
                         }
@@ -225,13 +225,13 @@ class JimpProxy implements functions.ImageProxy<jimp> {
             args.push('-o', webp);
             child_process.execFile(require('cwebp-bin'), args, null, err => {
                 if (err) {
-                    Image.writeFail(`Install WebP? [npm i cwebp-bin]: ${output}`, err);
+                    Image.writeFail(['Install WebP?', 'npm i cwebp-bin'], err);
                     callback(output);
                 }
                 else if (webp !== output) {
                     fs.unlink(output, error => {
                         if (error) {
-                            Image.writeFail(`Unable to delete: ${output}`, error);
+                            Image.writeFail(['Unable to delete temp image', output], error);
                         }
                         callback(webp);
                     });
@@ -275,7 +275,7 @@ const Image = new class extends Module implements functions.IImage {
                             const output = this.replaceExtension(fileUri, unknownType.split('/')[1]);
                             fs.rename(fileUri, output, err => {
                                 if (err) {
-                                    this.writeFail(fileUri, err);
+                                    this.writeFail(['Unable to rename image', fileUri], err);
                                     this.completeAsyncTask();
                                 }
                                 else {
@@ -286,7 +286,7 @@ const Image = new class extends Module implements functions.IImage {
                     }
                 })
                 .catch(err => {
-                    this.writeFail(fileUri, err);
+                    this.writeFail(['Unable to read image buffer', fileUri], err);
                     this.completeAsyncTask();
                 });
         }
@@ -342,7 +342,7 @@ const Image = new class extends Module implements functions.IImage {
                         })
                         .catch(err => {
                             this.completeAsyncTask();
-                            this.writeFail(fileUri, err);
+                            this.writeFail(['Unable to read image buffer', fileUri], err);
                         });
                 }
             };
@@ -357,7 +357,7 @@ const Image = new class extends Module implements functions.IImage {
                     });
                 }
                 catch (err) {
-                    Image.writeFail(`Install WebP? [npm i dwebp-bin]: ${fileUri}`, err);
+                    Image.writeFail(['Install WebP?', 'npm i dwebp-bin'], err);
                     tempFile = '';
                     resumeThread();
                 }

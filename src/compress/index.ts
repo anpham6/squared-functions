@@ -97,7 +97,7 @@ const Compress = new class extends Module implements functions.ICompress {
                         }
                     })
                     .on('error', err => {
-                        this.writeFail(output, err);
+                        this.writeFail(['Unable to compress file', output], err);
                         if (postWrite) {
                             postWrite();
                         }

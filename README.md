@@ -430,8 +430,8 @@ interface AssetCommand extends FileModifiers, OutputModifiers {
 }
 ```
 
-- [bundle.yml](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.yml)
 - [bundle.json](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.json)
+- [bundle.yml](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.yml)
 
 ```javascript
 squared.saveAs('bundle.zip', { configUri: 'http://localhost:3000/chrome/bundle.yml' });
@@ -443,7 +443,7 @@ Here is the equivalent page using only inline commands with "data-chrome-file" a
 
 ### Cloud storage
 
-Manual installation of the SDK is required including opening an account with at least one of these cloud storage provider.
+Manual installation of the SDK is required including an account with at least one of these cloud storage provider.
 
 ```xml
 * Amazon AWS
@@ -492,7 +492,7 @@ Other service providers can be integrated similarly except for credential verifi
       "download": {
         "filename": "picture2.png",
         "versionId": "12345", // Retrieve a previous file snapshot (optional)
-        "pathname": "download/images", // Base directory when empty (optional)
+        "pathname": "download/images", // Base directory when omitted (optional)
         "active": false, // Always write file or rename to main file when same extension (optional)
         "overwrite": false, // Always write file (optional)
         "deleteObject": false // Remove if download success (optional)
@@ -509,7 +509,7 @@ Other service providers can be integrated similarly except for credential verifi
     },
     {
       "service": "gcs",
-      "bucket": "squared-003", // Can be generated automatically (optional)
+      "bucket": "squared-003", // UUID generated when omitted (optional)
       "keyFilename": "./gcs.json", // Path to JSON credentials
       "publicRead": false, // New buckets (optional: Not supported OCI)
       "upload": {

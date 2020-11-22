@@ -16,32 +16,32 @@ async function download(this: IFileManager, service: string, credential: S3Cloud
             s3.getObject(params, (err, result) => {
                 const location = Bucket + '/' + data.download.filename;
                 if (!err) {
-                    this.writeMessage('Download success', location, service);
+                    this.formatMessage(service, 'Download success', location);
                     success(result.Body as Buffer);
                     if (data.download.deleteStorage) {
                         s3.deleteObject(params, error => {
                             if (!error) {
-                                this.writeMessage('Delete success', location, service, 'grey');
+                                this.formatMessage(service, 'Delete success', location, 'grey');
                             }
                             else {
-                                this.writeMessage(`Delete failed [${location}]`, error, service, 'red');
+                                this.formatMessage(service, ['Delete failed', location], error, 'red');
                             }
                         });
                     }
                 }
                 else {
-                    this.writeMessage(`Download failed [${location}]`, err, service, 'red');
+                    this.formatMessage(service, ['Download failed', location], err, 'red');
                     success(null);
                 }
             });
         }
         catch (err) {
-            this.writeFail(`Install ${service} SDK? [npm i aws-sdk]`, err);
+            this.writeFail([`Install ${service} SDK?`, 'npm i aws-sdk'], err);
             success(null);
         }
     }
     else {
-        this.writeMessage('Bucket not specified', data.download.filename, service, 'red');
+        this.formatMessage(service, 'Bucket not specified', data.download.filename, 'red');
         success(null);
     }
 }

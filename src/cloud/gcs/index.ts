@@ -12,11 +12,11 @@ export interface GCSCloudCredential extends GoogleAuthOptions {
 export function setPublicRead(this: IFileManager, acl: Acl, objectName: string, requested?: boolean) {
     acl.add({ entity: 'allUsers', role: 'READER' })
         .then(() => {
-            this.writeMessage('Grant public-read', objectName, 'GCS', 'blue');
+            this.formatMessage('GCS', 'Grant public-read', objectName, 'blue');
         })
         .catch(err => {
             if (requested) {
-                this.writeMessage(`Unable to grant public-read [${objectName}]`, err, 'GCS', 'yellow');
+                this.formatMessage('GCS', ['Unable to grant public-read', objectName], err, 'yellow');
             }
         });
 }

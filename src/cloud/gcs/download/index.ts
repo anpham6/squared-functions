@@ -30,31 +30,31 @@ async function download(this: IFileManager, service: string, credential: GCSClou
             file.download({ destination })
                 .then(() => {
                     const location = bucketName + '/' + filename;
-                    this.writeMessage('Download success', location, service);
+                    this.formatMessage(service, 'Download success', location);
                     success(destination);
                     if (data.download.deleteStorage) {
                         file.delete({ ignoreNotFound: true }, err => {
                             if (!err) {
-                                this.writeMessage('Delete success', location, service, 'grey');
+                                this.formatMessage(service, 'Delete success', location, 'grey');
                             }
                             else {
-                                this.writeMessage(`Delete failed [${location}]`, err, service, 'red');
+                                this.formatMessage(service, ['Delete failed', location], err, 'red');
                             }
                         });
                     }
                 })
                 .catch((err: Error) => {
-                    this.writeMessage('Download failed', err, service, 'red');
+                    this.formatMessage(service, 'Download failed', err, 'red');
                     success('');
                 });
         }
         catch (err) {
-            this.writeFail(`Install ${service} SDK? [npm i @google-cloud/storage]`);
+            this.writeFail([`Install ${service} SDK?`, `npm i @google-cloud/storage`]);
             throw err;
         }
     }
     else {
-        this.writeMessage(`Container not specified`, data.download.filename, service, 'red');
+        this.formatMessage(service, 'Container not specified', data.download.filename, 'red');
         success('');
     }
 }
