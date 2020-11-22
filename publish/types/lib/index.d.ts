@@ -311,7 +311,7 @@ declare namespace functions {
         hasImageService(): boolean;
         parseSizeRange(value: string): [number, number];
         withinSizeRange(fileUri: string, value: Undef<string>): boolean;
-        tryFile(fileUri: string, data: squared.CompressFormat, preCompress?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback): void;
+        tryFile(fileUri: string, data: squared.CompressFormat, initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback): void;
         tryImage(fileUri: string, callback: FileOutputCallback): void;
     }
 
@@ -380,14 +380,14 @@ declare namespace functions {
         removeAsyncTask(): void;
         completeAsyncTask: FileManagerCompleteAsyncTaskCallback;
         performFinalize(): void;
-        replacePath(source: string, segments: string[], value: string, matchSingle?: boolean, base64?: boolean): Undef<string>;
-        escapePathSeparator(value: string): string;
-        getFileOutput(file: ExternalAsset): internal.FileOutput;
+        replaceUri(source: string, segments: string[], value: string, matchSingle?: boolean, base64?: boolean): Undef<string>;
+        setFileUri(file: ExternalAsset): internal.FileOutput;
         findAsset(uri: string, fromElement?: boolean): Undef<ExternalAsset>;
         getHtmlPages(): ExternalAsset[];
-        getRelativeUri(file: ExternalAsset, uri: string): Undef<string>;
-        getAbsoluteUri(value: string, href: string): string;
-        getFileUri(file: ExternalAsset, filename?: string): string;
+        removeCwd(value: Undef<string>): string;
+        relativePosix(file: ExternalAsset, uri: string): Undef<string>;
+        absolutePath(value: string, href: string): string;
+        relativePath(file: ExternalAsset, filename?: string): string;
         getUTF8String(file: ExternalAsset, fileUri?: string): string;
         appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex: number): Promise<string>;
         getTrailingContent(file: ExternalAsset): Promise<string>;
@@ -425,6 +425,7 @@ declare namespace functions {
         getFileSize(fileUri: string): number;
         replaceExtension(value: string, ext: string): string;
         getTempDir(): string;
+        escapePosix(value: string): string;
         toPosix(value: string, filename?: string): string;
         writeFail(value: string | [string, string], message?: unknown): void;
         formatMessage(title: string, value: string | [string, string], message?: unknown, color?: typeof ForegroundColor, bgColor?: typeof BackgroundColor): void;
@@ -452,7 +453,7 @@ declare namespace functions {
         crop(): void;
         opacity(): void;
         quality(): void;
-        rotate(parent?: ExternalAsset, preRotate?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback): void;
+        rotate(parent?: ExternalAsset, initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback): void;
         write(output: string, options?: internal.Image.UsingOptions): void;
         finalize(output: string, callback: (result: string) => void): void;
         constructor(instance: T, fileUri: string, command?: string, finalAs?: string);

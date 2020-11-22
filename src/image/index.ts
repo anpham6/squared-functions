@@ -150,7 +150,7 @@ class JimpProxy implements functions.ImageProxy<jimp> {
             }
         }
     }
-    rotate(parent?: ExternalAsset, preRotate?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback) {
+    rotate(parent?: ExternalAsset, initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback) {
         const rotateData = this.rotateData;
         if (rotateData) {
             const { values, color } = rotateData;
@@ -160,8 +160,8 @@ class JimpProxy implements functions.ImageProxy<jimp> {
             const deg = values[0];
             for (let i = 1, length = values.length; i < length; ++i) {
                 const value = values[i];
-                if (preRotate) {
-                    preRotate();
+                if (initialize) {
+                    initialize();
                 }
                 const img = this.instance.clone().rotate(value);
                 const index = this.fileUri.lastIndexOf('.');
@@ -169,14 +169,14 @@ class JimpProxy implements functions.ImageProxy<jimp> {
                 img.write(output, err => {
                     if (err) {
                         Image.writeFail(['Unable to rotate image', output], err);
-                        if (postWrite) {
-                            postWrite();
+                        if (callback) {
+                            callback();
                         }
                     }
                     else {
                         this.finalize(output, (result: string) => {
-                            if (postWrite) {
-                                postWrite(result, parent);
+                            if (callback) {
+                                callback(result, parent);
                             }
                         });
                     }

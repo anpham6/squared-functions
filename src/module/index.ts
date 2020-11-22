@@ -45,6 +45,9 @@ const Module = class implements functions.IModule {
     getTempDir() {
         return process.cwd() + path.sep + 'temp' + path.sep;
     }
+    escapePosix(value: string) {
+        return value.replace(/[\\/]/g, '[\\\\/]');
+    }
     toPosix(value: string, filename?: string) {
         return value.replace(/\\+/g, '/').replace(/\/+$/, '') + (filename ? '/' + filename : '');
     }

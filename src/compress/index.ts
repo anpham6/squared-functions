@@ -67,7 +67,7 @@ const Compress = new class extends Module implements functions.ICompress {
         }
         return true;
     }
-    tryFile(fileUri: string, data: CompressFormat, preCompress?: FileManagerPerformAsyncTaskCallback, postWrite?: FileManagerCompleteAsyncTaskCallback) {
+    tryFile(fileUri: string, data: CompressFormat, initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback) {
         if (this.withinSizeRange(fileUri, data.condition)) {
             const output = `${fileUri}.${data.format}`;
             let methodName: Undef<NodeBuiltInCompressionMethod>;
@@ -80,33 +80,33 @@ const Compress = new class extends Module implements functions.ICompress {
                     break;
             }
             if (methodName) {
-                if (preCompress) {
-                    preCompress();
+                if (initialize) {
+                    initialize();
                 }
                 Compress[methodName](fileUri, output, data.level)
                     .on('finish', () => {
                         if (data.condition?.includes('%') && this.getFileSize(output) >= this.getFileSize(fileUri)) {
                             fs.unlink(output, () => {
-                                if (postWrite) {
-                                    postWrite();
+                                if (callback) {
+                                    callback();
                                 }
                             });
                         }
-                        else if (postWrite) {
-                            postWrite(output);
+                        else if (callback) {
+                            callback(output);
                         }
                     })
                     .on('error', err => {
                         this.writeFail(['Unable to compress file', output], err);
-                        if (postWrite) {
-                            postWrite();
+                        if (callback) {
+                            callback();
                         }
                     });
                 return;
             }
         }
-        if (!preCompress && postWrite) {
-            postWrite();
+        if (!initialize && callback) {
+            callback();
         }
     }
     tryImage(fileUri: string, callback: FileOutputCallback) {
