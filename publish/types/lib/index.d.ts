@@ -44,10 +44,10 @@ declare namespace functions {
 
         interface CloudService extends ObjectMap<unknown> {
             service: string;
-            settings?: string;
+            credential: StringMap;
+            publicRead?: boolean;
             upload?: CloudServiceUpload;
             download?: CloudServiceDownload;
-            publicRead?: boolean;
         }
 
         interface CloudServiceAction {
@@ -206,12 +206,12 @@ declare namespace functions {
             type CloudServiceUpload = squared.CloudServiceUpload;
             type CloudServiceDownload = squared.CloudServiceDownload;
 
-            interface FunctionData<T> {
-                service: CloudService;
+            interface FunctionData<T = PlainObject, U = CloudService> {
                 credential: T;
+                service: U;
             }
 
-            interface UploadData<T> extends FunctionData<T> {
+            interface UploadData<T, U> extends FunctionData<T, U> {
                 upload: CloudServiceUpload;
                 buffer: Buffer;
                 fileUri: string;
@@ -221,20 +221,20 @@ declare namespace functions {
                 mimeType?: string;
             }
 
-            interface DownloadData<T> extends FunctionData<T> {
+            interface DownloadData<T, U> extends FunctionData<T, U> {
                 download: CloudServiceDownload;
             }
 
             interface ServiceClient {
-                validate: (config: CloudService) => boolean;
+                validate: (credential: StringMap) => boolean;
                 setCredential?: (this: IFileManager, credential: PlainObject) => void;
                 setPublicRead?: (this: IFileManager, ...args: unknown[]) => void;
             }
 
-            type UploadHost = (this: IFileManager, service: string, credential: PlainObject) => UploadCallback;
-            type DownloadHost = (this: IFileManager, service: string, credential: PlainObject, data: DownloadData<unknown>, success: (value: Null<Buffer | string>) => void) => void;
+            type UploadHost = (this: IFileManager, service: string, credential: unknown, sdk?: string) => UploadCallback;
+            type DownloadHost = (this: IFileManager, service: string, credential: unknown, data: DownloadData<unknown, unknown>, success: (value: Null<Buffer | string>) => void, sdk?: string) => void;
 
-            type UploadCallback = (data: UploadData<unknown>, success: (value: string) => void) => void;
+            type UploadCallback = (data: UploadData<unknown, unknown>, success: (value: string) => void) => void;
         }
 
         interface FileData {

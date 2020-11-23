@@ -1,9 +1,11 @@
-export interface AzureCloudCredential extends functions.external.Cloud.StorageSharedKeyCredential, PlainObject {
+export interface AzureCloudCredential extends functions.external.Cloud.StorageSharedKeyCredential, PlainObject {}
+
+export interface AzureCloudBucket extends functions.squared.CloudService {
     container?: string;
 }
 
-export default function validate(config: AzureCloudCredential) {
-    return !!(config.accountName && config.accountKey);
+export default function validate(credential: AzureCloudCredential) {
+    return !!(credential.accountName && credential.accountKey);
 }
 
 if (typeof module !== 'undefined' && module.exports) {

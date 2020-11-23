@@ -1,16 +1,17 @@
 import type * as aws from 'aws-sdk';
 
-import type { S3CloudCredential } from '../index';
+import type { S3CloudBucket, S3CloudCredential } from '../index';
 
 type IFileManager = functions.IFileManager;
-type DownloadData = functions.internal.Cloud.DownloadData<S3CloudCredential>;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 
-async function download(this: IFileManager, service: string, credential: S3CloudCredential, data: DownloadData, success: (value: Null<Buffer>) => void) {
-    const Bucket = credential.bucket;
+interface DownloadData extends functions.internal.Cloud.DownloadData<S3CloudCredential, S3CloudBucket> {}
+
+async function download(this: IFileManager, service: string, credential: S3CloudCredential, data: DownloadData, success: (value: Null<Buffer>) => void, sdk = 'aws-sdk/clients/s3') {
+    const Bucket = data.service.bucket;
     if (Bucket) {
         try {
-            const S3 = require('aws-sdk/clients/s3') as Constructor<aws.S3>;
+            const S3 = require(sdk) as Constructor<aws.S3>;
             const s3 = new S3(credential);
             const params = { Bucket, Key: data.download.filename, VersionId: data.download.versionId };
             s3.getObject(params, (err, result) => {

@@ -1,10 +1,10 @@
-import type { OCICloudCredential } from '../index';
+import type { OCICloudBucket, OCICloudCredential } from '../index';
 
 import { setCredential } from '../index';
 
 type IFileManager = functions.IFileManager;
-type DownloadData = functions.internal.Cloud.DownloadData<OCICloudCredential>;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
+type DownloadData = functions.internal.Cloud.DownloadData<OCICloudCredential, OCICloudBucket>;
 
 async function download(this: IFileManager, service: string, credential: OCICloudCredential, data: DownloadData, success: (value?: unknown) => void) {
     setCredential.call(this, credential);

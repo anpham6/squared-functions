@@ -1,6 +1,6 @@
 import type * as aws from 'aws-sdk';
 
-import type { S3CloudCredential } from '../index';
+import type { S3CloudBucket, S3CloudCredential } from '../index';
 
 import path = require('path');
 import uuid = require('uuid');
@@ -8,16 +8,16 @@ import uuid = require('uuid');
 import { setPublicRead } from '../index';
 
 type IFileManager = functions.IFileManager;
-type UploadData = functions.internal.Cloud.UploadData<S3CloudCredential>;
 type UploadHost = functions.internal.Cloud.UploadHost;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
+type UploadData = functions.internal.Cloud.UploadData<S3CloudCredential, S3CloudBucket>;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function upload(this: IFileManager, service: string, credential: S3CloudCredential): UploadCallback {
+function upload(this: IFileManager, service: string, credential: S3CloudCredential, sdk = 'aws-sdk/clients/s3'): UploadCallback {
     let s3: aws.S3;
     try {
-        const S3 = require('aws-sdk/clients/s3') as Constructor<aws.S3>;
+        const S3 = require(sdk) as Constructor<aws.S3>;
         s3 = new S3(credential);
     }
     catch (err) {
@@ -25,11 +25,7 @@ function upload(this: IFileManager, service: string, credential: S3CloudCredenti
         throw err;
     }
     return async (data: UploadData, success: (value: string) => void) => {
-        if (!credential.bucket) {
-            data.service.bucket = data.bucketGroup;
-            credential.bucket = data.bucketGroup;
-        }
-        const Bucket = credential.bucket;
+        const Bucket = data.service.bucket ||= data.bucketGroup;
         const bucketService = service + Bucket;
         if (!BUCKET_MAP[bucketService] || data.service.publicRead) {
              const result = await s3.headBucket({ Bucket })
@@ -51,8 +47,11 @@ function upload(this: IFileManager, service: string, credential: S3CloudCredenti
                             return true;
                         })
                         .catch(err => {
-                            this.formatMessage(service, ['Unable to create bucket', Bucket], err, 'red');
-                            return false;
+                            if (err.code !== 'BucketAlreadyExists' && err.code !== 'BucketAlreadyOwnedByYou') {
+                                this.formatMessage(service, ['Unable to create bucket', Bucket], err, 'red');
+                                return false;
+                            }
+                            return true;
                         });
                 });
             if (!result) {

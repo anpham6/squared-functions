@@ -1,12 +1,15 @@
-import type * as aws from 'aws-sdk/lib/core';
+import type { ConfigurationOptions } from 'aws-sdk/lib/core';
 
 type IFileManager = functions.IFileManager;
 
-export interface OCICloudCredential extends aws.ConfigurationOptions, PlainObject {
+export interface OCICloudCredential extends ConfigurationOptions {
     region: string;
     namespace: string;
-    bucket: string;
     endpoint?: string;
+}
+
+export interface OCICloudBucket extends functions.squared.CloudService {
+    bucket: string;
 }
 
 export function setCredential(this: IFileManager, credential: OCICloudCredential) {
@@ -15,8 +18,8 @@ export function setCredential(this: IFileManager, credential: OCICloudCredential
     credential.signatureVersion = 'v4';
 }
 
-export default function validate(config: OCICloudCredential) {
-    return !!(config.region && config.namespace && config.accessKeyId && config.secretAccessKey);
+export default function validate(credential: OCICloudCredential) {
+    return !!(credential.region && credential.namespace && credential.accessKeyId && credential.secretAccessKey);
 }
 
 if (typeof module !== 'undefined' && module.exports) {

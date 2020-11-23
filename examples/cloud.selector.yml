@@ -1,0 +1,54 @@
+selector: "#picture1"
+type: image
+commands:
+- png(100x200){90,180,270}
+cloudStorage:
+- service: s3
+  bucket: squared-001
+  credential:
+    region: us-west-2
+    accessKeyId: "**********"
+    secretAccessKey: "**********"
+    settings: main
+  upload:
+    active: false
+    localStorage: true
+    filename: picture1.webp
+    all: false
+    overwrite: false
+  download:
+    filename: picture2.png
+    versionId: '12345'
+    pathname: download/images
+    active: false
+    overwrite: false
+    deleteObject: false
+- service: azure
+  container: squared-002
+  credential:
+    accountName: "**********"
+    accountKey: "**********"
+  upload:
+    apiEndpoint: http://squaredjs.azureedge.net/squared-002
+- service: gcs
+  bucket: squared-003
+  credential:
+    keyFilename: "./gcs.json"
+  publicRead: false
+  upload:
+    active: true
+    publicRead: false
+- service: ibm
+  bucket: squared-004
+  credential:
+    region: us-south
+    endpoint: https://s3.us-south.cloud-object-storage.appdomain.cloud
+    apiKeyId: "**********"
+    serviceInstanceId: "**********"
+- service: oci
+  bucket: squared-005
+  credential:
+    region: us-phoenix-1
+    namespace: abcdefghijkl
+    accessKeyId: "**********"
+    secretAccessKey: "**********"

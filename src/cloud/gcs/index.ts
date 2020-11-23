@@ -4,9 +4,12 @@ import type { Acl } from '@google-cloud/storage/build/src/acl';
 type IFileManager = functions.IFileManager;
 
 export interface GCSCloudCredential extends GoogleAuthOptions {
-    bucket?: string;
     location?: string;
     storageClass?: "STANDARD" | "NEARLINE" | "COLDLINE" | "ARCHIVE";
+}
+
+export interface GCSCloudBucket extends functions.squared.CloudService {
+    bucket?: string;
 }
 
 export function setPublicRead(this: IFileManager, acl: Acl, objectName: string, requested?: boolean) {
@@ -21,8 +24,8 @@ export function setPublicRead(this: IFileManager, acl: Acl, objectName: string, 
         });
 }
 
-export default function validate(config: GCSCloudCredential) {
-    return !!(config.keyFile || config.keyFilename);
+export default function validate(credential: GCSCloudCredential) {
+    return !!(credential.keyFile || credential.keyFilename);
 }
 
 if (typeof module !== 'undefined' && module.exports) {

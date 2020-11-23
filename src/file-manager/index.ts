@@ -216,8 +216,8 @@ const FileManager = class extends Module implements IFileManager {
         }
     }
     add(value: string, parent?: ExternalAsset) {
-        if (value = this.removeCwd(value)) {
-            this.files.add(value);
+        if (value) {
+            this.files.add(this.removeCwd(value));
             if (parent) {
                 (parent.transforms ||= []).push(value);
             }
@@ -1639,20 +1639,8 @@ const FileManager = class extends Module implements IFileManager {
                 return [files, transforms];
             };
             const createCredential = (data: CloudService) => {
-                const credential = Object.assign({}, data.settings && this.Cloud![data.service] ? { ...this.Cloud![data.service][data.settings] } : {});
-                for (const attr in data) {
-                    switch (attr) {
-                        case 'service':
-                        case 'upload':
-                        case 'download':
-                        case 'publicRead':
-                            continue;
-                        default:
-                            credential[attr] = data[attr];
-                            break;
-                    }
-                }
-                return credential;
+                const settings = data.credential.settings;
+                return Object.assign({}, settings && this.Cloud![data.service] ? { ...this.Cloud![data.service][settings] } : {}, data.credential);
             };
             const uploadFiles = (item: ExternalAsset, mimeType = item.mimeType) => {
                 const cloudMain = Cloud.getService('upload', item.cloudStorage);
@@ -1860,7 +1848,7 @@ const FileManager = class extends Module implements IFileManager {
                             ...group.map(value => {
                                 return fs.unlink(value).then(() => {
                                     let dir = this.dirname;
-                                    for (const seg of this.removeCwd(path.dirname(value)).split(/[\\/]/)) {
+                                    for (const seg of path.dirname(value).substring(this.dirname.length + 1).split(/[\\/]/)) {
                                         dir += path.sep + seg;
                                         emptyDir.add(dir);
                                     }

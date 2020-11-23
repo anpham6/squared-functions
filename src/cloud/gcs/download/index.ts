@@ -1,17 +1,17 @@
 import type * as gcs from '@google-cloud/storage';
 
-import type { GCSCloudCredential } from '../index';
+import type { GCSCloudBucket, GCSCloudCredential } from '../index';
 
 import path = require('path');
 import fs = require('fs-extra');
 import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
-type DownloadData = functions.internal.Cloud.DownloadData<GCSCloudCredential>;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
+type DownloadData = functions.internal.Cloud.DownloadData<GCSCloudCredential, GCSCloudBucket>;
 
 async function download(this: IFileManager, service: string, credential: GCSCloudCredential, data: DownloadData, success: (value: string) => void) {
-    const bucketName = credential.bucket;
+    const bucketName = data.service.bucket;
     if (bucketName) {
         try {
             const { Storage } = require('@google-cloud/storage');

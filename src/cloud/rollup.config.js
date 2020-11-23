@@ -9,8 +9,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/cloud/s3 ${version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/cloud/s3/upload/index.js',
@@ -20,8 +19,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/cloud/s3/upload ${version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/cloud/s3/download/index.js',
@@ -31,8 +29,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/cloud/s3/download ${version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/cloud/azure/index.js',
@@ -42,8 +39,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/cloud/azure ${version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/cloud/azure/upload/index.js',
@@ -53,8 +49,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/cloud/azure/upload ${version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/cloud/azure/download/index.js',
@@ -64,8 +59,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/cloud/azure/download ${version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/cloud/gcs/index.js',
@@ -75,8 +69,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/cloud/gcs ${version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/cloud/gcs/upload/index.js',
@@ -86,8 +79,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/cloud/gcs/upload ${version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/cloud/gcs/download/index.js',
@@ -97,8 +89,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/cloud/gcs/download ${version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/cloud/oci/index.js',
@@ -108,8 +99,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/cloud/oci ${version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/cloud/oci/upload/index.js',
@@ -119,8 +109,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/cloud/oci/upload ${version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/cloud/oci/download/index.js',
@@ -130,7 +119,36 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/cloud/oci/download ${version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
+    },
+    {
+        input: './build/cloud/ibm/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/cloud/ibm/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/cloud/ibm ${version}\n   https://github.com/anpham6/squared-functions */\n`
+        }
+    },
+    {
+        input: './build/cloud/ibm/upload/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/cloud/ibm/upload/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/cloud/ibm/upload ${version}\n   https://github.com/anpham6/squared-functions */\n`
+        }
+    },
+    {
+        input: './build/cloud/ibm/download/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/cloud/ibm/download/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/cloud/ibm/download ${version}\n   https://github.com/anpham6/squared-functions */\n`
+        }
     }
 ];

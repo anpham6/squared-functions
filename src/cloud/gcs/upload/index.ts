@@ -1,6 +1,6 @@
 import type * as gcs from '@google-cloud/storage';
 
-import type { GCSCloudCredential } from '../index';
+import type { GCSCloudBucket, GCSCloudCredential } from '../index';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -9,9 +9,9 @@ import uuid = require('uuid');
 import { setPublicRead } from '../index';
 
 type IFileManager = functions.IFileManager;
-type UploadData = functions.internal.Cloud.UploadData<GCSCloudCredential>;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 type UploadHost = functions.internal.Cloud.UploadHost;
+type UploadData = functions.internal.Cloud.UploadData<GCSCloudCredential, GCSCloudBucket>;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
@@ -26,11 +26,7 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
         throw err;
     }
     return async (data: UploadData, success: (value: string) => void) => {
-        if (!credential.bucket) {
-            data.service.bucket = data.bucketGroup;
-            credential.bucket = data.bucketGroup;
-        }
-        let bucketName = credential.bucket,
+        let bucketName = data.service.bucket ||= data.bucketGroup,
             bucket: Undef<gcs.Bucket>;
         if (!BUCKET_MAP[bucketName]) {
             try {

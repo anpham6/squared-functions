@@ -1,11 +1,14 @@
-import type * as aws from 'aws-sdk';
-import type * as awsCore from 'aws-sdk/lib/core';
+import type { S3 } from 'aws-sdk';
+import type { ConfigurationOptions } from 'aws-sdk/lib/core';
 
 type IFileManager = functions.IFileManager;
 
-export interface S3CloudCredential extends awsCore.ConfigurationOptions {
-    bucket?: string;
+export interface S3CloudCredential extends ConfigurationOptions {
     endpoint?: string;
+}
+
+export interface S3CloudBucket extends functions.squared.CloudService {
+    bucket?: string;
 }
 
 function getPublicReadPolicy(bucket: string) {
@@ -21,16 +24,18 @@ function getPublicReadPolicy(bucket: string) {
     });
 }
 
-export function setPublicRead(this: IFileManager, s3: aws.S3, Bucket: string, service = 'S3') {
-    s3.putBucketPolicy({ Bucket, Policy: getPublicReadPolicy(Bucket) }, err => {
-        if (err) {
-            this.formatMessage(service, ['Unable to grant public-read', Bucket], err, 'yellow');
-        }
-    });
+export function setPublicRead(this: IFileManager, s3: S3, Bucket: string, service = 'S3') {
+    if (typeof s3.putBucketPolicy === 'function') {
+        s3.putBucketPolicy({ Bucket, Policy: getPublicReadPolicy(Bucket) }, err => {
+            if (err) {
+                this.formatMessage(service, ['Unable to grant public-read', Bucket], err, 'yellow');
+            }
+        });
+    }
 }
 
-export default function validate(config: S3CloudCredential) {
-    return !!(config.accessKeyId && config.secretAccessKey);
+export default function validate(credential: S3CloudCredential) {
+    return !!(credential.accessKeyId && credential.secretAccessKey);
 }
 
 if (typeof module !== 'undefined' && module.exports) {

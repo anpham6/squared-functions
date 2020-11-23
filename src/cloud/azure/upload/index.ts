@@ -1,13 +1,13 @@
 import type * as azure from '@azure/storage-blob';
 
-import type { AzureCloudCredential } from '../index';
+import type { AzureCloudBucket, AzureCloudCredential } from '../index';
 
 import path = require('path');
 import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
-type UploadData = functions.internal.Cloud.UploadData<AzureCloudCredential>;
 type UploadHost = functions.internal.Cloud.UploadHost;
+type UploadData = functions.internal.Cloud.UploadData<AzureCloudCredential, AzureCloudBucket>;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
@@ -24,11 +24,7 @@ function upload(this: IFileManager, service: string, credential: AzureCloudCrede
         throw err;
     }
     return async (data: UploadData, success: (value: string) => void) => {
-        if (!credential.container) {
-            data.service.container = data.bucketGroup;
-            credential.container = data.bucketGroup;
-        }
-        const container = credential.container;
+        const container = data.service.container ||= data.bucketGroup;
         const fileUri = data.fileUri;
         const containerClient = blobServiceClient.getContainerClient(container);
         if (!BUCKET_MAP[container]) {

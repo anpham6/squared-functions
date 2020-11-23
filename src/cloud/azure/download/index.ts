@@ -1,13 +1,13 @@
 import type * as azure from '@azure/storage-blob';
 
-import type { AzureCloudCredential } from '../index';
+import type { AzureCloudBucket, AzureCloudCredential } from '../index';
 
 type IFileManager = functions.IFileManager;
-type DownloadData = functions.internal.Cloud.DownloadData<AzureCloudCredential>;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
+type DownloadData = functions.internal.Cloud.DownloadData<AzureCloudCredential, AzureCloudBucket>;
 
 async function download(this: IFileManager, service: string, credential: AzureCloudCredential, data: DownloadData, success: (value: Null<Buffer>) => void) {
-    const container = credential.container;
+    const container = data.service.container;
     if (container) {
         try {
             const { BlobServiceClient, StorageSharedKeyCredential } = require('@azure/storage-blob');

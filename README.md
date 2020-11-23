@@ -65,23 +65,9 @@ npm install dwebp-bin && npm install cwebp-bin
 Placing an @ symbol (png@) after the format will remove the original file from the package. Using the % symbol (png%) instead will choose the smaller of the two files. You can also use these commands with the setting "convertImages" in the Android framework as a string with the "+" chain format.
 
 ```javascript
-// NOTE: Multiple transformations per asset use the ':' as the separator when using "data-chrome-file"
+// NOTE: Multiple transformations per asset use the :' as the separator when using "data-chrome-file"
 
 webp(50000,*)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,135,215,315#FFFFFF}|0.5||100[photo][75]|!opaque!greyscale
-```
-
-```javascript
-const options = {
-    assets: [
-        {
-            pathname: 'images',
-            filename: 'pencil.png',
-            mimeType: 'image/png',
-            commands: ['jpeg', 'bmp@(50000,100000)'],
-            uri: 'http://localhost:3000/common/images/pencil.png'
-        }
-    ]
-};
 ```
 
 [TinyPNG](https://tinypng.com/developers) is used for compression and supports only PNG and JPEG.
@@ -120,6 +106,7 @@ const options = {
             pathname: 'images',
             filename: 'pencil.png',
             mimeType: 'image/png',
+            commands: ['jpeg', 'bmp@(50000,100000)'],
             tasks: ['compress'],
             uri: 'http://localhost:3000/common/images/pencil.png'
         }
@@ -340,7 +327,7 @@ function (context, value, output /* optional */, input /* optional */) {
 </script>
 ```
 
-Here is the equivalent YAML settings and when available has higher precedence than JSON settings.
+Here is the equivalent configuration in YAML and when available has higher precedence than JSON.
 
 - [squared.settings.json](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.json)
 - [squared.settings.yml](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.yml)
@@ -449,7 +436,7 @@ Manual installation of the SDK is required including an account with at least on
 * Amazon AWS
   - npm install aws-sdk
   - S3: https://aws.amazon.com/free (5GB)
-  - OCI: https://www.oracle.com/cloud/free/ (10GB)
+  - OCI: https://www.oracle.com/cloud/free (10GB)
 
 * Microsoft
   - npm install @azure/storage-blob
@@ -458,6 +445,10 @@ Manual installation of the SDK is required including an account with at least on
 * Google
   - npm install @google-cloud/storage
   - GCS: https://cloud.google.com/free (5GB)
+
+* IBM
+  - npm install ibm-cos-sdk
+  - IBM: https://www.ibm.com/cloud/free (25GB)
 
 * Oracle
   - OCI: Uses S3 compatibility API
@@ -479,9 +470,12 @@ Other service providers can be integrated similarly except for credential verifi
     {
       "service": "s3",
       "bucket": "squared-001",
-      "accessKeyId": "**********", // Using settings (optional)
-      "secretAccessKey": "**********", // Using settings (optional)
-      "settings": "main" // Load host configuration at instantiation (optional)
+      "credential": {
+        "region": "us-west-2", // Custom properties are sent to the S3 client (optional)
+        "accessKeyId": "**********", // Using settings (optional)
+        "secretAccessKey": "**********", // Using settings (optional)
+        "settings": "main" // Load host configuration at instantiation (optional)
+      },
       "upload": {
         "active": false, // Rewrites "src" to cloud storage location (optional)
         "localStorage": true, // Removes all files from archive or local disk (optional)
@@ -501,8 +495,10 @@ Other service providers can be integrated similarly except for credential verifi
     {
       "service": "azure",
       "container": "squared-002",
-      "accountName": "**********",
-      "accountKey": "**********",
+      "credential": {
+        "accountName": "**********",
+        "accountKey": "**********"
+      },
       "upload": {
         "apiEndpoint": "http://squaredjs.azureedge.net/squared-002" // e.g. CDN (optional)
       }
@@ -510,7 +506,9 @@ Other service providers can be integrated similarly except for credential verifi
     {
       "service": "gcs",
       "bucket": "squared-003", // UUID generated when omitted (optional)
-      "keyFilename": "./gcs.json", // Path to JSON credentials
+      "credential": {
+        "keyFilename": "./gcs.json" // Path to JSON credentials
+      },
       "publicRead": false, // New buckets (optional: Not supported OCI)
       "upload": {
         "active": true, // Implicity "publicRead: true" except when explicitly "publicRead: false"
@@ -518,16 +516,30 @@ Other service providers can be integrated similarly except for credential verifi
       }
     },
     {
+      "service": "ibm",
+      "bucket": "squared-004",
+      "credential": {
+        "region": "us-south",
+        "endpoint": "https://s3.us-south.cloud-object-storage.appdomain.cloud",
+        "apiKeyId": "**********",
+        "serviceInstanceId": "**********"
+      }
+    },
+    {
       "service": "oci",
-      "bucket": "squared-004", // New buckets are private when using S3 API
-      "region": "us-phoenix-1",
-      "namespace": "abcdefghijkl",
-      "accessKeyId": "**********",
-      "secretAccessKey": "**********"
+      "bucket": "squared-005", // New buckets are private when using S3 API
+      "credential": {
+        "region": "us-phoenix-1",
+        "namespace": "abcdefghijkl",
+        "accessKeyId": "**********",
+        "secretAccessKey": "**********"
+      }
     }
   ]
 }
 ```
+
+- [cloud.selector.yml](https://github.com/anpham6/squared-functions/blob/master/examples/cloud.selector.yml)
 
 Serving CSS files from cloud storage or CDN requires every image inside the file to be hosted with an absolute URL.
 
