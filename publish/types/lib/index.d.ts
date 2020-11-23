@@ -45,9 +45,14 @@ declare namespace functions {
         interface CloudService extends ObjectMap<unknown> {
             service: string;
             credential: StringMap;
-            publicRead?: boolean;
+            admin?: CloudServiceAdmin;
             upload?: CloudServiceUpload;
             download?: CloudServiceDownload;
+        }
+
+        interface CloudServiceAdmin {
+            publicRead?: boolean;
+            emptyBucket?: boolean;
         }
 
         interface CloudServiceAction {
@@ -150,22 +155,22 @@ declare namespace functions {
 
             interface RotateData {
                 values: number[];
-                color: Null<number>;
+                color: number;
             }
 
             interface ResizeData extends Dimension {
                 mode: string;
-                algorithm: Undef<string>;
+                color: number;
                 align: Undef<string>[];
-                color: Null<number>;
+                algorithm?: string;
             }
 
             interface CropData extends Point, Dimension {}
 
             interface QualityData {
                 value: number;
-                preset: Undef<string>;
                 nearLossless: number;
+                preset?: string;
             }
         }
 
@@ -176,8 +181,7 @@ declare namespace functions {
                 sourcesContent: Null<string>;
                 sourceMap: Map<string, SourceMapOutput>;
                 map?: SourceMap;
-                packageName?: string;
-                nextMap: (packageName: string, map: SourceMap | string, value: string, includeSources?: boolean) => boolean;
+                nextMap: (name: string, map: SourceMap | string, value: string, includeSources?: boolean) => boolean;
             }
 
             interface SourceMapOutput {
@@ -189,12 +193,12 @@ declare namespace functions {
 
             interface SourceMap {
                 version: number;
-                file?: string;
-                sourceRoot?: string;
                 sources: string[];
-                sourcesContent?: Null<string>[];
                 names: string[];
                 mappings: string;
+                file?: string;
+                sourceRoot?: string;
+                sourcesContent?: Null<string>[];
             }
 
             type ConfigOrTranspiler = StandardMap | FunctionType<string>;
@@ -223,12 +227,15 @@ declare namespace functions {
 
             interface DownloadData<T, U> extends FunctionData<T, U> {
                 download: CloudServiceDownload;
+                bucketGroup: string;
             }
 
             interface ServiceClient {
-                validate: (credential: StringMap) => boolean;
-                setCredential?: (this: IFileManager, credential: PlainObject) => void;
-                setPublicRead?: (this: IFileManager, ...args: unknown[]) => void;
+                validate(credential: StringMap): boolean;
+                deleteObjects(this: IFileManager | ICloud, service: string, credential: PlainObject, bucket: string, sdk?: string): Promise<void>;
+                createClient?<T>(this: IFileManager | ICloud, service: string, credential: PlainObject): T;
+                setCredential?(this: IFileManager | ICloud, credential: PlainObject): void;
+                setPublicRead?(this: IFileManager | ICloud, ...args: unknown[]): void;
             }
 
             type UploadHost = (this: IFileManager, service: string, credential: unknown, sdk?: string) => UploadCallback;
@@ -330,6 +337,8 @@ declare namespace functions {
         getBucket(data: squared.CloudService): string;
         getService(functionName: CloudFunctions, data: Undef<squared.CloudService[]>): Undef<squared.CloudService>;
         hasService(functionName: CloudFunctions, data: squared.CloudService): squared.CloudServiceAction | false;
+        hasCredential(data: squared.CloudService): boolean;
+        deleteObjects(service: string, credential: PlainObject, bucket: string, bucketGroup?: string): Promise<void>;
     }
 
     interface IChrome extends IModule {

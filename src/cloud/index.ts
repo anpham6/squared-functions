@@ -35,19 +35,26 @@ const Cloud = new class extends Module implements functions.ICloud {
     }
     hasService(functionName: CloudFunctions, data: CloudService): CloudServiceAction | false {
         const action = data[functionName] as Undef<CloudServiceAction>;
-        if (action) {
-            const service = data.service.trim();
-            try {
-                const settings: StringMap = data.credential.settings && this.settings?.[service]?.[data.credential.settings] || {};
-                if ((serviceMap[service] ||= require(`../cloud/${service}`) as ServiceClient).validate({ ...settings, ...data.credential })) {
-                    return action;
-                }
-            }
-            catch (err) {
-                this.writeFail(['Cloud provider not found', service], err);
-            }
+        return action && this.hasCredential(data) ? action : false;
+    }
+    hasCredential(data: CloudService) {
+        const service = data.service;
+        try {
+            const settings: StringMap = data.credential.settings && this.settings?.[service]?.[data.credential.settings] || {};
+            return (serviceMap[service] ||= require(`../cloud/${service}`) as ServiceClient).validate({ ...settings, ...data.credential });
+        }
+        catch (err) {
+            this.writeFail(['Cloud provider not found', service], err);
         }
         return false;
+    }
+    async deleteObjects(service: string, credential: PlainObject, bucket: string): Promise<void> {
+        try {
+            return (serviceMap[service] ||= require(`../cloud/${service}`) as ServiceClient).deleteObjects.call(this, service.toUpperCase(), credential, bucket);
+        }
+        catch (err) {
+            this.writeFail(['Cloud provider not found', service], err);
+        }
     }
 }();
 

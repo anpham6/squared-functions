@@ -28,7 +28,7 @@ const REGEXP_OPACITY = /\|\s*(\d*\.\d+)\s*\|/;
 const REGEXP_QUALITY = /\|\s*(\d+)(?:\s*\[\s*(photo|picture|drawing|icon|text)\s*\])?(?:\s*\[\s*(\d+)\s*\])?\s*\|/;
 const REGEXP_METHOD = /!\s*([A-Za-z$][\w$]*)/g;
 
-const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : null;
+const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : NaN;
 
 class JimpProxy implements functions.ImageProxy<jimp> {
     public resizeData?: ResizeData;
@@ -93,7 +93,7 @@ class JimpProxy implements functions.ImageProxy<jimp> {
         const resizeData = this.resizeData;
         if (resizeData) {
             const { width, height, color, algorithm, align } = resizeData;
-            if (color !== null) {
+            if (!isNaN(color)) {
                 this.instance = this.instance.background(color);
             }
             let mode: string = jimp.RESIZE_NEAREST_NEIGHBOR,
@@ -154,7 +154,7 @@ class JimpProxy implements functions.ImageProxy<jimp> {
         const rotateData = this.rotateData;
         if (rotateData) {
             const { values, color } = rotateData;
-            if (color !== null) {
+            if (!isNaN(color)) {
                 this.instance = this.instance.background(color);
             }
             const deg = values[0];

@@ -55,7 +55,8 @@ const Module = class implements functions.IModule {
         this.formatMessage('FAIL', value, message, 'white', 'bgRed');
     }
     formatMessage(title: string, value: string | [string, string], message?: unknown, color: typeof ForegroundColor = 'green', bgColor: typeof BackgroundColor = 'bgBlack') {
-        value = Array.isArray(value) ? value[0].padEnd(30) + chalk.blackBright('[') + (value[1].length > 28 ? value[1].substring(0, 25) + '...' : chalk.blackBright('_'.repeat(28 - value[1].length)) + value[1] + chalk.blackBright(']')) : value.padEnd(60);
+        const length = value[1].length;
+        value = Array.isArray(value) ? value[0].padEnd(30) + (length < 28 ? chalk.blackBright(' '.repeat(28 - length)) : '') + chalk.blackBright('[') + (length > 28 ? value[1].substring(0, 25) + '...' : value[1]) + chalk.blackBright(']') : value.padEnd(60);
         this.writeMessage(title.padEnd(5), value, message, color, bgColor);
     }
     writeMessage(title: string, value: string, message?: unknown, color: typeof ForegroundColor = 'green', bgColor: typeof BackgroundColor = 'bgBlack') {

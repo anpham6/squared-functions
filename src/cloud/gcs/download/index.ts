@@ -1,6 +1,6 @@
-import type * as gcs from '@google-cloud/storage';
-
 import type { GCSCloudBucket, GCSCloudCredential } from '../index';
+
+import { createClient } from '../index';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -14,7 +14,7 @@ async function download(this: IFileManager, service: string, credential: GCSClou
     const bucketName = data.service.bucket;
     if (bucketName) {
         try {
-            const { Storage } = require('@google-cloud/storage');
+            const storage = createClient.call(this, service, credential);
             let tempDir = this.getTempDir() + uuid.v4() + path.sep;
             try {
                 fs.mkdirpSync(tempDir);
@@ -24,7 +24,6 @@ async function download(this: IFileManager, service: string, credential: GCSClou
             }
             const filename = data.download.filename;
             const destination = tempDir + filename;
-            const storage = new Storage(credential) as gcs.Storage;
             const bucket = storage.bucket(bucketName);
             const file = bucket.file(filename, { generation: data.download.versionId });
             file.download({ destination })
@@ -48,9 +47,8 @@ async function download(this: IFileManager, service: string, credential: GCSClou
                     success('');
                 });
         }
-        catch (err) {
-            this.writeFail([`Install ${service} SDK?`, `npm i @google-cloud/storage`]);
-            throw err;
+        catch {
+            success('');
         }
     }
     else {

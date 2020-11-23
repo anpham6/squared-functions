@@ -509,10 +509,13 @@ Other service providers can be integrated similarly except for credential verifi
       "credential": {
         "keyFilename": "./gcs.json" // Path to JSON credentials
       },
-      "publicRead": false, // New buckets (optional: Not supported OCI)
+      "admin": {
+        "publicRead": false, // New buckets (optional: Not supported OCI)
+        "emptyBucket": false // More convenient than using "overwrite"
+      },
       "upload": {
         "active": true, // Implicity "publicRead: true" except when explicitly "publicRead: false"
-        "publicRead": false // Uses ACL (optional: Not supported Azure and OCI)
+        "publicRead": false // User with "admin" privileges (optional: Not supported Azure and OCI)
       }
     },
     {

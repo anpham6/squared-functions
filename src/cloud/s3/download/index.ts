@@ -2,6 +2,8 @@ import type * as aws from 'aws-sdk';
 
 import type { S3CloudBucket, S3CloudCredential } from '../index';
 
+import { createClient } from '../index';
+
 type IFileManager = functions.IFileManager;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 
@@ -11,9 +13,12 @@ async function download(this: IFileManager, service: string, credential: S3Cloud
     const Bucket = data.service.bucket;
     if (Bucket) {
         try {
-            const S3 = require(sdk) as Constructor<aws.S3>;
-            const s3 = new S3(credential);
-            const params = { Bucket, Key: data.download.filename, VersionId: data.download.versionId };
+            const s3 = createClient.call(this, service, credential, sdk);
+            const params: aws.S3.Types.GetObjectRequest = {
+                Bucket,
+                Key: data.download.filename,
+                VersionId: data.download.versionId
+            };
             s3.getObject(params, (err, result) => {
                 const location = Bucket + '/' + data.download.filename;
                 if (!err) {
@@ -36,8 +41,7 @@ async function download(this: IFileManager, service: string, credential: S3Cloud
                 }
             });
         }
-        catch (err) {
-            this.writeFail([`Install ${service} SDK?`, 'npm i aws-sdk'], err);
+        catch {
             success(null);
         }
     }

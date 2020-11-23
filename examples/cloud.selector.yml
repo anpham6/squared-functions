@@ -34,7 +34,9 @@ cloudStorage:
   bucket: squared-003
   credential:
     keyFilename: "./gcs.json"
-  publicRead: false
+  admin:
+    publicRead: true
+    emptyBucket: true
   upload:
     active: true
     publicRead: false

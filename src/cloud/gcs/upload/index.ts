@@ -6,7 +6,7 @@ import path = require('path');
 import fs = require('fs-extra');
 import uuid = require('uuid');
 
-import { setPublicRead } from '../index';
+import { createClient, setPublicRead } from '../index';
 
 type IFileManager = functions.IFileManager;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
@@ -16,15 +16,7 @@ type UploadData = functions.internal.Cloud.UploadData<GCSCloudCredential, GCSClo
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
 function upload(this: IFileManager, service: string, credential: GCSCloudCredential): UploadCallback {
-    let storage: gcs.Storage;
-    try {
-        const { Storage } = require('@google-cloud/storage');
-        storage = new Storage(credential);
-    }
-    catch (err) {
-        this.writeFail([`Install ${service} SDK?`, 'npm i @google-cloud/storage']);
-        throw err;
-    }
+    const storage = createClient.call(this, service, credential);
     return async (data: UploadData, success: (value: string) => void) => {
         let bucketName = data.service.bucket ||= data.bucketGroup,
             bucket: Undef<gcs.Bucket>;
@@ -37,7 +29,7 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
                     [bucket] = await storage.createBucket(bucketName, credential);
                     bucketName = bucket.name;
                     this.formatMessage(service, 'Bucket created', bucketName, 'blue');
-                    if (data.service.publicRead) {
+                    if (data.service.admin?.publicRead) {
                         bucket.makePublic().then(() => setPublicRead.call(this, bucket!.acl.default, bucketName, true));
                     }
                 }
@@ -85,36 +77,29 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
                     tempDir = this.getTempDir();
                 }
                 srcUri = tempDir + Key[i];
-                if (i === 0) {
-                    try {
+                try {
+                    if (i === 0) {
                         fs.writeFileSync(srcUri, Body[0]);
                     }
-                    catch (err) {
-                        this.formatMessage(service, ['Unable to write buffer', fileUri], err, 'red');
-                        success('');
-                        return;
-                    }
-                }
-                else {
-                    try {
+                    else {
                         fs.copyFileSync(destUri, srcUri);
                     }
-                    catch (err) {
-                        this.formatMessage(service, ['Unable to copy file', fileUri], err, 'red');
-                        success('');
-                        return;
-                    }
+                }
+                catch (err) {
+                    this.formatMessage(service, ['Unable to write buffer', fileUri], err, 'red');
+                    success('');
+                    return;
                 }
             }
             bucket.upload(srcUri, { contentType: ContentType[i] }, (err, file) => {
-                if (!err) {
+                if (file) {
                     const { active, apiEndpoint, publicRead } = data.upload;
                     const url = (apiEndpoint ? this.toPosix(apiEndpoint) : 'https://storage.googleapis.com/' + bucketName) + '/' + Key[i];
                     this.formatMessage(service, 'Upload success', url);
                     if (i === 0) {
                         success(url);
                     }
-                    if (file && (publicRead || active && publicRead !== false)) {
+                    if (publicRead || active && publicRead !== false) {
                         setPublicRead.call(this, file.acl, bucketName + '/' + Key[i], publicRead);
                     }
                 }

@@ -5,7 +5,7 @@ import type { S3CloudBucket, S3CloudCredential } from '../index';
 import path = require('path');
 import uuid = require('uuid');
 
-import { setPublicRead } from '../index';
+import { createClient, setPublicRead } from '../index';
 
 type IFileManager = functions.IFileManager;
 type UploadHost = functions.internal.Cloud.UploadHost;
@@ -15,19 +15,11 @@ type UploadData = functions.internal.Cloud.UploadData<S3CloudCredential, S3Cloud
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
 function upload(this: IFileManager, service: string, credential: S3CloudCredential, sdk = 'aws-sdk/clients/s3'): UploadCallback {
-    let s3: aws.S3;
-    try {
-        const S3 = require(sdk) as Constructor<aws.S3>;
-        s3 = new S3(credential);
-    }
-    catch (err) {
-        this.writeFail([`Install ${service} SDK?`, 'npm i aws-sdk']);
-        throw err;
-    }
+    const s3 = createClient.call(this, service, credential, sdk);
     return async (data: UploadData, success: (value: string) => void) => {
         const Bucket = data.service.bucket ||= data.bucketGroup;
-        const bucketService = service + Bucket;
-        if (!BUCKET_MAP[bucketService] || data.service.publicRead) {
+        const admin = data.service.admin;
+        if (!BUCKET_MAP[service + Bucket] || admin?.publicRead) {
              const result = await s3.headBucket({ Bucket })
                 .promise()
                 .then(() => true)
@@ -40,8 +32,8 @@ function upload(this: IFileManager, service: string, credential: S3CloudCredenti
                         .promise()
                         .then(() => {
                             this.formatMessage(service, 'Bucket created', Bucket, 'blue');
-                            BUCKET_MAP[bucketService] = true;
-                            if (data.service.publicRead) {
+                            BUCKET_MAP[service + Bucket] = true;
+                            if (admin?.publicRead) {
                                 setPublicRead.call(this, s3, Bucket, service);
                             }
                             return true;

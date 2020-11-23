@@ -1616,7 +1616,10 @@ const FileManager = class extends Module implements IFileManager {
             const bucketGroup = uuid.v4();
             const htmlFiles = this.getHtmlPages();
             const cssFiles: ExternalAsset[] = [];
-            let apiEndpoint: Undef<RegExp>;
+            const rawFiles: ExternalAsset[] = [];
+            let apiEndpoint: Undef<RegExp>,
+                modifiedHtml: Undef<boolean>,
+                modifiedCss: Undef<Set<ExternalAsset>>;
             if (htmlFiles.length === 1) {
                 const upload = Cloud.getService('upload', htmlFiles[0].cloudStorage)?.upload;
                 if (upload && upload.apiEndpoint) {
@@ -1638,9 +1641,11 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 return [files, transforms];
             };
-            const createCredential = (data: CloudService) => {
+            const createCredential = (data: CloudService): PlainObject => {
                 const settings = data.credential.settings;
-                return Object.assign({}, settings && this.Cloud![data.service] ? { ...this.Cloud![data.service][settings] } : {}, data.credential);
+                const credential = Object.assign({}, settings && this.Cloud![data.service] ? { ...this.Cloud![data.service][settings] } : {}, data.credential);
+                delete credential.settings;
+                return credential;
             };
             const uploadFiles = (item: ExternalAsset, mimeType = item.mimeType) => {
                 const cloudMain = Cloud.getService('upload', item.cloudStorage);
@@ -1752,31 +1757,52 @@ const FileManager = class extends Module implements IFileManager {
                     }
                 }
             };
-            let modifiedHtml: Undef<boolean>,
-                modifiedCss: Undef<Set<ExternalAsset>>;
+            const bucketMap: ObjectMap<Map<string, PlainObject>> = {};
             for (const item of this.assets) {
-                if (item.cloudStorage && !item.invalid) {
-                    if (item.inlineCloud) {
-                        cloudMap[item.inlineCloud] = item;
-                        modifiedHtml = true;
+                if (item.cloudStorage) {
+                    if (item.fileUri) {
+                        if (item.inlineCloud) {
+                            cloudMap[item.inlineCloud] = item;
+                            modifiedHtml = true;
+                        }
+                        else if (item.inlineCssCloud) {
+                            cloudCssMap[item.inlineCssCloud] = item;
+                            modifiedCss = new Set();
+                        }
+                        switch (item.mimeType) {
+                            case '@text/html':
+                                break;
+                            case '@text/css':
+                                cssFiles.push(item);
+                                break;
+                            default:
+                                await this.compressFile(item);
+                                compressMap.add(item);
+                                rawFiles.push(item);
+                                break;
+                        }
                     }
-                    else if (item.inlineCssCloud) {
-                        cloudCssMap[item.inlineCssCloud] = item;
-                        modifiedCss = new Set();
-                    }
-                    switch (item.mimeType) {
-                        case '@text/html':
-                            break;
-                        case '@text/css':
-                            cssFiles.push(item);
-                            break;
-                        default:
-                            await this.compressFile(item);
-                            compressMap.add(item);
-                            uploadFiles(item);
-                            break;
+                    for (const storage of item.cloudStorage) {
+                        if (storage.admin?.emptyBucket && Cloud.hasCredential(storage)) {
+                            const bucket = Cloud.getBucket(storage);
+                            if (!(bucketMap[storage.service] ||= new Map()).has(bucket)) {
+                                bucketMap[storage.service].set(bucket, createCredential(storage));
+                            }
+                        }
                     }
                 }
+            }
+            for (const service in bucketMap) {
+                for (const [bucket, credential] of bucketMap[service]) {
+                    tasks.push(Cloud.deleteObjects(service, credential, bucket));
+                }
+            }
+            if (tasks.length) {
+                await Promise.all(tasks).catch(err => this.writeFail(['Empty buckets in cloud storage', 'finalize'], err));
+                tasks = [];
+            }
+            for (const item of rawFiles) {
+                uploadFiles(item);
             }
             if (tasks.length) {
                 await Promise.all(tasks).catch(err => this.writeFail(['Upload raw assets to cloud storage', 'finalize'], err));
@@ -1831,7 +1857,7 @@ const FileManager = class extends Module implements IFileManager {
                     }
                     await this.compressFile(item);
                     compressMap.add(item);
-                    if (item.cloudStorage && item.cloudStorage.some(storage => Cloud.hasService('upload', storage))) {
+                    if (item.cloudStorage) {
                         uploadFiles(item, 'text/html');
                     }
                 }
@@ -1910,7 +1936,7 @@ const FileManager = class extends Module implements IFileManager {
                                         tasks.push(new Promise<void>(resolve => {
                                             try {
                                                 const credential = createCredential(data);
-                                                (require(`../cloud/${service.toLowerCase()}/download`) as DownloadHost).call(this, service, credential, { service: data, credential, download: data.download! }, (value: Null<Buffer | string>) => {
+                                                (require(`../cloud/${service.toLowerCase()}/download`) as DownloadHost).call(this, service, credential, { service: data, credential, bucketGroup, download: data.download! }, (value: Null<Buffer | string>) => {
                                                     if (value) {
                                                         try {
                                                             const items = Array.from(downloadMap[location]);

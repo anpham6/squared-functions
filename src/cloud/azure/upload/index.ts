@@ -1,9 +1,9 @@
-import type * as azure from '@azure/storage-blob';
-
 import type { AzureCloudBucket, AzureCloudCredential } from '../index';
 
 import path = require('path');
 import uuid = require('uuid');
+
+import { createClient } from '../index';
 
 type IFileManager = functions.IFileManager;
 type UploadHost = functions.internal.Cloud.UploadHost;
@@ -13,16 +13,7 @@ type UploadCallback = functions.internal.Cloud.UploadCallback;
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
 function upload(this: IFileManager, service: string, credential: AzureCloudCredential): UploadCallback {
-    let blobServiceClient: azure.BlobServiceClient;
-    try {
-        const { BlobServiceClient, StorageSharedKeyCredential } = require('@azure/storage-blob');
-        const sharedKeyCredential = new StorageSharedKeyCredential(credential.accountName, credential.accountKey) as azure.StorageSharedKeyCredential;
-        blobServiceClient = new BlobServiceClient(`https://${credential.accountName}.blob.core.windows.net`, sharedKeyCredential) as azure.BlobServiceClient;
-    }
-    catch (err) {
-        this.writeFail([`Install ${service} SDK?`, 'npm i @azure/storage-blob']);
-        throw err;
-    }
+    const blobServiceClient = createClient.call(this, service, credential);
     return async (data: UploadData, success: (value: string) => void) => {
         const container = data.service.container ||= data.bucketGroup;
         const fileUri = data.fileUri;
@@ -31,7 +22,7 @@ function upload(this: IFileManager, service: string, credential: AzureCloudCrede
             try {
                 if (!await containerClient.exists()) {
                     const { active, publicRead } = data.upload;
-                    await containerClient.create({ access: data.service.publicRead || publicRead || active && publicRead !== false ? 'blob' : 'container' });
+                    await containerClient.create({ access: data.service.admin?.publicRead || publicRead || active && publicRead !== false ? 'blob' : 'container' });
                     this.formatMessage(service, 'Container created', container, 'blue');
                 }
             }
