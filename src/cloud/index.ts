@@ -13,15 +13,13 @@ type ServiceClient = functions.internal.Cloud.ServiceClient;
 const serviceMap: ObjectMap<ServiceClient> = {};
 
 function setUploadFilename(data: CloudService, value: string) {
+    value = Cloud.toPosix(value.replace(/^\.*[\\/]+/, ''));
     const index = value.lastIndexOf('/');
-    if (index === 0) {
-        value = value.substring(1);
-    }
-    else if (index > 0) {
+    if (index !== -1) {
         const directory = value.substring(0, index + 1);
         data.admin ||= {};
         const subFolder = data.admin.subFolder;
-        data.admin.subFolder = subFolder ? path.join(Cloud.toPosix(subFolder), directory) : directory;
+        data.admin.subFolder = subFolder ? path.join(subFolder, directory) : directory;
         value = value.substring(index + 1);
     }
     return data.upload!.filename = value;
@@ -45,6 +43,10 @@ const Cloud = new class extends Module implements functions.ICloud {
                     const upload = data.upload;
                     if (upload && upload.filename) {
                         setUploadFilename(data, upload.filename);
+                    }
+                    const subFolder = data.admin?.subFolder;
+                    if (subFolder) {
+                        data.admin!.subFolder = Cloud.toPosix(subFolder) + '/';
                     }
                 }
                 storage.push(item);

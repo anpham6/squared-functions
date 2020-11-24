@@ -46,6 +46,7 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
         }
         bucket ||= storage.bucket(bucketName);
         const fileUri = data.fileUri;
+        const subFolder = data.service.admin?.subFolder || '';
         let filename = data.filename;
         if (!filename || !data.upload.overwrite) {
             filename ||= path.basename(fileUri);
@@ -64,7 +65,7 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
                             break;
                         }
                     }
-                    [exists] = await bucket.file(filename).exists();
+                    [exists] = await bucket.file(subFolder + filename).exists();
                 }
                 while (exists && ++i);
                 if (i > 0) {
@@ -111,10 +112,10 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
                     return;
                 }
             }
-            bucket.upload(srcUri, { contentType: ContentType[i] }, (err, file) => {
+            bucket.upload(srcUri, { contentType: ContentType[i], destination: subFolder ? subFolder + path.basename(srcUri) : '' }, (err, file) => {
                 if (file) {
                     const { active, endpoint, publicRead } = data.upload;
-                    const url = (endpoint ? this.toPosix(endpoint) : 'https://storage.googleapis.com/' + bucketName) + '/' + Key[i];
+                    const url = (endpoint ? this.toPosix(endpoint) : 'https://storage.googleapis.com/' + bucketName) + '/' + file.name;
                     this.formatMessage(service, 'Upload success', url);
                     if (i === 0) {
                         success(url);

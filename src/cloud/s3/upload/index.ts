@@ -52,6 +52,7 @@ function upload(this: IFileManager, service: string, credential: S3CloudCredenti
             }
         }
         const fileUri = data.fileUri;
+        const subFolder = data.service.admin?.subFolder || '';
         let filename = data.filename;
         if (!filename || !data.upload.overwrite) {
             filename ||= path.basename(fileUri);
@@ -70,7 +71,7 @@ function upload(this: IFileManager, service: string, credential: S3CloudCredenti
                             break;
                         }
                     }
-                    exists = await s3.headObject({ Bucket, Key: filename })
+                    exists = await s3.headObject({ Bucket, Key: subFolder + filename })
                         .promise()
                         .then(() => true)
                         .catch(err => {
@@ -91,6 +92,9 @@ function upload(this: IFileManager, service: string, credential: S3CloudCredenti
                 return;
             }
         }
+        if (subFolder) {
+            await s3.putObject({ Bucket, Key: subFolder, Body: Buffer.from(''), ContentLength: 0 }).promise();
+        }
         const { active, publicRead, endpoint } = data.upload;
         const ACL = publicRead || active && publicRead !== false ? 'public-read' : '';
         const Key = [filename];
@@ -101,9 +105,9 @@ function upload(this: IFileManager, service: string, credential: S3CloudCredenti
             Key.push(filename + item[1]);
         }
         for (let i = 0; i < Key.length; ++i) {
-            s3.upload({ Bucket, Key: Key[i], ACL, Body: Body[i], ContentType: ContentType[i] }, (err, result) => {
+            s3.upload({ Bucket, Key: subFolder + Key[i], ACL, Body: Body[i], ContentType: ContentType[i] }, (err, result) => {
                 if (!err) {
-                    const url = endpoint ? this.toPosix(endpoint, Key[i]) : result.Location;
+                    const url = endpoint ? this.toPosix(endpoint, result.Key) : result.Location;
                     this.formatMessage(service, 'Upload success', url);
                     if (i === 0) {
                         success(url);

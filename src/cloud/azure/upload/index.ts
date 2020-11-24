@@ -35,6 +35,7 @@ function upload(this: IFileManager, service: string, credential: AzureCloudCrede
             }
             BUCKET_MAP[bucket] = true;
         }
+        const subFolder = data.service.admin?.subFolder || '';
         let filename = data.filename;
         if (!filename || !data.upload.overwrite) {
             filename ||= path.basename(fileUri);
@@ -53,8 +54,9 @@ function upload(this: IFileManager, service: string, credential: AzureCloudCrede
                             break;
                         }
                     }
+                    const name = subFolder + filename;
                     for await (const blob of containerClient.listBlobsFlat({ includeUncommitedBlobs: true })) {
-                        if (blob.name === filename) {
+                        if (blob.name === name) {
                             exists = true;
                             break;
                         }
@@ -80,10 +82,11 @@ function upload(this: IFileManager, service: string, credential: AzureCloudCrede
             Key.push(filename + item[1]);
         }
         for (let i = 0; i < Key.length; ++i) {
-            containerClient.getBlockBlobClient(Key[i])
+            const blobName = subFolder + Key[i];
+            containerClient.getBlockBlobClient(blobName)
                 .upload(Body[i], Body[i].byteLength, { blobHTTPHeaders: { blobContentType: ContentType[i] } })
                 .then(() => {
-                    const url = (endpoint ? this.toPosix(endpoint) : `https://${credential.accountName}.blob.core.windows.net/${bucket}`) + '/' + Key[i];
+                    const url = (endpoint ? this.toPosix(endpoint) : `https://${credential.accountName}.blob.core.windows.net/${bucket}`) + '/' + blobName;
                     this.formatMessage(service, 'Upload success', url);
                     if (i === 0) {
                         success(url);

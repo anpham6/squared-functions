@@ -511,7 +511,8 @@ Other service providers can be integrated similarly except for credential verifi
       },
       "admin": {
         "publicRead": false, // New buckets (optional: Not supported OCI)
-        "emptyBucket": false // More convenient than using "overwrite"
+        "emptyBucket": false // More convenient than using "overwrite" (optional)
+        "subFolder": "a/b/c/" // Virtual directory in bucket (optional)
       },
       "upload": {
         "active": true, // Implicity "publicRead: true" except when explicitly "publicRead: false"
@@ -620,7 +621,9 @@ Setting the active cloud storage filename to a JS/CSS bundle will not have any e
     {
       "service": "s3",
       "bucket": "squared-001",
-      "settings": "main",
+      "credential": {
+        "settings": "main"
+      },
       "upload": {
         "active": true
       }
