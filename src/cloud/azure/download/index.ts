@@ -1,17 +1,17 @@
-import type { AzureCloudBucket, AzureCloudCredential } from '../index';
+import type { AzureCloudCredential } from '../index';
 
 import { createClient } from '../index';
 
 type IFileManager = functions.IFileManager;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
-type DownloadData = functions.internal.Cloud.DownloadData<AzureCloudCredential, AzureCloudBucket>;
+type DownloadData = functions.internal.Cloud.DownloadData<AzureCloudCredential>;
 
 async function download(this: IFileManager, service: string, credential: AzureCloudCredential, data: DownloadData, success: (value: Null<Buffer>) => void) {
-    const container = data.service.container;
-    if (container) {
+    const bucket = data.service.bucket;
+    if (bucket) {
         try {
-            const location = container + '/' + data.download.filename;
-            const blobClient = createClient.call(this, service, credential).getContainerClient(container);
+            const location = bucket + '/' + data.download.filename;
+            const blobClient = createClient.call(this, service, credential).getContainerClient(bucket);
             blobClient.getBlockBlobClient(data.download.filename)
                 .downloadToBuffer()
                 .then(buffer => {

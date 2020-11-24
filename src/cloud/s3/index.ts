@@ -8,10 +8,6 @@ export interface S3CloudCredential extends ConfigurationOptions {
     endpoint?: string;
 }
 
-export interface S3CloudBucket extends functions.squared.CloudService {
-    bucket?: string;
-}
-
 const AccessControlPolicy: aws.S3.Types.AccessControlPolicy = {
     Grants: [{
         Grantee: { Type: 'Group', URI: 'http://acs.amazonaws.com/groups/global/AllUsers' },
@@ -71,7 +67,7 @@ export async function deleteObjects(this: ICloud, service: string, credential: S
         const s3 = createClient.call(this, service, credential, sdk);
         const Contents = (await s3.listObjects({ Bucket }).promise()).Contents;
         if (Contents && Contents.length) {
-            await s3.deleteObjects({ Bucket, Delete: { Objects: Contents.map(data => ({ Key: data.Key! })) } })
+            return s3.deleteObjects({ Bucket, Delete: { Objects: Contents.map(data => ({ Key: data.Key! })) } })
                 .promise()
                 .then(data => {
                     if (data.Deleted) {

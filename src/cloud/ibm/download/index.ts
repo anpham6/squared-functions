@@ -1,10 +1,10 @@
-import type { IBMCloudBucket, IBMCloudCredential } from '../index';
+import type { IBMCloudCredential } from '../index';
 
 import { setCredential } from '../index';
 
 type IFileManager = functions.IFileManager;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
-type DownloadData = functions.internal.Cloud.DownloadData<IBMCloudCredential, IBMCloudBucket>;
+type DownloadData = functions.internal.Cloud.DownloadData<IBMCloudCredential>;
 
 async function download(this: IFileManager, service: string, credential: IBMCloudCredential, data: DownloadData, success: (value?: unknown) => void) {
     setCredential.call(this, credential);

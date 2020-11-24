@@ -1,4 +1,4 @@
-import type { AzureCloudBucket, AzureCloudCredential } from '../index';
+import type { AzureCloudCredential } from '../index';
 
 import path = require('path');
 import uuid = require('uuid');
@@ -7,7 +7,7 @@ import { createClient } from '../index';
 
 type IFileManager = functions.IFileManager;
 type UploadHost = functions.internal.Cloud.UploadHost;
-type UploadData = functions.internal.Cloud.UploadData<AzureCloudCredential, AzureCloudBucket>;
+type UploadData = functions.internal.Cloud.UploadData<AzureCloudCredential>;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
@@ -15,25 +15,25 @@ const BUCKET_MAP: ObjectMap<boolean> = {};
 function upload(this: IFileManager, service: string, credential: AzureCloudCredential): UploadCallback {
     const blobServiceClient = createClient.call(this, service, credential);
     return async (data: UploadData, success: (value: string) => void) => {
-        const container = data.service.container ||= data.bucketGroup;
+        const bucket = data.service.bucket ||= data.bucketGroup;
         const fileUri = data.fileUri;
-        const containerClient = blobServiceClient.getContainerClient(container);
-        if (!BUCKET_MAP[container]) {
+        const containerClient = blobServiceClient.getContainerClient(bucket);
+        if (!BUCKET_MAP[bucket]) {
             try {
                 if (!await containerClient.exists()) {
                     const { active, publicRead } = data.upload;
                     await containerClient.create({ access: data.service.admin?.publicRead || publicRead || active && publicRead !== false ? 'blob' : 'container' });
-                    this.formatMessage(service, 'Container created', container, 'blue');
+                    this.formatMessage(service, 'Container created', bucket, 'blue');
                 }
             }
             catch (err) {
                 if (err.code !== 'ContainerAlreadyExists') {
-                    this.formatMessage(service, ['Unable to create container', container], err, 'red');
+                    this.formatMessage(service, ['Unable to create container', bucket], err, 'red');
                     success('');
                     return;
                 }
             }
-            BUCKET_MAP[container] = true;
+            BUCKET_MAP[bucket] = true;
         }
         let filename = data.filename;
         if (!filename) {
@@ -66,7 +66,7 @@ function upload(this: IFileManager, service: string, credential: AzureCloudCrede
             containerClient.getBlockBlobClient(Key[i])
                 .upload(Body[i], Body[i].byteLength, { blobHTTPHeaders: { blobContentType: ContentType[i] } })
                 .then(() => {
-                    const url = (apiEndpoint ? this.toPosix(apiEndpoint) : `https://${credential.accountName}.blob.core.windows.net/${container}`) + '/' + Key[i];
+                    const url = (apiEndpoint ? this.toPosix(apiEndpoint) : `https://${credential.accountName}.blob.core.windows.net/${bucket}`) + '/' + Key[i];
                     this.formatMessage(service, 'Upload success', url);
                     if (i === 0) {
                         success(url);

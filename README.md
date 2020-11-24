@@ -494,7 +494,7 @@ Other service providers can be integrated similarly except for credential verifi
     },
     {
       "service": "azure",
-      "container": "squared-002",
+      "bucket": "squared-002",
       "credential": {
         "accountName": "**********",
         "accountKey": "**********"
@@ -537,6 +537,7 @@ Other service providers can be integrated similarly except for credential verifi
         "accessKeyId": "**********",
         "secretAccessKey": "**********"
       }
+      // NOTE: Using S3 and OCI at the same time with identical bucket names causes a conflict with the S3 region cache
     }
   ]
 }

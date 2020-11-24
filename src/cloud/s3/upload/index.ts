@@ -1,6 +1,6 @@
 import type * as aws from 'aws-sdk';
 
-import type { S3CloudBucket, S3CloudCredential } from '../index';
+import type { S3CloudCredential } from '../index';
 
 import path = require('path');
 import uuid = require('uuid');
@@ -10,7 +10,7 @@ import { createClient, setPublicRead } from '../index';
 type IFileManager = functions.IFileManager;
 type UploadHost = functions.internal.Cloud.UploadHost;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
-type UploadData = functions.internal.Cloud.UploadData<S3CloudCredential, S3CloudBucket>;
+type UploadData = functions.internal.Cloud.UploadData<S3CloudCredential>;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 

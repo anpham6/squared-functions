@@ -1,4 +1,4 @@
-import type { GCSCloudBucket, GCSCloudCredential } from '../index';
+import type { GCSCloudCredential } from '../index';
 
 import { createClient } from '../index';
 
@@ -8,7 +8,7 @@ import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
-type DownloadData = functions.internal.Cloud.DownloadData<GCSCloudCredential, GCSCloudBucket>;
+type DownloadData = functions.internal.Cloud.DownloadData<GCSCloudCredential>;
 
 async function download(this: IFileManager, service: string, credential: GCSCloudCredential, data: DownloadData, success: (value: string) => void) {
     const bucketName = data.service.bucket;

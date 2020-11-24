@@ -11,10 +11,6 @@ export interface OCICloudCredential extends ConfigurationOptions {
     endpoint?: string;
 }
 
-export interface OCICloudBucket extends functions.squared.CloudService {
-    bucket: string;
-}
-
 export default function validate(credential: OCICloudCredential) {
     return !!(credential.region && credential.namespace && credential.accessKeyId && credential.secretAccessKey);
 }

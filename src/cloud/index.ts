@@ -11,18 +11,6 @@ const serviceMap: ObjectMap<ServiceClient> = {};
 const Cloud = new class extends Module implements functions.ICloud {
     settings: CloudModule = {};
 
-    getBucket(data: CloudService) {
-        let result: Undef<string>;
-        switch (data.service) {
-            case 'azure':
-                result = data.container as Undef<string>;
-                break;
-            default:
-                result = data.bucket as Undef<string>;
-                break;
-        }
-        return result || '';
-    }
     getService(functionName: CloudFunctions, data: Undef<CloudService[]>) {
         if (data) {
             for (const item of data) {
@@ -34,6 +22,13 @@ const Cloud = new class extends Module implements functions.ICloud {
         }
     }
     hasService(functionName: CloudFunctions, data: CloudService): CloudServiceAction | false {
+        switch (functionName) {
+            case 'download':
+                if (!data.bucket) {
+                    return false;
+                }
+                break;
+        }
         const action = data[functionName] as Undef<CloudServiceAction>;
         return action && this.hasCredential(data) ? action : false;
     }

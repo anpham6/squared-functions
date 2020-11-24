@@ -1,13 +1,13 @@
 import type * as aws from 'aws-sdk';
 
-import type { S3CloudBucket, S3CloudCredential } from '../index';
+import type { S3CloudCredential } from '../index';
 
 import { createClient } from '../index';
 
 type IFileManager = functions.IFileManager;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 
-interface DownloadData extends functions.internal.Cloud.DownloadData<S3CloudCredential, S3CloudBucket> {}
+interface DownloadData extends functions.internal.Cloud.DownloadData<S3CloudCredential> {}
 
 async function download(this: IFileManager, service: string, credential: S3CloudCredential, data: DownloadData, success: (value: Null<Buffer>) => void, sdk = 'aws-sdk/clients/s3') {
     const Bucket = data.service.bucket;

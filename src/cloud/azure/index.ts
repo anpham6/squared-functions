@@ -5,34 +5,30 @@ type ICloud = functions.ICloud;
 
 export interface AzureCloudCredential extends functions.external.Cloud.StorageSharedKeyCredential, PlainObject {}
 
-export interface AzureCloudBucket extends functions.squared.CloudService {
-    container?: string;
-}
-
 export default function validate(credential: AzureCloudCredential) {
     return !!(credential.accountName && credential.accountKey);
 }
 
-export async function deleteObjects(this: ICloud, service: string, credential: AzureCloudCredential, container: string) {
+export async function deleteObjects(this: ICloud, service: string, credential: AzureCloudCredential, bucket: string) {
     try {
-        const containerClient = createClient.call(this, service, credential).getContainerClient(container);
+        const containerClient = createClient.call(this, service, credential).getContainerClient(bucket);
         const tasks: Promise<azure.BlobDeleteResponse>[] = [];
         let fileCount = 0;
         for await (const blob of containerClient.listBlobsFlat({ includeUncommitedBlobs: true })) {
             tasks.push(
                 containerClient.deleteBlob(blob.name, { versionId: blob.versionId })
                 .catch(err => {
-                    this.formatMessage(service, ['Unable to delete blob', container], err, 'yellow');
+                    this.formatMessage(service, ['Unable to delete blob', bucket], err, 'yellow');
                     --fileCount;
                     return err;
                 })
             );
         }
         fileCount = tasks.length;
-        await Promise.all(tasks).then(() => this.formatMessage(service, ['Container emptied', fileCount + ' files'], container, 'blue'));
+        return Promise.all(tasks).then(() => this.formatMessage(service, ['Container emptied', fileCount + ' files'], bucket, 'blue'));
     }
     catch (err) {
-        this.formatMessage(service, ['Unable to empty container', container], err, 'yellow');
+        this.formatMessage(service, ['Unable to empty container', bucket], err, 'yellow');
     }
 }
 

@@ -1783,11 +1783,8 @@ const FileManager = class extends Module implements IFileManager {
                         }
                     }
                     for (const storage of item.cloudStorage) {
-                        if (storage.admin?.emptyBucket && Cloud.hasCredential(storage)) {
-                            const bucket = Cloud.getBucket(storage);
-                            if (!(bucketMap[storage.service] ||= new Map()).has(bucket)) {
-                                bucketMap[storage.service].set(bucket, createCredential(storage));
-                            }
+                        if (storage.admin?.emptyBucket && Cloud.hasCredential(storage) && storage.bucket && !(bucketMap[storage.service] ||= new Map()).has(storage.bucket)) {
+                            bucketMap[storage.service].set(storage.bucket, createCredential(storage));
                         }
                     }
                 }
@@ -1927,7 +1924,7 @@ const FileManager = class extends Module implements IFileManager {
                                     valid = true;
                                 }
                                 if (valid) {
-                                    const location = service + Cloud.getBucket(data) + filename;
+                                    const location = service + data.bucket + filename;
                                     if (downloadMap[location]) {
                                         downloadMap[location].add(downloadUri);
                                     }

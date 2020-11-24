@@ -1,6 +1,6 @@
 import type * as gcs from '@google-cloud/storage';
 
-import type { GCSCloudBucket, GCSCloudCredential } from '../index';
+import type { GCSCloudCredential } from '../index';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -11,7 +11,7 @@ import { createClient, setPublicRead } from '../index';
 type IFileManager = functions.IFileManager;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 type UploadHost = functions.internal.Cloud.UploadHost;
-type UploadData = functions.internal.Cloud.UploadData<GCSCloudCredential, GCSCloudBucket>;
+type UploadData = functions.internal.Cloud.UploadData<GCSCloudCredential>;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 

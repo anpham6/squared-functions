@@ -9,10 +9,6 @@ export interface IBMCloudCredential extends ConfigurationOptions {
     endpoint?: string;
 }
 
-export interface IBMCloudBucket extends functions.squared.CloudService {
-    bucket: string;
-}
-
 export default function validate(credential: IBMCloudCredential) {
     return !!(credential.apiKeyId && credential.serviceInstanceId);
 }

@@ -43,7 +43,7 @@ export function setPublicRead(this: IFileManager, acl: Acl, objectName: string, 
 
 export async function deleteObjects(this: ICloud, service: string, credential: GCSCloudCredential, bucket: string) {
     try {
-        await createClient.call(this, service, credential)
+        return createClient.call(this, service, credential)
             .bucket(bucket)
             .deleteFiles({ force: true })
             .then(() => this.formatMessage(service, 'Bucket emptied', bucket, 'blue'));

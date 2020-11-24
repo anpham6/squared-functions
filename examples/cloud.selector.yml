@@ -24,7 +24,7 @@ cloudStorage:
     overwrite: false
     deleteObject: false
 - service: azure
-  container: squared-002
+  bucket: squared-002
   credential:
     accountName: "**********"
     accountKey: "**********"

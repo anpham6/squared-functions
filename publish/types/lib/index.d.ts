@@ -45,6 +45,7 @@ declare namespace functions {
         interface CloudService extends ObjectMap<unknown> {
             service: string;
             credential: StringMap;
+            bucket?: string;
             admin?: CloudServiceAdmin;
             upload?: CloudServiceUpload;
             download?: CloudServiceDownload;
@@ -210,12 +211,12 @@ declare namespace functions {
             type CloudServiceUpload = squared.CloudServiceUpload;
             type CloudServiceDownload = squared.CloudServiceDownload;
 
-            interface FunctionData<T = PlainObject, U = CloudService> {
+            interface FunctionData<T = PlainObject> {
                 credential: T;
-                service: U;
+                service: CloudService;
             }
 
-            interface UploadData<T, U> extends FunctionData<T, U> {
+            interface UploadData<T = unknown> extends FunctionData<T> {
                 upload: CloudServiceUpload;
                 buffer: Buffer;
                 fileUri: string;
@@ -225,7 +226,7 @@ declare namespace functions {
                 mimeType?: string;
             }
 
-            interface DownloadData<T, U> extends FunctionData<T, U> {
+            interface DownloadData<T = unknown> extends FunctionData<T> {
                 download: CloudServiceDownload;
                 bucketGroup: string;
             }
@@ -239,9 +240,9 @@ declare namespace functions {
             }
 
             type UploadHost = (this: IFileManager, service: string, credential: unknown, sdk?: string) => UploadCallback;
-            type DownloadHost = (this: IFileManager, service: string, credential: unknown, data: DownloadData<unknown, unknown>, success: (value: Null<Buffer | string>) => void, sdk?: string) => void;
+            type DownloadHost = (this: IFileManager, service: string, credential: unknown, data: DownloadData, success: (value: Null<Buffer | string>) => void, sdk?: string) => void;
 
-            type UploadCallback = (data: UploadData<unknown, unknown>, success: (value: string) => void) => void;
+            type UploadCallback = (data: UploadData, success: (value: string) => void) => void;
         }
 
         interface FileData {
@@ -334,7 +335,6 @@ declare namespace functions {
 
     interface ICloud extends IModule {
         settings: settings.CloudModule;
-        getBucket(data: squared.CloudService): string;
         getService(functionName: CloudFunctions, data: Undef<squared.CloudService[]>): Undef<squared.CloudService>;
         hasService(functionName: CloudFunctions, data: squared.CloudService): squared.CloudServiceAction | false;
         hasCredential(data: squared.CloudService): boolean;
