@@ -500,7 +500,7 @@ Other service providers can be integrated similarly except for credential verifi
         "accountKey": "**********"
       },
       "upload": {
-        "apiEndpoint": "http://squaredjs.azureedge.net/squared-002" // e.g. CDN (optional)
+        "endpoint": "http://squaredjs.azureedge.net/squared-002" // e.g. CDN (optional)
       }
     },
     {
@@ -558,7 +558,7 @@ squared.saveAs('index.zip', {
                 settings: 'main',
                 upload: {
                     active: true,
-                    apiEndpoint: 'https://squared-001.s3.us-west-2.amazonaws.com',
+                    endpoint: 'https://squared-001.s3.us-west-2.amazonaws.com',
                     overwrite: true
                 }
             }]

@@ -65,7 +65,7 @@ function upload(this: IFileManager, service: string, credential: S3CloudCredenti
                     }
                 });
         }
-        const { active, publicRead, apiEndpoint } = data.upload;
+        const { active, publicRead, endpoint } = data.upload;
         const ACL = publicRead || active && publicRead !== false ? 'public-read' : '';
         const Key = [filename];
         const Body = [data.buffer];
@@ -77,7 +77,7 @@ function upload(this: IFileManager, service: string, credential: S3CloudCredenti
         for (let i = 0; i < Key.length; ++i) {
             s3.upload({ Bucket, Key: Key[i], ACL, Body: Body[i], ContentType: ContentType[i] }, (err, result) => {
                 if (!err) {
-                    const url = apiEndpoint ? this.toPosix(apiEndpoint, Key[i]) : result.Location;
+                    const url = endpoint ? this.toPosix(endpoint, Key[i]) : result.Location;
                     this.formatMessage(service, 'Upload success', url);
                     if (i === 0) {
                         success(url);

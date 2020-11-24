@@ -1617,13 +1617,13 @@ const FileManager = class extends Module implements IFileManager {
             const htmlFiles = this.getHtmlPages();
             const cssFiles: ExternalAsset[] = [];
             const rawFiles: ExternalAsset[] = [];
-            let apiEndpoint: Undef<RegExp>,
+            let endpoint: Undef<RegExp>,
                 modifiedHtml: Undef<boolean>,
                 modifiedCss: Undef<Set<ExternalAsset>>;
             if (htmlFiles.length === 1) {
                 const upload = Cloud.getService('upload', htmlFiles[0].cloudStorage)?.upload;
-                if (upload && upload.apiEndpoint) {
-                    apiEndpoint = new RegExp(escapeRegexp(this.toPosix(upload.apiEndpoint) + '/'), 'g');
+                if (upload && upload.endpoint) {
+                    endpoint = new RegExp(escapeRegexp(this.toPosix(upload.endpoint) + '/'), 'g');
                 }
             }
             const getFiles = (item: ExternalAsset, data: CloudServiceUpload) => {
@@ -1721,8 +1721,8 @@ const FileManager = class extends Module implements IFileManager {
                                     .then(result => {
                                         if (storage === cloudMain && result[0]) {
                                             let cloudUri = result[0];
-                                            if (apiEndpoint) {
-                                                cloudUri = cloudUri.replace(apiEndpoint, '');
+                                            if (endpoint) {
+                                                cloudUri = cloudUri.replace(endpoint, '');
                                             }
                                             if (item.inlineCloud) {
                                                 for (const content of htmlFiles) {
@@ -1843,8 +1843,8 @@ const FileManager = class extends Module implements IFileManager {
                         sourceUTF8 = sourceUTF8.replace(id, this.relativePath(file));
                         localStorage.delete(file);
                     }
-                    if (apiEndpoint) {
-                        sourceUTF8 = sourceUTF8.replace(apiEndpoint, '');
+                    if (endpoint) {
+                        sourceUTF8 = sourceUTF8.replace(endpoint, '');
                     }
                     try {
                         fs.writeFileSync(item.fileUri!, sourceUTF8, 'utf8');

@@ -93,8 +93,8 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
             }
             bucket.upload(srcUri, { contentType: ContentType[i] }, (err, file) => {
                 if (file) {
-                    const { active, apiEndpoint, publicRead } = data.upload;
-                    const url = (apiEndpoint ? this.toPosix(apiEndpoint) : 'https://storage.googleapis.com/' + bucketName) + '/' + Key[i];
+                    const { active, endpoint, publicRead } = data.upload;
+                    const url = (endpoint ? this.toPosix(endpoint) : 'https://storage.googleapis.com/' + bucketName) + '/' + Key[i];
                     this.formatMessage(service, 'Upload success', url);
                     if (i === 0) {
                         success(url);

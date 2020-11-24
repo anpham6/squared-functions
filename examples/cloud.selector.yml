@@ -29,7 +29,7 @@ cloudStorage:
     accountName: "**********"
     accountKey: "**********"
   upload:
-    apiEndpoint: http://squaredjs.azureedge.net/squared-002
+    endpoint: http://squaredjs.azureedge.net/squared-002
 - service: gcs
   bucket: squared-003
   credential:

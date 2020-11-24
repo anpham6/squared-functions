@@ -64,7 +64,7 @@ declare namespace functions {
 
         interface CloudServiceUpload extends CloudServiceAction {
             localStorage?: boolean;
-            apiEndpoint?: string;
+            endpoint?: string;
             all?: boolean;
             publicRead?: boolean;
         }

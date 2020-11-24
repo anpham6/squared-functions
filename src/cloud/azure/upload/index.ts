@@ -57,7 +57,7 @@ function upload(this: IFileManager, service: string, credential: AzureCloudCrede
         const Key = [filename];
         const Body = [data.buffer];
         const ContentType = [data.mimeType];
-        const apiEndpoint = data.upload.apiEndpoint;
+        const endpoint = data.upload.endpoint;
         for (const item of data.fileGroup) {
             Body.push(item[0] as Buffer);
             Key.push(filename + item[1]);
@@ -66,7 +66,7 @@ function upload(this: IFileManager, service: string, credential: AzureCloudCrede
             containerClient.getBlockBlobClient(Key[i])
                 .upload(Body[i], Body[i].byteLength, { blobHTTPHeaders: { blobContentType: ContentType[i] } })
                 .then(() => {
-                    const url = (apiEndpoint ? this.toPosix(apiEndpoint) : `https://${credential.accountName}.blob.core.windows.net/${bucket}`) + '/' + Key[i];
+                    const url = (endpoint ? this.toPosix(endpoint) : `https://${credential.accountName}.blob.core.windows.net/${bucket}`) + '/' + Key[i];
                     this.formatMessage(service, 'Upload success', url);
                     if (i === 0) {
                         success(url);
