@@ -6,20 +6,20 @@ import uuid = require('uuid');
 
 import Module from '../module';
 
-type CompressFormat = functions.squared.CompressFormat;
-
 type ExternalAsset = functions.ExternalAsset;
 type IFileManager = functions.IFileManager;
 type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTaskCallback;
 type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
 type FileManagerWriteImageCallback = functions.FileManagerWriteImageCallback;
 
+type CompressFormat = functions.squared.CompressFormat;
+
 type FileData = functions.internal.FileData;
-type ImageUsingOptions = functions.internal.Image.UsingOptions;
 type ResizeData = functions.internal.Image.ResizeData;
 type CropData = functions.internal.Image.CropData;
 type RotateData = functions.internal.Image.RotateData;
 type QualityData = functions.internal.Image.QualityData;
+type UsingOptions = functions.internal.Image.UsingOptions;
 
 const REGEXP_RESIZE = /\(\s*(\d+|auto)\s*x\s*(\d+|auto)(?:\s*\[\s*(bilinear|bicubic|hermite|bezier)\s*\])?(?:\s*^\s*(contain|cover|scale)(?:\s*\[\s*(left|center|right)?(?:\s*\|?\s*(top|middle|bottom))?\s*\])?)?(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\)/;
 const REGEXP_CROP = /\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*\|\s*(\d+)\s*x\s*(\d+)\s*\)/;
@@ -187,7 +187,7 @@ class JimpProxy implements functions.ImageProxy<jimp> {
             }
         }
     }
-    write(output: string, options?: ImageUsingOptions) {
+    write(output: string, options?: UsingOptions) {
         if (output) {
             let data: Undef<FileData>,
                 compress: Undef<CompressFormat>,
@@ -248,7 +248,7 @@ class JimpProxy implements functions.ImageProxy<jimp> {
 }
 
 const Image = new class extends Module implements functions.IImage {
-    using(this: IFileManager, options: ImageUsingOptions) {
+    using(this: IFileManager, options: UsingOptions) {
         const { data, compress } = options;
         const { file, fileUri } = data;
         const command = options.command?.trim().toLowerCase();

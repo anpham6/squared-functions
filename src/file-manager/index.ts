@@ -363,6 +363,10 @@ const FileManager = class extends Module implements IFileManager {
         }
         return moveTo + value;
     }
+    assignFilename(file: ExternalAsset | CloudServiceUpload) {
+        const filename = file.filename!;
+        return filename.startsWith('__assign__') ? file.filename = uuid.v4() + path.extname(filename) : filename;
+    }
     removeCwd(value: Undef<string>) {
         return value ? value.substring(this.dirname.length + 1) : '';
     }
@@ -1184,9 +1188,7 @@ const FileManager = class extends Module implements IFileManager {
                 file.invalid = true;
                 continue;
             }
-            if (file.filename.startsWith('__assign__')) {
-                file.filename = uuid.v4() + path.extname(file.filename);
-            }
+            this.assignFilename(file);
             const { pathname, fileUri } = this.setFileUri(file);
             const fileReceived = (err: NodeJS.ErrnoException) => {
                 if (err) {
@@ -1620,6 +1622,7 @@ const FileManager = class extends Module implements IFileManager {
             let endpoint: Undef<RegExp>,
                 modifiedHtml: Undef<boolean>,
                 modifiedCss: Undef<Set<ExternalAsset>>;
+            Cloud.setObjectKeys(this.assets);
             if (htmlFiles.length === 1) {
                 const upload = Cloud.getService('upload', htmlFiles[0].cloudStorage)?.upload;
                 if (upload && upload.endpoint) {
@@ -1651,7 +1654,7 @@ const FileManager = class extends Module implements IFileManager {
                 const cloudMain = Cloud.getService('upload', item.cloudStorage);
                 for (const storage of item.cloudStorage!) {
                     if (Cloud.hasService('upload', storage)) {
-                        const service = storage.service.trim();
+                        const service = storage.service;
                         const upload = storage.upload!;
                         if (storage === cloudMain && upload.localStorage === false) {
                             localStorage.set(item, upload);
@@ -1662,7 +1665,6 @@ const FileManager = class extends Module implements IFileManager {
                                 const uploadHandler = (require(`../cloud/${service}/upload`) as UploadHost).call(this, service.toUpperCase(), credential);
                                 const uploadTasks: Promise<string>[] = [];
                                 const files = getFiles(item, upload);
-                                let basename: Undef<string>;
                                 for (let i = 0, length = files.length; i < length; ++i) {
                                     const group = files[i];
                                     for (const fileUri of group) {
@@ -1691,19 +1693,10 @@ const FileManager = class extends Module implements IFileManager {
                                                                     filename = path.basename(item.cloudUri);
                                                                 }
                                                                 else if (upload.filename) {
-                                                                    filename = upload.filename;
+                                                                    filename = this.assignFilename(upload);
                                                                 }
                                                                 else if (upload.overwrite) {
                                                                     filename = path.basename(fileUri);
-                                                                }
-                                                                if (filename) {
-                                                                    basename = filename;
-                                                                }
-                                                            }
-                                                            if (basename) {
-                                                                const match = /\.(map|gz|br)$/.exec(fileUri);
-                                                                if (match) {
-                                                                    filename = basename + match[0];
                                                                 }
                                                             }
                                                             uploadHandler({ buffer, service: storage, upload, credential, fileUri, fileGroup, bucketGroup, filename, mimeType: mimeType || mime.lookup(fileUri) || undefined }, success);

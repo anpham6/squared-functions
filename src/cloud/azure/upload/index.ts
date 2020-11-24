@@ -36,22 +36,39 @@ function upload(this: IFileManager, service: string, credential: AzureCloudCrede
             BUCKET_MAP[bucket] = true;
         }
         let filename = data.filename;
-        if (!filename) {
-            filename = path.basename(fileUri);
-            let exists = false;
+        if (!filename || !data.upload.overwrite) {
+            filename ||= path.basename(fileUri);
             try {
-                for await (const blob of containerClient.listBlobsFlat({ includeUncommitedBlobs: true })) {
-                    if (blob.name === filename) {
-                        exists = true;
-                        break;
+                let exists = true,
+                    i = 0,
+                    j = 0;
+                do {
+                    if (i > 0) {
+                        j = filename.indexOf('.');
+                        if (j !== -1) {
+                            filename = filename.substring(0, j) + `_${i}` + filename.substring(j);
+                        }
+                        else {
+                            filename = uuid.v4() + path.extname(fileUri);
+                            break;
+                        }
+                    }
+                    for await (const blob of containerClient.listBlobsFlat({ includeUncommitedBlobs: true })) {
+                        if (blob.name === filename) {
+                            exists = true;
+                            break;
+                        }
                     }
                 }
+                while (exists && ++i);
+                if (i > 0) {
+                    this.formatMessage(service, 'File renamed', filename, 'yellow');
+                }
             }
-            catch {
-                exists = true;
-            }
-            if (exists) {
-                this.formatMessage(service, ['File renamed', filename], filename = uuid.v4() + path.extname(fileUri), 'yellow');
+            catch (err) {
+                this.formatMessage(service, ['Unable to rename file', fileUri], err, 'red');
+                success('');
+                return;
             }
         }
         const Key = [filename];

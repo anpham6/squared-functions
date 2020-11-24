@@ -15,6 +15,8 @@ type UploadData = functions.internal.Cloud.UploadData<GCSCloudCredential>;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
+const getProjectId = (credential: GCSCloudCredential): string => require(path.resolve(credential.keyFilename || credential.keyFile!)).project_id || '';
+
 function upload(this: IFileManager, service: string, credential: GCSCloudCredential): UploadCallback {
     const storage = createClient.call(this, service, credential);
     return async (data: UploadData, success: (value: string) => void) => {
@@ -24,8 +26,7 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
             try {
                 const [exists] = await storage.bucket(bucketName).exists();
                 if (!exists) {
-                    const keyFile = require(path.resolve(credential.keyFilename || credential.keyFile!));
-                    storage.projectId = keyFile.project_id;
+                    storage.projectId = getProjectId(credential);
                     [bucket] = await storage.createBucket(bucketName, credential);
                     bucketName = bucket.name;
                     this.formatMessage(service, 'Bucket created', bucketName, 'blue');
@@ -46,16 +47,34 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
         bucket ||= storage.bucket(bucketName);
         const fileUri = data.fileUri;
         let filename = data.filename;
-        if (!filename) {
-            filename = path.basename(fileUri);
-            let exists = true;
+        if (!filename || !data.upload.overwrite) {
+            filename ||= path.basename(fileUri);
             try {
-                [exists] = await bucket.file(filename).exists();
+                let exists = true,
+                    i = 0,
+                    j = 0;
+                do {
+                    if (i > 0) {
+                        j = filename.indexOf('.');
+                        if (j !== -1) {
+                            filename = filename.substring(0, j) + `_${i}` + filename.substring(j);
+                        }
+                        else {
+                            filename = uuid.v4() + path.extname(fileUri);
+                            break;
+                        }
+                    }
+                    [exists] = await bucket.file(filename).exists();
+                }
+                while (exists && ++i);
+                if (i > 0) {
+                    this.formatMessage(service, 'File renamed', filename, 'yellow');
+                }
             }
-            catch {
-            }
-            if (exists) {
-                this.formatMessage(service, ['File renamed', filename], filename = uuid.v4() + path.extname(fileUri), 'yellow');
+            catch (err) {
+                this.formatMessage(service, ['Unable to rename file', fileUri], err, 'red');
+                success('');
+                return;
             }
         }
         const Key = [filename];
@@ -69,14 +88,15 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
             const destUri = fileUri + path.extname(Key[i]);
             let srcUri = i === 0 ? fileUri : Body[i] as string;
             if (i === 0 || destUri !== srcUri) {
-                let tempDir = this.getTempDir() + uuid.v4() + path.sep;
+                srcUri = this.getTempDir() + uuid.v4() + path.sep + path.normalize(Key[i]);
                 try {
-                    fs.mkdirpSync(tempDir);
+                    fs.mkdirpSync(path.dirname(srcUri));
                 }
-                catch {
-                    tempDir = this.getTempDir();
+                catch (err) {
+                    this.formatMessage(service, ['Unable to create directory', srcUri], err, 'red');
+                    success('');
+                    return;
                 }
-                srcUri = tempDir + Key[i];
                 try {
                     if (i === 0) {
                         fs.writeFileSync(srcUri, Body[0]);

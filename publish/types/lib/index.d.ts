@@ -53,6 +53,7 @@ declare namespace functions {
 
         interface CloudServiceAdmin {
             publicRead?: boolean;
+            subFolder?: string;
             emptyBucket?: boolean;
         }
 
@@ -335,10 +336,11 @@ declare namespace functions {
 
     interface ICloud extends IModule {
         settings: settings.CloudModule;
+        setObjectKeys(assets: ExternalAsset[]): void;
+        deleteObjects(service: string, credential: PlainObject, bucket: string, bucketGroup?: string): Promise<void>;
         getService(functionName: CloudFunctions, data: Undef<squared.CloudService[]>): Undef<squared.CloudService>;
         hasService(functionName: CloudFunctions, data: squared.CloudService): squared.CloudServiceAction | false;
         hasCredential(data: squared.CloudService): boolean;
-        deleteObjects(service: string, credential: PlainObject, bucket: string, bucketGroup?: string): Promise<void>;
     }
 
     interface IChrome extends IModule {
@@ -397,6 +399,7 @@ declare namespace functions {
         relativePosix(file: ExternalAsset, uri: string): Undef<string>;
         absolutePath(value: string, href: string): string;
         relativePath(file: ExternalAsset, filename?: string): string;
+        assignFilename(file: ExternalAsset): string;
         getUTF8String(file: ExternalAsset, fileUri?: string): string;
         appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex: number): Promise<string>;
         getTrailingContent(file: ExternalAsset): Promise<string>;

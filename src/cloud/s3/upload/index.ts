@@ -53,17 +53,43 @@ function upload(this: IFileManager, service: string, credential: S3CloudCredenti
         }
         const fileUri = data.fileUri;
         let filename = data.filename;
-        if (!filename) {
-            const renameFile = () => this.formatMessage(service, ['File renamed', filename!], filename = uuid.v4() + path.extname(fileUri), 'yellow');
-            filename = path.basename(fileUri);
-            await s3.headObject({ Bucket, Key: filename })
-                .promise()
-                .then(() => renameFile())
-                .catch(err => {
-                    if (err.code !== 'NotFound') {
-                        renameFile();
+        if (!filename || !data.upload.overwrite) {
+            filename ||= path.basename(fileUri);
+            try {
+                let exists = true,
+                    i = 0,
+                    j = 0;
+                do {
+                    if (i > 0) {
+                        j = filename.indexOf('.');
+                        if (j !== -1) {
+                            filename = filename.substring(0, j) + `_${i}` + filename.substring(j);
+                        }
+                        else {
+                            filename = uuid.v4() + path.extname(fileUri);
+                            break;
+                        }
                     }
-                });
+                    exists = await s3.headObject({ Bucket, Key: filename })
+                        .promise()
+                        .then(() => true)
+                        .catch(err => {
+                            if (err.code !== 'NotFound') {
+                                filename = uuid.v4() + path.extname(fileUri);
+                            }
+                            return false;
+                        });
+                }
+                while (exists && ++i);
+                if (i > 0) {
+                    this.formatMessage(service, 'File renamed', filename, 'yellow');
+                }
+            }
+            catch (err) {
+                this.formatMessage(service, ['Unable to rename file', fileUri], err, 'red');
+                success('');
+                return;
+            }
         }
         const { active, publicRead, endpoint } = data.upload;
         const ACL = publicRead || active && publicRead !== false ? 'public-read' : '';
