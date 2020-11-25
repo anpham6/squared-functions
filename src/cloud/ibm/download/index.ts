@@ -4,11 +4,11 @@ import { setCredential } from '../index';
 
 type IFileManager = functions.IFileManager;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
-type DownloadData = functions.internal.Cloud.DownloadData<IBMCloudCredential>;
+type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
-async function download(this: IFileManager, service: string, credential: IBMCloudCredential, data: DownloadData, success: (value?: unknown) => void) {
+function download(this: IFileManager, service: string, credential: IBMCloudCredential): DownloadCallback {
     setCredential.call(this, credential);
-    return (require('../../s3/download') as DownloadHost).call(this, service, credential, data, success, 'ibm-cos-sdk/clients/s3');
+    return (require('../../s3/download') as DownloadHost).call(this, service, credential, 'ibm-cos-sdk/clients/s3');
 }
 
 if (typeof module !== 'undefined' && module.exports) {

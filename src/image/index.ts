@@ -157,6 +157,7 @@ class JimpProxy implements functions.ImageProxy<jimp> {
             if (!isNaN(color)) {
                 this.instance = this.instance.background(color);
             }
+            const fileUri = this.fileUri;
             const deg = values[0];
             for (let i = 1, length = values.length; i < length; ++i) {
                 const value = values[i];
@@ -164,21 +165,21 @@ class JimpProxy implements functions.ImageProxy<jimp> {
                     initialize();
                 }
                 const img = this.instance.clone().rotate(value);
-                const index = this.fileUri.lastIndexOf('.');
-                const output = this.fileUri.substring(0, index) + '.' + value + this.fileUri.substring(index);
+                const index = fileUri.lastIndexOf('.');
+                const output = fileUri.substring(0, index) + '.' + value + fileUri.substring(index);
                 img.write(output, err => {
-                    if (err) {
-                        Image.writeFail(['Unable to rotate image', output], err);
-                        if (callback) {
-                            callback();
-                        }
-                    }
-                    else {
+                    if (!err) {
                         this.finalize(output, (result: string) => {
                             if (callback) {
                                 callback(result, parent);
                             }
                         });
+                    }
+                    else {
+                        Image.writeFail(['Unable to rotate image', output], err);
+                        if (callback) {
+                            callback();
+                        }
                     }
                 });
             }
@@ -274,12 +275,12 @@ const Image = new class extends Module implements functions.IImage {
                         case jimp.MIME_TIFF: {
                             const output = this.replaceExtension(fileUri, unknownType.split('/')[1]);
                             fs.rename(fileUri, output, err => {
-                                if (err) {
-                                    this.writeFail(['Unable to rename image', fileUri], err);
-                                    this.completeAsyncTask();
+                                if (!err) {
+                                    this.finalizeImage(data, output, '@', unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG ? compress : undefined);
                                 }
                                 else {
-                                    this.finalizeImage(data, output, '@', unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG ? compress : undefined);
+                                    this.writeFail(['Unable to rename image', fileUri], err);
+                                    this.completeAsyncTask();
                                 }
                             });
                         }
@@ -291,6 +292,7 @@ const Image = new class extends Module implements functions.IImage {
                 });
         }
         else {
+            file.mimeType = mimeType;
             let jimpType: Undef<string>,
                 tempFile: Undef<string>,
                 saveAs: Undef<string>,
@@ -334,11 +336,7 @@ const Image = new class extends Module implements functions.IImage {
                                 proxy.opacity();
                             }
                             proxy.rotate(file, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
-                            file.mimeType = mimeType;
-                            proxy.write(
-                                this.newImage(data, jimpType!, saveAs!, command),
-                                options
-                            );
+                            proxy.write(this.newImage(data, jimpType!, saveAs!, command), options);
                         })
                         .catch(err => {
                             this.completeAsyncTask();

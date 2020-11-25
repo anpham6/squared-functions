@@ -8,53 +8,56 @@ import uuid = require('uuid');
 
 type IFileManager = functions.IFileManager;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
-type DownloadData = functions.internal.Cloud.DownloadData<GCSCloudCredential>;
+type DownloadData = functions.internal.Cloud.DownloadData;
+type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
-async function download(this: IFileManager, service: string, credential: GCSCloudCredential, data: DownloadData, success: (value: string) => void) {
-    const bucketName = data.service.bucket;
-    if (bucketName) {
-        try {
-            const storage = createClient.call(this, service, credential);
-            let tempDir = this.getTempDir() + uuid.v4() + path.sep;
+function download(this: IFileManager, service: string, credential: GCSCloudCredential): DownloadCallback {
+    const storage = createClient.call(this, service, credential);
+    return async (data: DownloadData, success: (value: string) => void) => {
+        const bucketName = data.service.bucket;
+        if (bucketName) {
             try {
-                fs.mkdirpSync(tempDir);
+                let tempDir = this.getTempDir() + uuid.v4() + path.sep;
+                try {
+                    fs.mkdirpSync(tempDir);
+                }
+                catch {
+                    tempDir = this.getTempDir();
+                }
+                const filename = data.download.filename;
+                const destination = tempDir + filename;
+                const bucket = storage.bucket(bucketName);
+                const file = bucket.file(filename, { generation: data.download.versionId });
+                file.download({ destination })
+                    .then(() => {
+                        const location = bucketName + '/' + filename;
+                        this.formatMessage(service, 'Download success', location);
+                        success(destination);
+                        if (data.download.deleteStorage) {
+                            file.delete({ ignoreNotFound: true }, err => {
+                                if (!err) {
+                                    this.formatMessage(service, 'Delete success', location, 'grey');
+                                }
+                                else {
+                                    this.formatMessage(service, ['Delete failed', location], err, 'red');
+                                }
+                            });
+                        }
+                    })
+                    .catch((err: Error) => {
+                        this.formatMessage(service, 'Download failed', err, 'red');
+                        success('');
+                    });
             }
             catch {
-                tempDir = this.getTempDir();
+                success('');
             }
-            const filename = data.download.filename;
-            const destination = tempDir + filename;
-            const bucket = storage.bucket(bucketName);
-            const file = bucket.file(filename, { generation: data.download.versionId });
-            file.download({ destination })
-                .then(() => {
-                    const location = bucketName + '/' + filename;
-                    this.formatMessage(service, 'Download success', location);
-                    success(destination);
-                    if (data.download.deleteStorage) {
-                        file.delete({ ignoreNotFound: true }, err => {
-                            if (!err) {
-                                this.formatMessage(service, 'Delete success', location, 'grey');
-                            }
-                            else {
-                                this.formatMessage(service, ['Delete failed', location], err, 'red');
-                            }
-                        });
-                    }
-                })
-                .catch((err: Error) => {
-                    this.formatMessage(service, 'Download failed', err, 'red');
-                    success('');
-                });
         }
-        catch {
+        else {
+            this.formatMessage(service, 'Container not specified', data.download.filename, 'red');
             success('');
         }
-    }
-    else {
-        this.formatMessage(service, 'Container not specified', data.download.filename, 'red');
-        success('');
-    }
+    };
 }
 
 if (typeof module !== 'undefined' && module.exports) {

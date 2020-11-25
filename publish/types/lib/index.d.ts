@@ -212,24 +212,22 @@ declare namespace functions {
             type CloudServiceUpload = squared.CloudServiceUpload;
             type CloudServiceDownload = squared.CloudServiceDownload;
 
-            interface FunctionData<T = PlainObject> {
-                credential: T;
+            interface FunctionData {
                 service: CloudService;
+                bucketGroup: string;
             }
 
-            interface UploadData<T = unknown> extends FunctionData<T> {
+            interface UploadData extends FunctionData {
                 upload: CloudServiceUpload;
                 buffer: Buffer;
                 fileUri: string;
                 fileGroup: [Buffer | string, string][];
-                bucketGroup: string;
                 filename?: string;
                 mimeType?: string;
             }
 
-            interface DownloadData<T = unknown> extends FunctionData<T> {
+            interface DownloadData extends FunctionData {
                 download: CloudServiceDownload;
-                bucketGroup: string;
             }
 
             interface ServiceClient {
@@ -240,10 +238,11 @@ declare namespace functions {
                 setPublicRead?(this: IFileManager | ICloud, ...args: unknown[]): void;
             }
 
-            type UploadHost = (this: IFileManager, service: string, credential: unknown, sdk?: string) => UploadCallback;
-            type DownloadHost = (this: IFileManager, service: string, credential: unknown, data: DownloadData, success: (value: Null<Buffer | string>) => void, sdk?: string) => void;
-
-            type UploadCallback = (data: UploadData, success: (value: string) => void) => void;
+            type ServiceHost<T> = (this: IFileManager, service: string, credential: unknown, sdk?: string) => T;
+            type UploadHost = ServiceHost<UploadCallback>;
+            type DownloadHost = ServiceHost<DownloadCallback>;
+            type UploadCallback = (data: UploadData, success: (value: string) => void) => Promise<void>;
+            type DownloadCallback = (data: DownloadData, success: (value: Null<Buffer | string>) => void) => Promise<void>;
         }
 
         interface FileData {

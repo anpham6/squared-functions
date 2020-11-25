@@ -4,42 +4,46 @@ import { createClient } from '../index';
 
 type IFileManager = functions.IFileManager;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
-type DownloadData = functions.internal.Cloud.DownloadData<AzureCloudCredential>;
+type DownloadData = functions.internal.Cloud.DownloadData;
+type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
-async function download(this: IFileManager, service: string, credential: AzureCloudCredential, data: DownloadData, success: (value: Null<Buffer>) => void) {
-    const bucket = data.service.bucket;
-    if (bucket) {
-        try {
-            const location = bucket + '/' + data.download.filename;
-            const blobClient = createClient.call(this, service, credential).getContainerClient(bucket);
-            blobClient.getBlockBlobClient(data.download.filename)
-                .downloadToBuffer()
-                .then(buffer => {
-                    this.formatMessage(service, 'Download success', location);
-                    success(buffer);
-                    if (data.download.deleteStorage) {
-                        blobClient.delete()
-                            .then(() => this.formatMessage(service, 'Delete success', location, 'grey'))
-                            .catch(err => {
-                                if (err.code !== 'BlobNotFound') {
-                                    this.formatMessage(service, ['Delete failed', location], err, 'red');
-                                }
-                            });
-                    }
-                })
-                .catch(err => {
-                    this.formatMessage(service, ['Download failed', location], err, 'red');
-                    success(null);
-                });
+function download(this: IFileManager, service: string, credential: AzureCloudCredential): DownloadCallback {
+    const blobServiceClient = createClient.call(this, service, credential);
+    return async (data: DownloadData, success: (value: Null<Buffer>) => void) => {
+        const bucket = data.service.bucket;
+        if (bucket) {
+            try {
+                const location = bucket + '/' + data.download.filename;
+                const blobClient = blobServiceClient.getContainerClient(bucket);
+                blobClient.getBlockBlobClient(data.download.filename)
+                    .downloadToBuffer()
+                    .then(buffer => {
+                        this.formatMessage(service, 'Download success', location);
+                        success(buffer);
+                        if (data.download.deleteStorage) {
+                            blobClient.delete()
+                                .then(() => this.formatMessage(service, 'Delete success', location, 'grey'))
+                                .catch(err => {
+                                    if (err.code !== 'BlobNotFound') {
+                                        this.formatMessage(service, ['Delete failed', location], err, 'red');
+                                    }
+                                });
+                        }
+                    })
+                    .catch(err => {
+                        this.formatMessage(service, ['Download failed', location], err, 'red');
+                        success(null);
+                    });
+            }
+            catch {
+                success(null);
+            }
         }
-        catch {
+        else {
+            this.formatMessage(service, 'Container not specified', data.download.filename, 'red');
             success(null);
         }
-    }
-    else {
-        this.formatMessage(service, 'Container not specified', data.download.filename, 'red');
-        success(null);
-    }
+    };
 }
 
 if (typeof module !== 'undefined' && module.exports) {

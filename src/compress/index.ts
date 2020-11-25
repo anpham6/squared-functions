@@ -111,10 +111,7 @@ const Compress = new class extends Module implements functions.ICompress {
     }
     tryImage(fileUri: string, callback: FileOutputCallback) {
         fs.readFile(fileUri, (err, buffer) => {
-            if (err) {
-                callback('', err);
-            }
-            else {
+            if (!err) {
                 tinify.fromBuffer(buffer).toBuffer((errR, data) => {
                     if (data && !errR) {
                         fs.writeFile(fileUri, data, errW => callback(errW ? '' : fileUri, errW));
@@ -126,6 +123,9 @@ const Compress = new class extends Module implements functions.ICompress {
                         callback('', errR);
                     }
                 });
+            }
+            else {
+                callback('', err);
             }
         });
     }

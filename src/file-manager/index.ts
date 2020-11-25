@@ -35,7 +35,9 @@ type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
 type SourceMapOutput = functions.internal.Chrome.SourceMapOutput;
 type UploadHost = functions.internal.Cloud.UploadHost;
+type UploadCallback = functions.internal.Cloud.UploadCallback;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
+type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
 interface GulpData {
     gulpfile: string;
@@ -63,6 +65,8 @@ interface FileWatch {
 }
 
 const WATCH_HTTP: ObjectMap<FileSource> = {};
+const CLOUD_UPLOAD: ObjectMap<UploadHost> = {};
+const CLOUD_DOWNLOAD: ObjectMap<DownloadHost> = {};
 
 const FileManager = class extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {
@@ -959,8 +963,7 @@ const FileManager = class extends Module implements IFileManager {
             }
             while (this.filesQueued.has(output) && ++i);
         }
-        output ||= fileUri;
-        this.filesQueued.add(output);
+        this.filesQueued.add(output ||= fileUri);
         return output;
     }
     writeBuffer(data: FileData) {
@@ -1619,14 +1622,14 @@ const FileManager = class extends Module implements IFileManager {
             const htmlFiles = this.getHtmlPages();
             const cssFiles: ExternalAsset[] = [];
             const rawFiles: ExternalAsset[] = [];
-            let endpoint: Undef<RegExp>,
+            let endpoint: Undef<string>,
                 modifiedHtml: Undef<boolean>,
                 modifiedCss: Undef<Set<ExternalAsset>>;
             Cloud.setObjectKeys(this.assets);
             if (htmlFiles.length === 1) {
                 const upload = Cloud.getService('upload', htmlFiles[0].cloudStorage)?.upload;
                 if (upload && upload.endpoint) {
-                    endpoint = new RegExp(escapeRegexp(this.toPosix(upload.endpoint) + '/'), 'g');
+                    endpoint = this.toPosix(upload.endpoint) + '/';
                 }
             }
             const getFiles = (item: ExternalAsset, data: CloudServiceUpload) => {
@@ -1659,54 +1662,59 @@ const FileManager = class extends Module implements IFileManager {
                         if (storage === cloudMain && upload.localStorage === false) {
                             localStorage.set(item, upload);
                         }
+                        const credential = createCredential(storage);
+                        let uploadHandler: UploadCallback;
+                        try {
+                            uploadHandler = (CLOUD_UPLOAD[service] ||= require(`../cloud/${service}/upload`) as UploadHost).call(this, service.toUpperCase(), credential);
+                        }
+                        catch (err) {
+                            this.writeFail(['Upload function not supported', service], err);
+                            continue;
+                        }
                         tasks.push(new Promise<void>(resolve => {
-                            try {
-                                const credential = createCredential(storage);
-                                const uploadHandler = (require(`../cloud/${service}/upload`) as UploadHost).call(this, service.toUpperCase(), credential);
-                                const uploadTasks: Promise<string>[] = [];
-                                const files = getFiles(item, upload);
-                                for (let i = 0, length = files.length; i < length; ++i) {
-                                    const group = files[i];
-                                    for (const fileUri of group) {
-                                        if (i === 0 || this.has(fileUri)) {
-                                            const fileGroup: [Buffer | string, string][] = [];
-                                            if (i === 0) {
-                                                for (let j = 1; j < group.length; ++j) {
-                                                    try {
-                                                        fileGroup.push([service === 'gcs' ? group[j] : fs.readFileSync(group[j]), path.extname(group[j])]);
-                                                    }
-                                                    catch (err) {
-                                                        this.writeFail('File not found', err);
-                                                    }
+                            const uploadTasks: Promise<string>[] = [];
+                            const files = getFiles(item, upload);
+                            for (let i = 0, length = files.length; i < length; ++i) {
+                                const group = files[i];
+                                for (const fileUri of group) {
+                                    if (i === 0 || this.has(fileUri)) {
+                                        const fileGroup: [Buffer | string, string][] = [];
+                                        if (i === 0) {
+                                            for (let j = 1; j < group.length; ++j) {
+                                                try {
+                                                    fileGroup.push([service === 'gcs' ? group[j] : fs.readFileSync(group[j]), path.extname(group[j])]);
+                                                }
+                                                catch (err) {
+                                                    this.writeFail('File not found', err);
                                                 }
                                             }
-                                            uploadTasks.push(
-                                                new Promise(success => {
-                                                    fs.readFile(fileUri, (err, buffer) => {
-                                                        if (err) {
-                                                            success('');
-                                                        }
-                                                        else {
-                                                            let filename: Undef<string>;
-                                                            if (i === 0) {
-                                                                if (item.cloudUri) {
-                                                                    filename = path.basename(item.cloudUri);
-                                                                }
-                                                                else if (upload.filename) {
-                                                                    filename = this.assignFilename(upload);
-                                                                }
-                                                                else if (upload.overwrite) {
-                                                                    filename = path.basename(fileUri);
-                                                                }
+                                        }
+                                        uploadTasks.push(
+                                            new Promise(success => {
+                                                fs.readFile(fileUri, (err, buffer) => {
+                                                    if (!err) {
+                                                        let filename: Undef<string>;
+                                                        if (i === 0) {
+                                                            if (item.cloudUri) {
+                                                                filename = path.basename(item.cloudUri);
                                                             }
-                                                            uploadHandler({ buffer, service: storage, upload, credential, fileUri, fileGroup, bucketGroup, filename, mimeType: mimeType || mime.lookup(fileUri) || undefined }, success);
+                                                            else if (upload.filename) {
+                                                                filename = this.assignFilename(upload);
+                                                            }
+                                                            else if (upload.overwrite) {
+                                                                filename = path.basename(fileUri);
+                                                            }
                                                         }
-                                                    });
-                                                })
-                                            );
-                                            if (i === 0) {
-                                                break;
-                                            }
+                                                        uploadHandler({ buffer, service: storage, upload, fileUri, fileGroup, bucketGroup, filename, mimeType: mimeType || mime.lookup(fileUri) || undefined }, success);
+                                                    }
+                                                    else {
+                                                        success('');
+                                                    }
+                                                });
+                                            })
+                                        );
+                                        if (i === 0) {
+                                            break;
                                         }
                                     }
                                 }
@@ -1715,7 +1723,7 @@ const FileManager = class extends Module implements IFileManager {
                                         if (storage === cloudMain && result[0]) {
                                             let cloudUri = result[0];
                                             if (endpoint) {
-                                                cloudUri = cloudUri.replace(endpoint, '');
+                                                cloudUri = cloudUri.replace(new RegExp(escapeRegexp(endpoint), 'g'), '');
                                             }
                                             if (item.inlineCloud) {
                                                 for (const content of htmlFiles) {
@@ -1727,6 +1735,9 @@ const FileManager = class extends Module implements IFileManager {
                                                 const pattern = new RegExp(item.inlineCssCloud, 'g');
                                                 for (const content of htmlFiles) {
                                                     content.sourceUTF8 = this.getUTF8String(content).replace(pattern, cloudUri);
+                                                }
+                                                if (endpoint && cloudUri.indexOf('/') !== -1) {
+                                                    cloudUri = result[0];
                                                 }
                                                 for (const content of cssFiles) {
                                                     if (content.inlineCssMap) {
@@ -1741,10 +1752,6 @@ const FileManager = class extends Module implements IFileManager {
                                         resolve();
                                     })
                                     .catch(() => resolve());
-                            }
-                            catch (err) {
-                                this.writeFail(['Upload function not supported', service], err);
-                                resolve();
                             }
                         }));
                     }
@@ -1923,35 +1930,37 @@ const FileManager = class extends Module implements IFileManager {
                                     }
                                     else {
                                         downloadMap[location] = new Set<string>([downloadUri]);
+                                        const credential = createCredential(data);
+                                        let downloadHandler: DownloadCallback;
+                                        try {
+                                            downloadHandler = (CLOUD_DOWNLOAD[service] ||= require(`../cloud/${service.toLowerCase()}/download`) as DownloadHost).call(this, service, credential);
+                                        }
+                                        catch (err) {
+                                            this.writeFail(['Download function not supported', service], err);
+                                            continue;
+                                        }
                                         tasks.push(new Promise<void>(resolve => {
-                                            try {
-                                                const credential = createCredential(data);
-                                                (require(`../cloud/${service.toLowerCase()}/download`) as DownloadHost).call(this, service, credential, { service: data, credential, bucketGroup, download: data.download! }, (value: Null<Buffer | string>) => {
-                                                    if (value) {
-                                                        try {
-                                                            const items = Array.from(downloadMap[location]);
-                                                            for (let i = 0, length = items.length; i < length; ++i) {
-                                                                const destUri = items[i];
-                                                                if (typeof value === 'string') {
-                                                                    fs[i === length - 1 ? 'moveSync' : 'copySync'](value, destUri, { overwrite: true });
-                                                                }
-                                                                else {
-                                                                    fs.writeFileSync(destUri, value);
-                                                                }
-                                                                this.add(destUri);
+                                            downloadHandler({ service: data, bucketGroup, download: data.download! }, (value: Null<Buffer | string>) => {
+                                                if (value) {
+                                                    try {
+                                                        const items = Array.from(downloadMap[location]);
+                                                        for (let i = 0, length = items.length; i < length; ++i) {
+                                                            const destUri = items[i];
+                                                            if (typeof value === 'string') {
+                                                                fs[i === length - 1 ? 'moveSync' : 'copySync'](value, destUri, { overwrite: true });
                                                             }
-                                                        }
-                                                        catch (err) {
-                                                            this.writeFail(['Write buffer', service], err);
+                                                            else {
+                                                                fs.writeFileSync(destUri, value);
+                                                            }
+                                                            this.add(destUri);
                                                         }
                                                     }
-                                                    resolve();
-                                                });
-                                            }
-                                            catch (err) {
-                                                this.writeFail(['Download function not supported', service], err);
+                                                    catch (err) {
+                                                        this.writeFail(['Write buffer', service], err);
+                                                    }
+                                                }
                                                 resolve();
-                                            }
+                                            });
                                         }));
                                     }
                                 }

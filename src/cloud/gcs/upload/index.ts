@@ -11,7 +11,7 @@ import { createClient, setPublicRead } from '../index';
 type IFileManager = functions.IFileManager;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 type UploadHost = functions.internal.Cloud.UploadHost;
-type UploadData = functions.internal.Cloud.UploadData<GCSCloudCredential>;
+type UploadData = functions.internal.Cloud.UploadData;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
@@ -51,14 +51,15 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
         if (!filename || !data.upload.overwrite) {
             filename ||= path.basename(fileUri);
             try {
-                let exists = true,
+                const originalName = filename;
+                let exists: Undef<boolean>,
                     i = 0,
                     j = 0;
                 do {
                     if (i > 0) {
-                        j = filename.indexOf('.');
+                        j = originalName.indexOf('.');
                         if (j !== -1) {
-                            filename = filename.substring(0, j) + `_${i}` + filename.substring(j);
+                            filename = originalName.substring(0, j) + `_${i}` + originalName.substring(j);
                         }
                         else {
                             filename = uuid.v4() + path.extname(fileUri);
@@ -112,7 +113,7 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
                     return;
                 }
             }
-            bucket.upload(srcUri, { contentType: ContentType[i], destination: subFolder ? subFolder + path.basename(srcUri) : '' }, (err, file) => {
+            bucket.upload(srcUri, { contentType: ContentType[i], destination: subFolder ? subFolder + path.basename(srcUri) : undefined }, (err, file) => {
                 if (file) {
                     const { active, endpoint, publicRead } = data.upload;
                     const url = (endpoint ? this.toPosix(endpoint) : 'https://storage.googleapis.com/' + bucketName) + '/' + file.name;
