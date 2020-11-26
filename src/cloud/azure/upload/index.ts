@@ -7,13 +7,13 @@ import { createClient } from '../index';
 
 type IFileManager = functions.IFileManager;
 type UploadHost = functions.internal.Cloud.UploadHost;
-type UploadData = functions.internal.Cloud.UploadData;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
+type UploadData = functions.internal.Cloud.UploadData;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function upload(this: IFileManager, service: string, credential: AzureCloudCredential): UploadCallback {
-    const blobServiceClient = createClient.call(this, service, credential);
+function upload(this: IFileManager, credential: AzureCloudCredential, service: string): UploadCallback {
+    const blobServiceClient = createClient.call(this, credential, service);
     return async (data: UploadData, success: (value: string) => void) => {
         const bucket = data.service.bucket ||= data.bucketGroup;
         const fileUri = data.fileUri;
@@ -87,7 +87,7 @@ function upload(this: IFileManager, service: string, credential: AzureCloudCrede
             containerClient.getBlockBlobClient(blobName)
                 .upload(Body[i], Body[i].byteLength, { blobHTTPHeaders: { blobContentType: ContentType[i] } })
                 .then(() => {
-                    const url = (endpoint ? this.toPosix(endpoint) : `https://${credential.accountName}.blob.core.windows.net/${bucket}`) + '/' + blobName;
+                    const url = (endpoint ? this.toPosix(endpoint) : `https://${credential.accountName!}.blob.core.windows.net/${bucket}`) + '/' + blobName;
                     this.formatMessage(service, 'Upload success', url);
                     if (i === 0) {
                         success(url);

@@ -306,6 +306,7 @@ const FileManager = class extends Module implements IFileManager {
         return output;
     }
     setFileUri(file: ExternalAsset): FileOutput {
+        this.assignFilename(file);
         const pathname = path.join(this.dirname, file.moveTo || '', file.pathname);
         const fileUri = path.join(pathname, file.filename);
         file.fileUri = fileUri;
@@ -1191,7 +1192,6 @@ const FileManager = class extends Module implements IFileManager {
                 file.invalid = true;
                 continue;
             }
-            this.assignFilename(file);
             const { pathname, fileUri } = this.setFileUri(file);
             const fileReceived = (err: NodeJS.ErrnoException) => {
                 if (err) {
@@ -1316,7 +1316,7 @@ const FileManager = class extends Module implements IFileManager {
             if (gz) {
                 this.formatMessage('GZ', 'Compressing file...', fileUri + '.gz', 'yellow');
                 tasks.push(
-                    new Promise<void>(resolve => Compress.tryFile(fileUri, gz, undefined, (result: string) => {
+                    new Promise<void>(resolve => Compress.tryFile(fileUri, gz, null, (result: string) => {
                         if (result) {
                             this.add(result, file);
                         }
@@ -1329,7 +1329,7 @@ const FileManager = class extends Module implements IFileManager {
                 if (br) {
                     this.formatMessage('BR', 'Compressing file...', fileUri + '.br', 'yellow');
                     tasks.push(
-                        new Promise<void>(resolve => Compress.tryFile(fileUri, br, undefined, (result: string) => {
+                        new Promise<void>(resolve => Compress.tryFile(fileUri, br, null, (result: string) => {
                             if (result) {
                                 this.add(result, file);
                             }
@@ -1665,7 +1665,7 @@ const FileManager = class extends Module implements IFileManager {
                         const credential = createCredential(storage);
                         let uploadHandler: UploadCallback;
                         try {
-                            uploadHandler = (CLOUD_UPLOAD[service] ||= require(`../cloud/${service}/upload`) as UploadHost).call(this, service.toUpperCase(), credential);
+                            uploadHandler = (CLOUD_UPLOAD[service] ||= require(`../cloud/${service}/upload`) as UploadHost).call(this, credential, service.toUpperCase());
                         }
                         catch (err) {
                             this.writeFail(['Upload function not supported', service], err);
@@ -1791,7 +1791,7 @@ const FileManager = class extends Module implements IFileManager {
             }
             for (const service in bucketMap) {
                 for (const [bucket, credential] of bucketMap[service]) {
-                    tasks.push(Cloud.deleteObjects(service, credential, bucket));
+                    tasks.push(Cloud.deleteObjects(credential, service, bucket));
                 }
             }
             if (tasks.length) {
@@ -1933,7 +1933,7 @@ const FileManager = class extends Module implements IFileManager {
                                         const credential = createCredential(data);
                                         let downloadHandler: DownloadCallback;
                                         try {
-                                            downloadHandler = (CLOUD_DOWNLOAD[service] ||= require(`../cloud/${service.toLowerCase()}/download`) as DownloadHost).call(this, service, credential);
+                                            downloadHandler = (CLOUD_DOWNLOAD[service] ||= require(`../cloud/${service.toLowerCase()}/download`) as DownloadHost).call(this, credential, service);
                                         }
                                         catch (err) {
                                             this.writeFail(['Download function not supported', service], err);

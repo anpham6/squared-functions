@@ -7,8 +7,8 @@ type DownloadHost = functions.internal.Cloud.DownloadHost;
 type DownloadData = functions.internal.Cloud.DownloadData;
 type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
-function download(this: IFileManager, service: string, credential: AzureCloudCredential): DownloadCallback {
-    const blobServiceClient = createClient.call(this, service, credential);
+function download(this: IFileManager, credential: AzureCloudCredential, service: string): DownloadCallback {
+    const blobServiceClient = createClient.call(this, credential, service);
     return async (data: DownloadData, success: (value: Null<Buffer>) => void) => {
         const bucket = data.service.bucket;
         if (bucket) {

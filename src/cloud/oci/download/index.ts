@@ -6,9 +6,9 @@ type IFileManager = functions.IFileManager;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
-function download(this: IFileManager, service: string, credential: OCICloudCredential): DownloadCallback {
+function download(this: IFileManager, credential: OCICloudCredential, service: string): DownloadCallback {
     setCredential.call(this, credential);
-    return (require('../../s3/download') as DownloadHost).call(this, service, credential);
+    return (require('../../s3/download') as DownloadHost).call(this, credential, service);
 }
 
 if (typeof module !== 'undefined' && module.exports) {

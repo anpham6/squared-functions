@@ -3,25 +3,25 @@ import type * as azure from '@azure/storage-blob';
 type IFileManager = functions.IFileManager;
 type ICloud = functions.ICloud;
 
-export interface AzureCloudCredential extends functions.external.Cloud.StorageSharedKeyCredential, PlainObject {}
+export interface AzureCloudCredential extends functions.external.Cloud.StorageSharedKeyCredential {}
 
 export default function validate(credential: AzureCloudCredential) {
-    return !!(credential.accountName && credential.accountKey);
+    return !!(credential.accountName && credential.accountKey || credential.connectionString || credential.sharedAccessSignature);
 }
 
-export async function deleteObjects(this: ICloud, service: string, credential: AzureCloudCredential, bucket: string) {
+export async function deleteObjects(this: ICloud, credential: AzureCloudCredential, service: string, bucket: string) {
     try {
-        const containerClient = createClient.call(this, service, credential).getContainerClient(bucket);
+        const containerClient = createClient.call(this, credential, service).getContainerClient(bucket);
         const tasks: Promise<azure.BlobDeleteResponse>[] = [];
         let fileCount = 0;
         for await (const blob of containerClient.listBlobsFlat({ includeUncommitedBlobs: true })) {
             tasks.push(
                 containerClient.deleteBlob(blob.name, { versionId: blob.versionId })
-                .catch(err => {
-                    this.formatMessage(service, ['Unable to delete blob', bucket], err, 'yellow');
-                    --fileCount;
-                    return err;
-                })
+                    .catch(err => {
+                        this.formatMessage(service, ['Unable to delete blob', bucket], err, 'yellow');
+                        --fileCount;
+                        return err;
+                    })
             );
         }
         fileCount = tasks.length;
@@ -32,11 +32,19 @@ export async function deleteObjects(this: ICloud, service: string, credential: A
     }
 }
 
-export function createClient(this: IFileManager | ICloud, service: string, credential: AzureCloudCredential) {
+export function createClient(this: ICloud | IFileManager, credential: AzureCloudCredential, service: string): azure.BlobServiceClient {
     try {
         const { BlobServiceClient, StorageSharedKeyCredential } = require('@azure/storage-blob');
+        if (credential.connectionString) {
+            credential.accountName ||= /AccountName=([^;]+);/.exec(credential.connectionString)?.[1];
+            return BlobServiceClient.fromConnectionString(credential.connectionString);
+        }
+        if (credential.sharedAccessSignature) {
+            credential.accountName ||= /^https:\/\/([a-z\d]+)\./.exec(credential.sharedAccessSignature)?.[1];
+            return new BlobServiceClient(credential.sharedAccessSignature);
+        }
         const sharedKeyCredential = new StorageSharedKeyCredential(credential.accountName, credential.accountKey) as azure.StorageSharedKeyCredential;
-        return new BlobServiceClient(`https://${credential.accountName}.blob.core.windows.net`, sharedKeyCredential) as azure.BlobServiceClient;
+        return new BlobServiceClient(`https://${credential.accountName!}.blob.core.windows.net`, sharedKeyCredential);
     }
     catch (err) {
         this.writeFail([`Install ${service} SDK?`, 'npm i @azure/storage-blob']);

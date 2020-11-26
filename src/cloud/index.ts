@@ -102,9 +102,9 @@ const Cloud = new class extends Module implements functions.ICloud {
             }
         }
     }
-    async deleteObjects(service: string, credential: PlainObject, bucket: string): Promise<void> {
+    async deleteObjects(credential: PlainObject, service: string, bucket: string): Promise<void> {
         try {
-            return (serviceMap[service] ||= require(`../cloud/${service}`) as ServiceClient).deleteObjects.call(this, service.toUpperCase(), credential, bucket);
+            return (serviceMap[service] ||= require(`../cloud/${service}`) as ServiceClient).deleteObjects.call(this, credential, service.toUpperCase(), bucket);
         }
         catch (err) {
             this.writeFail(['Cloud provider not found', service], err);

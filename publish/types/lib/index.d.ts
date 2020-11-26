@@ -232,13 +232,13 @@ declare namespace functions {
 
             interface ServiceClient {
                 validate(credential: StringMap): boolean;
-                deleteObjects(this: IFileManager | ICloud, service: string, credential: PlainObject, bucket: string, sdk?: string): Promise<void>;
-                createClient?<T>(this: IFileManager | ICloud, service: string, credential: PlainObject): T;
-                setCredential?(this: IFileManager | ICloud, credential: PlainObject): void;
-                setPublicRead?(this: IFileManager | ICloud, ...args: unknown[]): void;
+                deleteObjects(this: ICloud | IFileManager, credential: unknown, service: string, bucket: string, sdk?: string): Promise<void>;
+                createClient?<T>(this: ICloud | IFileManager, credential: unknown, service: string): T;
+                setCredential?(this: ICloud | IFileManager, credential: PlainObject): void;
+                setPublicRead?(this: ICloud | IFileManager, ...args: unknown[]): void;
             }
 
-            type ServiceHost<T> = (this: IFileManager, service: string, credential: unknown, sdk?: string) => T;
+            type ServiceHost<T> = (this: IFileManager, credential: unknown, service: string, sdk?: string) => T;
             type UploadHost = ServiceHost<UploadCallback>;
             type DownloadHost = ServiceHost<DownloadCallback>;
             type UploadCallback = (data: UploadData, success: (value: string) => void) => Promise<void>;
@@ -259,8 +259,10 @@ declare namespace functions {
     namespace external {
         namespace Cloud {
             interface StorageSharedKeyCredential {
-                accountName: string;
-                accountKey: string;
+                accountName?: string;
+                accountKey?: string;
+                connectionString?: string;
+                sharedAccessSignature?: string;
             }
         }
     }
@@ -319,7 +321,7 @@ declare namespace functions {
         hasImageService(): boolean;
         parseSizeRange(value: string): [number, number];
         withinSizeRange(fileUri: string, value: Undef<string>): boolean;
-        tryFile(fileUri: string, data: squared.CompressFormat, initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback): void;
+        tryFile(fileUri: string, data: squared.CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback): void;
         tryImage(fileUri: string, callback: FileOutputCallback): void;
     }
 
@@ -336,7 +338,7 @@ declare namespace functions {
     interface ICloud extends IModule {
         settings: settings.CloudModule;
         setObjectKeys(assets: ExternalAsset[]): void;
-        deleteObjects(service: string, credential: PlainObject, bucket: string, bucketGroup?: string): Promise<void>;
+        deleteObjects(credential: PlainObject, service: string, bucket: string, bucketGroup?: string): Promise<void>;
         getService(functionName: CloudFunctions, data: Undef<squared.CloudService[]>): Undef<squared.CloudService>;
         hasService(functionName: CloudFunctions, data: squared.CloudService): squared.CloudServiceAction | false;
         hasCredential(data: squared.CloudService): boolean;

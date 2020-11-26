@@ -9,16 +9,16 @@ import uuid = require('uuid');
 import { createClient, setPublicRead } from '../index';
 
 type IFileManager = functions.IFileManager;
-type UploadCallback = functions.internal.Cloud.UploadCallback;
 type UploadHost = functions.internal.Cloud.UploadHost;
+type UploadCallback = functions.internal.Cloud.UploadCallback;
 type UploadData = functions.internal.Cloud.UploadData;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
 const getProjectId = (credential: GCSCloudCredential): string => require(path.resolve(credential.keyFilename || credential.keyFile!)).project_id || '';
 
-function upload(this: IFileManager, service: string, credential: GCSCloudCredential): UploadCallback {
-    const storage = createClient.call(this, service, credential);
+function upload(this: IFileManager, credential: GCSCloudCredential, service: string): UploadCallback {
+    const storage = createClient.call(this, credential, service);
     return async (data: UploadData, success: (value: string) => void) => {
         let bucketName = data.service.bucket ||= data.bucketGroup,
             bucket: Undef<gcs.Bucket>;
@@ -122,7 +122,7 @@ function upload(this: IFileManager, service: string, credential: GCSCloudCredent
                         success(url);
                     }
                     if (publicRead || active && publicRead !== false) {
-                        setPublicRead.call(this, file.acl, bucketName + '/' + Key[i], publicRead);
+                        setPublicRead.call(this, file.acl, bucketName + '/' + file.name, publicRead);
                     }
                 }
                 else if (i === 0) {

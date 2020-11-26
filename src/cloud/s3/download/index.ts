@@ -9,8 +9,8 @@ type DownloadHost = functions.internal.Cloud.DownloadHost;
 type DownloadData = functions.internal.Cloud.DownloadData;
 type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
-function download(this: IFileManager, service: string, credential: S3CloudCredential, sdk = 'aws-sdk/clients/s3'): DownloadCallback {
-    const s3 = createClient.call(this, service, credential, sdk);
+function download(this: IFileManager, credential: S3CloudCredential, service: string, sdk = 'aws-sdk/clients/s3'): DownloadCallback {
+    const s3 = createClient.call(this, credential, service, sdk);
     return async (data: DownloadData, success: (value: Null<Buffer>) => void) => {
         const Bucket = data.service.bucket;
         if (Bucket) {

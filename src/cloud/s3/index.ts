@@ -32,7 +32,7 @@ export default function validate(credential: S3CloudCredential) {
     return !!(credential.accessKeyId && credential.secretAccessKey);
 }
 
-export function createClient(this: IFileManager | ICloud, service: string, credential: S3CloudCredential, sdk = 'aws-sdk/clients/s3') {
+export function createClient(this: ICloud | IFileManager, credential: S3CloudCredential, service: string, sdk = 'aws-sdk/clients/s3') {
     try {
         const S3 = require(sdk) as Constructor<aws.S3>;
         return new S3(credential);
@@ -62,9 +62,9 @@ export function setPublicRead(this: IFileManager, s3: aws.S3, Bucket: string, se
     }
 }
 
-export async function deleteObjects(this: ICloud, service: string, credential: S3CloudCredential, Bucket: string, sdk = 'aws-sdk/clients/s3') {
+export async function deleteObjects(this: ICloud, credential: S3CloudCredential, service: string, Bucket: string, sdk = 'aws-sdk/clients/s3') {
     try {
-        const s3 = createClient.call(this, service, credential, sdk);
+        const s3 = createClient.call(this, credential, service, sdk);
         const Contents = (await s3.listObjects({ Bucket }).promise()).Contents;
         if (Contents && Contents.length) {
             return s3.deleteObjects({ Bucket, Delete: { Objects: Contents.map(data => ({ Key: data.Key! })) } })

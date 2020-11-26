@@ -6,9 +6,9 @@ type IFileManager = functions.IFileManager;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
-function download(this: IFileManager, service: string, credential: IBMCloudCredential): DownloadCallback {
+function download(this: IFileManager, credential: IBMCloudCredential, service: string): DownloadCallback {
     setCredential.call(this, credential);
-    return (require('../../s3/download') as DownloadHost).call(this, service, credential, 'ibm-cos-sdk/clients/s3');
+    return (require('../../s3/download') as DownloadHost).call(this, credential, service, 'ibm-cos-sdk/clients/s3');
 }
 
 if (typeof module !== 'undefined' && module.exports) {

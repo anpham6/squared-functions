@@ -14,8 +14,8 @@ type UploadData = functions.internal.Cloud.UploadData;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function upload(this: IFileManager, service: string, credential: S3CloudCredential, sdk = 'aws-sdk/clients/s3'): UploadCallback {
-    const s3 = createClient.call(this, service, credential, sdk);
+function upload(this: IFileManager, credential: S3CloudCredential, service: string, sdk = 'aws-sdk/clients/s3'): UploadCallback {
+    const s3 = createClient.call(this, credential, service, sdk);
     return async (data: UploadData, success: (value: string) => void) => {
         const Bucket = data.service.bucket ||= data.bucketGroup;
         const admin = data.service.admin;

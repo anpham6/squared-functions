@@ -18,7 +18,7 @@ export default function validate(credential: GCSCloudCredential) {
     return !!(credential.keyFile || credential.keyFilename);
 }
 
-export function createClient(this: IFileManager | ICloud, service: string, credential: GCSCloudCredential) {
+export function createClient(this: ICloud | IFileManager, credential: GCSCloudCredential, service: string) {
     try {
         const { Storage } = require('@google-cloud/storage');
         return new Storage(credential) as gcs.Storage;
@@ -29,21 +29,21 @@ export function createClient(this: IFileManager | ICloud, service: string, crede
     }
 }
 
-export function setPublicRead(this: IFileManager, acl: Acl, objectName: string, requested?: boolean) {
+export function setPublicRead(this: IFileManager, acl: Acl, filename: string, requested?: boolean) {
     acl.add({ entity: 'allUsers', role: 'READER' })
         .then(() => {
-            this.formatMessage('GCS', 'Grant public-read', objectName, 'blue');
+            this.formatMessage('GCS', 'Grant public-read', filename, 'blue');
         })
         .catch(err => {
             if (requested) {
-                this.formatMessage('GCS', ['Unable to grant public-read', objectName], err, 'yellow');
+                this.formatMessage('GCS', ['Unable to grant public-read', filename], err, 'yellow');
             }
         });
 }
 
-export async function deleteObjects(this: ICloud, service: string, credential: GCSCloudCredential, bucket: string) {
+export async function deleteObjects(this: ICloud, credential: GCSCloudCredential, service: string, bucket: string) {
     try {
-        return createClient.call(this, service, credential)
+        return createClient.call(this, credential, service)
             .bucket(bucket)
             .deleteFiles({ force: true })
             .then(() => this.formatMessage(service, 'Bucket emptied', bucket, 'blue'));

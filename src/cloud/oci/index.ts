@@ -15,15 +15,15 @@ export default function validate(credential: OCICloudCredential) {
     return !!(credential.region && credential.namespace && credential.accessKeyId && credential.secretAccessKey);
 }
 
-export function setCredential(this: IFileManager | ICloud, credential: OCICloudCredential) {
+export function setCredential(this: ICloud | IFileManager, credential: OCICloudCredential) {
     credential.endpoint = `https://${credential.namespace}.compat.objectstorage.${credential.region}.oraclecloud.com`;
     credential.s3ForcePathStyle = true;
     credential.signatureVersion = 'v4';
 }
 
-export async function deleteObjects(this: ICloud, service: string, credential: OCICloudCredential, bucket: string) {
+export async function deleteObjects(this: ICloud, credential: OCICloudCredential, service: string, bucket: string) {
     setCredential.call(this, credential);
-    return deleteObjects_s3.call(this, service, credential, bucket);
+    return deleteObjects_s3.call(this, credential, service, bucket);
 }
 
 if (typeof module !== 'undefined' && module.exports) {

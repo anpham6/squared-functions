@@ -11,8 +11,8 @@ type DownloadHost = functions.internal.Cloud.DownloadHost;
 type DownloadData = functions.internal.Cloud.DownloadData;
 type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
-function download(this: IFileManager, service: string, credential: GCSCloudCredential): DownloadCallback {
-    const storage = createClient.call(this, service, credential);
+function download(this: IFileManager, credential: GCSCloudCredential, service: string): DownloadCallback {
+    const storage = createClient.call(this, credential, service);
     return async (data: DownloadData, success: (value: string) => void) => {
         const bucketName = data.service.bucket;
         if (bucketName) {

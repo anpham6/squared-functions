@@ -496,8 +496,10 @@ Other service providers can be integrated similarly except for credential verifi
       "service": "azure",
       "bucket": "squared-002",
       "credential": {
-        "accountName": "**********",
-        "accountKey": "**********"
+        "accountName": "**********", // +1 password option (required)
+        "accountKey": "**********",
+        "connectionString": "**********",  
+        "sharedAccessSignature": "**********"
       },
       "upload": {
         "endpoint": "http://squaredjs.azureedge.net/squared-002" // e.g. CDN (optional)

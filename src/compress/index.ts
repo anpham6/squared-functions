@@ -67,7 +67,7 @@ const Compress = new class extends Module implements functions.ICompress {
         }
         return true;
     }
-    tryFile(fileUri: string, data: CompressFormat, initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback) {
+    tryFile(fileUri: string, data: CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback) {
         if (this.withinSizeRange(fileUri, data.condition)) {
             const output = `${fileUri}.${data.format}`;
             let methodName: Undef<NodeBuiltInCompressionMethod>;
