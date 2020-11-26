@@ -53,13 +53,14 @@ declare namespace functions {
 
         interface CloudServiceAdmin {
             publicRead?: boolean;
-            subFolder?: string;
             emptyBucket?: boolean;
+            preservePath?: boolean;
         }
 
         interface CloudServiceAction {
             active?: boolean;
             filename?: string;
+            pathname?: string;
             overwrite?: boolean;
         }
 

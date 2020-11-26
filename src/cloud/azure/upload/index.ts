@@ -35,7 +35,7 @@ function upload(this: IFileManager, credential: AzureCloudCredential, service: s
             }
             BUCKET_MAP[bucket] = true;
         }
-        const subFolder = data.service.admin?.subFolder || '';
+        const pathname = data.service.upload?.pathname || '';
         let filename = data.filename;
         if (!filename || !data.upload.overwrite) {
             filename ||= path.basename(fileUri);
@@ -55,7 +55,7 @@ function upload(this: IFileManager, credential: AzureCloudCredential, service: s
                             break;
                         }
                     }
-                    const name = subFolder + filename;
+                    const name = pathname + filename;
                     for await (const blob of containerClient.listBlobsFlat({ includeUncommitedBlobs: true })) {
                         if (blob.name === name) {
                             exists = true;
@@ -83,7 +83,7 @@ function upload(this: IFileManager, credential: AzureCloudCredential, service: s
             Key.push(filename + item[1]);
         }
         for (let i = 0; i < Key.length; ++i) {
-            const blobName = subFolder + Key[i];
+            const blobName = pathname + Key[i];
             containerClient.getBlockBlobClient(blobName)
                 .upload(Body[i], Body[i].byteLength, { blobHTTPHeaders: { blobContentType: ContentType[i] } })
                 .then(() => {

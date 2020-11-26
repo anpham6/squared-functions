@@ -486,7 +486,7 @@ Other service providers can be integrated similarly except for credential verifi
       "download": {
         "filename": "picture2.png",
         "versionId": "12345", // Retrieve a previous file snapshot (optional)
-        "pathname": "download/images", // Base directory when omitted (optional)
+        "pathname": "download/images", // File adjacent or base directory when omitted (optional)
         "active": false, // Always write file or rename to main file when same extension (optional)
         "overwrite": false, // Always write file (optional)
         "deleteObject": false // Remove if download success (optional)
@@ -502,6 +502,7 @@ Other service providers can be integrated similarly except for credential verifi
         "sharedAccessSignature": "**********"
       },
       "upload": {
+        "pathname": "a/b/c/" // Virtual directory in bucket (optional)
         "endpoint": "http://squaredjs.azureedge.net/squared-002" // e.g. CDN (optional)
       }
     },
@@ -514,7 +515,6 @@ Other service providers can be integrated similarly except for credential verifi
       "admin": {
         "publicRead": false, // New buckets (optional: Not supported OCI)
         "emptyBucket": false // More convenient than using "overwrite" (optional)
-        "subFolder": "a/b/c/" // Virtual directory in bucket (optional)
       },
       "upload": {
         "active": true, // Implicity "publicRead: true" except when explicitly "publicRead: false"

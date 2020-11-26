@@ -52,7 +52,7 @@ function upload(this: IFileManager, credential: S3CloudCredential, service: stri
             }
         }
         const fileUri = data.fileUri;
-        const subFolder = data.service.admin?.subFolder || '';
+        const pathname = data.service.upload?.pathname || '';
         let filename = data.filename;
         if (!filename || !data.upload.overwrite) {
             filename ||= path.basename(fileUri);
@@ -72,7 +72,7 @@ function upload(this: IFileManager, credential: S3CloudCredential, service: stri
                             break;
                         }
                     }
-                    exists = await s3.headObject({ Bucket, Key: subFolder + filename })
+                    exists = await s3.headObject({ Bucket, Key: pathname + filename })
                         .promise()
                         .then(() => true)
                         .catch(err => {
@@ -93,8 +93,8 @@ function upload(this: IFileManager, credential: S3CloudCredential, service: stri
                 return;
             }
         }
-        if (subFolder) {
-            await s3.putObject({ Bucket, Key: subFolder, Body: Buffer.from(''), ContentLength: 0 }).promise();
+        if (pathname) {
+            await s3.putObject({ Bucket, Key: pathname, Body: Buffer.from(''), ContentLength: 0 }).promise();
         }
         const { active, publicRead, endpoint } = data.upload;
         const ACL = publicRead || active && publicRead !== false ? 'public-read' : '';
@@ -106,7 +106,7 @@ function upload(this: IFileManager, credential: S3CloudCredential, service: stri
             Key.push(filename + item[1]);
         }
         for (let i = 0; i < Key.length; ++i) {
-            s3.upload({ Bucket, Key: subFolder + Key[i], ACL, Body: Body[i], ContentType: ContentType[i] }, (err, result) => {
+            s3.upload({ Bucket, Key: pathname + Key[i], ACL, Body: Body[i], ContentType: ContentType[i] }, (err, result) => {
                 if (!err) {
                     const url = endpoint ? this.toPosix(endpoint, result.Key) : result.Location;
                     this.formatMessage(service, 'Upload success', url);

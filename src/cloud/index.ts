@@ -9,20 +9,19 @@ type CloudModule = functions.settings.CloudModule;
 type CloudService = functions.squared.CloudService;
 type CloudServiceAction = functions.squared.CloudServiceAction;
 type ServiceClient = functions.internal.Cloud.ServiceClient;
+type CloudServiceUpload = functions.internal.Cloud.CloudServiceUpload;
 
 const serviceMap: ObjectMap<ServiceClient> = {};
 
-function setUploadFilename(data: CloudService, value: string) {
+function setUploadFilename(upload: CloudServiceUpload, value: string) {
     value = Cloud.toPosix(value.replace(/^\.*[\\/]+/, ''));
     const index = value.lastIndexOf('/');
     if (index !== -1) {
         const directory = value.substring(0, index + 1);
-        data.admin ||= {};
-        const subFolder = data.admin.subFolder;
-        data.admin.subFolder = subFolder ? path.join(subFolder, directory) : directory;
+        upload.pathname = upload.pathname ? path.join(upload.pathname, directory) : directory;
         value = value.substring(index + 1);
     }
-    return data.upload!.filename = value;
+    return upload.filename = value;
 }
 
 function hasSameBucket(provider: CloudService, other: CloudService) {
@@ -41,12 +40,16 @@ const Cloud = new class extends Module implements functions.ICloud {
             if (item.cloudStorage) {
                 for (const data of item.cloudStorage) {
                     const upload = data.upload;
-                    if (upload && upload.filename) {
-                        setUploadFilename(data, upload.filename);
-                    }
-                    const subFolder = data.admin?.subFolder;
-                    if (subFolder) {
-                        data.admin!.subFolder = Cloud.toPosix(subFolder) + '/';
+                    if (upload) {
+                        if (upload.filename) {
+                            setUploadFilename(upload, upload.filename);
+                        }
+                        if (!upload.pathname && item.pathname && data.admin?.preservePath) {
+                            upload.pathname = Cloud.toPosix(item.pathname) + '/';
+                        }
+                        else {
+                            upload.pathname &&= Cloud.toPosix(upload.pathname) + '/';
+                        }
                     }
                 }
                 storage.push(item);
@@ -62,7 +65,7 @@ const Cloud = new class extends Module implements functions.ICloud {
                     renamed: {
                         const basename = trailing.filename;
                         const filename = basename || current.filename;
-                        const trailingFolder = data.admin?.subFolder || '';
+                        const trailingFolder = trailing.pathname || '';
                         const trailingName = path.join(trailingFolder, filename);
                         for (let j = 0; j < length - 1; ++j) {
                             const previous = storage[j];
@@ -70,7 +73,7 @@ const Cloud = new class extends Module implements functions.ICloud {
                                 for (const other of previous.cloudStorage!) {
                                     const leading = other.upload;
                                     if (leading && hasSameBucket(data, other)) {
-                                        const leadingFolder = other.admin?.subFolder || '';
+                                        const leadingFolder = leading.pathname || '';
                                         const renameTrailing = (value: string) => {
                                             const location = trailingFolder + value;
                                             if (!filenameMap[location]) {

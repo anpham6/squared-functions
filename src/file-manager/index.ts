@@ -1902,8 +1902,8 @@ const FileManager = class extends Module implements IFileManager {
                             const { active, pathname, filename, overwrite } = data.download!;
                             if (filename) {
                                 const service = data.service.toUpperCase();
-                                const fileUri = !item.invalid && item.fileUri;
-                                let downloadUri = fileUri ? path.join(path.dirname(fileUri), filename) : path.join(this.dirname, pathname ? pathname.replace(/^([\\/]+|[A-Za-z]:)/, '') : '', filename),
+                                const fileUri = item.fileUri;
+                                let downloadUri = pathname ? path.join(this.dirname, pathname.replace(/^([A-Z]:)?[\\/]+/i, '')) : data.admin?.preservePath && fileUri ? path.join(path.dirname(fileUri), filename) : path.join(this.dirname, filename),
                                     valid = false;
                                 if (fs.existsSync(downloadUri)) {
                                     if (active || overwrite) {
