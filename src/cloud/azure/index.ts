@@ -35,13 +35,14 @@ export async function deleteObjects(this: ICloud, credential: AzureCloudCredenti
 export function createClient(this: ICloud | IFileManager, credential: AzureCloudCredential, service: string): azure.BlobServiceClient {
     try {
         const { BlobServiceClient, StorageSharedKeyCredential } = require('@azure/storage-blob');
-        if (credential.connectionString) {
-            credential.accountName ||= /AccountName=([^;]+);/.exec(credential.connectionString)?.[1];
-            return BlobServiceClient.fromConnectionString(credential.connectionString);
+        const { connectionString, sharedAccessSignature } = credential;
+        if (connectionString) {
+            credential.accountName ||= /AccountName=([^;]+);/.exec(connectionString)?.[1];
+            return BlobServiceClient.fromConnectionString(connectionString);
         }
-        if (credential.sharedAccessSignature) {
-            credential.accountName ||= /^https:\/\/([a-z\d]+)\./.exec(credential.sharedAccessSignature)?.[1];
-            return new BlobServiceClient(credential.sharedAccessSignature);
+        if (sharedAccessSignature) {
+            credential.accountName ||= /^https:\/\/([a-z\d]+)\./.exec(sharedAccessSignature)?.[1];
+            return new BlobServiceClient(sharedAccessSignature);
         }
         const sharedKeyCredential = new StorageSharedKeyCredential(credential.accountName, credential.accountKey) as azure.StorageSharedKeyCredential;
         return new BlobServiceClient(`https://${credential.accountName!}.blob.core.windows.net`, sharedKeyCredential);

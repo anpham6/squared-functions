@@ -1869,15 +1869,16 @@ const FileManager = class extends Module implements IFileManager {
                     if (group.length) {
                         tasks.push(
                             ...group.map(value => {
-                                return fs.unlink(value).then(() => {
-                                    let dir = this.dirname;
-                                    for (const seg of path.dirname(value).substring(this.dirname.length + 1).split(/[\\/]/)) {
-                                        dir += path.sep + seg;
-                                        emptyDir.add(dir);
-                                    }
-                                    this.delete(value);
-                                })
-                                .catch(() => this.delete(value));
+                                return fs.unlink(value)
+                                    .then(() => {
+                                        let dir = this.dirname;
+                                        for (const seg of path.dirname(value).substring(this.dirname.length + 1).split(/[\\/]/)) {
+                                            dir += path.sep + seg;
+                                            emptyDir.add(dir);
+                                        }
+                                        this.delete(value);
+                                    })
+                                    .catch(() => this.delete(value));
                             })
                         );
                     }
