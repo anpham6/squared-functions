@@ -75,5 +75,16 @@ export default [
             banner: `/* @squared-functions/node ${require('./publish/node/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
         },
         plugins: []
+    },
+    {
+        input: './build/watch/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/watch/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/watch ${require('./publish/node/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
+        },
+        plugins: []
     }
 ];

@@ -14,9 +14,11 @@ import Compress from '../compress';
 import Image from '../image';
 import Chrome from '../chrome';
 import Cloud from '../cloud';
+import Watch from '../watch';
 
 type IFileManager = functions.IFileManager;
 type IChrome = functions.IChrome;
+type IWatch = functions.IWatch;
 
 type Settings = functions.Settings;
 type RequestBody = functions.RequestBody;
@@ -50,23 +52,10 @@ interface GulpTask {
     data: GulpData;
 }
 
-interface FileSource {
-    [key: string]: FileWatch;
-}
-
-interface FileWatch {
-    uri: string;
-    etag: string;
-    assets: ExternalAsset[];
-    expires: number;
-    interval: number;
-    start: number;
-    timeout: NodeJS.Timeout;
-}
-
-const WATCH_HTTP: ObjectMap<FileSource> = {};
 const CLOUD_UPLOAD: ObjectMap<UploadHost> = {};
 const CLOUD_DOWNLOAD: ObjectMap<DownloadHost> = {};
+
+const getRelativePath = (file: ExternalAsset, filename = file.filename) => Node.toPosix(path.join(file.moveTo || '', file.pathname, filename));
 
 const FileManager = class extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {
@@ -150,14 +139,13 @@ const FileManager = class extends Module implements IFileManager {
     public serverRoot = '__serverroot__';
     public delayed = 0;
     public cleared = false;
-    public watchInterval = 200;
     public emptyDirectory = false;
     public productionRelease = false;
     public Chrome?: IChrome;
     public Cloud?: CloudModule;
     public Compress?: CompressModule;
     public Gulp?: GulpModule;
-    public Watch?: boolean;
+    public Watch?: IWatch;
     public baseUrl?: string;
     public baseAsset?: ExternalAsset;
     public readonly assets: ExternalAsset[];
@@ -184,13 +172,14 @@ const FileManager = class extends Module implements IFileManager {
                 this.Compress = args[0] as CompressModule;
                 break;
             case 'cloud':
-                Cloud.settings = args[0] as CloudModule;
                 this.Cloud = Cloud.settings;
+                Cloud.settings = args[0] as CloudModule;
                 break;
             case 'gulp':
                 this.Gulp = args[0] as GulpModule;
                 break;
             case 'chrome': {
+                this.Chrome = new Chrome(args[0] as ChromeModule, this._body);
                 const baseAsset = this.assets.find(item => item.baseUrl);
                 if (baseAsset) {
                     this.baseAsset = baseAsset;
@@ -208,14 +197,29 @@ const FileManager = class extends Module implements IFileManager {
                         return 0;
                     });
                 }
-                this.Chrome = new Chrome(args[0] as ChromeModule, this._body);
                 break;
             }
             case 'watch':
+                this.Watch = Watch;
                 if (typeof args[0] === 'number' && args[0] > 0) {
-                    this.watchInterval = args[0];
+                    Watch.interval = args[0];
                 }
-                this.Watch = true;
+                Watch.whenModified = (assets: ExternalAsset[]) => {
+                    const manager = new FileManager(this.dirname, { ...this._body, assets });
+                    if (this.Compress) {
+                        manager.install('compress', this.Compress);
+                    }
+                    if (this.Cloud) {
+                        manager.install('cloud', this.Cloud);
+                    }
+                    if (this.Gulp) {
+                        manager.install('gulp', this.Gulp);
+                    }
+                    if (this.Chrome) {
+                        manager.install('chrome', this.Chrome.settings);
+                    }
+                    manager.processAssets();
+                };
                 break;
         }
     }
@@ -248,6 +252,7 @@ const FileManager = class extends Module implements IFileManager {
                 file.originalName ||= file.filename;
                 file.filename = path.basename(replaceWith);
                 file.fileUri = this.setFileUri(file).fileUri;
+                file.relativePath = getRelativePath(file);
                 file.mimeType = mime.lookup(replaceWith) || file.mimeType;
                 this.filesToRemove.add(fileUri);
                 this.add(replaceWith);
@@ -310,6 +315,7 @@ const FileManager = class extends Module implements IFileManager {
         const pathname = path.join(this.dirname, file.moveTo || '', file.pathname);
         const fileUri = path.join(pathname, file.filename);
         file.fileUri = fileUri;
+        file.relativePath = getRelativePath(file);
         return { pathname, fileUri };
     }
     relativePosix(file: ExternalAsset, uri: string) {
@@ -346,12 +352,9 @@ const FileManager = class extends Module implements IFileManager {
             }
             if (baseAsset && Node.fromSameOrigin(origin, baseAsset.uri!)) {
                 const [originDir] = this.getRootDirectory(baseDir + '/' + file.filename, Node.parsePath(baseAsset.uri!)!);
-                return '../'.repeat(originDir.length - 1) + this.relativePath(asset);
+                return '../'.repeat(originDir.length - 1) + asset.relativePath;
             }
         }
-    }
-    relativePath(file: ExternalAsset, filename = file.filename) {
-        return Node.toPosix(path.join(file.moveTo || '', file.pathname, filename));
     }
     absolutePath(value: string, href: string) {
         value = Node.toPosix(value);
@@ -507,7 +510,7 @@ const FileManager = class extends Module implements IFileManager {
                 if (asset) {
                     const pathname = file.pathname;
                     const count = pathname && pathname !== '/' && !file.baseUrl ? pathname.split(/[\\/]/).length : 0;
-                    output = (output || source).replace(match[0], `url(${getCloudUUID(asset, (count ? '../'.repeat(count) : '') + this.relativePath(asset))})`);
+                    output = (output || source).replace(match[0], `url(${getCloudUUID(asset, (count ? '../'.repeat(count) : '') + asset.relativePath)})`);
                 }
             }
         }
@@ -685,7 +688,7 @@ const FileManager = class extends Module implements IFileManager {
                                 item.inlineCloud = value;
                             }
                             else {
-                                value = this.relativePath(item);
+                                value = item.relativePath!;
                             }
                             output = getOuterHTML(/^\s*<link\b/i.test(textContent) || !!item.mimeType?.endsWith('/css'), value);
                         }
@@ -749,20 +752,20 @@ const FileManager = class extends Module implements IFileManager {
                             item.mimeType ||= mime.lookup(uri).toString();
                             const segments = [uri];
                             let value: string,
-                                relativeUri: Undef<string>,
+                                relativePath: Undef<string>,
                                 ascending: Undef<boolean>;
                             if (baseUrl) {
-                                relativeUri = uri.replace(baseUrl, '');
-                                if (relativeUri === uri) {
-                                    relativeUri = '';
+                                relativePath = uri.replace(baseUrl, '');
+                                if (relativePath === uri) {
+                                    relativePath = '';
                                 }
                             }
-                            if (!relativeUri && Node.fromSameOrigin(baseUri, uri)) {
-                                relativeUri = path.join(item.pathname, path.basename(uri));
+                            if (!relativePath && Node.fromSameOrigin(baseUri, uri)) {
+                                relativePath = path.join(item.pathname, path.basename(uri));
                                 ascending = true;
                             }
-                            if (relativeUri) {
-                                segments.push(relativeUri);
+                            if (relativePath) {
+                                segments.push(relativePath);
                             }
                             if (Cloud.getService('upload', item.cloudStorage)) {
                                 value = uuid.v4();
@@ -774,7 +777,7 @@ const FileManager = class extends Module implements IFileManager {
                                 item.watch = false;
                             }
                             else {
-                                value = this.relativePath(item);
+                                value = item.relativePath!;
                             }
                             const innerContent = textContent.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/\w+>)?\s*$/, '');
                             const replaced = this.replaceUri(innerContent, segments, value);
@@ -786,8 +789,8 @@ const FileManager = class extends Module implements IFileManager {
                                     break found;
                                 }
                             }
-                            if (relativeUri) {
-                                pattern = new RegExp(`(["'\\s,=])(` + (ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + this.escapePosix(relativeUri) + ')', 'g');
+                            if (relativePath) {
+                                pattern = new RegExp(`(["'\\s,=])(` + (ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + this.escapePosix(relativePath) + ')', 'g');
                                 while (match = pattern.exec(html)) {
                                     if (uri === Node.resolvePath(match[2], baseUri)) {
                                         const result = source.replace(match[0], match[1] + value);
@@ -809,7 +812,7 @@ const FileManager = class extends Module implements IFileManager {
                                 item.inlineCloud = value;
                             }
                             else {
-                                value = this.relativePath(item);
+                                value = item.relativePath!;
                             }
                             const result = this.replaceUri(source, [item.base64.replace(/\+/g, '\\+')], value, false, true);
                             if (result) {
@@ -1423,7 +1426,7 @@ const FileManager = class extends Module implements IFileManager {
                         value = value.replace(new RegExp(id, 'g'), base64Map[id]!);
                     }
                     for (const asset of replaced) {
-                        value = value.replace(new RegExp(this.escapePosix(this.relativePath(asset, asset.originalName)), 'g'), this.relativePath(asset));
+                        value = value.replace(new RegExp(this.escapePosix(getRelativePath(asset, asset.originalName)), 'g'), asset.relativePath!);
                     }
                     if (this.productionRelease) {
                         value = value.replace(new RegExp(`(\\.\\./)*${this.serverRoot}`, 'g'), '');
@@ -1840,7 +1843,7 @@ const FileManager = class extends Module implements IFileManager {
                     let sourceUTF8 = this.getUTF8String(item);
                     for (const id in cloudMap) {
                         const file = cloudMap[id];
-                        sourceUTF8 = sourceUTF8.replace(id, this.relativePath(file));
+                        sourceUTF8 = sourceUTF8.replace(id, file.relativePath!);
                         localStorage.delete(file);
                     }
                     if (endpoint) {
@@ -1987,131 +1990,7 @@ const FileManager = class extends Module implements IFileManager {
             }
         }
         if (this.Watch) {
-            const etagMap: StringMap = {};
-            const destMap: ObjectMap<ExternalAsset[]> = {};
-            const getInterval = (file: ExternalAsset) => Math.max(typeof file.watch === 'object' && file.watch.interval || 0, 0);
-            const formatDate = (value: number) => new Date(value).toLocaleString().replace(/\/20\d+, /, '@').replace(/:\d+ (AM|PM)$/, (...match) => match[1]);
-            for (const item of this.assets.slice(0).sort((a, b) => a.etag ? -1 : b.etag ? 1 : 0)) {
-                const dest = this.relativePath(item);
-                if (item.etag) {
-                    etagMap[item.uri!] = item.etag;
-                    (destMap[dest] ||= []).push(item);
-                }
-                else if (destMap[dest]) {
-                    item.etag = etagMap[item.uri!];
-                    destMap[dest].push(item);
-                }
-            }
-            for (const dest in destMap) {
-                const assets = destMap[dest];
-                assets.sort((a, b) => {
-                    if (a.bundleId && !b.bundleId) {
-                        return -1;
-                    }
-                    if (!a.bundleId && b.bundleId) {
-                        return 1;
-                    }
-                    return 0;
-                });
-                const leading = assets.find(item => item.bundleId && getInterval(item) > 0);
-                const watchInterval = leading ? getInterval(leading) : 0;
-                WATCH_HTTP[dest] ||= {};
-                for (const item of assets) {
-                    if (item.originalName) {
-                        item.filename = item.originalName;
-                    }
-                    delete item.invalid;
-                    delete item.transforms;
-                    delete item.buffer;
-                    delete item.sourceUTF8;
-                    delete item.originalName;
-                    delete item.inlineCssMap;
-                    delete item.inlineCloud;
-                    delete item.inlineCssCloud;
-                    const watch = item.watch;
-                    if (watch && item.etag && item.uri) {
-                        let data = WATCH_HTTP[dest][item.uri];
-                        if (data) {
-                            data.assets = assets;
-                            clearInterval(data.timeout);
-                        }
-                        else {
-                            const start = Date.now();
-                            const interval = getInterval(item) || watchInterval || this.watchInterval;
-                            let expires = 0;
-                            if (typeof watch === 'object') {
-                                if (watch.expires) {
-                                    const match = /^\s*(?:([\d.]+)\s*h)?(?:\s*([\d.]+)\s*m)?(?:\s*([\d.]+)\s*s)?\s*$/i.exec(watch.expires);
-                                    if (match) {
-                                        if (match[1]) {
-                                            expires += parseFloat(match[1]) * 1000 * 60 * 60;
-                                        }
-                                        if (match[2]) {
-                                            expires += parseFloat(match[2]) * 1000 * 60;
-                                        }
-                                        if (match[3]) {
-                                            expires += parseFloat(match[3]) * 1000;
-                                        }
-                                        if (!isNaN(expires) && expires > 0) {
-                                            expires += start;
-                                        }
-                                    }
-                                }
-                            }
-                            data = {
-                                uri: item.uri,
-                                etag: item.etag,
-                                assets,
-                                interval,
-                                start,
-                                expires
-                            } as FileWatch;
-                            this.formatMessage('WATCH', ['Start', `${interval}ms ${expires ? formatDate(expires) : 'never'}`], data.uri, 'blue');
-                        }
-                        data.timeout = setInterval(() => {
-                            const req = request(data.uri, { method: 'HEAD' });
-                            req.on('response', res => {
-                                if (!data.expires || Date.now() < data.expires) {
-                                    const etag = (res.headers['etag'] || res.headers['last-modified']) as string;
-                                    if (etag) {
-                                        if (etag !== data.etag) {
-                                            data.etag = etag;
-                                            const manager = new FileManager(this.dirname, { ...this._body, assets: data.assets });
-                                            if (this.Compress) {
-                                                manager.install('compress', this.Compress);
-                                            }
-                                            if (this.Cloud) {
-                                                manager.install('cloud', this.Cloud);
-                                            }
-                                            if (this.Gulp) {
-                                                manager.install('gulp', this.Gulp);
-                                            }
-                                            if (this.Chrome) {
-                                                manager.install('chrome', this.Chrome.settings);
-                                            }
-                                            manager.install('watch', this.watchInterval);
-                                            manager.processAssets();
-                                            this.formatMessage('WATCH', 'File modified', data.uri, 'yellow');
-                                        }
-                                        else {
-                                            return;
-                                        }
-                                    }
-                                }
-                                else if (data.expires) {
-                                    this.formatMessage('WATCH', ['Expired', `since ${formatDate(data.start)}`], data.uri, 'grey');
-                                }
-                                clearInterval(data.timeout);
-                            });
-                            req.on('error', err => {
-                                clearInterval(data.timeout);
-                                this.writeFail(['Unable to watch', data.uri], err);
-                            });
-                        }, data.interval);
-                        WATCH_HTTP[dest][item.uri] = data;
-                    }
-                }
-            }
+            this.Watch.start(this.assets);
         }
     }
 };

@@ -60,12 +60,7 @@ const Module = class implements functions.IModule {
         this.writeMessage(title.padEnd(5), value, message, color, bgColor);
     }
     writeMessage(title: string, value: string, message?: unknown, color: typeof ForegroundColor = 'green', bgColor: typeof BackgroundColor = 'bgBlack') {
-        try {
-            console.log(`${chalk[bgColor].bold[color](title)}: ${value}` + getMessage(message));
-        }
-        catch {
-            console.log(`${title}: ${value}` + getMessage(message));
-        }
+        console.log(`${chalk[bgColor].bold[color](title)}: ${value}` + getMessage(message));
     }
 };
 

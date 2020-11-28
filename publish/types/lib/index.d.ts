@@ -358,6 +358,12 @@ declare namespace functions {
         transform(type: ExternalCategory, format: string, value: string, input: internal.Chrome.SourceMapInput): Promise<Void<[string, Map<string, internal.Chrome.SourceMapOutput>]>>;
     }
 
+    interface IWatch extends IModule {
+        interval: number;
+        whenModified?: (assets: ExternalAsset[]) => void;
+        start(assets: ExternalAsset[]): void;
+    }
+
     interface ChromeConstructor {
         new(): IChrome;
     }
@@ -400,7 +406,6 @@ declare namespace functions {
         removeCwd(value: Undef<string>): string;
         relativePosix(file: ExternalAsset, uri: string): Undef<string>;
         absolutePath(value: string, href: string): string;
-        relativePath(file: ExternalAsset, filename?: string): string;
         assignFilename(file: ExternalAsset): string;
         getUTF8String(file: ExternalAsset, fileUri?: string): string;
         appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex: number): Promise<string>;
@@ -512,9 +517,10 @@ declare namespace functions {
 
     interface ExternalAsset extends squared.FileAsset, chrome.ChromeAsset {
         fileUri?: string;
-        cloudUri?: string;
         buffer?: Buffer;
         sourceUTF8?: string;
+        cloudUri?: string;
+        relativePath?: string;
         originalName?: string;
         transforms?: string[];
         inlineBase64?: string;
