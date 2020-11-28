@@ -9,7 +9,6 @@ cloudStorage:
     region: us-west-2
     accessKeyId: "**********"
     secretAccessKey: "**********"
-    settings: main
   upload:
     active: false
     localStorage: true

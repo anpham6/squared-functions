@@ -1650,12 +1650,6 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 return [files, transforms];
             };
-            const createCredential = (data: CloudService): PlainObject => {
-                const settings = data.credential.settings;
-                const credential = Object.assign({}, settings && this.Cloud![data.service] ? { ...this.Cloud![data.service][settings] } : {}, data.credential);
-                delete credential.settings;
-                return credential;
-            };
             const uploadFiles = (item: ExternalAsset, mimeType = item.mimeType) => {
                 const cloudMain = Cloud.getService('upload', item.cloudStorage);
                 for (const storage of item.cloudStorage!) {
@@ -1665,10 +1659,9 @@ const FileManager = class extends Module implements IFileManager {
                         if (storage === cloudMain && upload.localStorage === false) {
                             localStorage.set(item, upload);
                         }
-                        const credential = createCredential(storage);
                         let uploadHandler: UploadCallback;
                         try {
-                            uploadHandler = (CLOUD_UPLOAD[service] ||= require(`../cloud/${service}/upload`) as UploadHost).call(this, credential, service.toUpperCase());
+                            uploadHandler = (CLOUD_UPLOAD[service] ||= require(`../cloud/${service}/upload`) as UploadHost).call(this, Cloud.getCredential(storage), service.toUpperCase());
                         }
                         catch (err) {
                             this.writeFail(['Upload function not supported', service], err);
@@ -1787,7 +1780,7 @@ const FileManager = class extends Module implements IFileManager {
                     }
                     for (const storage of item.cloudStorage) {
                         if (storage.admin?.emptyBucket && Cloud.hasCredential(storage) && storage.bucket && !(bucketMap[storage.service] ||= new Map()).has(storage.bucket)) {
-                            bucketMap[storage.service].set(storage.bucket, createCredential(storage));
+                            bucketMap[storage.service].set(storage.bucket, Cloud.getCredential(storage));
                         }
                     }
                 }
@@ -1934,10 +1927,9 @@ const FileManager = class extends Module implements IFileManager {
                                     }
                                     else {
                                         downloadMap[location] = new Set<string>([downloadUri]);
-                                        const credential = createCredential(data);
                                         let downloadHandler: DownloadCallback;
                                         try {
-                                            downloadHandler = (CLOUD_DOWNLOAD[service] ||= require(`../cloud/${service.toLowerCase()}/download`) as DownloadHost).call(this, credential, service);
+                                            downloadHandler = (CLOUD_DOWNLOAD[service] ||= require(`../cloud/${service.toLowerCase()}/download`) as DownloadHost).call(this, Cloud.getCredential(data), service);
                                         }
                                         catch (err) {
                                             this.writeFail(['Download function not supported', service], err);

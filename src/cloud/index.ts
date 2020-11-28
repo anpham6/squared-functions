@@ -13,15 +13,15 @@ type CloudServiceUpload = functions.internal.Cloud.CloudServiceUpload;
 
 const serviceMap: ObjectMap<ServiceClient> = {};
 
-function setUploadFilename(upload: CloudServiceUpload, value: string) {
-    value = Cloud.toPosix(value.replace(/^\.*[\\/]+/, ''));
-    const index = value.lastIndexOf('/');
+function setUploadFilename(upload: CloudServiceUpload, filename: string) {
+    filename = Cloud.toPosix(filename.replace(/^\.*[\\/]+/, ''));
+    const index = filename.lastIndexOf('/');
     if (index !== -1) {
-        const directory = value.substring(0, index + 1);
+        const directory = filename.substring(0, index + 1);
         upload.pathname = upload.pathname ? path.join(upload.pathname, directory) : directory;
-        value = value.substring(index + 1);
+        filename = filename.substring(index + 1);
     }
-    return upload.filename = value;
+    return upload.filename = filename;
 }
 
 function hasSameBucket(provider: CloudService, other: CloudService) {
@@ -44,11 +44,11 @@ const Cloud = new class extends Module implements functions.ICloud {
                         if (upload.filename) {
                             setUploadFilename(upload, upload.filename);
                         }
-                        if (!upload.pathname && item.pathname && data.admin?.preservePath) {
-                            upload.pathname = Cloud.toPosix(item.pathname) + '/';
+                        if (upload.pathname) {
+                            upload.pathname = Cloud.toPosix(upload.pathname).replace(/^\/+/, '') + '/';
                         }
-                        else {
-                            upload.pathname &&= Cloud.toPosix(upload.pathname) + '/';
+                        else if (data.admin?.preservePath && item.pathname) {
+                            upload.pathname = Cloud.toPosix(path.join(item.moveTo || '', item.pathname)) + '/';
                         }
                     }
                 }
@@ -123,6 +123,9 @@ const Cloud = new class extends Module implements functions.ICloud {
             }
         }
     }
+    getCredential(data: CloudService): PlainObject {
+        return typeof data.credential === 'string' ? { ...this.settings[data.service] && this.settings[data.service][data.credential] } : { ...data.credential };
+    }
     hasService(functionName: CloudFunctions, data: CloudService): CloudServiceAction | false {
         switch (functionName) {
             case 'download':
@@ -137,8 +140,7 @@ const Cloud = new class extends Module implements functions.ICloud {
     hasCredential(data: CloudService) {
         const service = data.service;
         try {
-            const settings: StringMap = data.credential.settings && this.settings?.[service]?.[data.credential.settings] || {};
-            return (serviceMap[service] ||= require(`../cloud/${service}`) as ServiceClient).validate({ ...settings, ...data.credential });
+            return (serviceMap[service] ||= require(`../cloud/${service}`) as ServiceClient).validate(this.getCredential(data));
         }
         catch (err) {
             this.writeFail(['Cloud provider not found', service], err);

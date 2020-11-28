@@ -44,7 +44,7 @@ declare namespace functions {
 
         interface CloudService extends ObjectMap<unknown> {
             service: string;
-            credential: StringMap;
+            credential: string | StringMap;
             bucket?: string;
             admin?: CloudServiceAdmin;
             upload?: CloudServiceUpload;
@@ -232,10 +232,10 @@ declare namespace functions {
             }
 
             interface ServiceClient {
-                validate(credential: StringMap): boolean;
+                validate(credential: PlainObject): boolean;
                 deleteObjects(this: ICloud | IFileManager, credential: unknown, service: string, bucket: string, sdk?: string): Promise<void>;
                 createClient?<T>(this: ICloud | IFileManager, credential: unknown, service: string): T;
-                setCredential?(this: ICloud | IFileManager, credential: PlainObject): void;
+                setCredential?(this: ICloud | IFileManager, credential: unknown): void;
                 setPublicRead?(this: ICloud | IFileManager, ...args: unknown[]): void;
             }
 
@@ -339,7 +339,7 @@ declare namespace functions {
     interface ICloud extends IModule {
         settings: settings.CloudModule;
         setObjectKeys(assets: ExternalAsset[]): void;
-        deleteObjects(credential: PlainObject, service: string, bucket: string, bucketGroup?: string): Promise<void>;
+        deleteObjects(credential: unknown, service: string, bucket: string, bucketGroup?: string): Promise<void>;
         getService(functionName: CloudFunctions, data: Undef<squared.CloudService[]>): Undef<squared.CloudService>;
         hasService(functionName: CloudFunctions, data: squared.CloudService): squared.CloudServiceAction | false;
         hasCredential(data: squared.CloudService): boolean;

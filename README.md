@@ -343,7 +343,7 @@ There are possible scenarios when a transformation may cause an asset type to ch
 
 ```javascript
 {
-  "selector": null,
+  "selector": "#sass-example",
   "type": "css",
   "filename": "prod.css",
   "attributes": [
@@ -410,8 +410,8 @@ interface AssetCommand extends FileModifiers, OutputModifiers {
     tasks?: string[];
     watch?: boolean | { interval?: number | expires?: string }; // type: js | css | image (expires: 1h 1m 1s)
     template?: {
-        module?: string;
-        identifier?: string;
+        module: string;
+        identifier: string;
         value?: string;
     };
 }
@@ -474,8 +474,8 @@ Other service providers can be integrated similarly except for credential verifi
         "region": "us-west-2", // Custom properties are sent to the S3 client (optional)
         "accessKeyId": "**********", // Using settings (optional)
         "secretAccessKey": "**********", // Using settings (optional)
-        "settings": "main" // Load host configuration at instantiation (optional)
       },
+      "credential": "main", // OR: Load host configuration from settings at instantiation
       "upload": {
         "active": false, // Rewrites "src" to cloud storage location (optional)
         "localStorage": true, // Remove current file from archive or local disk (optional)
@@ -604,8 +604,6 @@ squared.saveAs('index.zip', {
 }); 
 ```
 
-Setting the active cloud storage filename to a JS/CSS bundle will not have any effect since usually more than one bundle will be created.
-
 ```javascript
 // NOTE: js | css | image | video | audio
 
@@ -624,9 +622,7 @@ Setting the active cloud storage filename to a JS/CSS bundle will not have any e
     {
       "service": "s3",
       "bucket": "squared-001",
-      "credential": {
-        "settings": "main"
-      },
+      "credential": "main",
       "upload": {
         "active": true
       }
