@@ -600,28 +600,29 @@ const FileManager = class extends Module implements IFileManager {
             case '@text/html': {
                 const minifySpace = (value: string) => value.replace(/(\s+|\/)/g, '');
                 const getOuterHTML = (css: boolean, value: string) => css ? `<link rel="stylesheet" href="${value}" />` : `<script src="${value}"></script>`;
+                const checkInlineOptions = (value: string) => /data-chrome-options="[^"]*?inline[^"]*"/.test(value);
                 const baseUri = file.uri!;
                 const saved = new Set<string>();
                 let html = this.getUTF8String(file, fileUri),
                     source = html,
-                    pattern = /(\s*)<(script|link|style)[^>]*?(\s+data-chrome-file="\s*(save|export)As:\s*((?:[^"]|\\")+)")[^>]*>(?:[\s\S]*?<\/\2>\n*)?/ig,
+                    pattern = /(\s*)<(script|link|style)([^>]*?)(\s+data-chrome-file="\s*(save|export)As:\s*((?:[^"]|\\")+)")([^>]*)>(?:[\s\S]*?<\/\2>\n*)?/ig,
                     match: Null<RegExpExecArray>;
                 while (match = pattern.exec(html)) {
-                    const items = match[5].split('::').map(item => item.trim());
+                    const items = match[6].split('::').map(item => item.trim());
                     if (items[0] === '~') {
                         continue;
                     }
                     const location = this.absolutePath(items[0], baseUri);
-                    if (items[2] && items[2].includes('inline') && !saved.has(location)) {
+                    if ((checkInlineOptions(match[3]) || checkInlineOptions(match[7])) && !saved.has(location)) {
                         saved.add(location);
                     }
                     else {
                         const script = match[2].toLowerCase() === 'script';
-                        if (saved.has(location) || match[4] === 'export' && new RegExp(`<${script ? 'script' : 'link'}[^>]+?(?:${script ? 'src' : 'href'}=(["'])${location}\\1|data-chrome-file="saveAs:${location}[:"])[^>]*>`, 'i').test(html)) {
+                        if (saved.has(location) || match[5] === 'export' && new RegExp(`<${script ? 'script' : 'link'}[^>]+?(?:${script ? 'src' : 'href'}=(["'])${location}\\1|data-chrome-file="saveAs:${location}[:"])[^>]*>`, 'i').test(html)) {
                             source = source.replace(match[0], '');
                         }
-                        else if (match[4] === 'save') {
-                            const content = match[0].replace(match[3], '');
+                        else if (match[5] === 'save') {
+                            const content = match[0].replace(match[4], '');
                             const src = new RegExp(`\\s+${script ? 'src' : 'href'}="(?:[^"]|\\\\")+?"`, 'i').exec(content) || new RegExp(`\\s+${script ? 'src' : 'href'}='(?:[^']|\\\\')+?'`, 'i').exec(content);
                             if (src) {
                                 source = source.replace(match[0], content.replace(src[0], `${script ? ' src' : ' href'}="${location}"`));
@@ -1464,7 +1465,15 @@ const FileManager = class extends Module implements IFileManager {
             tasks = [];
         }
         for (const value of this.filesToRemove) {
-            tasks.push(fs.unlink(value).then(() => this.delete(value)));
+            tasks.push(
+                fs.unlink(value)
+                    .then(() => this.delete(value))
+                    .catch(err => {
+                        if (err.code !== 'ENOENT') {
+                            throw err;
+                        }
+                    })
+            );
         }
         if (tasks.length) {
             await Promise.all(tasks).catch(err => this.writeFail(['Delete temp files', 'finalize'], err));

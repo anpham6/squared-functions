@@ -1,4 +1,4 @@
-### squared-functions 0.7
+### squared-functions 0.8
 
 These are some of the available options when creating archives or copying files with squared 2.1.
 
@@ -53,7 +53,7 @@ npm install dwebp-bin && npm install cwebp-bin
 - @|%
 - ( minSize(n,0) , maxSize(n,*) )
 - ( width(n|auto) x height(n|auto) [bilinear|bicubic|hermite|bezier]? ^(cover|contain|scale)?[left|center|right|top|middle|bottom]? #background-color? )
-- ( left(+|-n) , top(+|-n) | cropWidth(n) x cropHeight(n) )
+- ( left(+|-n) , top(+|-n) | cropWidth(n) x cropHeight(n) ) // "+" reserved for chaining
 - { ...rotate(n) #background-color? }
 - | opacity(0.0-1.0) OR jpeg_webp_quality(0-100)[photo|picture|drawing|icon|text]?[0-100]?| // cwebp: -preset -near_lossless
 - !method // no arguments (e.g. jimp: dither565|greyscale|invert|normalize|opaque|sepia)
@@ -159,13 +159,15 @@ Files with the same path and filename will automatically create a bundle assumin
 
 JS and CSS files can be bundled together with the "saveAs" or "exportAs" action. Multiple transformations per asset can be chained using the "+" symbol. Whitespace can be used between anything for readability.
 
-```xml
-Separator : ::
+```javascript
 
-Same (1-2): ~
-Chain  (2): +
-Option (3): |
++ (save|export)As: location | ~ (same)
+
+- ::
+- format (chain "+")
 ```
+
+These are the available option modifiers:
 
 ```xml
 * preserve - Prevent unused styles from being deleted (css)
@@ -178,8 +180,8 @@ Option (3): |
 ```
 
 ```xml
-<link data-chrome-file="saveAs:css/prod.css::beautify::preserve|inline" rel="stylesheet" href="css/dev.css" />
-<style data-chrome-file="exportAs:css/prod.css::minify+beautify::compress[gz]">
+<link data-chrome-file="saveAs:css/prod.css::beautify" data-chrome-options="preserve|inline" rel="stylesheet" href="css/dev.css" />
+<style data-chrome-file="exportAs:css/prod.css::minify+beautify" data-chrome-options="compress[gz]">
     body {
         font: 1em/1.4 Helvetica, Arial, sans-serif;
         background-color: #fafafa;
@@ -194,15 +196,15 @@ Bundling with inline commands using a 1-2-1 format may cause the generated bundl
 
 ### Raw assets: saveTo command
 
-You can use images commands with saveTo (directory) on any element when the image is the primary display output. Encoding with base64 is also available using the "::base64" commmand as the third argument. Transformations are given arbitrary filenames and the original file is preserved.
+You can use images commands with saveTo (directory) on any element when the image is the primary display output. Transformations are given UUID filenames and the original file is preserved.
 
 ```xml
 <!-- NOTE: img | video | audio | source | track | object | embed | iframe -->
 
 <img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg"
-     data-chrome-file="saveTo: ../images/harbour :: png(10000,75000)(800x600[bezier]^contain[right|bottom]) :: compress|base64" />
-
-<!-- "saveTo:~::~::base64" -->
+     data-chrome-file="saveTo:../images/harbour"
+     data-chrome-commands="png(10000,75000)(800x600[bezier]^contain[right|bottom])"
+     data-chrome-options="compress|base64" />
 ```
 
 ### Built-In plugins
