@@ -55,6 +55,17 @@ export default [
         plugins: []
     },
     {
+        input: './build/image/jimp/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/image/jimp/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/image/jimp ${require('./publish/image/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
+        },
+        plugins: []
+    },
+    {
         input: './build/module/index.js',
         treeshake: false,
         output: {

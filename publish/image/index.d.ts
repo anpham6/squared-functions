@@ -1,6 +1,6 @@
-import type { IImage } from '../types/lib';
+import type { ImageConstructor } from '../types/lib';
 
-declare const Image: IImage;
+declare const Image: ImageConstructor;
 
 export = Image;
 export as namespace Image;

@@ -3,7 +3,7 @@ type Null<T> = T | null;
 type Void<T> = T | void;
 
 type Constructor<T> = new(...args: any[]) => T;
-type FunctionType<T> = (...args: any[]) => T;
+type FunctionType<T> = (...args: unknown[]) => T;
 
 type NumString = number | string;
 

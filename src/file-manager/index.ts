@@ -11,15 +11,15 @@ import escapeRegexp = require('escape-string-regexp');
 import Module from '../module';
 import Node from '../node';
 import Compress from '../compress';
-import Image from '../image';
 import Chrome from '../chrome';
 import Cloud from '../cloud';
 import Watch from '../watch';
 
 type IFileManager = functions.IFileManager;
-type IImage = functions.IImage;
 type IChrome = functions.IChrome;
 type IWatch = functions.IWatch;
+
+type ImageConstructor = functions.ImageConstructor;
 
 type Settings = functions.Settings;
 type RequestBody = functions.RequestBody;
@@ -134,7 +134,7 @@ const FileManager = class extends Module implements IFileManager {
     public cleared = false;
     public emptyDirectory = false;
     public productionRelease = false;
-    public Image?: IImage;
+    public Image?: ImageConstructor;
     public Chrome?: IChrome;
     public Watch?: IWatch;
     public Cloud?: CloudModule;
@@ -163,7 +163,7 @@ const FileManager = class extends Module implements IFileManager {
     install(name: string, ...args: unknown[]) {
         switch (name) {
             case 'image':
-                this.Image = Image;
+                this.Image = args[0] as ImageConstructor;
                 break;
             case 'chrome': {
                 this.Chrome = new Chrome(args[0] as ChromeModule, this._body);
@@ -1089,7 +1089,7 @@ const FileManager = class extends Module implements IFileManager {
                 const callback = this.finalizeImage.bind(this);
                 if (mimeType === 'image/unknown') {
                     try {
-                        await Image.using.call(this, { data, compress, callback });
+                        await this.Image.using.call(this, { data, compress, callback });
                     }
                     catch (err) {
                         this.writeFail(['Unable to read image buffer', fileUri], err);
@@ -1099,7 +1099,7 @@ const FileManager = class extends Module implements IFileManager {
                 else if (file.commands) {
                     for (const command of file.commands) {
                         if (Compress.withinSizeRange(fileUri, command)) {
-                            Image.using.call(this, { data, compress, command, callback });
+                            this.Image.using.call(this, { data, compress, command, callback });
                         }
                     }
                 }

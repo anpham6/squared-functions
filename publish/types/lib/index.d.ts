@@ -327,7 +327,6 @@ declare namespace functions {
     }
 
     interface IImage extends IModule {
-        using(options: internal.Image.UsingOptions): void;
         parseCrop(value: string): Undef<internal.Image.CropData>;
         parseOpacity(value: string): number;
         parseQuality(value: string): Undef<internal.Image.QualityData>;
@@ -335,6 +334,13 @@ declare namespace functions {
         parseRotation(value: string): Undef<internal.Image.RotateData>;
         parseMethod(value: string): Undef<string[]>;
     }
+
+    interface ImageConstructor {
+        using(this: IFileManager, options: internal.Image.UsingOptions): void;
+        new(): IImage;
+    }
+
+    const Image: ImageConstructor;
 
     interface ICloud extends IModule {
         settings: settings.CloudModule;
@@ -379,7 +385,7 @@ declare namespace functions {
         emptyDirectory: boolean;
         productionRelease: boolean;
         baseUrl?: string;
-        Image?: IImage;
+        Image?: ImageConstructor;
         Chrome?: IChrome;
         Watch?: IWatch;
         Cloud?: settings.CloudModule;
