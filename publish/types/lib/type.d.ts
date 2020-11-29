@@ -21,3 +21,8 @@ interface Dimension {
     width: number;
     height: number;
 }
+
+interface KeyValue<T, U> {
+    key: T;
+    value: U;
+}

@@ -671,7 +671,7 @@ const FileManager = class extends Module implements IFileManager {
                         };
                         if (inlineContent) {
                             const id = `<!-- ${uuid.v4()} -->`;
-                            replaceWith = `<${inlineContent}${attributes ? attributes.map(({ name, value }) => getAttribute(name, value)).join('') : ''}>${id}</${inlineContent}>`;
+                            replaceWith = `<${inlineContent}${attributes ? attributes.map(({ key, value }) => getAttribute(key, value)).join('') : ''}>${id}</${inlineContent}>`;
                             replaceTry();
                             replaceMinify();
                             if (replacing !== source) {
@@ -703,15 +703,15 @@ const FileManager = class extends Module implements IFileManager {
                         }
                         if (attributes.length || output) {
                             output ||= textContent;
-                            for (const { name, value } of attributes) {
-                                match = new RegExp(`(\\s*)${name}(?:=(?:"([^"]|\\")*?"|'([^']|\\')*?')|\b)`).exec(output);
+                            for (const { key, value } of attributes) {
+                                match = new RegExp(`(\\s*)${key}(?:=(?:"([^"]|\\")*?"|'([^']|\\')*?')|\b)`).exec(output);
                                 if (match) {
-                                    output = output.replace(match[0], value !== undefined ? (match[1] ? ' ' : '') + getAttribute(name, value) : '');
+                                    output = output.replace(match[0], value !== undefined ? (match[1] ? ' ' : '') + getAttribute(key, value) : '');
                                 }
                                 else if (value !== undefined) {
                                     match = /^(\s*)<([\w-]+)(\s*)/.exec(output);
                                     if (match) {
-                                        output = output.replace(match[0], match[1] + '<' + match[2] + ' ' + getAttribute(name, value) + (match[3] ? ' ' : ''));
+                                        output = output.replace(match[0], match[1] + '<' + match[2] + ' ' + getAttribute(key, value) + (match[3] ? ' ' : ''));
                                     }
                                 }
                             }

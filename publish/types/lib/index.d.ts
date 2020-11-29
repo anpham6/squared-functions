@@ -19,6 +19,8 @@ declare namespace functions {
     type FileOutputCallback = (result: string, err?: Null<Error>) => void;
 
     namespace squared {
+        type OutputAttribute = KeyValue<string, Null<string>>;
+
         interface LocationUri {
             pathname: string;
             filename: string;
@@ -32,6 +34,7 @@ declare namespace functions {
             commands?: string[];
             compress?: CompressFormat[];
             cloudStorage?: CloudService[];
+            attributes?: OutputAttribute[];
             watch?: boolean | WatchInterval;
             tasks?: string[];
         }
@@ -106,7 +109,7 @@ declare namespace functions {
             moveTo?: string;
             format?: string;
             preserve?: boolean;
-            attributes?: AttributeValue[];
+            exclude?: boolean;
             baseUrl?: string;
             bundleId?: number;
             bundleIndex?: number;
@@ -114,7 +117,6 @@ declare namespace functions {
             textContent?: string;
             trailingContent?: FormattableContent[];
             inlineContent?: string;
-            exclude?: boolean;
         }
 
         interface AttributeValue {

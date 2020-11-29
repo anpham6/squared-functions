@@ -161,7 +161,8 @@ JS and CSS files can be bundled together with the "saveAs" or "exportAs" action.
 
 ```javascript
 
-+ (save|export)As: location | ~ (same)
++ saveAs: location | ~  // same
++ exportAs: location
 
 - ::
 - format (chain "+")
@@ -170,13 +171,16 @@ JS and CSS files can be bundled together with the "saveAs" or "exportAs" action.
 These are the available option modifiers:
 
 ```xml
-* preserve - Prevent unused styles from being deleted (css)
-* inline - Content is extracted and rendered inline with <script> or <style> (js/css)
+* preserve
+    - css: Prevent unused styles from being deleted
+* inline
+    - js: Rendered inline with <script>
+    - css: Rendered inline with <style>
+    - image: Rendered inline with base64 encoding as data url
 * compress
-    - png TinyPNG service for PNG or JPEG
-    - gz  Gzip
-    - br  Brotli
-* base64 - Content is rendered inline with base64 encoding (image)
+    - png: TinyPNG service for PNG or JPEG
+    - gz: Gzip
+    - br: Brotli
 ```
 
 ```xml
@@ -194,18 +198,28 @@ These are the available option modifiers:
 
 Bundling with inline commands using a 1-2-1 format may cause the generated bundle to execute incorrectly. Other configuration methods will create a new file when it finds any conflicts. The advantages of bundling this way gives you the ability to debug source code inside &lt;script&gt; elements.
 
-### Raw assets: saveTo command
-
-You can use images commands with saveTo (directory) on any element when the image is the primary display output. Transformations are given UUID filenames and the original file is preserved.
+### Raw assets
 
 ```xml
 <!-- NOTE: img | video | audio | source | track | object | embed | iframe -->
 
 <img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg"
+     data-chrome-file="saveAs:images/harbour.jpg"
+     data-chrome-options="compress" />
+```
+
+You can use images commands with saveTo (directory) on any element where the image is the primary display output.
+
+```xml
+<!-- NOTE: img | object | embed | iframe -->
+
+<img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg"
      data-chrome-file="saveTo:../images/harbour"
      data-chrome-commands="png(10000,75000)(800x600[bezier]^contain[right|bottom])"
-     data-chrome-options="compress|base64" />
+     data-chrome-options="compress|inline" />
 ```
+
+Transformations including the original file are given a UUID filename. Leaving "file" empty will save the transformations to the current image directory.
 
 ### Built-In plugins
 
@@ -350,22 +364,22 @@ There are possible scenarios when a transformation may cause an asset type to ch
   "filename": "prod.css",
   "attributes": [
     {
-      "name": "id"
+      "key": "id"
     },
     {
-      "name": "rel",
+      "key": "rel",
       "value": "stylesheet"
     },
     {
-      "name": "type",
+      "key": "type",
       "value": "text/css"
     },
     {
-      "name": "title",
+      "key": "title",
       "value": ""
     },
     {
-      "name": "disabled",
+      "key": "disabled",
       "value": null
     }
   ],
@@ -385,21 +399,14 @@ There are possible scenarios when a transformation may cause an asset type to ch
 JSON (json/js) configuration is optional and is provided for those who prefer to separate the bundling and transformations from the HTML. Any assets inside the configuration file will override any settings either inline or from JavaScript. You can also use the equivalent in YAML (yml/yaml) for configuring as well.
 
 ```javascript
-interface FileModifiers {
-    preserve?: boolean; // type: css
-    inline?: boolean; // type: js | css
-    base64?: boolean; // type: image
-    compress?: { format: string, level?: number }[];
-}
-
 interface OutputModifiers {
-    attributes?: { name: string, value?: string }[];
-    cloudStorage?: CloudService[];
+    inline?: boolean; // type: js | css | image (base64)
+    preserve?: boolean; // type: css
     ignore?: boolean;
-    exclude?: boolean;
+    exclude?: boolean
 }
 
-interface AssetCommand extends FileModifiers, OutputModifiers {
+interface AssetCommand extends OutputModifiers {
     selector?: string;
     type?: string;
     saveAs?: string; // type: js | css
@@ -409,11 +416,13 @@ interface AssetCommand extends FileModifiers, OutputModifiers {
     filename?: string; // type: html | ...image
     process?: string[]; // type: js | css
     commands?: string[]; // type: image
+    cloudStorage?: CloudService[];
+    attributes?: { key: string, value?: string }[];
     tasks?: string[];
-    watch?: boolean | { interval?: number | expires?: string }; // type: js | css | image (expires: 1h 1m 1s)
+    watch?: boolean | { interval?: number, expires?: string }; // type: js | css | image (expires: 1h 1m 1s)
     template?: {
         module: string;
-        identifier: string;
+        identifier?: string;
         value?: string;
     };
 }
@@ -600,8 +609,8 @@ squared.saveAs('index.zip', {
         html: { filename: 'index.html', format: 'beautify', attributes: [{ name: 'lang', value: 'en' }] },
         script: { pathname: '../js', filename: 'bundle.js', format: 'es5+es5-minify' },
         link: { pathname: 'css', filename: 'bundle.css', preserve: true, inline: true },
-        image: { base64: true },
-        base64: { format: 'png' }
+        image: { inline: true },
+        base64: { commands: ['png'] }
     }
 }); 
 ```
