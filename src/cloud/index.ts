@@ -8,10 +8,16 @@ type CloudFunctions = functions.CloudFunctions;
 type CloudModule = functions.settings.CloudModule;
 type CloudService = functions.squared.CloudService;
 type CloudServiceAction = functions.squared.CloudServiceAction;
+type CloudServiceUpload = functions.squared.CloudServiceUpload;
 type ServiceClient = functions.internal.Cloud.ServiceClient;
-type CloudServiceUpload = functions.internal.Cloud.CloudServiceUpload;
+type UploadHost = functions.internal.Cloud.UploadHost;
+type UploadCallback = functions.internal.Cloud.UploadCallback;
+type DownloadHost = functions.internal.Cloud.DownloadHost;
+type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
-const serviceMap: ObjectMap<ServiceClient> = {};
+const CLOUD_SERVICE: ObjectMap<ServiceClient> = {};
+const CLOUD_UPLOAD: ObjectMap<UploadHost> = {};
+const CLOUD_DOWNLOAD: ObjectMap<DownloadHost> = {};
 
 function setUploadFilename(upload: CloudServiceUpload, filename: string) {
     filename = Cloud.toPosix(filename.replace(/^\.*[\\/]+/, ''));
@@ -105,47 +111,65 @@ const Cloud = new class extends Module implements functions.ICloud {
             }
         }
     }
-    async deleteObjects(credential: PlainObject, service: string, bucket: string): Promise<void> {
-        try {
-            return (serviceMap[service] ||= require(`../cloud/${service}`) as ServiceClient).deleteObjects.call(this, credential, service.toUpperCase(), bucket);
-        }
-        catch (err) {
-            this.writeFail(['Cloud provider not found', service], err);
-        }
+    downloadObject(credential: PlainObject, data: CloudService, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string) {
+        const downloadHandler = this.getDownloadHandler(credential, data.service);
+        return new Promise<void>(resolve => {
+            downloadHandler({ service: data, bucketGroup }, async (value: Null<Buffer | string>) => {
+                await callback(value);
+                resolve();
+            });
+        });
     }
-    getService(functionName: CloudFunctions, data: Undef<CloudService[]>) {
+    deleteObjects(credential: PlainObject, data: CloudService): Promise<void> {
+        const { service, bucket } = data;
+        if (service && bucket) {
+            return (CLOUD_SERVICE[service] ||= require(`../cloud/${service}`) as ServiceClient).deleteObjects.call(this, credential, service.toUpperCase(), bucket);
+        }
+        return Promise.resolve();
+    }
+    getCredential(data: CloudService): PlainObject {
+        return typeof data.credential === 'string' ? { ...this.settings[data.service] && this.settings[data.service][data.credential] } : { ...data.credential };
+    }
+    getService(action: CloudFunctions, data: Undef<CloudService[]>) {
         if (data) {
             for (const item of data) {
-                const service = this.hasService(functionName, item);
+                const service = this.hasService(action, item);
                 if (service && service.active) {
                     return item;
                 }
             }
         }
     }
-    getCredential(data: CloudService): PlainObject {
-        return typeof data.credential === 'string' ? { ...this.settings[data.service] && this.settings[data.service][data.credential] } : { ...data.credential };
-    }
-    hasService(functionName: CloudFunctions, data: CloudService): CloudServiceAction | false {
-        switch (functionName) {
+    hasService(action: CloudFunctions, data: CloudService): CloudServiceAction | false {
+        switch (action) {
+            case 'upload':
+                break;
             case 'download':
                 if (!data.bucket) {
                     return false;
                 }
                 break;
+            default:
+                return false;
         }
-        const action = data[functionName] as Undef<CloudServiceAction>;
-        return action && this.hasCredential(data) ? action : false;
+        const result = data[action];
+        return result && this.hasCredential(data) ? result : false;
     }
     hasCredential(data: CloudService) {
         const service = data.service;
         try {
-            return (serviceMap[service] ||= require(`../cloud/${service}`) as ServiceClient).validate(this.getCredential(data));
+            return (CLOUD_SERVICE[service] ||= require(`../cloud/${service}`) as ServiceClient).validate(this.getCredential(data));
         }
         catch (err) {
             this.writeFail(['Cloud provider not found', service], err);
         }
         return false;
+    }
+    getUploadHandler(credential: PlainObject, service: string): UploadCallback {
+        return (CLOUD_UPLOAD[service] ||= require(`../cloud/${service}/upload`) as UploadHost).call(this, credential, service.toUpperCase());
+    }
+    getDownloadHandler(credential: PlainObject, service: string): DownloadCallback {
+        return (CLOUD_DOWNLOAD[service] ||= require(`../cloud/${service}/download`) as DownloadHost).call(this, credential, service.toUpperCase());
     }
 }();
 

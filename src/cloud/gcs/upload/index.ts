@@ -20,7 +20,7 @@ const getProjectId = (credential: GCSCloudCredential): string => require(path.re
 function upload(this: IFileManager, credential: GCSCloudCredential, service: string): UploadCallback {
     const storage = createClient.call(this, credential, service);
     return async (data: UploadData, success: (value: string) => void) => {
-        let bucketName = data.service.bucket ||= data.bucketGroup,
+        let bucketName = data.service.bucket ||= data.bucketGroup || uuid.v4(),
             bucket: Undef<gcs.Bucket>;
         if (!BUCKET_MAP[bucketName]) {
             try {

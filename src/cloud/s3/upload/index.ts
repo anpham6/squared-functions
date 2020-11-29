@@ -17,7 +17,7 @@ const BUCKET_MAP: ObjectMap<boolean> = {};
 function upload(this: IFileManager, credential: S3CloudCredential, service: string, sdk = 'aws-sdk/clients/s3'): UploadCallback {
     const s3 = createClient.call(this, credential, service, sdk);
     return async (data: UploadData, success: (value: string) => void) => {
-        const Bucket = data.service.bucket ||= data.bucketGroup;
+        const Bucket = data.service.bucket ||= data.bucketGroup || uuid.v4();
         const admin = data.service.admin;
         if (!BUCKET_MAP[service + Bucket] || admin?.publicRead) {
              const result = await s3.headBucket({ Bucket })

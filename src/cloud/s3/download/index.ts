@@ -12,20 +12,20 @@ type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 function download(this: IFileManager, credential: S3CloudCredential, service: string, sdk = 'aws-sdk/clients/s3'): DownloadCallback {
     const s3 = createClient.call(this, credential, service, sdk);
     return async (data: DownloadData, success: (value: Null<Buffer>) => void) => {
-        const Bucket = data.service.bucket;
-        if (Bucket) {
+        const { bucket: Bucket, download: Download } = data.service;
+        if (Bucket && Download) {
             try {
                 const params: aws.S3.Types.GetObjectRequest = {
                     Bucket,
-                    Key: data.download.filename,
-                    VersionId: data.download.versionId
+                    Key: Download.filename,
+                    VersionId: Download.versionId
                 };
                 s3.getObject(params, (err, result) => {
-                    const location = Bucket + '/' + data.download.filename;
+                    const location = Bucket + '/' + Download.filename;
                     if (!err) {
                         this.formatMessage(service, 'Download success', location);
                         success(result.Body as Buffer);
-                        if (data.download.deleteStorage) {
+                        if (Download.deleteStorage) {
                             s3.deleteObject(params, error => {
                                 if (!error) {
                                     this.formatMessage(service, 'Delete success', location, 'grey');
@@ -47,7 +47,7 @@ function download(this: IFileManager, credential: S3CloudCredential, service: st
             }
         }
         else {
-            this.formatMessage(service, 'Bucket not specified', data.download.filename, 'red');
+            this.formatMessage(service, 'Bucket not specified', Download ? Download.filename : '', 'red');
             success(null);
         }
     };

@@ -15,7 +15,7 @@ const BUCKET_MAP: ObjectMap<boolean> = {};
 function upload(this: IFileManager, credential: AzureCloudCredential, service: string): UploadCallback {
     const blobServiceClient = createClient.call(this, credential, service);
     return async (data: UploadData, success: (value: string) => void) => {
-        const bucket = data.service.bucket ||= data.bucketGroup;
+        const bucket = data.service.bucket ||= data.bucketGroup || uuid.v4();
         const fileUri = data.fileUri;
         const containerClient = blobServiceClient.getContainerClient(bucket);
         if (!BUCKET_MAP[bucket]) {

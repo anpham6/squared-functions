@@ -10,17 +10,17 @@ type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 function download(this: IFileManager, credential: AzureCloudCredential, service: string): DownloadCallback {
     const blobServiceClient = createClient.call(this, credential, service);
     return async (data: DownloadData, success: (value: Null<Buffer>) => void) => {
-        const bucket = data.service.bucket;
-        if (bucket) {
+        const { bucket: Bucket, download: Download } = data.service;
+        if (Bucket && Download) {
             try {
-                const location = bucket + '/' + data.download.filename;
-                const blobClient = blobServiceClient.getContainerClient(bucket);
-                blobClient.getBlockBlobClient(data.download.filename)
+                const location = Bucket + '/' + Download.filename;
+                const blobClient = blobServiceClient.getContainerClient(Bucket);
+                blobClient.getBlockBlobClient(Download.filename)
                     .downloadToBuffer()
                     .then(buffer => {
                         this.formatMessage(service, 'Download success', location);
                         success(buffer);
-                        if (data.download.deleteStorage) {
+                        if (Download.deleteStorage) {
                             blobClient.delete()
                                 .then(() => this.formatMessage(service, 'Delete success', location, 'grey'))
                                 .catch(err => {
@@ -40,7 +40,7 @@ function download(this: IFileManager, credential: AzureCloudCredential, service:
             }
         }
         else {
-            this.formatMessage(service, 'Container not specified', data.download.filename, 'red');
+            this.formatMessage(service, 'Container not specified', Download ? Download.filename : '', 'red');
             success(null);
         }
     };

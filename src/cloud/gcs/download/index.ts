@@ -14,8 +14,8 @@ type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 function download(this: IFileManager, credential: GCSCloudCredential, service: string): DownloadCallback {
     const storage = createClient.call(this, credential, service);
     return async (data: DownloadData, success: (value: string) => void) => {
-        const bucketName = data.service.bucket;
-        if (bucketName) {
+        const { bucket: Bucket, download: Download } = data.service;
+        if (Bucket && Download) {
             try {
                 let tempDir = this.getTempDir() + uuid.v4() + path.sep;
                 try {
@@ -24,16 +24,16 @@ function download(this: IFileManager, credential: GCSCloudCredential, service: s
                 catch {
                     tempDir = this.getTempDir();
                 }
-                const filename = data.download.filename;
+                const filename = Download.filename;
                 const destination = tempDir + filename;
-                const bucket = storage.bucket(bucketName);
-                const file = bucket.file(filename, { generation: data.download.versionId });
+                const bucket = storage.bucket(Bucket);
+                const file = bucket.file(filename, { generation: Download.versionId });
                 file.download({ destination })
                     .then(() => {
-                        const location = bucketName + '/' + filename;
+                        const location = Bucket + '/' + filename;
                         this.formatMessage(service, 'Download success', location);
                         success(destination);
-                        if (data.download.deleteStorage) {
+                        if (Download.deleteStorage) {
                             file.delete({ ignoreNotFound: true }, err => {
                                 if (!err) {
                                     this.formatMessage(service, 'Delete success', location, 'grey');
@@ -54,7 +54,7 @@ function download(this: IFileManager, credential: GCSCloudCredential, service: s
             }
         }
         else {
-            this.formatMessage(service, 'Container not specified', data.download.filename, 'red');
+            this.formatMessage(service, 'Container not specified', Download ? Download.filename : '', 'red');
             success('');
         }
     };

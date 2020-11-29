@@ -47,7 +47,7 @@ declare namespace functions {
 
         interface CloudService extends ObjectMap<unknown> {
             service: string;
-            credential: string | StringMap;
+            credential: string | PlainObject;
             bucket?: string;
             admin?: CloudServiceAdmin;
             upload?: CloudServiceUpload;
@@ -217,7 +217,7 @@ declare namespace functions {
 
             interface FunctionData {
                 service: CloudService;
-                bucketGroup: string;
+                bucketGroup?: string;
             }
 
             interface UploadData extends FunctionData {
@@ -229,9 +229,7 @@ declare namespace functions {
                 mimeType?: string;
             }
 
-            interface DownloadData extends FunctionData {
-                download: CloudServiceDownload;
-            }
+            interface DownloadData extends FunctionData {}
 
             interface ServiceClient {
                 validate(credential: PlainObject): boolean;
@@ -241,7 +239,7 @@ declare namespace functions {
                 setPublicRead?(this: ICloud | IFileManager, ...args: unknown[]): void;
             }
 
-            type ServiceHost<T> = (this: IFileManager, credential: unknown, service: string, sdk?: string) => T;
+            type ServiceHost<T> = (this: ICloud | IFileManager, credential: unknown, service: string, sdk?: string) => T;
             type UploadHost = ServiceHost<UploadCallback>;
             type DownloadHost = ServiceHost<DownloadCallback>;
             type UploadCallback = (data: UploadData, success: (value: string) => void) => Promise<void>;
@@ -341,10 +339,13 @@ declare namespace functions {
     interface ICloud extends IModule {
         settings: settings.CloudModule;
         setObjectKeys(assets: ExternalAsset[]): void;
-        deleteObjects(credential: unknown, service: string, bucket: string, bucketGroup?: string): Promise<void>;
-        getService(functionName: CloudFunctions, data: Undef<squared.CloudService[]>): Undef<squared.CloudService>;
-        hasService(functionName: CloudFunctions, data: squared.CloudService): squared.CloudServiceAction | false;
+        deleteObjects(credential: unknown, data: squared.CloudService, bucketGroup?: string): Promise<void>;
+        downloadObject(credential: PlainObject, data: squared.CloudService, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string): Promise<void>;
+        getService(action: CloudFunctions, data: Undef<squared.CloudService[]>): Undef<squared.CloudService>;
+        hasService(action: CloudFunctions, data: squared.CloudService): squared.CloudServiceAction | false;
         hasCredential(data: squared.CloudService): boolean;
+        getUploadHandler(credential: PlainObject, service: string): internal.Cloud.UploadCallback;
+        getDownloadHandler(credential: PlainObject, service: string): internal.Cloud.DownloadCallback;
     }
 
     interface IChrome extends IModule {

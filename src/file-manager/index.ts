@@ -36,10 +36,7 @@ type ChromeModule = functions.settings.ChromeModule;
 type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
 type SourceMapOutput = functions.internal.Chrome.SourceMapOutput;
-type UploadHost = functions.internal.Cloud.UploadHost;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
-type DownloadHost = functions.internal.Cloud.DownloadHost;
-type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
 interface GulpData {
     gulpfile: string;
@@ -51,9 +48,6 @@ interface GulpTask {
     origDir: string;
     data: GulpData;
 }
-
-const CLOUD_UPLOAD: ObjectMap<UploadHost> = {};
-const CLOUD_DOWNLOAD: ObjectMap<DownloadHost> = {};
 
 const getRelativePath = (file: ExternalAsset, filename = file.filename) => Node.toPosix(path.join(file.moveTo || '', file.pathname, filename));
 
@@ -1670,7 +1664,7 @@ const FileManager = class extends Module implements IFileManager {
                         }
                         let uploadHandler: UploadCallback;
                         try {
-                            uploadHandler = (CLOUD_UPLOAD[service] ||= require(`../cloud/${service}/upload`) as UploadHost).call(this, Cloud.getCredential(storage), service.toUpperCase());
+                            uploadHandler = Cloud.getUploadHandler(Cloud.getCredential(storage), service);
                         }
                         catch (err) {
                             this.writeFail(['Upload function not supported', service], err);
@@ -1796,7 +1790,7 @@ const FileManager = class extends Module implements IFileManager {
             }
             for (const service in bucketMap) {
                 for (const [bucket, credential] of bucketMap[service]) {
-                    tasks.push(Cloud.deleteObjects(credential, service, bucket));
+                    tasks.push(Cloud.deleteObjects(credential, { service, bucket, credential }).catch(err => this.writeFail(['Cloud provider not found', service], err)));
                 }
             }
             if (tasks.length) {
@@ -1909,8 +1903,8 @@ const FileManager = class extends Module implements IFileManager {
                             if (filename) {
                                 const service = data.service.toUpperCase();
                                 const fileUri = item.fileUri;
-                                let downloadUri = pathname ? path.join(this.dirname, pathname.replace(/^([A-Z]:)?[\\/]+/i, '')) : data.admin?.preservePath && fileUri ? path.join(path.dirname(fileUri), filename) : path.join(this.dirname, filename),
-                                    valid = false;
+                                let valid = false,
+                                    downloadUri = pathname ? path.join(this.dirname, pathname.replace(/^([A-Z]:)?[\\/]+/i, '')) : data.admin?.preservePath && fileUri ? path.join(path.dirname(fileUri), filename) : path.join(this.dirname, filename);
                                 if (fs.existsSync(downloadUri)) {
                                     if (active || overwrite) {
                                         valid = true;
@@ -1935,17 +1929,8 @@ const FileManager = class extends Module implements IFileManager {
                                         downloadMap[location].add(downloadUri);
                                     }
                                     else {
-                                        downloadMap[location] = new Set<string>([downloadUri]);
-                                        let downloadHandler: DownloadCallback;
                                         try {
-                                            downloadHandler = (CLOUD_DOWNLOAD[service] ||= require(`../cloud/${service.toLowerCase()}/download`) as DownloadHost).call(this, Cloud.getCredential(data), service);
-                                        }
-                                        catch (err) {
-                                            this.writeFail(['Download function not supported', service], err);
-                                            continue;
-                                        }
-                                        tasks.push(new Promise<void>(resolve => {
-                                            downloadHandler({ service: data, bucketGroup, download: data.download! }, (value: Null<Buffer | string>) => {
+                                            tasks.push(Cloud.downloadObject(Cloud.getCredential(data), data, (value: Null<Buffer | string>) => {
                                                 if (value) {
                                                     try {
                                                         const items = Array.from(downloadMap[location]);
@@ -1964,9 +1949,12 @@ const FileManager = class extends Module implements IFileManager {
                                                         this.writeFail(['Write buffer', service], err);
                                                     }
                                                 }
-                                                resolve();
-                                            });
-                                        }));
+                                            }, bucketGroup));
+                                            downloadMap[location] = new Set<string>([downloadUri]);
+                                        }
+                                        catch (err) {
+                                            this.writeFail(['Download function not supported', service], err);
+                                        }
                                     }
                                 }
                             }
