@@ -10,9 +10,6 @@ type IFileManager = functions.IFileManager;
 type ExternalAsset = functions.ExternalAsset;
 type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTaskCallback;
 type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
-type FileManagerWriteImageCallback = functions.FileManagerWriteImageCallback;
-type CompressFormat = functions.squared.CompressFormat;
-type FileData = functions.internal.FileData;
 type ResizeData = functions.internal.Image.ResizeData;
 type CropData = functions.internal.Image.CropData;
 type RotateData = functions.internal.Image.RotateData;
@@ -42,13 +39,15 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
                 case jimp.MIME_BMP:
                 case jimp.MIME_GIF:
                 case jimp.MIME_TIFF: {
-                    const output = this.replaceExtension(fileUri, unknownType.split('/')[1]);
+                    options.output = this.replaceExtension(fileUri, unknownType.split('/')[1]);
+                    options.command = '@';
+                    options.compress = unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG ? compress : undefined;
                     file.mimeType = unknownType;
-                    fs.renameSync(fileUri, output);
-                    this.finalizeImage(data, output, '@', unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG ? compress : undefined);
+                    fs.renameSync(fileUri, options.output);
                     break;
                 }
             }
+            this.finalizeImage(options);
         }
         else {
             file.mimeType = mimeType;
@@ -96,7 +95,7 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
                                 else {
                                     proxy.opacity();
                                 }
-                                proxy.rotate(file, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                                proxy.rotate(this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this), file);
                                 proxy.write(output, options);
                             })
                             .catch(err => {
@@ -248,7 +247,7 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
             }
         }
     }
-    rotate(parent?: ExternalAsset, initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback) {
+    rotate(initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback, parent?: ExternalAsset) {
         const rotateData = this.rotateData;
         if (rotateData) {
             const { values, color } = rotateData;
@@ -260,7 +259,7 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
             for (let i = 1, length = values.length; i < length; ++i) {
                 const value = values[i];
                 if (initialize) {
-                    initialize();
+                    initialize(parent);
                 }
                 const img = this.instance.clone().rotate(value);
                 const index = fileUri.lastIndexOf('.');
@@ -286,16 +285,10 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
             }
         }
     }
-    write(output: string, options?: UsingOptions) {
-        let data: Undef<FileData>,
-            compress: Undef<CompressFormat>,
-            callback: Undef<FileManagerWriteImageCallback>;
-        if (options) {
-            ({ data, compress, callback } = options);
-        }
+    write(output: string, options: UsingOptions) {
         this.instance.write(output, err => {
-            if (data && callback) {
-                this.finalize(output, (result: string) => callback!(data!, result, this.command, compress, err));
+            if (options.data && options.callback) {
+                this.finalize(output, (result: string) => options.callback!({ ...options, output: result }, err));
             }
             else if (err && this.errorHandler) {
                 this.errorHandler(err);

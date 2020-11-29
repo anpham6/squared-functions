@@ -26,7 +26,6 @@ type RequestBody = functions.RequestBody;
 type ExternalAsset = functions.ExternalAsset;
 
 type ResponseData = functions.squared.ResponseData;
-type CompressFormat = functions.squared.CompressFormat;
 type CloudService = functions.squared.CloudService;
 type CloudServiceUpload = functions.squared.CloudServiceUpload;
 
@@ -34,9 +33,11 @@ type CompressModule = functions.settings.CompressModule;
 type CloudModule = functions.settings.CloudModule;
 type GulpModule = functions.settings.GulpModule;
 type ChromeModule = functions.settings.ChromeModule;
+
 type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
 type SourceMap = functions.internal.Chrome.SourceMap;
+type UsingOptions = functions.internal.Image.UsingOptions;
 type SourceMapInput = functions.internal.Chrome.SourceMapInput;
 type SourceMapOutput = functions.internal.Chrome.SourceMapOutput;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
@@ -134,14 +135,13 @@ const FileManager = class extends Module implements IFileManager {
     public cleared = false;
     public emptyDirectory = false;
     public productionRelease = false;
-    public Image?: ImageConstructor;
-    public Chrome?: IChrome;
-    public Watch?: IWatch;
-    public Cloud?: CloudModule;
-    public Compress?: CompressModule;
-    public Gulp?: GulpModule;
-    public baseUrl?: string;
-    public baseAsset?: ExternalAsset;
+    public Image: Null<ImageConstructor> = null;
+    public Chrome: Null<IChrome> = null;
+    public Watch: Null<IWatch> = null;
+    public Cloud: Null<CloudModule> = null;
+    public Compress: Null<CompressModule> = null;
+    public Gulp: Null<GulpModule> = null;
+    public baseAsset: Null<ExternalAsset> = null;
     public readonly assets: ExternalAsset[];
     public readonly files = new Set<string>();
     public readonly filesQueued = new Set<string>();
@@ -152,11 +152,11 @@ const FileManager = class extends Module implements IFileManager {
 
     constructor(
         public readonly dirname: string,
-        private readonly _body: RequestBody,
+        public readonly body: RequestBody,
         postFinalize: FunctionType<void> = () => undefined)
     {
         super();
-        this.assets = this._body.assets;
+        this.assets = this.body.assets;
         this.postFinalize = postFinalize.bind(this);
     }
 
@@ -166,11 +166,10 @@ const FileManager = class extends Module implements IFileManager {
                 this.Image = args[0] as ImageConstructor;
                 break;
             case 'chrome': {
-                this.Chrome = new Chrome(args[0] as ChromeModule, this._body);
+                this.Chrome = new Chrome(args[0] as ChromeModule, this.body);
                 const baseAsset = this.assets.find(item => item.baseUrl);
                 if (baseAsset) {
                     this.baseAsset = baseAsset;
-                    this.baseUrl = baseAsset.baseUrl;
                     this.assets.sort((a, b) => {
                         if (a.bundleId && a.bundleId === b.bundleId) {
                             return a.bundleIndex! - b.bundleIndex!;
@@ -192,7 +191,7 @@ const FileManager = class extends Module implements IFileManager {
                     Watch.interval = args[0];
                 }
                 Watch.whenModified = (assets: ExternalAsset[]) => {
-                    const manager = new FileManager(this.dirname, { ...this._body, assets });
+                    const manager = new FileManager(this.dirname, { ...this.body, assets });
                     if (this.Compress) {
                         manager.install('compress', this.Compress);
                     }
@@ -369,22 +368,26 @@ const FileManager = class extends Module implements IFileManager {
         return moveTo + value;
     }
     assignFilename(file: ExternalAsset | CloudServiceUpload) {
-        const filename = file.filename!;
-        return filename.startsWith('__assign__') ? file.filename = uuid.v4() + path.extname(filename) : filename;
+        const filename = file.filename;
+        if (filename) {
+            return filename.startsWith('__assign__') ? file.filename = uuid.v4() + filename.substring(10) : filename;
+        }
     }
     removeCwd(value: Undef<string>) {
         return value ? value.substring(this.dirname.length + 1) : '';
     }
-    getUTF8String(file: ExternalAsset, fileUri = file.fileUri) {
+    getUTF8String(file: ExternalAsset, fileUri?: string) {
         if (!file.sourceUTF8) {
             if (file.buffer) {
                 file.sourceUTF8 = file.buffer.toString('utf8');
             }
-            try {
-                file.sourceUTF8 = fs.readFileSync(fileUri!, 'utf8');
-            }
-            catch (err) {
-                this.writeFail(['File not found', fileUri!], err);
+            if (fileUri ||= file.fileUri) {
+                try {
+                    file.sourceUTF8 = fs.readFileSync(fileUri, 'utf8');
+                }
+                catch (err) {
+                    this.writeFail(['File not found', fileUri], err);
+                }
             }
         }
         return file.sourceUTF8 || '';
@@ -762,7 +765,7 @@ const FileManager = class extends Module implements IFileManager {
                         html = source;
                     }
                 }
-                const baseUrl = this.baseUrl;
+                const baseUrl = this.baseAsset?.baseUrl;
                 for (const item of this.assets) {
                     if (item === file || item.content || item.bundleIndex !== undefined || item.inlineContent || !item.uri || item.invalid) {
                         continue;
@@ -1032,9 +1035,10 @@ const FileManager = class extends Module implements IFileManager {
         }
         this.finalizeAsset(data);
     }
-    finalizeImage(data: FileData, output: string, command: string, compress?: CompressFormat, error?: Null<Error>) {
-        if (error) {
-            this.writeFail(['Unable to finalize image', output], error);
+    finalizeImage(options: UsingOptions, error?: Null<Error>) {
+        const { data, output, command = '', compress } = options;
+        if (error || !output) {
+            this.writeFail(['Unable to finalize image', output || ''], error);
             this.completeAsyncTask();
         }
         else {
@@ -1076,9 +1080,6 @@ const FileManager = class extends Module implements IFileManager {
     }
     async finalizeAsset(data: FileData, parent?: ExternalAsset) {
         const { file, fileUri } = data;
-        if (this.Chrome) {
-            await this.transformSource(this.Chrome, data);
-        }
         if (this.Image) {
             const mimeType = file.mimeType || mime.lookup(fileUri);
             if (mimeType && mimeType.startsWith('image/')) {
@@ -1105,12 +1106,17 @@ const FileManager = class extends Module implements IFileManager {
                 }
             }
         }
+        if (this.Chrome) {
+            await this.transformSource(this.Chrome, data);
+        }
         if (file.invalid) {
-            try {
-                fs.unlinkSync(fileUri);
-            }
-            catch (err) {
-                this.writeFail(['Unable to delete file', fileUri], err);
+            if (!file.bundleId) {
+                try {
+                    fs.unlinkSync(fileUri);
+                }
+                catch (err) {
+                    this.writeFail(['Unable to delete file', fileUri], err);
+                }
             }
             this.completeAsyncTask('');
         }
@@ -1184,7 +1190,6 @@ const FileManager = class extends Module implements IFileManager {
                         queue = items.shift();
                     }
                     if (queue) {
-                        const uri = queue.uri;
                         const verifyBundle = async (value: string) => {
                             if (bundleMain) {
                                 return this.appendContent(queue!, fileUri, value, queue!.bundleIndex!);
@@ -1200,6 +1205,7 @@ const FileManager = class extends Module implements IFileManager {
                             }
                         };
                         const resumeQueue = () => processQueue(queue!, fileUri, bundleMain);
+                        const uri = queue.uri;
                         if (queue.content) {
                             verifyBundle(queue.content).then(resumeQueue);
                         }
@@ -1606,27 +1612,27 @@ const FileManager = class extends Module implements IFileManager {
                 const tempDir = this.getTempDir() + uuid.v4();
                 try {
                     fs.mkdirpSync(tempDir);
-                    Promise.all(data.items.map(fileUri => fs.copyFile(fileUri, path.join(tempDir, path.basename(fileUri)))))
+                    Promise.all(data.items.map(uri => fs.copyFile(uri, path.join(tempDir, path.basename(uri)))))
                         .then(() => {
                             child_process.exec(`gulp ${task} --gulpfile "${data.gulpfile}" --cwd "${tempDir}"`, { cwd: process.cwd() }, err => {
                                 if (!err) {
-                                    Promise.all(data.items.map(fileUri => fs.unlink(fileUri).then(() => this.delete(fileUri))))
+                                    Promise.all(data.items.map(uri => fs.unlink(uri).then(() => this.delete(uri))))
                                         .then(() => {
-                                            fs.readdir(tempDir, (errRead, files) => {
-                                                if (errRead) {
-                                                    callback();
-                                                }
-                                                else {
+                                            fs.readdir(tempDir, (err_r, files) => {
+                                                if (!err_r) {
                                                     Promise.all(
                                                         files.map(filename => {
-                                                            const origUri = path.join(origDir, filename);
-                                                            return fs.move(path.join(tempDir, filename), origUri, { overwrite: true }).then(() => this.add(origUri));
+                                                            const uri = path.join(origDir, filename);
+                                                            return fs.move(path.join(tempDir, filename), uri, { overwrite: true }).then(() => this.add(uri));
                                                         }))
                                                         .then(() => callback())
-                                                        .catch(errWrite => {
-                                                            this.writeFail(['Unable to replace original files', `gulp:${task}`], errWrite);
+                                                        .catch(err_w => {
+                                                            this.writeFail(['Unable to replace original files', `gulp:${task}`], err_w);
                                                             callback();
                                                         });
+                                                }
+                                                else {
+                                                    callback();
                                                 }
                                             });
                                         })

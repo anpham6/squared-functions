@@ -14,8 +14,8 @@ export default function validate(credential: IBMCloudCredential) {
 }
 
 export function setCredential(this: ICloud | IFileManager, credential: IBMCloudCredential) {
-    credential.endpoint ||= 'https://s3.us-east.cloud-object-storage.appdomain.cloud';
-    credential.region ||= /^[^.]+\.([a-z]+-[a-z]+)/.exec(credential.endpoint)?.[1] || 'us-east';
+    credential.region ||= 'us-east';
+    credential.endpoint ||= `https://s3.${credential.region}.cloud-object-storage.appdomain.cloud`;
     credential.ibmAuthEndpoint = 'https://iam.cloud.ibm.com/identity/token';
     credential.signatureVersion = 'iam';
 }

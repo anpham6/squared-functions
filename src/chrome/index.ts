@@ -136,7 +136,7 @@ const Chrome = class extends Module implements functions.IChrome {
                     else {
                         try {
                             this._packageMap[plugin] ||= require(`./packages/${plugin}`).default;
-                            const result: Undef<string> = await this._packageMap[plugin].call(this, value, options, output, input );
+                            const result: Undef<string> = await this._packageMap[plugin].call(this, value, options, output, input);
                             if (result) {
                                 value = result;
                                 valid = true;

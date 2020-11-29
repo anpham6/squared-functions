@@ -65,7 +65,7 @@ npm install dwebp-bin && npm install cwebp-bin
 Placing an @ symbol (png@) after the format will remove the original file from the package. Using the % symbol (png%) instead will choose the smaller of the two files. You can also use these commands with the setting "convertImages" in the Android framework as a string with the "+" chain format.
 
 ```javascript
-// NOTE: Multiple transformations per asset use the :' as the separator when using "data-chrome-file"
+// NOTE: Multiple transformations per asset use the "::" as the separator when using "data-chrome-commands"
 
 webp(50000,*)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,135,215,315#FFFFFF}|0.5||100[photo][75]|!opaque!greyscale
 ```
@@ -482,9 +482,10 @@ Other service providers can be integrated similarly except for credential verifi
       "service": "s3",
       "bucket": "squared-001",
       "credential": {
+        "accessKeyId": "**********",
+        "secretAccessKey": "**********",
         "region": "us-west-2", // Custom properties are sent to the S3 client (optional)
-        "accessKeyId": "**********", // Using settings (optional)
-        "secretAccessKey": "**********", // Using settings (optional)
+        "sessionToken": "**********"
       },
       "credential": "main", // OR: Load host configuration from settings at instantiation
       "upload": {
@@ -537,10 +538,10 @@ Other service providers can be integrated similarly except for credential verifi
       "service": "ibm",
       "bucket": "squared-004",
       "credential": {
-        "region": "us-south",
-        "endpoint": "https://s3.us-south.cloud-object-storage.appdomain.cloud",
         "apiKeyId": "**********",
-        "serviceInstanceId": "**********"
+        "serviceInstanceId": "**********",
+        "region": "us-south",
+        "endpoint": "https://s3.us-south.cloud-object-storage.appdomain.cloud", // Same as region (optional)
       }
     },
     {

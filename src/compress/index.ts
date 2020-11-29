@@ -6,7 +6,7 @@ import Module from '../module';
 
 type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTaskCallback;
 type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
-type FileOutputCallback = functions.FileOutputCallback;
+type CompressTryImageCallback = functions.CompressTryImageCallback;
 
 type CompressFormat = functions.squared.CompressFormat;
 
@@ -109,18 +109,18 @@ const Compress = new class extends Module implements functions.ICompress {
             callback();
         }
     }
-    tryImage(fileUri: string, callback: FileOutputCallback) {
+    tryImage(fileUri: string, callback: CompressTryImageCallback) {
         fs.readFile(fileUri, (err, buffer) => {
             if (!err) {
-                tinify.fromBuffer(buffer).toBuffer((errR, data) => {
-                    if (data && !errR) {
-                        fs.writeFile(fileUri, data, errW => callback(errW ? '' : fileUri, errW));
+                tinify.fromBuffer(buffer).toBuffer((err_r, data) => {
+                    if (data && !err_r) {
+                        fs.writeFile(fileUri, data, err_w => callback(err_w ? '' : fileUri, err_w));
                     }
                     else {
-                        if (errR) {
+                        if (err_r) {
                             this.validate(this.tinifyApiKey);
                         }
-                        callback('', errR);
+                        callback('', err_r);
                     }
                 });
             }

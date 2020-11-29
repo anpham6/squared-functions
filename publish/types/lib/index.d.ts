@@ -8,15 +8,15 @@ import type { BackgroundColor, ForegroundColor } from 'chalk';
 import type { ConfigurationOptions } from 'aws-sdk/lib/core';
 import type { GoogleAuthOptions } from 'google-auth-library';
 
+type BoolString = boolean | string;
+
 declare namespace functions {
-    type BoolString = boolean | string;
     type ExternalCategory = "html" | "css" | "js";
-    type FileCompressFormat = "gz" | "br";
     type CloudFunctions = "upload" | "download";
-    type FileManagerWriteImageCallback = (data: internal.FileData, output: string, command: string, compress?: squared.CompressFormat, error?: Null<Error>) => void;
-    type FileManagerPerformAsyncTaskCallback = () => void;
+    type FileManagerWriteImageCallback = (options: internal.Image.UsingOptions, error?: Null<Error>) => void;
+    type FileManagerPerformAsyncTaskCallback = (parent?: ExternalAsset) => void;
     type FileManagerCompleteAsyncTaskCallback = (value?: unknown, parent?: ExternalAsset) => void;
-    type FileOutputCallback = (result: string, err?: Null<Error>) => void;
+    type CompressTryImageCallback = (result: string, err?: Null<Error>) => void;
 
     namespace squared {
         type OutputAttribute = KeyValue<string, Null<string>>;
@@ -153,6 +153,7 @@ declare namespace functions {
 
             interface UsingOptions {
                 data: FileData;
+                output?: string;
                 command?: string;
                 compress?: CompressFormat;
                 callback?: FileManagerWriteImageCallback;
@@ -269,6 +270,10 @@ declare namespace functions {
     }
 
     namespace settings {
+        interface ImageModule {
+            proxy?: string;
+        }
+
         interface CompressModule {
             gzip_level?: NumString;
             brotli_quality?: NumString;
@@ -292,6 +297,10 @@ declare namespace functions {
         interface ChromeModule extends Partial<chrome.TranspileMap> {
             eval_function?: boolean;
             eval_text_template?: boolean;
+        }
+
+        interface WatchModule {
+            interval?: number;
         }
     }
 
@@ -323,7 +332,7 @@ declare namespace functions {
         parseSizeRange(value: string): [number, number];
         withinSizeRange(fileUri: string, value: Undef<string>): boolean;
         tryFile(fileUri: string, data: squared.CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback): void;
-        tryImage(fileUri: string, callback: FileOutputCallback): void;
+        tryImage(fileUri: string, callback: CompressTryImageCallback): void;
     }
 
     interface IImage extends IModule {
@@ -384,13 +393,13 @@ declare namespace functions {
         cleared: boolean;
         emptyDirectory: boolean;
         productionRelease: boolean;
-        baseUrl?: string;
-        Image?: ImageConstructor;
-        Chrome?: IChrome;
-        Watch?: IWatch;
-        Cloud?: settings.CloudModule;
-        Compress?: settings.CompressModule;
-        Gulp?: settings.GulpModule;
+        Image: Null<ImageConstructor>;
+        Chrome: Null<IChrome>;
+        Watch: Null<IWatch>;
+        Compress: Null<settings.CompressModule>;
+        Gulp: Null<settings.GulpModule>;
+        Cloud: Null<settings.CloudModule>;
+        readonly body: RequestBody;
         readonly files: Set<string>;
         readonly filesQueued: Set<string>;
         readonly filesToRemove: Set<string>;
@@ -399,7 +408,7 @@ declare namespace functions {
         readonly dirname: string;
         readonly assets: ExternalAsset[];
         readonly postFinalize: FunctionType<void>;
-        readonly baseAsset?: ExternalAsset;
+        readonly baseAsset: Null<ExternalAsset>;
         install(name: string, ...args: unknown[]): void;
         add(value: string): void;
         delete(value: string): void;
@@ -416,7 +425,7 @@ declare namespace functions {
         removeCwd(value: Undef<string>): string;
         relativePosix(file: ExternalAsset, uri: string): Undef<string>;
         absolutePath(value: string, href: string): string;
-        assignFilename(file: ExternalAsset): string;
+        assignFilename(file: ExternalAsset): Undef<string>;
         getUTF8String(file: ExternalAsset, fileUri?: string): string;
         appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex: number): Promise<string>;
         getTrailingContent(file: ExternalAsset): Promise<string>;
@@ -482,8 +491,8 @@ declare namespace functions {
         crop(): void;
         opacity(): void;
         quality(): void;
-        rotate(parent?: ExternalAsset, initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback): void;
-        write(output: string, options?: internal.Image.UsingOptions): void;
+        rotate(initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback, parent?: ExternalAsset): void;
+        write(output: string, options: internal.Image.UsingOptions): void;
         finalize(output: string, callback: (result: string) => void): void;
         constructor(instance: T, fileUri: string, command?: string, finalAs?: string);
     }
@@ -513,6 +522,7 @@ declare namespace functions {
         env?: string;
         port?: StringMap;
         routing?: internal.Serve.Routing;
+        image?: settings.ImageModule;
         compress?: settings.CompressModule;
         cloud?: settings.CloudModule;
         gulp?: settings.GulpModule;
