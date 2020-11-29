@@ -17,6 +17,7 @@ import Cloud from '../cloud';
 import Watch from '../watch';
 
 type IFileManager = functions.IFileManager;
+type IImage = functions.IImage;
 type IChrome = functions.IChrome;
 type IWatch = functions.IWatch;
 
@@ -35,6 +36,8 @@ type GulpModule = functions.settings.GulpModule;
 type ChromeModule = functions.settings.ChromeModule;
 type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
+type SourceMap = functions.internal.Chrome.SourceMap;
+type SourceMapInput = functions.internal.Chrome.SourceMapInput;
 type SourceMapOutput = functions.internal.Chrome.SourceMapOutput;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 
@@ -90,10 +93,6 @@ const FileManager = class extends Module implements IFileManager {
         return Compress;
     }
 
-    public static moduleImage() {
-        return Image;
-    }
-
     public static moduleCloud() {
         return Cloud;
     }
@@ -135,11 +134,12 @@ const FileManager = class extends Module implements IFileManager {
     public cleared = false;
     public emptyDirectory = false;
     public productionRelease = false;
+    public Image?: IImage;
     public Chrome?: IChrome;
+    public Watch?: IWatch;
     public Cloud?: CloudModule;
     public Compress?: CompressModule;
     public Gulp?: GulpModule;
-    public Watch?: IWatch;
     public baseUrl?: string;
     public baseAsset?: ExternalAsset;
     public readonly assets: ExternalAsset[];
@@ -162,15 +162,8 @@ const FileManager = class extends Module implements IFileManager {
 
     install(name: string, ...args: unknown[]) {
         switch (name) {
-            case 'compress':
-                this.Compress = args[0] as CompressModule;
-                break;
-            case 'cloud':
-                this.Cloud = Cloud.settings;
-                Cloud.settings = args[0] as CloudModule;
-                break;
-            case 'gulp':
-                this.Gulp = args[0] as GulpModule;
+            case 'image':
+                this.Image = Image;
                 break;
             case 'chrome': {
                 this.Chrome = new Chrome(args[0] as ChromeModule, this._body);
@@ -214,6 +207,16 @@ const FileManager = class extends Module implements IFileManager {
                     }
                     manager.processAssets();
                 };
+                break;
+            case 'compress':
+                this.Compress = args[0] as CompressModule;
+                break;
+            case 'cloud':
+                this.Cloud = Cloud.settings;
+                Cloud.settings = args[0] as CloudModule;
+                break;
+            case 'gulp':
+                this.Gulp = args[0] as GulpModule;
                 break;
         }
     }
@@ -553,6 +556,30 @@ const FileManager = class extends Module implements IFileManager {
             return output;
         }
     }
+    createSourceMap(file: ExternalAsset, fileUri: string, sourcesContent: string) {
+        return Object.create({
+            file,
+            fileUri,
+            sourcesContent,
+            sourceMap: new Map<string, SourceMapOutput>(),
+            "nextMap": function(this: SourceMapInput, name: string, map: SourceMap | string, value: string, includeContent = true) {
+                if (typeof map === 'string') {
+                    try {
+                        map = JSON.parse(map) as SourceMap;
+                    }
+                    catch {
+                        return false;
+                    }
+                }
+                if (typeof map === 'object' && map.mappings) {
+                    this.map = map;
+                    this.sourceMap.set(name, { value, map, sourcesContent: includeContent ? this.sourcesContent : null });
+                    return true;
+                }
+                return false;
+            }
+        }) as SourceMapInput;
+    }
     writeSourceMap(file: ExternalAsset, fileUri: string, sourceData: [string, Map<string, SourceMapOutput>], sourceContent: string, modified: boolean) {
         const items = Array.from(sourceData[1]);
         const excludeSources = items.some(data => data[1].sourcesContent === null);
@@ -586,8 +613,7 @@ const FileManager = class extends Module implements IFileManager {
             this.writeFail(['Unable to generate source map', name], err);
         }
     }
-    async transformBuffer(data: FileData) {
-        const chrome = this.Chrome;
+    async transformSource(module: IChrome, data: FileData) {
         const { file, fileUri } = data;
         const { format, mimeType } = file;
         switch (mimeType) {
@@ -825,8 +851,8 @@ const FileManager = class extends Module implements IFileManager {
                     .replace(/\s*<script[^>]*?data-chrome-template="([^"]|\\")+?"[^>]*>[\s\S]*?<\/script>\n*/ig, '')
                     .replace(/\s*<(script|link)[^>]+?data-chrome-file="exclude"[^>]*>\n*/ig, '')
                     .replace(/\s+data-(?:use|chrome-[\w-]+)="([^"]|\\")+?"/g, '');
-                if (format && chrome) {
-                    const result = await chrome.transform('html', format, source, chrome.createSourceMap(file, fileUri, source));
+                if (format) {
+                    const result = await module.transform('html', format, source, this.createSourceMap(file, fileUri, source));
                     if (result) {
                         file.sourceUTF8 = result[0];
                         break;
@@ -836,9 +862,9 @@ const FileManager = class extends Module implements IFileManager {
                 break;
             }
             case 'text/html':
-                if (format && chrome) {
+                if (format) {
                     const source = this.getUTF8String(file, fileUri);
-                    const result = await chrome.transform('html', format, source, chrome.createSourceMap(file, fileUri, source));
+                    const result = await module.transform('html', format, source, this.createSourceMap(file, fileUri, source));
                     if (result) {
                         file.sourceUTF8 = result[0];
                     }
@@ -846,11 +872,11 @@ const FileManager = class extends Module implements IFileManager {
                 break;
             case 'text/css':
             case '@text/css': {
-                const unusedStyles = file.preserve !== true && this.Chrome?.unusedStyles;
+                const unusedStyles = file.preserve !== true && module.unusedStyles;
                 const transform = mimeType[0] === '@';
                 const trailing = await this.getTrailingContent(file);
                 const bundle = this.getBundleContent(fileUri);
-                if (unusedStyles && !transform && !trailing && !bundle && (!format || !chrome)) {
+                if (!unusedStyles && !transform && !trailing && !bundle && !format) {
                     break;
                 }
                 let source = this.getUTF8String(file, fileUri),
@@ -876,8 +902,8 @@ const FileManager = class extends Module implements IFileManager {
                 if (bundle) {
                     source += bundle;
                 }
-                if (format && chrome) {
-                    const result = await chrome.transform('css', format, source, chrome.createSourceMap(file, fileUri, source));
+                if (format) {
+                    const result = await module.transform('css', format, source, this.createSourceMap(file, fileUri, source));
                     if (result) {
                         if (result[1].size) {
                             this.writeSourceMap(file, fileUri, result, source, modified);
@@ -903,8 +929,8 @@ const FileManager = class extends Module implements IFileManager {
                 if (bundle) {
                     source += bundle;
                 }
-                if (format && chrome) {
-                    const result = await chrome.transform('js', format, source, chrome.createSourceMap(file, fileUri, source));
+                if (format) {
+                    const result = await module.transform('js', format, source, this.createSourceMap(file, fileUri, source));
                     if (result) {
                         if (result[1].size) {
                             this.writeSourceMap(file, fileUri, result, source, modified);
@@ -915,28 +941,9 @@ const FileManager = class extends Module implements IFileManager {
                 file.sourceUTF8 = source;
                 break;
             }
-            default:
-                if (mimeType && mimeType.startsWith('image/')) {
-                    let compress = Compress.hasImageService() ? Compress.findFormat(file.compress, 'png') : undefined;
-                    if (compress && !Compress.withinSizeRange(fileUri, compress.condition)) {
-                        compress = undefined;
-                    }
-                    const callback = this.finalizeImage.bind(this);
-                    if (mimeType === 'image/unknown') {
-                        Image.using.call(this, { data, compress, callback });
-                    }
-                    else if (file.commands) {
-                        for (const command of file.commands) {
-                            if (Compress.withinSizeRange(fileUri, command)) {
-                                Image.using.call(this, { data, compress, command, callback });
-                            }
-                        }
-                    }
-                }
-                break;
         }
     }
-    newImage(data: FileData, outputType: string, saveAs: string, command = '') {
+    queueImage(data: FileData, outputType: string, saveAs: string, command = '') {
         const fileUri = data.fileUri;
         let output: Undef<string>;
         if (data.file.mimeType === outputType) {
@@ -964,6 +971,41 @@ const FileManager = class extends Module implements IFileManager {
         }
         this.filesQueued.add(output ||= fileUri);
         return output;
+    }
+    async compressFile(file: ExternalAsset) {
+        const fileUri = file.fileUri!;
+        if (this.has(fileUri)) {
+            const tasks: Promise<void>[] = [];
+            const gz = Compress.findFormat(file.compress, 'gz');
+            if (gz) {
+                this.formatMessage('GZ', 'Compressing file...', fileUri + '.gz', 'yellow');
+                tasks.push(
+                    new Promise<void>(resolve => Compress.tryFile(fileUri, gz, null, (result: string) => {
+                        if (result) {
+                            this.add(result, file);
+                        }
+                        resolve();
+                    }))
+                );
+            }
+            if (Node.checkVersion(11, 7)) {
+                const br = Compress.findFormat(file.compress, 'br');
+                if (br) {
+                    this.formatMessage('BR', 'Compressing file...', fileUri + '.br', 'yellow');
+                    tasks.push(
+                        new Promise<void>(resolve => Compress.tryFile(fileUri, br, null, (result: string) => {
+                            if (result) {
+                                this.add(result, file);
+                            }
+                            resolve();
+                        }))
+                    );
+                }
+            }
+            if (tasks.length) {
+                return Promise.all(tasks).catch(err => this.writeFail(['Compress', fileUri], err));
+            }
+        }
     }
     writeBuffer(data: FileData) {
         if (this.Compress) {
@@ -1033,8 +1075,48 @@ const FileManager = class extends Module implements IFileManager {
         }
     }
     async finalizeAsset(data: FileData, parent?: ExternalAsset) {
-        await this.transformBuffer(data);
-        this.completeAsyncTask(data.fileUri, parent);
+        const { file, fileUri } = data;
+        if (this.Chrome) {
+            await this.transformSource(this.Chrome, data);
+        }
+        if (this.Image) {
+            const mimeType = file.mimeType || mime.lookup(fileUri);
+            if (mimeType && mimeType.startsWith('image/')) {
+                let compress = Compress.hasImageService() ? Compress.findFormat(file.compress, 'png') : undefined;
+                if (compress && !Compress.withinSizeRange(fileUri, compress.condition)) {
+                    compress = undefined;
+                }
+                const callback = this.finalizeImage.bind(this);
+                if (mimeType === 'image/unknown') {
+                    try {
+                        await Image.using.call(this, { data, compress, callback });
+                    }
+                    catch (err) {
+                        this.writeFail(['Unable to read image buffer', fileUri], err);
+                        file.invalid = true;
+                    }
+                }
+                else if (file.commands) {
+                    for (const command of file.commands) {
+                        if (Compress.withinSizeRange(fileUri, command)) {
+                            Image.using.call(this, { data, compress, command, callback });
+                        }
+                    }
+                }
+            }
+        }
+        if (file.invalid) {
+            try {
+                fs.unlinkSync(fileUri);
+            }
+            catch (err) {
+                this.writeFail(['Unable to delete file', fileUri], err);
+            }
+            this.completeAsyncTask('');
+        }
+        else {
+            this.completeAsyncTask(data.fileUri, parent);
+        }
     }
     processAssets() {
         const emptyDir = new Set<string>();
@@ -1305,41 +1387,6 @@ const FileManager = class extends Module implements IFileManager {
         }
         this.cleared = true;
         this.performFinalize();
-    }
-    async compressFile(file: ExternalAsset) {
-        const fileUri = file.fileUri!;
-        if (this.has(fileUri)) {
-            const tasks: Promise<void>[] = [];
-            const gz = Compress.findFormat(file.compress, 'gz');
-            if (gz) {
-                this.formatMessage('GZ', 'Compressing file...', fileUri + '.gz', 'yellow');
-                tasks.push(
-                    new Promise<void>(resolve => Compress.tryFile(fileUri, gz, null, (result: string) => {
-                        if (result) {
-                            this.add(result, file);
-                        }
-                        resolve();
-                    }))
-                );
-            }
-            if (Node.checkVersion(11, 7)) {
-                const br = Compress.findFormat(file.compress, 'br');
-                if (br) {
-                    this.formatMessage('BR', 'Compressing file...', fileUri + '.br', 'yellow');
-                    tasks.push(
-                        new Promise<void>(resolve => Compress.tryFile(fileUri, br, null, (result: string) => {
-                            if (result) {
-                                this.add(result, file);
-                            }
-                            resolve();
-                        }))
-                    );
-                }
-            }
-            if (tasks.length) {
-                return Promise.all(tasks).catch(err => this.writeFail(['Compress', fileUri], err));
-            }
-        }
     }
     async finalize() {
         let tasks: Promise<unknown>[] = [];

@@ -357,7 +357,6 @@ declare namespace functions {
         loadOptions(value: internal.Chrome.ConfigOrTranspiler | string): Undef<internal.Chrome.ConfigOrTranspiler>;
         loadConfig(value: string): Undef<StandardMap | string>;
         loadTranspiler(value: string): Null<FunctionType<string>>;
-        createSourceMap(file: ExternalAsset, fileUri: string, sourcesContent: string): internal.Chrome.SourceMapInput;
         transform(type: ExternalCategory, format: string, value: string, input: internal.Chrome.SourceMapInput): Promise<Void<[string, Map<string, internal.Chrome.SourceMapOutput>]>>;
     }
 
@@ -380,7 +379,9 @@ declare namespace functions {
         emptyDirectory: boolean;
         productionRelease: boolean;
         baseUrl?: string;
+        Image?: IImage;
         Chrome?: IChrome;
+        Watch?: IWatch;
         Cloud?: settings.CloudModule;
         Compress?: settings.CompressModule;
         Gulp?: settings.GulpModule;
@@ -414,16 +415,17 @@ declare namespace functions {
         appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex: number): Promise<string>;
         getTrailingContent(file: ExternalAsset): Promise<string>;
         getBundleContent(fileUri: string): Undef<string>;
+        createSourceMap(file: ExternalAsset, fileUri: string, sourcesContent: string): internal.Chrome.SourceMapInput;
         writeSourceMap(file: ExternalAsset, fileUri: string, sourceData: [string, Map<string, internal.Chrome.SourceMapOutput>], sourceContent: string, modified: boolean): void;
-        transformCss(file: ExternalAsset, content: string): Undef<string>;
         removeCss(source: string, styles: string[]): Undef<string>;
-        newImage(data: internal.FileData, ouputType: string, saveAs: string, command?: string): string;
-        transformBuffer(data: internal.FileData): Promise<void>;
+        transformCss(file: ExternalAsset, content: string): Undef<string>;
+        transformSource(module: IChrome, data: internal.FileData): Promise<void>;
+        queueImage(data: internal.FileData, ouputType: string, saveAs: string, command?: string): string;
+        compressFile(file: ExternalAsset): Promise<unknown>;
         writeBuffer(data: internal.FileData): void;
         finalizeImage: FileManagerWriteImageCallback;
         finalizeAsset(data: internal.FileData, parent?: ExternalAsset): Promise<void>;
         processAssets(watch?: boolean): void;
-        compressFile(file: ExternalAsset): Promise<unknown>;
         finalize(): Promise<void>;
     }
 
@@ -432,7 +434,6 @@ declare namespace functions {
         loadSettings(value: Settings, ignorePermissions?: boolean): void;
         moduleNode(): INode;
         moduleCompress(): ICompress;
-        moduleImage(): IImage;
         moduleCloud(): ICloud;
         new(dirname: string, body: RequestBody, postFinalize?: FunctionType<void>): IFileManager;
     }

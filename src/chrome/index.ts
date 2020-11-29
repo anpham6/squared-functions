@@ -3,14 +3,12 @@ import fs = require('fs-extra');
 
 import Module from '../module';
 
-type ExternalAsset = functions.ExternalAsset;
 type ExternalCategory = functions.ExternalCategory;
 type RequestBody = functions.RequestBody;
 
 type ChromeModule = functions.settings.ChromeModule;
 type TranspileMap = functions.chrome.TranspileMap;
 
-type SourceMap = functions.internal.Chrome.SourceMap;
 type SourceMapInput = functions.internal.Chrome.SourceMapInput;
 type SourceMapOutput = functions.internal.Chrome.SourceMapOutput;
 type PluginConfig = functions.internal.Chrome.PluginConfig;
@@ -110,30 +108,6 @@ const Chrome = class extends Module implements functions.IChrome {
             }
         }
         return value.startsWith('function') ? eval(`(${value})`) as FunctionType<string> : null;
-    }
-    createSourceMap(file: ExternalAsset, fileUri: string, sourcesContent: string) {
-        return Object.create({
-            file,
-            fileUri,
-            sourcesContent,
-            sourceMap: new Map<string, SourceMapOutput>(),
-            "nextMap": function(this: SourceMapInput, name: string, map: SourceMap | string, value: string, includeContent = true) {
-                if (typeof map === 'string') {
-                    try {
-                        map = JSON.parse(map) as SourceMap;
-                    }
-                    catch {
-                        return false;
-                    }
-                }
-                if (typeof map === 'object' && map.mappings) {
-                    this.map = map;
-                    this.sourceMap.set(name, { value, map, sourcesContent: includeContent ? this.sourcesContent : null });
-                    return true;
-                }
-                return false;
-            }
-        }) as SourceMapInput;
     }
     async transform(type: ExternalCategory, format: string, value: string, input: SourceMapInput): Promise<Void<[string, Map<string, SourceMapOutput>]>> {
         const data = this.settings[type];

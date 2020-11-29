@@ -189,22 +189,20 @@ class JimpProxy implements functions.ImageProxy<jimp> {
         }
     }
     write(output: string, options?: UsingOptions) {
-        if (output) {
-            let data: Undef<FileData>,
-                compress: Undef<CompressFormat>,
-                callback: Undef<FileManagerWriteImageCallback>;
-            if (options) {
-                ({ data, compress, callback } = options);
-            }
-            this.instance.write(output, err => {
-                if (data && callback) {
-                    this.finalize(output, (result: string) => callback!(data!, result, this.command, compress, err));
-                }
-                else if (err && this.errorHandler) {
-                    this.errorHandler(err);
-                }
-            });
+        let data: Undef<FileData>,
+            compress: Undef<CompressFormat>,
+            callback: Undef<FileManagerWriteImageCallback>;
+        if (options) {
+            ({ data, compress, callback } = options);
         }
+        this.instance.write(output, err => {
+            if (data && callback) {
+                this.finalize(output, (result: string) => callback!(data!, result, this.command, compress, err));
+            }
+            else if (err && this.errorHandler) {
+                this.errorHandler(err);
+            }
+        });
     }
     finalize(output: string, callback: (result: string) => void) {
         if (this.finalAs === 'webp') {
@@ -249,7 +247,7 @@ class JimpProxy implements functions.ImageProxy<jimp> {
 }
 
 const Image = new class extends Module implements functions.IImage {
-    using(this: IFileManager, options: UsingOptions) {
+    async using(this: IFileManager, options: UsingOptions) {
         const { data, compress } = options;
         const { file, fileUri } = data;
         const command = options.command?.trim().toLowerCase();
@@ -263,33 +261,21 @@ const Image = new class extends Module implements functions.IImage {
             return fileUri;
         };
         if (!command || !mimeType || mimeType === 'image/unknown') {
-            this.performAsyncTask();
-            jimp.read(getFile())
-                .then(img => {
-                    const unknownType = img.getMIME();
-                    switch (unknownType) {
-                        case jimp.MIME_PNG:
-                        case jimp.MIME_JPEG:
-                        case jimp.MIME_BMP:
-                        case jimp.MIME_GIF:
-                        case jimp.MIME_TIFF: {
-                            const output = this.replaceExtension(fileUri, unknownType.split('/')[1]);
-                            fs.rename(fileUri, output, err => {
-                                if (!err) {
-                                    this.finalizeImage(data, output, '@', unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG ? compress : undefined);
-                                }
-                                else {
-                                    this.writeFail(['Unable to rename image', fileUri], err);
-                                    this.completeAsyncTask();
-                                }
-                            });
-                        }
-                    }
-                })
-                .catch(err => {
-                    this.writeFail(['Unable to read image buffer', fileUri], err);
-                    this.completeAsyncTask();
-                });
+            const img = await jimp.read(getFile());
+            const unknownType = img.getMIME();
+            switch (unknownType) {
+                case jimp.MIME_PNG:
+                case jimp.MIME_JPEG:
+                case jimp.MIME_BMP:
+                case jimp.MIME_GIF:
+                case jimp.MIME_TIFF: {
+                    const output = this.replaceExtension(fileUri, unknownType.split('/')[1]);
+                    file.mimeType = unknownType;
+                    fs.renameSync(fileUri, output);
+                    this.finalizeImage(data, output, '@', unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG ? compress : undefined);
+                    break;
+                }
+            }
         }
         else {
             file.mimeType = mimeType;
@@ -322,26 +308,29 @@ const Image = new class extends Module implements functions.IImage {
                     finalAs = 'webp';
                 }
                 if (jimpType && saveAs) {
-                    this.performAsyncTask();
-                    jimp.read(tempFile || getFile())
-                        .then(img => {
-                            const proxy = new JimpProxy(img, fileUri, command, finalAs);
-                            proxy.method();
-                            proxy.resize();
-                            proxy.crop();
-                            if (jimpType === jimp.MIME_JPEG && !finalAs) {
-                                proxy.quality();
-                            }
-                            else {
-                                proxy.opacity();
-                            }
-                            proxy.rotate(file, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
-                            proxy.write(this.newImage(data, jimpType!, saveAs!, command), options);
-                        })
-                        .catch(err => {
-                            this.completeAsyncTask();
-                            this.writeFail(['Unable to read image buffer', fileUri], err);
-                        });
+                    const output = this.queueImage(data, jimpType, saveAs, command);
+                    if (output) {
+                        this.performAsyncTask();
+                        jimp.read(tempFile || getFile())
+                            .then(img => {
+                                const proxy = new JimpProxy(img, fileUri, command, finalAs);
+                                proxy.method();
+                                proxy.resize();
+                                proxy.crop();
+                                if (jimpType === jimp.MIME_JPEG && !finalAs) {
+                                    proxy.quality();
+                                }
+                                else {
+                                    proxy.opacity();
+                                }
+                                proxy.rotate(file, this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                                proxy.write(output, options);
+                            })
+                            .catch(err => {
+                                this.completeAsyncTask();
+                                this.writeFail(['Unable to read image buffer', fileUri], err);
+                            });
+                    }
                 }
             };
             if (mimeType === 'image/webp') {
