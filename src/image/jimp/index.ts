@@ -17,7 +17,7 @@ type QualityData = functions.internal.Image.QualityData;
 type UsingOptions = functions.internal.Image.UsingOptions;
 
 class Jimp extends Image implements functions.ImageProxy<jimp> {
-    static async using(this: IFileManager, options: UsingOptions) {
+    public static async using(this: IFileManager, options: UsingOptions) {
         const { data, compress } = options;
         const { file, fileUri } = data;
         const command = options.command?.trim().toLowerCase();

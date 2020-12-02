@@ -4,7 +4,7 @@ import type { ConfigurationOptions } from 'aws-sdk/lib/core';
 type IFileManager = functions.IFileManager;
 type ICloud = functions.ICloud;
 
-export interface S3CloudCredential extends ConfigurationOptions {
+export interface S3StorageCredential extends ConfigurationOptions {
     endpoint?: string;
 }
 
@@ -28,11 +28,11 @@ function getPublicReadPolicy(bucket: string) {
     });
 }
 
-export default function validate(credential: S3CloudCredential) {
+export function validateStorage(credential: S3StorageCredential) {
     return !!(credential.accessKeyId && credential.secretAccessKey);
 }
 
-export function createClient(this: ICloud | IFileManager, credential: S3CloudCredential, service: string, sdk = 'aws-sdk/clients/s3') {
+export function createStorageClient(this: ICloud | IFileManager, credential: S3StorageCredential, service = 'S3', sdk = 'aws-sdk/clients/s3') {
     try {
         const S3 = require(sdk) as Constructor<aws.S3>;
         return new S3(credential);
@@ -40,6 +40,25 @@ export function createClient(this: ICloud | IFileManager, credential: S3CloudCre
     catch (err) {
         this.writeFail([`Install ${service} SDK?`, 'npm i aws-sdk']);
         throw err;
+    }
+}
+
+export async function deleteObjects(this: ICloud, credential: S3StorageCredential, Bucket: string, service = 'S3', sdk = 'aws-sdk/clients/s3') {
+    try {
+        const s3 = createStorageClient.call(this, credential, service, sdk);
+        const Contents = (await s3.listObjects({ Bucket }).promise()).Contents;
+        if (Contents && Contents.length) {
+            return s3.deleteObjects({ Bucket, Delete: { Objects: Contents.map(data => ({ Key: data.Key! })) } })
+                .promise()
+                .then(data => {
+                    if (data.Deleted) {
+                        this.formatMessage(service, ['Bucket emptied', data.Deleted.length + ' files'], Bucket, 'blue');
+                    }
+                });
+        }
+    }
+    catch (err) {
+        this.formatMessage(service, ['Unable to empty bucket', Bucket], err, 'yellow');
     }
 }
 
@@ -62,27 +81,7 @@ export function setPublicRead(this: IFileManager, s3: aws.S3, Bucket: string, se
     }
 }
 
-export async function deleteObjects(this: ICloud, credential: S3CloudCredential, service: string, Bucket: string, sdk = 'aws-sdk/clients/s3') {
-    try {
-        const s3 = createClient.call(this, credential, service, sdk);
-        const Contents = (await s3.listObjects({ Bucket }).promise()).Contents;
-        if (Contents && Contents.length) {
-            return s3.deleteObjects({ Bucket, Delete: { Objects: Contents.map(data => ({ Key: data.Key! })) } })
-                .promise()
-                .then(data => {
-                    if (data.Deleted) {
-                        this.formatMessage(service, ['Bucket emptied', data.Deleted.length + ' files'], Bucket, 'blue');
-                    }
-                });
-        }
-    }
-    catch (err) {
-        this.formatMessage(service, ['Unable to empty bucket', Bucket], err, 'yellow');
-    }
-}
-
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { validate, createClient, setPublicRead, deleteObjects };
-    module.exports.default = validate;
+    module.exports = { validateStorage, createStorageClient, deleteObjects, setPublicRead };
     Object.defineProperty(module.exports, '__esModule', { value: true });
 }

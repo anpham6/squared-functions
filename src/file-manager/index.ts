@@ -17,6 +17,7 @@ import Watch from '../watch';
 
 type IFileManager = functions.IFileManager;
 type IChrome = functions.IChrome;
+type ICloud = functions.ICloud;
 type IWatch = functions.IWatch;
 
 type ImageConstructor = functions.ImageConstructor;
@@ -27,7 +28,7 @@ type ExternalAsset = functions.ExternalAsset;
 
 type ResponseData = functions.squared.ResponseData;
 type CloudService = functions.squared.CloudService;
-type CloudServiceUpload = functions.squared.CloudServiceUpload;
+type CloudStorageUpload = functions.squared.CloudStorageUpload;
 
 type CompressModule = functions.settings.CompressModule;
 type CloudModule = functions.settings.CloudModule;
@@ -36,8 +37,8 @@ type ChromeModule = functions.settings.ChromeModule;
 
 type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
-type SourceMap = functions.internal.Chrome.SourceMap;
 type UsingOptions = functions.internal.Image.UsingOptions;
+type SourceMap = functions.internal.Chrome.SourceMap;
 type SourceMapInput = functions.internal.Chrome.SourceMapInput;
 type SourceMapOutput = functions.internal.Chrome.SourceMapOutput;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
@@ -53,9 +54,52 @@ interface GulpTask {
     data: GulpData;
 }
 
+const REGEXP_INDEXOBJECT = /([^[\s.]+)((?:\s*\[[^\]]+\]\s*)+)?\s*\.?\s*/g;
+const REGEXP_INDEXARRAY = /\[\s*(["'])?(.+?)\1\s*\]/g;
+
+function getObjectValue(data: PlainObject, key: string, joinString = ' ') {
+    REGEXP_INDEXOBJECT.lastIndex = 0;
+    let found = false,
+        value: unknown = data,
+        match: Null<RegExpMatchArray>;
+    while (match = REGEXP_INDEXOBJECT.exec(key)) {
+        if (typeof value === 'object' && value !== null) {
+            value = value[match[1]];
+            if (match[2]) {
+                REGEXP_INDEXARRAY.lastIndex = 0;
+                let subMatch: Null<RegExpMatchArray>;
+                while (subMatch = REGEXP_INDEXARRAY.exec(match[2])) {
+                    const index = subMatch[2].trim();
+                    if (typeof value === 'object' && value !== null && subMatch[1] || /^\d+$/.test(index) && (typeof value === 'string' || Array.isArray(value))) {
+                        value = value[index];
+                    }
+                    else {
+                        return '';
+                    }
+                }
+            }
+            if (value !== undefined && value !== null) {
+                found = true;
+                continue;
+            }
+        }
+        return '';
+    }
+    if (found) {
+        if (Array.isArray(value)) {
+            return value.join(joinString);
+        }
+        else if (typeof value === 'object') {
+            return JSON.stringify(value);
+        }
+        return (value as string).toString();
+    }
+    return '';
+}
+
 const getRelativePath = (file: ExternalAsset, filename = file.filename) => Node.toPosix(path.join(file.moveTo || '', file.pathname, filename));
 
-const FileManager = class extends Module implements IFileManager {
+class FileManager extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {
         if (!ignorePermissions) {
             const { disk_read, disk_write, unc_read, unc_write } = value;
@@ -137,8 +181,8 @@ const FileManager = class extends Module implements IFileManager {
     public productionRelease = false;
     public Image: Null<ImageConstructor> = null;
     public Chrome: Null<IChrome> = null;
+    public Cloud: Null<ICloud> = null;
     public Watch: Null<IWatch> = null;
-    public Cloud: Null<CloudModule> = null;
     public Compress: Null<CompressModule> = null;
     public Gulp: Null<GulpModule> = null;
     public baseAsset: Null<ExternalAsset> = null;
@@ -185,6 +229,9 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 break;
             }
+            case 'cloud':
+                this.Cloud = new Cloud(args[0] as CloudModule, this.body.database);
+                break;
             case 'watch':
                 this.Watch = Watch;
                 if (typeof args[0] === 'number' && args[0] > 0) {
@@ -192,27 +239,23 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 Watch.whenModified = (assets: ExternalAsset[]) => {
                     const manager = new FileManager(this.dirname, { ...this.body, assets });
+                    if (this.Chrome) {
+                        manager.install('chrome', this.Chrome.settings);
+                    }
+                     if (this.Cloud) {
+                        manager.install('cloud', this.Cloud.settings, this.Cloud.database);
+                    }
                     if (this.Compress) {
                         manager.install('compress', this.Compress);
                     }
-                    if (this.Cloud) {
-                        manager.install('cloud', this.Cloud);
-                    }
                     if (this.Gulp) {
                         manager.install('gulp', this.Gulp);
-                    }
-                    if (this.Chrome) {
-                        manager.install('chrome', this.Chrome.settings);
                     }
                     manager.processAssets();
                 };
                 break;
             case 'compress':
                 this.Compress = args[0] as CompressModule;
-                break;
-            case 'cloud':
-                this.Cloud = Cloud.settings;
-                Cloud.settings = args[0] as CloudModule;
                 break;
             case 'gulp':
                 this.Gulp = args[0] as GulpModule;
@@ -289,7 +332,7 @@ const FileManager = class extends Module implements IFileManager {
         return this.assets.filter(item => item.mimeType === '@text/html');
     }
     findAsset(uri: string, fromElement?: boolean) {
-        return this.assets.find(item => item.uri === uri && (fromElement && item.textContent || !fromElement && !item.textContent) && !item.invalid);
+        return this.assets.find(item => item.uri === uri && (fromElement && item.outerHTML || !fromElement && !item.outerHTML) && !item.invalid);
     }
     replaceUri(source: string, segments: string[], value: string, matchSingle = true, base64?: boolean) {
         let output: Undef<string>;
@@ -367,7 +410,7 @@ const FileManager = class extends Module implements IFileManager {
         }
         return moveTo + value;
     }
-    assignFilename(file: ExternalAsset | CloudServiceUpload) {
+    assignFilename(file: ExternalAsset | CloudStorageUpload) {
         const filename = file.filename;
         if (filename) {
             return filename.startsWith('__assign__') ? file.filename = uuid.v4() + filename.substring(10) : filename;
@@ -454,7 +497,7 @@ const FileManager = class extends Module implements IFileManager {
     }
     transformCss(file: ExternalAsset, source: string) {
         const getCloudUUID = (item: Undef<ExternalAsset>, url: string) => {
-            if (item && Cloud.getService('upload', item.cloudStorage)) {
+            if (item && this.Cloud?.getStorage('upload', item.cloudStorage)) {
                 if (!item.inlineCssCloud) {
                     (file.inlineCssMap ||= {})[item.inlineCssCloud = uuid.v4()] = url;
                 }
@@ -464,7 +507,7 @@ const FileManager = class extends Module implements IFileManager {
         };
         let output: Undef<string>;
         for (const item of this.assets) {
-            if (item.base64 && item.uri && !item.textContent && !item.invalid) {
+            if (item.base64 && item.uri && !item.outerHTML && !item.invalid) {
                 const url = this.relativePosix(file, item.uri);
                 if (url) {
                     const replaced = this.replaceUri(output || source, [item.base64.replace(/\+/g, '\\+')], getCloudUUID(item, url), false, true);
@@ -621,15 +664,117 @@ const FileManager = class extends Module implements IFileManager {
         const { format, mimeType } = file;
         switch (mimeType) {
             case '@text/html': {
+                let html = this.getUTF8String(file, fileUri),
+                    source = html,
+                    current = html,
+                    pattern: Undef<RegExp>,
+                    match: Null<RegExpExecArray>;
                 const minifySpace = (value: string) => value.replace(/(\s+|\/)/g, '');
                 const getOuterHTML = (css: boolean, value: string) => css ? `<link rel="stylesheet" href="${value}" />` : `<script src="${value}"></script>`;
                 const checkInlineOptions = (value: string) => /data-chrome-options="[^"]*?inline[^"]*"/.test(value);
+                const formatTag = (outerHTML: string) => outerHTML.replace(/"\s*>$/, '" />');
+                const formatAttr = (key: string, value?: Null<string>) => value !== undefined ? key + (value !== null ? `="${value}"` : '') : '';
+                const replaceTry = (outerHTML: string, replaceWith: string) => {
+                    source = source.replace(outerHTML, replaceWith);
+                    if (current === source) {
+                        source = source.replace(formatTag(outerHTML), replaceWith);
+                    }
+                };
+                const replaceMinify = (outerHTML: string, replaceWith: string, tagPattern?: RegExp) => {
+                    if (current === source) {
+                        outerHTML = minifySpace(outerHTML);
+                        if (tagPattern) {
+                            tagPattern.lastIndex = 0;
+                        }
+                        else {
+                            tagPattern = /(\s*)<[\w-]+[^>]*>[\s\S]*?<\/\2>\n*/g;
+                        }
+                        while (match = tagPattern.exec(html)) {
+                            if (outerHTML === minifySpace(match[0])) {
+                                source = source.replace(match[0], (replaceWith ? match[1] : '') + replaceWith);
+                                break;
+                            }
+                        }
+                    }
+                    html = source;
+                };
+                const cloud = this.Cloud;
+                if (cloud && cloud.database) {
+                    const cacheKey = uuid.v4();
+                    for (const item of cloud.database) {
+                        const outerHTML = item.element?.outerHTML;
+                        if (outerHTML) {
+                            const result = await cloud.getDatabaseRows(item, cacheKey);
+                            if (result.length) {
+                                const template = item.value;
+                                let replaceWith = '';
+                                if (typeof template === 'string') {
+                                    match = /^(\s*<[^>]+?>)[\S\s]*?(<\/[^>]+?>\s*)$/.exec(outerHTML);
+                                    if (match) {
+                                        const opening = match[1];
+                                        const closing = match[2];
+                                        let output = '';
+                                        for (const row of result) {
+                                            let value = template;
+                                            pattern = /\$\{\s*(\w+)\s*\}/g;
+                                            while (match = pattern.exec(template)) {
+                                                value = value.replace(match[0], getObjectValue(row, match[1]));
+                                            }
+                                            output += value;
+                                        }
+                                        replaceWith = opening + output + closing;
+                                    }
+                                }
+                                else {
+                                    replaceWith = outerHTML;
+                                    for (const attr in template) {
+                                        let columns = template[attr]!;
+                                        if (typeof columns === 'string') {
+                                            columns = [columns];
+                                        }
+                                        for (const row of result) {
+                                            let value = '',
+                                                joinString = ' ';
+                                            for (const col of columns) {
+                                                if (col[0] === ':') {
+                                                    const join = /^:join\((.*)\)$/.exec(col);
+                                                    if (join) {
+                                                        joinString = join[1];
+                                                    }
+                                                    continue;
+                                                }
+                                                value += (value ? joinString : '') + getObjectValue(row, col, joinString);
+                                            }
+                                            if (value) {
+                                                const replacement = ' ' + formatAttr(attr, value);
+                                                match = new RegExp(`\\s*${attr}="(?:[^"]|(?<=\\\\)")*"`).exec(replaceWith);
+                                                replaceWith = match ? replaceWith.replace(match[0], replacement) : replaceWith.replace(/^(\s*<[\w-]+)\s*/, (...capture) => capture[1] + replacement);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                if (replaceWith && replaceWith !== outerHTML) {
+                                    current = source;
+                                    replaceTry(outerHTML, replaceWith);
+                                    replaceMinify(outerHTML, replaceWith);
+                                    if (current !== source) {
+                                        for (const asset of this.assets) {
+                                            if (asset.outerHTML === outerHTML) {
+                                                asset.outerHTML = replaceWith;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    html = source;
+                }
                 const baseUri = file.uri!;
                 const saved = new Set<string>();
-                let html = this.getUTF8String(file, fileUri),
-                    source = html,
-                    pattern = /(\s*)<(script|link|style)([^>]*?)(\s+data-chrome-file="\s*(save|export)As:\s*((?:[^"]|\\")+)")([^>]*)>(?:[\s\S]*?<\/\2>\n*)?/ig,
-                    match: Null<RegExpExecArray>;
+                pattern = /(\s*)<(script|link|style)([^>]*?)(\s+data-chrome-file="\s*(save|export)As:\s*((?:[^"]|(?<=\\)")+)")([^>]*)>(?:[\s\S]*?<\/\2>\n*)?/ig;
                 while (match = pattern.exec(html)) {
                     const items = match[6].split('::').map(item => item.trim());
                     if (items[0] === '~') {
@@ -641,12 +786,12 @@ const FileManager = class extends Module implements IFileManager {
                     }
                     else {
                         const script = match[2].toLowerCase() === 'script';
-                        if (saved.has(location) || match[5] === 'export' && new RegExp(`<${script ? 'script' : 'link'}[^>]+?(?:${script ? 'src' : 'href'}=(["'])${location}\\1|data-chrome-file="saveAs:${location}[:"])[^>]*>`, 'i').test(html)) {
+                        if (saved.has(location) || match[5] === 'export' && new RegExp(`<${script ? 'script' : 'link'}[^>]+?(?:${script ? 'src' : 'href'}="${location}"|data-chrome-file="\\s*saveAs:\\s*${location}\\s*[:"])[^>]*>`, 'i').test(html)) {
                             source = source.replace(match[0], '');
                         }
                         else if (match[5] === 'save') {
                             const content = match[0].replace(match[4], '');
-                            const src = new RegExp(`\\s+${script ? 'src' : 'href'}="(?:[^"]|\\\\")+?"`, 'i').exec(content) || new RegExp(`\\s+${script ? 'src' : 'href'}='(?:[^']|\\\\')+?'`, 'i').exec(content);
+                            const src = new RegExp(`\\s+${script ? 'src' : 'href'}="(?:[^"]|(?<=\\\\)")+"`, 'i').exec(content);
                             if (src) {
                                 source = source.replace(match[0], content.replace(src[0], `${script ? ' src' : ' href'}="${location}"`));
                                 saved.add(location);
@@ -659,101 +804,12 @@ const FileManager = class extends Module implements IFileManager {
                     }
                 }
                 html = source;
-                pattern = /(\s*)<(script|style)[^>]*>([\s\S]*?)<\/\2>\n*/ig;
+                pattern = /(\s*)<(script|style)[^>]*>([\s\S]*?)<\/\2>\n*/g;
                 for (const item of this.assets) {
                     if (item.invalid && !item.exclude) {
                         continue;
                     }
-                    const { textContent, trailingContent } = item;
-                    if (textContent) {
-                        const { bundleIndex, inlineContent, attributes = [] } = item;
-                        const replacing = source;
-                        let output = '',
-                            replaceWith = '';
-                        const getAttribute = (name: string, value?: Null<string>) => value !== undefined ? name + (value !== null ? `="${value}"` : '') : '';
-                        const formattedTag = () => textContent.replace(/">$/, '" />');
-                        const replaceTry = () => {
-                            source = source.replace(textContent, replaceWith);
-                            if (replacing === source) {
-                                source = source.replace(formattedTag(), replaceWith);
-                            }
-                        };
-                        const replaceMinify = () => {
-                            if (replacing === source) {
-                                pattern.lastIndex = 0;
-                                const content = item.content && minifySpace(item.content);
-                                const outerContent = minifySpace(textContent);
-                                while (match = pattern.exec(html)) {
-                                    if (outerContent === minifySpace(match[0]) || content && content === minifySpace(match[3])) {
-                                        source = source.replace(match[0], (replaceWith ? match[1] : '') + replaceWith);
-                                        break;
-                                    }
-                                }
-                            }
-                            html = source;
-                        };
-                        if (inlineContent) {
-                            const id = `<!-- ${uuid.v4()} -->`;
-                            replaceWith = `<${inlineContent}${attributes ? attributes.map(({ key, value }) => getAttribute(key, value)).join('') : ''}>${id}</${inlineContent}>`;
-                            replaceTry();
-                            replaceMinify();
-                            if (replacing !== source) {
-                                item.inlineContent = id;
-                                item.watch = false;
-                                if (item.fileUri) {
-                                    this.filesToRemove.add(item.fileUri);
-                                }
-                            }
-                        }
-                        else if (bundleIndex === 0 || bundleIndex === -1) {
-                            let value: string;
-                            if (Cloud.getService('upload', item.cloudStorage)) {
-                                value = uuid.v4();
-                                item.inlineCloud = value;
-                            }
-                            else {
-                                value = item.relativePath!;
-                            }
-                            output = getOuterHTML(/^\s*<link\b/i.test(textContent) || !!item.mimeType?.endsWith('/css'), value);
-                        }
-                        else if (item.exclude || bundleIndex !== undefined) {
-                            source = source.replace(new RegExp(`\\s*${escapeRegexp(textContent)}\\n*`), '');
-                            if (replacing === source) {
-                                source = source.replace(new RegExp(`\\s*${escapeRegexp(formattedTag())}\\n*`), '');
-                            }
-                            replaceMinify();
-                            continue;
-                        }
-                        if (attributes.length || output) {
-                            output ||= textContent;
-                            for (const { key, value } of attributes) {
-                                match = new RegExp(`(\\s*)${key}(?:=(?:"([^"]|\\")*?"|'([^']|\\')*?')|\b)`).exec(output);
-                                if (match) {
-                                    output = output.replace(match[0], value !== undefined ? (match[1] ? ' ' : '') + getAttribute(key, value) : '');
-                                }
-                                else if (value !== undefined) {
-                                    match = /^(\s*)<([\w-]+)(\s*)/.exec(output);
-                                    if (match) {
-                                        output = output.replace(match[0], match[1] + '<' + match[2] + ' ' + getAttribute(key, value) + (match[3] ? ' ' : ''));
-                                    }
-                                }
-                            }
-                            if (output !== textContent) {
-                                replaceWith = output;
-                                replaceTry();
-                                replaceMinify();
-                                if (replacing !== source) {
-                                    item.textContent = output;
-                                }
-                                else {
-                                    delete item.inlineCloud;
-                                }
-                            }
-                            else {
-                                delete item.inlineCloud;
-                            }
-                        }
-                    }
+                    const { trailingContent, outerHTML } = item;
                     if (trailingContent) {
                         pattern.lastIndex = 0;
                         const content = trailingContent.map(trailing => minifySpace(trailing.value));
@@ -764,6 +820,78 @@ const FileManager = class extends Module implements IFileManager {
                         }
                         html = source;
                     }
+                    if (outerHTML) {
+                        current = source;
+                        const { bundleIndex, inlineContent, attributes = {} } = item;
+                        let output = '',
+                            tagPattern: Undef<RegExp>;
+                        if (inlineContent) {
+                            const id = `<!-- ${uuid.v4()} -->`;
+                            let replaceWith = '<' + inlineContent;
+                            for (const key in attributes) {
+                                replaceWith += formatAttr(key, attributes[key]);
+                            }
+                            replaceWith += `>${id}</${inlineContent}>`;
+                            replaceTry(outerHTML, replaceWith);
+                            replaceMinify(outerHTML, replaceWith, pattern);
+                            if (current !== source) {
+                                item.inlineContent = id;
+                                item.watch = false;
+                                if (item.fileUri) {
+                                    this.filesToRemove.add(item.fileUri);
+                                }
+                            }
+                        }
+                        else if (bundleIndex === 0 || bundleIndex === -1) {
+                            let value: string;
+                            if (cloud && cloud.getStorage('upload', item.cloudStorage)) {
+                                value = uuid.v4();
+                                item.inlineCloud = value;
+                            }
+                            else {
+                                value = item.relativePath!;
+                            }
+                            output = getOuterHTML(/^\s*<link\b/i.test(outerHTML) || !!item.mimeType?.endsWith('/css'), value);
+                            tagPattern = pattern;
+                        }
+                        else if (item.exclude || bundleIndex !== undefined) {
+                            source = source.replace(new RegExp(`\\s*${escapeRegexp(outerHTML)}\\n*`), '');
+                            if (current === source) {
+                                source = source.replace(new RegExp(`\\s*${escapeRegexp(formatTag(outerHTML))}\\n*`), '');
+                                replaceMinify(outerHTML, '', bundleIndex !== undefined ? pattern : undefined);
+                            }
+                            continue;
+                        }
+                        if (Object.keys(attributes).length || output) {
+                            output ||= outerHTML;
+                            for (const key in attributes) {
+                                const value = attributes[key];
+                                match = new RegExp(`(\\s*)${key}(?:="([^"]|(?<=\\\\)")*"|\b)`).exec(output);
+                                if (match) {
+                                    output = output.replace(match[0], value !== undefined ? (match[1] ? ' ' : '') + formatAttr(key, value) : '');
+                                }
+                                else if (value !== undefined) {
+                                    match = /^(\s*<[\w-]+)(\s*)/.exec(output);
+                                    if (match) {
+                                        output = output.replace(match[0], match[1] + ' ' + formatAttr(key, value) + (match[2] ? ' ' : ''));
+                                    }
+                                }
+                            }
+                            if (output !== outerHTML) {
+                                replaceTry(outerHTML, output);
+                                replaceMinify(outerHTML, output, tagPattern);
+                                if (current !== source) {
+                                    item.outerHTML = output;
+                                }
+                                else {
+                                    delete item.inlineCloud;
+                                }
+                            }
+                            else {
+                                delete item.inlineCloud;
+                            }
+                        }
+                    }
                 }
                 const baseUrl = this.baseAsset?.baseUrl;
                 for (const item of this.assets) {
@@ -771,11 +899,11 @@ const FileManager = class extends Module implements IFileManager {
                         continue;
                     }
                     found: {
-                        const { uri, textContent } = item;
-                        if (textContent) {
+                        const { uri, outerHTML } = item;
+                        if (outerHTML) {
                             item.mimeType ||= mime.lookup(uri).toString();
                             const segments = [uri];
-                            let value: string,
+                            let value = item.relativePath!,
                                 relativePath: Undef<string>,
                                 ascending: Undef<boolean>;
                             if (baseUrl) {
@@ -791,7 +919,7 @@ const FileManager = class extends Module implements IFileManager {
                             if (relativePath) {
                                 segments.push(relativePath);
                             }
-                            if (Cloud.getService('upload', item.cloudStorage)) {
+                            if (cloud && cloud.getStorage('upload', item.cloudStorage)) {
                                 value = uuid.v4();
                                 item.inlineCloud = value;
                             }
@@ -800,10 +928,7 @@ const FileManager = class extends Module implements IFileManager {
                                 item.inlineBase64 = value;
                                 item.watch = false;
                             }
-                            else {
-                                value = item.relativePath!;
-                            }
-                            const innerContent = textContent.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/\w+>)?\s*$/, '');
+                            const innerContent = outerHTML.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/\w+>)?\s*$/, '');
                             const replaced = this.replaceUri(innerContent, segments, value);
                             if (replaced) {
                                 const result = source.replace(innerContent, replaced);
@@ -830,13 +955,10 @@ const FileManager = class extends Module implements IFileManager {
                             delete item.inlineBase64;
                         }
                         else if (item.base64) {
-                            let value: string;
-                            if (Cloud.getService('upload', item.cloudStorage)) {
+                            let value = item.relativePath!;
+                            if (cloud && cloud.getStorage('upload', item.cloudStorage)) {
                                 value = uuid.v4();
                                 item.inlineCloud = value;
-                            }
-                            else {
-                                value = item.relativePath!;
                             }
                             const result = this.replaceUri(source, [item.base64.replace(/\+/g, '\\+')], value, false, true);
                             if (result) {
@@ -851,9 +973,9 @@ const FileManager = class extends Module implements IFileManager {
                 }
                 source = (this.transformCss(file, source) || source)
                     .replace(/\s*<(script|link|style)[^>]+?data-chrome-file="exclude"[^>]*>[\s\S]*?<\/\1>\n*/ig, '')
-                    .replace(/\s*<script[^>]*?data-chrome-template="([^"]|\\")+?"[^>]*>[\s\S]*?<\/script>\n*/ig, '')
+                    .replace(/\s*<script[^>]*?data-chrome-template="([^"]|(?<=\\)")*"[^>]*>[\s\S]*?<\/script>\n*/ig, '')
                     .replace(/\s*<(script|link)[^>]+?data-chrome-file="exclude"[^>]*>\n*/ig, '')
-                    .replace(/\s+data-(?:use|chrome-[\w-]+)="([^"]|\\")+?"/g, '');
+                    .replace(/\s+data-(?:use|chrome-[\w-]+)="([^"]|(?<=\\)")*"/g, '');
                 if (format) {
                     const result = await module.transform('html', format, source, this.createSourceMap(file, fileUri, source));
                     if (result) {
@@ -1674,9 +1796,10 @@ const FileManager = class extends Module implements IFileManager {
         }
         const compressMap = new WeakSet<ExternalAsset>();
         if (this.Cloud) {
+            const cloud = this.Cloud;
             const cloudMap: ObjectMap<ExternalAsset> = {};
             const cloudCssMap: ObjectMap<ExternalAsset> = {};
-            const localStorage = new Map<ExternalAsset, CloudServiceUpload>();
+            const localStorage = new Map<ExternalAsset, CloudStorageUpload>();
             const bucketGroup = uuid.v4();
             const htmlFiles = this.getHtmlPages();
             const cssFiles: ExternalAsset[] = [];
@@ -1684,14 +1807,14 @@ const FileManager = class extends Module implements IFileManager {
             let endpoint: Undef<string>,
                 modifiedHtml: Undef<boolean>,
                 modifiedCss: Undef<Set<ExternalAsset>>;
-            Cloud.setObjectKeys(this.assets);
+            cloud.setObjectKeys(this.assets);
             if (htmlFiles.length === 1) {
-                const upload = Cloud.getService('upload', htmlFiles[0].cloudStorage)?.upload;
+                const upload = cloud.getStorage('upload', htmlFiles[0].cloudStorage)?.upload;
                 if (upload && upload.endpoint) {
                     endpoint = this.toPosix(upload.endpoint) + '/';
                 }
             }
-            const getFiles = (item: ExternalAsset, data: CloudServiceUpload) => {
+            const getFiles = (item: ExternalAsset, data: CloudStorageUpload) => {
                 const files = [item.fileUri!];
                 const transforms: string[] = [];
                 if (item.transforms && data.all) {
@@ -1707,20 +1830,19 @@ const FileManager = class extends Module implements IFileManager {
                 return [files, transforms];
             };
             const uploadFiles = (item: ExternalAsset, mimeType = item.mimeType) => {
-                const cloudMain = Cloud.getService('upload', item.cloudStorage);
+                const cloudMain = cloud.getStorage('upload', item.cloudStorage);
                 for (const storage of item.cloudStorage!) {
-                    if (Cloud.hasService('upload', storage)) {
-                        const service = storage.service;
+                    if (cloud.hasStorage('upload', storage)) {
                         const upload = storage.upload!;
                         if (storage === cloudMain && upload.localStorage === false) {
                             localStorage.set(item, upload);
                         }
                         let uploadHandler: UploadCallback;
                         try {
-                            uploadHandler = Cloud.getUploadHandler(Cloud.getCredential(storage), service);
+                            uploadHandler = cloud.getUploadHandler(cloud.getCredential(storage), storage.service);
                         }
                         catch (err) {
-                            this.writeFail(['Upload function not supported', service], err);
+                            this.writeFail(['Upload function not supported', storage.service], err);
                             continue;
                         }
                         tasks.push(new Promise<void>(resolve => {
@@ -1734,7 +1856,7 @@ const FileManager = class extends Module implements IFileManager {
                                         if (i === 0) {
                                             for (let j = 1; j < group.length; ++j) {
                                                 try {
-                                                    fileGroup.push([service === 'gcs' ? group[j] : fs.readFileSync(group[j]), path.extname(group[j])]);
+                                                    fileGroup.push([storage.service === 'gcs' ? group[j] : fs.readFileSync(group[j]), path.extname(group[j])]);
                                                 }
                                                 catch (err) {
                                                     this.writeFail('File not found', err);
@@ -1757,7 +1879,7 @@ const FileManager = class extends Module implements IFileManager {
                                                                 filename = path.basename(fileUri);
                                                             }
                                                         }
-                                                        uploadHandler({ buffer, service: storage, upload, fileUri, fileGroup, bucketGroup, filename, mimeType: mimeType || mime.lookup(fileUri) || undefined }, success);
+                                                        uploadHandler({ buffer, storage, upload, fileUri, fileGroup, bucketGroup, filename, mimeType: mimeType || mime.lookup(fileUri) || undefined }, success);
                                                     }
                                                     else {
                                                         success('');
@@ -1835,15 +1957,15 @@ const FileManager = class extends Module implements IFileManager {
                         }
                     }
                     for (const storage of item.cloudStorage) {
-                        if (storage.admin?.emptyBucket && Cloud.hasCredential(storage) && storage.bucket && !(bucketMap[storage.service] ||= new Map()).has(storage.bucket)) {
-                            bucketMap[storage.service].set(storage.bucket, Cloud.getCredential(storage));
+                        if (storage.admin?.emptyBucket && cloud.hasCredential('storage', storage) && storage.bucket && !(bucketMap[storage.service] ||= new Map()).has(storage.bucket)) {
+                            bucketMap[storage.service].set(storage.bucket, cloud.getCredential(storage));
                         }
                     }
                 }
             }
             for (const service in bucketMap) {
                 for (const [bucket, credential] of bucketMap[service]) {
-                    tasks.push(Cloud.deleteObjects(credential, { service, bucket, credential }).catch(err => this.writeFail(['Cloud provider not found', service], err)));
+                    tasks.push(cloud.deleteObjects(credential, { service, bucket, credential }).catch(err => this.writeFail(['Cloud provider not found', service], err)));
                 }
             }
             if (tasks.length) {
@@ -1951,7 +2073,7 @@ const FileManager = class extends Module implements IFileManager {
             for (const item of this.assets) {
                 if (item.cloudStorage) {
                     for (const data of item.cloudStorage) {
-                        if (Cloud.hasService('download', data)) {
+                        if (cloud.hasStorage('download', data)) {
                             const { active, pathname, filename, overwrite } = data.download!;
                             if (filename) {
                                 const service = data.service.toUpperCase();
@@ -1983,7 +2105,7 @@ const FileManager = class extends Module implements IFileManager {
                                     }
                                     else {
                                         try {
-                                            tasks.push(Cloud.downloadObject(Cloud.getCredential(data), data, (value: Null<Buffer | string>) => {
+                                            tasks.push(cloud.downloadObject(cloud.getCredential(data), data, (value: Null<Buffer | string>) => {
                                                 if (value) {
                                                     try {
                                                         const items = Array.from(downloadMap[location]);
@@ -2035,7 +2157,7 @@ const FileManager = class extends Module implements IFileManager {
             this.Watch.start(this.assets);
         }
     }
-};
+}
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = FileManager;

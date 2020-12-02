@@ -1,12 +1,12 @@
 import type * as gcs from '@google-cloud/storage';
 
-import type { GCSCloudCredential } from '../index';
+import type { GCSStorageCredential } from '../index';
 
 import path = require('path');
 import fs = require('fs-extra');
 import uuid = require('uuid');
 
-import { createClient, setPublicRead } from '../index';
+import { createStorageClient, setPublicRead } from '../index';
 
 type IFileManager = functions.IFileManager;
 type UploadHost = functions.internal.Cloud.UploadHost;
@@ -15,12 +15,12 @@ type UploadData = functions.internal.Cloud.UploadData;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-const getProjectId = (credential: GCSCloudCredential): string => require(path.resolve(credential.keyFilename || credential.keyFile!)).project_id || '';
+const getProjectId = (credential: GCSStorageCredential): string => require(path.resolve(credential.keyFilename || credential.keyFile!)).project_id || '';
 
-function upload(this: IFileManager, credential: GCSCloudCredential, service: string): UploadCallback {
-    const storage = createClient.call(this, credential, service);
+function upload(this: IFileManager, credential: GCSStorageCredential, service = 'GCS'): UploadCallback {
+    const storage = createStorageClient.call(this, credential);
     return async (data: UploadData, success: (value: string) => void) => {
-        let bucketName = data.service.bucket ||= data.bucketGroup || uuid.v4(),
+        let bucketName = data.storage.bucket ||= data.bucketGroup || uuid.v4(),
             bucket: Undef<gcs.Bucket>;
         if (!BUCKET_MAP[bucketName]) {
             try {
@@ -30,7 +30,7 @@ function upload(this: IFileManager, credential: GCSCloudCredential, service: str
                     [bucket] = await storage.createBucket(bucketName, credential);
                     bucketName = bucket.name;
                     this.formatMessage(service, 'Bucket created', bucketName, 'blue');
-                    if (data.service.admin?.publicRead) {
+                    if (data.storage?.publicRead) {
                         bucket.makePublic().then(() => setPublicRead.call(this, bucket!.acl.default, bucketName, true));
                     }
                 }
@@ -46,20 +46,19 @@ function upload(this: IFileManager, credential: GCSCloudCredential, service: str
         }
         bucket ||= storage.bucket(bucketName);
         const fileUri = data.fileUri;
-        const pathname = data.service.upload?.pathname || '';
+        const pathname = data.storage.upload?.pathname || '';
         let filename = data.filename;
         if (!filename || !data.upload.overwrite) {
             filename ||= path.basename(fileUri);
             try {
                 const originalName = filename;
-                let exists: Undef<boolean>,
-                    i = 0,
-                    j = 0;
+                const index = originalName.indexOf('.');
+                let i = 0,
+                    exists: Undef<boolean>;
                 do {
                     if (i > 0) {
-                        j = originalName.indexOf('.');
-                        if (j !== -1) {
-                            filename = originalName.substring(0, j) + `_${i}` + originalName.substring(j);
+                        if (index !== -1) {
+                            filename = originalName.substring(0, index) + `_${i}` + originalName.substring(index);
                         }
                         else {
                             filename = uuid.v4() + path.extname(fileUri);

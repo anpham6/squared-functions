@@ -1,9 +1,9 @@
-import type { AzureCloudCredential } from '../index';
+import type { AzureStorageCredential } from '../index';
 
 import path = require('path');
 import uuid = require('uuid');
 
-import { createClient } from '../index';
+import { createStorageClient } from '../index';
 
 type IFileManager = functions.IFileManager;
 type UploadHost = functions.internal.Cloud.UploadHost;
@@ -12,17 +12,17 @@ type UploadData = functions.internal.Cloud.UploadData;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function upload(this: IFileManager, credential: AzureCloudCredential, service: string): UploadCallback {
-    const blobServiceClient = createClient.call(this, credential, service);
+function upload(this: IFileManager, credential: AzureStorageCredential, service = 'AZURE'): UploadCallback {
+    const blobServiceClient = createStorageClient.call(this, credential);
     return async (data: UploadData, success: (value: string) => void) => {
-        const bucket = data.service.bucket ||= data.bucketGroup || uuid.v4();
+        const bucket = data.storage.bucket ||= data.bucketGroup || uuid.v4();
         const fileUri = data.fileUri;
         const containerClient = blobServiceClient.getContainerClient(bucket);
         if (!BUCKET_MAP[bucket]) {
             try {
                 if (!await containerClient.exists()) {
                     const { active, publicRead } = data.upload;
-                    await containerClient.create({ access: data.service.admin?.publicRead || publicRead || active && publicRead !== false ? 'blob' : 'container' });
+                    await containerClient.create({ access: data.storage.admin?.publicRead || publicRead || active && publicRead !== false ? 'blob' : 'container' });
                     this.formatMessage(service, 'Container created', bucket, 'blue');
                 }
             }
@@ -35,20 +35,19 @@ function upload(this: IFileManager, credential: AzureCloudCredential, service: s
             }
             BUCKET_MAP[bucket] = true;
         }
-        const pathname = data.service.upload?.pathname || '';
+        const pathname = data.storage.upload?.pathname || '';
         let filename = data.filename;
         if (!filename || !data.upload.overwrite) {
             filename ||= path.basename(fileUri);
             try {
                 const originalName = filename;
-                let exists: Undef<boolean>,
-                    i = 0,
-                    j = 0;
+                const index = originalName.indexOf('.');
+                let i = 0,
+                    exists: Undef<boolean>;
                 do {
                     if (i > 0) {
-                        j = originalName.indexOf('.');
-                        if (j !== -1) {
-                            filename = originalName.substring(0, j) + `_${i}` + originalName.substring(j);
+                        if (index !== -1) {
+                            filename = originalName.substring(0, index) + `_${i}` + originalName.substring(index);
                         }
                         else {
                             filename = uuid.v4() + path.extname(fileUri);
@@ -56,6 +55,7 @@ function upload(this: IFileManager, credential: AzureCloudCredential, service: s
                         }
                     }
                     const name = pathname + filename;
+                    exists = false;
                     for await (const blob of containerClient.listBlobsFlat({ includeUncommitedBlobs: true })) {
                         if (blob.name === name) {
                             exists = true;

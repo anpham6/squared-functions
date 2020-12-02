@@ -1,13 +1,13 @@
-import type { OCICloudCredential } from '../index';
+import type { OCIStorageCredential } from '../index';
 
-import { setCredential } from '../index';
+import { setStorageCredential } from '../index';
 
 type IFileManager = functions.IFileManager;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
-function download(this: IFileManager, credential: OCICloudCredential, service: string): DownloadCallback {
-    setCredential.call(this, credential);
+function download(this: IFileManager, credential: OCIStorageCredential, service = 'OCI'): DownloadCallback {
+    setStorageCredential.call(this, credential);
     return (require('../../s3/download') as DownloadHost).call(this, credential, service);
 }
 

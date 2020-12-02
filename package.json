@@ -27,6 +27,7 @@
   "license": "MIT",
   "homepage": "https://github.com/anpham6/squared-functions#readme",
   "devDependencies": {
+    "@azure/cosmos": "^3.9.3",
     "@azure/storage-blob": "^12.3.0",
     "@google-cloud/storage": "^5.5.0",
     "@types/aws-sdk": "^2.7.0",
@@ -41,7 +42,7 @@
     "@types/uuid": "^8.3.0",
     "@typescript-eslint/eslint-plugin": "^4.9.0",
     "@typescript-eslint/parser": "^4.9.0",
-    "aws-sdk": "^2.799.0",
+    "aws-sdk": "^2.800.0",
     "copyfiles": "^2.4.1",
     "eslint": "^7.14.0",
     "ibm-cos-sdk": "^1.8.0",

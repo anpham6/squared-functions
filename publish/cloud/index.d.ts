@@ -1,6 +1,6 @@
-import type { ICloud } from '../types/lib';
+import type { CloudConstructor } from '../types/lib';
 
-declare const Cloud: ICloud;
+declare const Cloud: CloudConstructor;
 
 export = Cloud;
 export as namespace Cloud;

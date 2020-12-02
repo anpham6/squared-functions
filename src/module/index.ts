@@ -56,7 +56,7 @@ const Module = class implements functions.IModule {
     }
     formatMessage(title: string, value: string | [string, string], message?: unknown, color: typeof ForegroundColor = 'green', bgColor: typeof BackgroundColor = 'bgBlack') {
         if (Array.isArray(value)) {
-            const length = value[1].length;
+            const length = value[1] ? value[1].length : 0;
             value = length ? value[0].padEnd(30) + (length < 28 ? chalk.blackBright(' '.repeat(28 - length)) : '') + chalk.blackBright('[') + (length > 28 ? value[1].substring(0, 25) + '...' : value[1]) + chalk.blackBright(']') : value[0].padEnd(60);
         }
         else {

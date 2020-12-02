@@ -4,11 +4,14 @@ import uuid = require('uuid');
 import Module from '../module';
 
 type ExternalAsset = functions.ExternalAsset;
+type CloudFeatures = functions.CloudFeatures;
 type CloudFunctions = functions.CloudFunctions;
 type CloudModule = functions.settings.CloudModule;
 type CloudService = functions.squared.CloudService;
-type CloudServiceAction = functions.squared.CloudServiceAction;
-type CloudServiceUpload = functions.squared.CloudServiceUpload;
+type CloudDatabase = functions.squared.CloudDatabase;
+type CloudStorage = functions.squared.CloudStorage;
+type CloudStorageAction = functions.squared.CloudStorageAction;
+type CloudStorageUpload = functions.squared.CloudStorageUpload;
 type ServiceClient = functions.internal.Cloud.ServiceClient;
 type UploadHost = functions.internal.Cloud.UploadHost;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
@@ -19,8 +22,8 @@ const CLOUD_SERVICE: ObjectMap<ServiceClient> = {};
 const CLOUD_UPLOAD: ObjectMap<UploadHost> = {};
 const CLOUD_DOWNLOAD: ObjectMap<DownloadHost> = {};
 
-function setUploadFilename(upload: CloudServiceUpload, filename: string) {
-    filename = Cloud.toPosix(filename.replace(/^\.*[\\/]+/, ''));
+function setUploadFilename(upload: CloudStorageUpload, filename: string) {
+    filename = filename.replace(/^\.*[\\/]+/, '');
     const index = filename.lastIndexOf('/');
     if (index !== -1) {
         const directory = filename.substring(0, index + 1);
@@ -30,15 +33,20 @@ function setUploadFilename(upload: CloudServiceUpload, filename: string) {
     return upload.filename = filename;
 }
 
-function hasSameBucket(provider: CloudService, other: CloudService) {
+function hasSameBucket(provider: CloudStorage, other: CloudStorage) {
     const endpoint = provider.upload!.endpoint;
     return (provider.service && other.service || endpoint && endpoint === other.upload!.endpoint) && provider.bucket === other.bucket;
 }
 
 const assignFilename = (value: string) => uuid.v4() + (path.extname(value) || '');
 
-const Cloud = new class extends Module implements functions.ICloud {
-    settings: CloudModule = {};
+class Cloud extends Module implements functions.ICloud {
+    constructor(
+        public settings: CloudModule = {},
+        public database: CloudDatabase[] = [])
+    {
+        super();
+    }
 
     setObjectKeys(assets: ExternalAsset[]) {
         const storage: ExternalAsset[] = [];
@@ -48,13 +56,13 @@ const Cloud = new class extends Module implements functions.ICloud {
                     const upload = data.upload;
                     if (upload) {
                         if (upload.filename) {
-                            setUploadFilename(upload, upload.filename);
+                            setUploadFilename(upload, this.toPosix(upload.filename));
                         }
                         if (upload.pathname) {
-                            upload.pathname = Cloud.toPosix(upload.pathname).replace(/^\/+/, '') + '/';
+                            upload.pathname = this.toPosix(upload.pathname).replace(/^\/+/, '') + '/';
                         }
                         else if (data.admin?.preservePath && item.pathname) {
-                            upload.pathname = Cloud.toPosix(path.join(item.moveTo || '', item.pathname)) + '/';
+                            upload.pathname = this.toPosix(path.join(item.moveTo || '', item.pathname)) + '/';
                         }
                     }
                 }
@@ -111,54 +119,70 @@ const Cloud = new class extends Module implements functions.ICloud {
             }
         }
     }
-    downloadObject(credential: PlainObject, data: CloudService, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string) {
-        const downloadHandler = this.getDownloadHandler(credential, data.service);
+    downloadObject(credential: PlainObject, storage: CloudStorage, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string) {
+        const downloadHandler = this.getDownloadHandler(credential, storage.service);
         return new Promise<void>(resolve => {
-            downloadHandler({ service: data, bucketGroup }, async (value: Null<Buffer | string>) => {
+            downloadHandler({ storage, bucketGroup }, async (value: Null<Buffer | string>) => {
                 await callback(value);
                 resolve();
             });
         });
     }
-    deleteObjects(credential: PlainObject, data: CloudService): Promise<void> {
-        const { service, bucket } = data;
+    deleteObjects(credential: PlainObject, storage: CloudStorage): Promise<void> {
+        const { service, bucket } = storage;
         if (service && bucket) {
-            return (CLOUD_SERVICE[service] ||= require(`../cloud/${service}`) as ServiceClient).deleteObjects.call(this, credential, service.toUpperCase(), bucket);
+            return (CLOUD_SERVICE[service] ||= require(`../cloud/${service}`) as ServiceClient).deleteObjects.call(this, credential, bucket, service.toUpperCase());
         }
         return Promise.resolve();
+    }
+    async getDatabaseRows(database: CloudDatabase, cacheKey?: string): Promise<PlainObject[]> {
+        if (this.hasCredential('database', database)) {
+            const host = CLOUD_SERVICE[database.service];
+            if (host.execDatabaseQuery) {
+                return host.execDatabaseQuery.call(this, this.getCredential(database), database, cacheKey);
+            }
+        }
+        return [];
     }
     getCredential(data: CloudService): PlainObject {
         return typeof data.credential === 'string' ? { ...this.settings[data.service] && this.settings[data.service][data.credential] } : { ...data.credential };
     }
-    getService(action: CloudFunctions, data: Undef<CloudService[]>) {
+    getStorage(action: CloudFunctions, data: Undef<CloudStorage[]>) {
         if (data) {
             for (const item of data) {
-                const service = this.hasService(action, item);
+                const service = this.hasStorage(action, item);
                 if (service && service.active) {
                     return item;
                 }
             }
         }
     }
-    hasService(action: CloudFunctions, data: CloudService): CloudServiceAction | false {
+    hasStorage(action: CloudFunctions, storage: CloudStorage): CloudStorageAction | false {
         switch (action) {
             case 'upload':
                 break;
             case 'download':
-                if (!data.bucket) {
+                if (!storage.bucket) {
                     return false;
                 }
                 break;
             default:
                 return false;
         }
-        const result = data[action];
-        return result && this.hasCredential(data) ? result : false;
+        const result = storage[action];
+        return result && this.hasCredential('storage', storage) ? result : false;
     }
-    hasCredential(data: CloudService) {
+    hasCredential(feature: CloudFeatures, data: CloudService) {
         const service = data.service;
         try {
-            return (CLOUD_SERVICE[service] ||= require(`../cloud/${service}`) as ServiceClient).validate(this.getCredential(data));
+            const client = CLOUD_SERVICE[service] ||= require(`../cloud/${service}`) as ServiceClient;
+            const credential = this.getCredential(data);
+            switch (feature) {
+                case 'storage':
+                    return typeof client.validateStorage === 'function' && client.validateStorage(credential);
+                case 'database':
+                    return typeof client.validateDatabase === 'function' && client.validateDatabase(credential, (data as CloudDatabase).table);
+            }
         }
         catch (err) {
             this.writeFail(['Cloud provider not found', service], err);
@@ -171,7 +195,7 @@ const Cloud = new class extends Module implements functions.ICloud {
     getDownloadHandler(credential: PlainObject, service: string): DownloadCallback {
         return (CLOUD_DOWNLOAD[service] ||= require(`../cloud/${service}/download`) as DownloadHost).call(this, credential, service.toUpperCase());
     }
-}();
+}
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = Cloud;

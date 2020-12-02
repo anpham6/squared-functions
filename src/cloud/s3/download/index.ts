@@ -1,19 +1,19 @@
 import type * as aws from 'aws-sdk';
 
-import type { S3CloudCredential } from '../index';
+import type { S3StorageCredential } from '../index';
 
-import { createClient } from '../index';
+import { createStorageClient } from '../index';
 
 type IFileManager = functions.IFileManager;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 type DownloadData = functions.internal.Cloud.DownloadData;
 type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
-function download(this: IFileManager, credential: S3CloudCredential, service: string, sdk = 'aws-sdk/clients/s3'): DownloadCallback {
-    const s3 = createClient.call(this, credential, service, sdk);
+function download(this: IFileManager, credential: S3StorageCredential, service = 'S3', sdk = 'aws-sdk/clients/s3'): DownloadCallback {
+    const s3 = createStorageClient.call(this, credential, service, sdk);
     return async (data: DownloadData, success: (value: Null<Buffer>) => void) => {
-        const { bucket: Bucket, download: Download } = data.service;
-        if (Bucket && Download) {
+        const { bucket: Bucket, download: Download } = data.storage;
+        if (Bucket && Download && Download.filename) {
             try {
                 const params: aws.S3.Types.GetObjectRequest = {
                     Bucket,
@@ -25,7 +25,7 @@ function download(this: IFileManager, credential: S3CloudCredential, service: st
                     if (!err) {
                         this.formatMessage(service, 'Download success', location);
                         success(result.Body as Buffer);
-                        if (Download.deleteStorage) {
+                        if (Download.deleteObject) {
                             s3.deleteObject(params, error => {
                                 if (!error) {
                                     this.formatMessage(service, 'Delete success', location, 'grey');
@@ -47,7 +47,7 @@ function download(this: IFileManager, credential: S3CloudCredential, service: st
             }
         }
         else {
-            this.formatMessage(service, 'Bucket not specified', Download ? Download.filename : '', 'red');
+            this.formatMessage(service, 'Bucket not specified', Download && Download.filename, 'red');
             success(null);
         }
     };

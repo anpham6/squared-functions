@@ -12,6 +12,7 @@ type BoolString = boolean | string;
 
 declare namespace functions {
     type ExternalCategory = "html" | "css" | "js";
+    type CloudFeatures = "storage" | "database";
     type CloudFunctions = "upload" | "download";
     type FileManagerWriteImageCallback = (options: internal.Image.UsingOptions, error?: Null<Error>) => void;
     type FileManagerPerformAsyncTaskCallback = (parent?: ExternalAsset) => void;
@@ -19,8 +20,6 @@ declare namespace functions {
     type CompressTryImageCallback = (result: string, err?: Null<Error>) => void;
 
     namespace squared {
-        type OutputAttribute = KeyValue<string, Null<string>>;
-
         interface LocationUri {
             pathname: string;
             filename: string;
@@ -33,8 +32,7 @@ declare namespace functions {
             base64?: string;
             commands?: string[];
             compress?: CompressFormat[];
-            cloudStorage?: CloudService[];
-            attributes?: OutputAttribute[];
+            cloudStorage?: CloudStorage[];
             watch?: boolean | WatchInterval;
             tasks?: string[];
         }
@@ -48,37 +46,47 @@ declare namespace functions {
         interface CloudService extends ObjectMap<unknown> {
             service: string;
             credential: string | PlainObject;
-            bucket?: string;
-            admin?: CloudServiceAdmin;
-            upload?: CloudServiceUpload;
-            download?: CloudServiceDownload;
         }
 
-        interface CloudServiceAdmin {
+        interface CloudDatabase extends CloudService {
+            name: string;
+            value: string | ObjectMap<string | string[]>;
+            id?: string;
+            table?: string;
+            query?: string;
+            element?: {
+                outerHTML?: string;
+            };
+        }
+
+        interface CloudStorage extends CloudService {
+            bucket?: string;
+            admin?: CloudStorageAdmin;
+            upload?: CloudStorageUpload;
+            download?: CloudStorageDownload;
+        }
+
+        interface CloudStorageAdmin {
             publicRead?: boolean;
             emptyBucket?: boolean;
             preservePath?: boolean;
         }
 
-        interface CloudServiceAction {
+        interface CloudStorageAction extends Partial<LocationUri> {
             active?: boolean;
-            filename?: string;
-            pathname?: string;
             overwrite?: boolean;
         }
 
-        interface CloudServiceUpload extends CloudServiceAction {
+        interface CloudStorageUpload extends CloudStorageAction {
             localStorage?: boolean;
             endpoint?: string;
             all?: boolean;
             publicRead?: boolean;
         }
 
-        interface CloudServiceDownload extends CloudServiceAction {
-            filename: string;
-            pathname?: string;
+        interface CloudStorageDownload extends CloudStorageAction {
             versionId?: string;
-            deleteStorage?: string;
+            deleteObject?: string;
         }
 
         interface WatchInterval {
@@ -102,6 +110,7 @@ declare namespace functions {
     }
 
     namespace chrome {
+        type OutputAttribute = KeyValue<string, Null<string>>;
         type UnusedStyles = string[];
 
         interface ChromeAsset {
@@ -114,14 +123,10 @@ declare namespace functions {
             bundleId?: number;
             bundleIndex?: number;
             bundleRoot?: string;
-            textContent?: string;
+            outerHTML?: string;
             trailingContent?: FormattableContent[];
             inlineContent?: string;
-        }
-
-        interface AttributeValue {
-            name: string;
-            value?: Null<string>;
+            attributes?: ObjectMap<Undef<Null<string>>>;
         }
 
         interface FormattableContent {
@@ -213,16 +218,17 @@ declare namespace functions {
 
         namespace Cloud {
             type CloudService = squared.CloudService;
-            type CloudServiceUpload = squared.CloudServiceUpload;
-            type CloudServiceDownload = squared.CloudServiceDownload;
+            type CloudStorage = squared.CloudStorage;
+            type CloudStorageUpload = squared.CloudStorageUpload;
+            type CloudStorageDownload = squared.CloudStorageDownload;
 
             interface FunctionData {
-                service: CloudService;
+                storage: CloudStorage;
                 bucketGroup?: string;
             }
 
             interface UploadData extends FunctionData {
-                upload: CloudServiceUpload;
+                upload: CloudStorageUpload;
                 buffer: Buffer;
                 fileUri: string;
                 fileGroup: [Buffer | string, string][];
@@ -233,14 +239,15 @@ declare namespace functions {
             interface DownloadData extends FunctionData {}
 
             interface ServiceClient {
-                validate(credential: PlainObject): boolean;
-                deleteObjects(this: ICloud | IFileManager, credential: unknown, service: string, bucket: string, sdk?: string): Promise<void>;
-                createClient?<T>(this: ICloud | IFileManager, credential: unknown, service: string): T;
-                setCredential?(this: ICloud | IFileManager, credential: unknown): void;
-                setPublicRead?(this: ICloud | IFileManager, ...args: unknown[]): void;
+                validateStorage?(credential: PlainObject): boolean;
+                createStorageClient?<T>(this: ICloud | IFileManager, credential: unknown, service?: string): T;
+                deleteObjects(this: ICloud | IFileManager, credential: unknown, bucket: string, service?: string, sdk?: string): Promise<void>;
+                validateDatabase?(credential: PlainObject, tableName?: string): boolean;
+                createDatabaseClient?<T>(this: ICloud | IFileManager, credential: unknown): T;
+                execDatabaseQuery?(this: ICloud | IFileManager, credential: unknown, data: squared.CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
             }
 
-            type ServiceHost<T> = (this: ICloud | IFileManager, credential: unknown, service: string, sdk?: string) => T;
+            type ServiceHost<T> = (this: ICloud | IFileManager, credential: unknown, service?: string, sdk?: string) => T;
             type UploadHost = ServiceHost<UploadCallback>;
             type DownloadHost = ServiceHost<DownloadCallback>;
             type UploadCallback = (data: UploadData, success: (value: string) => void) => Promise<void>;
@@ -353,15 +360,24 @@ declare namespace functions {
 
     interface ICloud extends IModule {
         settings: settings.CloudModule;
+        database: squared.CloudDatabase[];
         setObjectKeys(assets: ExternalAsset[]): void;
-        deleteObjects(credential: unknown, data: squared.CloudService, bucketGroup?: string): Promise<void>;
-        downloadObject(credential: PlainObject, data: squared.CloudService, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string): Promise<void>;
-        getService(action: CloudFunctions, data: Undef<squared.CloudService[]>): Undef<squared.CloudService>;
-        hasService(action: CloudFunctions, data: squared.CloudService): squared.CloudServiceAction | false;
-        hasCredential(data: squared.CloudService): boolean;
+        deleteObjects(credential: unknown, storage: squared.CloudStorage, bucketGroup?: string): Promise<void>;
+        downloadObject(credential: PlainObject, storage: squared.CloudStorage, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string): Promise<void>;
+        getStorage(action: CloudFunctions, data: Undef<squared.CloudStorage[]>): Undef<squared.CloudStorage>;
+        hasStorage(action: CloudFunctions, storage: squared.CloudStorage): squared.CloudStorageUpload | false;
+        getDatabaseRows(database: squared.CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
+        hasCredential(feature: CloudFeatures, service: squared.CloudService): boolean;
+        getCredential(data: squared.CloudService): PlainObject;
         getUploadHandler(credential: PlainObject, service: string): internal.Cloud.UploadCallback;
         getDownloadHandler(credential: PlainObject, service: string): internal.Cloud.DownloadCallback;
     }
+
+    interface CloudConstructor {
+        new(settings: settings.CloudModule): ICloud;
+    }
+
+    const Cloud: CloudConstructor;
 
     interface IChrome extends IModule {
         settings: settings.ChromeModule;
@@ -395,10 +411,10 @@ declare namespace functions {
         productionRelease: boolean;
         Image: Null<ImageConstructor>;
         Chrome: Null<IChrome>;
+        Cloud: Null<ICloud>;
         Watch: Null<IWatch>;
         Compress: Null<settings.CompressModule>;
         Gulp: Null<settings.GulpModule>;
-        Cloud: Null<settings.CloudModule>;
         readonly body: RequestBody;
         readonly files: Set<string>;
         readonly filesQueued: Set<string>;
@@ -518,10 +534,10 @@ declare namespace functions {
         unc_write?: BoolString;
         cors?: CorsOptions;
         request_post_limit?: string;
-        watch_interval?: number;
         env?: string;
         port?: StringMap;
         routing?: internal.Serve.Routing;
+        watch?: settings.WatchModule;
         image?: settings.ImageModule;
         compress?: settings.CompressModule;
         cloud?: settings.CloudModule;
@@ -533,6 +549,7 @@ declare namespace functions {
         assets: ExternalAsset[];
         unusedStyles?: chrome.UnusedStyles;
         transpileMap?: chrome.TranspileMap;
+        database?: squared.CloudDatabase[];
     }
 
     interface ExternalAsset extends squared.FileAsset, chrome.ChromeAsset {

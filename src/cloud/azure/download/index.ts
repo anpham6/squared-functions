@@ -1,17 +1,17 @@
-import type { AzureCloudCredential } from '../index';
+import type { AzureStorageCredential } from '../index';
 
-import { createClient } from '../index';
+import { createStorageClient } from '../index';
 
 type IFileManager = functions.IFileManager;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 type DownloadData = functions.internal.Cloud.DownloadData;
 type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
-function download(this: IFileManager, credential: AzureCloudCredential, service: string): DownloadCallback {
-    const blobServiceClient = createClient.call(this, credential, service);
+function download(this: IFileManager, credential: AzureStorageCredential, service = 'AZURE'): DownloadCallback {
+    const blobServiceClient = createStorageClient.call(this, credential);
     return async (data: DownloadData, success: (value: Null<Buffer>) => void) => {
-        const { bucket: Bucket, download: Download } = data.service;
-        if (Bucket && Download) {
+        const { bucket: Bucket, download: Download } = data.storage;
+        if (Bucket && Download && Download.filename) {
             try {
                 const location = Bucket + '/' + Download.filename;
                 const blobClient = blobServiceClient.getContainerClient(Bucket);
@@ -20,7 +20,7 @@ function download(this: IFileManager, credential: AzureCloudCredential, service:
                     .then(buffer => {
                         this.formatMessage(service, 'Download success', location);
                         success(buffer);
-                        if (Download.deleteStorage) {
+                        if (Download.deleteObject) {
                             blobClient.delete()
                                 .then(() => this.formatMessage(service, 'Delete success', location, 'grey'))
                                 .catch(err => {
@@ -40,7 +40,7 @@ function download(this: IFileManager, credential: AzureCloudCredential, service:
             }
         }
         else {
-            this.formatMessage(service, 'Container not specified', Download ? Download.filename : '', 'red');
+            this.formatMessage(service, 'Container not specified', Download && Download.filename, 'red');
             success(null);
         }
     };

@@ -17,15 +17,15 @@ const REGEXP_METHOD = /!\s*([A-Za-z$][\w$]*)/g;
 const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : NaN;
 
 abstract class Image extends Module implements functions.IImage {
-    public static using(this: IFileManager, options: UsingOptions) {}
+    public static async using(this: IFileManager, options: UsingOptions) {}
 
-    public parseCrop(value: string) {
+    parseCrop(value: string) {
         const match = REGEXP_CROP.exec(value);
         if (match) {
             return { x: +match[1], y: +match[2], width: +match[3], height: +match[4] } as CropData;
         }
     }
-    public parseOpacity(value: string) {
+    parseOpacity(value: string) {
         const match = REGEXP_OPACITY.exec(value);
         if (match) {
             const opacity = +match[1];
@@ -35,7 +35,7 @@ abstract class Image extends Module implements functions.IImage {
         }
         return NaN;
     }
-    public parseQuality(value: string) {
+    parseQuality(value: string) {
         const match = REGEXP_QUALITY.exec(value);
         if (match) {
             const result: QualityData = { value: NaN, preset: match[2], nearLossless: NaN };
@@ -52,13 +52,13 @@ abstract class Image extends Module implements functions.IImage {
             return result;
         }
     }
-    public parseResize(value: string) {
+    parseResize(value: string) {
         const match = REGEXP_RESIZE.exec(value);
         if (match) {
             return { width: match[1] === 'auto' ? Infinity : +match[1], height: match[2] === 'auto' ? Infinity : +match[2], mode: match[4] || 'resize', algorithm: match[3], align: [match[5], match[6]], color: parseHexDecimal(match[7]) } as ResizeData;
         }
     }
-    public parseRotation(value: string) {
+    parseRotation(value: string) {
         const match = REGEXP_ROTATE.exec(value);
         if (match) {
             const result = new Set<number>();
@@ -70,7 +70,7 @@ abstract class Image extends Module implements functions.IImage {
             }
         }
     }
-    public parseMethod(value: string) {
+    parseMethod(value: string) {
         REGEXP_METHOD.lastIndex = 0;
         const result: string[] = [];
         let match: Null<RegExpExecArray>;

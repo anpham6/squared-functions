@@ -357,30 +357,19 @@ There are possible scenarios when a transformation may cause an asset type to ch
 <link id="sass-example" rel="alternate" type="text/plain" href="css/dev.sass" />
 ```
 
+Using element "id" is recommended when there are multiple elements with identical structure and content. Similar to JSON use only double quotes (or &amp;quot;) and do not use unnecessary extra spaces. Tags that are not well-formed may fail to be replaced.
+
 ```javascript
 {
   "selector": "#sass-example",
   "type": "css",
   "filename": "prod.css",
-  "attributes": [
-    {
-      "key": "id"
-    },
-    {
-      "key": "rel",
-      "value": "stylesheet"
-    },
-    {
-      "key": "type",
-      "value": "text/css"
-    },
-    {
-      "key": "title",
-      "value": ""
-    },
-    {
-      "key": "disabled",
-      "value": null
+  "attributes": {
+      "id": undefined,
+      "rel": "stylesheet",
+      "type": "text/css",
+      "title": "",
+      "disabled": null
     }
   ],
   "process": [
@@ -417,7 +406,7 @@ interface AssetCommand extends OutputModifiers {
     process?: string[]; // type: js | css
     commands?: string[]; // type: image
     cloudStorage?: CloudService[];
-    attributes?: { key: string, value?: string }[];
+    attributes?: { [key: string]: value?: Null<string> };
     tasks?: string[];
     watch?: boolean | { interval?: number, expires?: string }; // type: js | css | image (expires: 1h 1m 1s)
     template?: {
@@ -445,21 +434,21 @@ Manual installation of the SDK is required including an account with at least on
 
 ```xml
 * Amazon AWS
-  - npm install aws-sdk
   - S3: https://aws.amazon.com/free (5GB)
   - OCI: https://www.oracle.com/cloud/free (10GB)
+  - npm install aws-sdk
 
 * Microsoft
-  - npm install @azure/storage-blob
   - Azure: https://azure.microsoft.com/en-us/free (5GB)
+  - npm install @azure/storage-blob
 
 * Google
-  - npm install @google-cloud/storage
   - GCS: https://cloud.google.com/free (5GB)
+  - npm install @google-cloud/storage
 
 * IBM
-  - npm install ibm-cos-sdk
   - IBM: https://www.ibm.com/cloud/free (25GB)
+  - npm install ibm-cos-sdk
 
 * Oracle
   - OCI: Uses S3 compatibility API
@@ -593,7 +582,55 @@ squared.saveAs('index.zip', {
 });
 ```
 
-Inline commands are not supported when using cloud storage.
+### Cloud database
+
+Basic text replacement can be achieved using any of these cloud databases. Each provider has a different query syntax and consulting their documentation is recommended.
+
+```xml
+* Microsoft
+  - Azure: https://azure.microsoft.com/en-us/free (5GB + 400RU/s)
+  - npm install @azure/cosmos
+  - SQL API
+```
+
+```javascript
+{
+  "selector": ".card:nth-of-type(1) p",
+  "type": "text",
+  "cloudDatabase": {
+    "service": "azure",
+    "credential": {
+      "endpoint": "https://squared-001.documents.azure.com:443",
+      "key": "**********"
+    },
+    "name": "squared", // Database name
+    "table": "demo",
+    "query": "SELECT * FROM c WHERE c.id = '1'", // https://docs.microsoft.com/en-us/azure/cosmos-db/sql-query-getting-started
+    "value": "<b>${title}</b>: ${description}" // Only one field per template literal
+  }
+}
+```
+
+```javascript
+{
+  "selector": ".card:nth-of-type(2) img",
+  "type": "attribute",
+  "cloudDatabase": {
+    "service": "azure",
+    "credential": "db-main",
+    "name": "squared",
+    "table": "demo",
+    "id": "2",
+    "partitionKey": "Pictures",
+    "value": {
+      "src": "imageData.src", // Template literal syntax is not supported
+      "style": [":join(; )" /* optional: " " */, "imageData.style[0]", "imageData.style[1]"]
+    }
+  }
+}
+```
+
+Inline commands are not supported when using cloud features.
 
 ### Options: Development / Production
 

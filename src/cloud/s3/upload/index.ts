@@ -1,11 +1,11 @@
 import type * as aws from 'aws-sdk';
 
-import type { S3CloudCredential } from '../index';
+import type { S3StorageCredential } from '../index';
 
 import path = require('path');
 import uuid = require('uuid');
 
-import { createClient, setPublicRead } from '../index';
+import { createStorageClient, setPublicRead } from '../index';
 
 type IFileManager = functions.IFileManager;
 type UploadHost = functions.internal.Cloud.UploadHost;
@@ -14,11 +14,11 @@ type UploadData = functions.internal.Cloud.UploadData;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function upload(this: IFileManager, credential: S3CloudCredential, service: string, sdk = 'aws-sdk/clients/s3'): UploadCallback {
-    const s3 = createClient.call(this, credential, service, sdk);
+function upload(this: IFileManager, credential: S3StorageCredential, service = 'S3', sdk = 'aws-sdk/clients/s3'): UploadCallback {
+    const s3 = createStorageClient.call(this, credential, service, sdk);
     return async (data: UploadData, success: (value: string) => void) => {
-        const Bucket = data.service.bucket ||= data.bucketGroup || uuid.v4();
-        const admin = data.service.admin;
+        const Bucket = data.storage.bucket ||= data.bucketGroup || uuid.v4();
+        const admin = data.storage.admin;
         if (!BUCKET_MAP[service + Bucket] || admin?.publicRead) {
              const result = await s3.headBucket({ Bucket })
                 .promise()
@@ -52,20 +52,19 @@ function upload(this: IFileManager, credential: S3CloudCredential, service: stri
             }
         }
         const fileUri = data.fileUri;
-        const pathname = data.service.upload?.pathname || '';
+        const pathname = data.storage.upload?.pathname || '';
         let filename = data.filename;
         if (!filename || !data.upload.overwrite) {
             filename ||= path.basename(fileUri);
             try {
                 const originalName = filename;
-                let exists: Undef<boolean>,
-                    i = 0,
-                    j = 0;
+                const index = originalName.indexOf('.');
+                let i = 0,
+                    exists: Undef<boolean>;
                 do {
                     if (i > 0) {
-                        j = filename.indexOf('.');
-                        if (j !== -1) {
-                            filename = originalName.substring(0, j) + `_${i}` + originalName.substring(j);
+                        if (index !== -1) {
+                            filename = originalName.substring(0, index) + `_${i}` + originalName.substring(index);
                         }
                         else {
                             filename = uuid.v4() + path.extname(fileUri);

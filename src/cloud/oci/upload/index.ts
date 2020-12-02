@@ -1,12 +1,12 @@
-import type { OCICloudCredential } from '../index';
+import type { OCIStorageCredential } from '../index';
 
-import { setCredential } from '../index';
+import { setStorageCredential } from '../index';
 
 type IFileManager = functions.IFileManager;
 type UploadHost = functions.internal.Cloud.UploadHost;
 
-function upload(this: IFileManager, credential: OCICloudCredential, service: string) {
-    setCredential.call(this, credential);
+function upload(this: IFileManager, credential: OCIStorageCredential, service = 'OCI') {
+    setStorageCredential.call(this, credential);
     return (require('../../s3/upload') as UploadHost).call(this, credential, service);
 }
 
