@@ -1857,7 +1857,7 @@ class FileManager extends Module implements IFileManager {
                                         if (i === 0) {
                                             for (let j = 1; j < group.length; ++j) {
                                                 try {
-                                                    fileGroup.push([storage.service === 'gcs' ? group[j] : fs.readFileSync(group[j]), path.extname(group[j])]);
+                                                    fileGroup.push([storage.service === 'gcloud' ? group[j] : fs.readFileSync(group[j]), path.extname(group[j])]);
                                                 }
                                                 catch (err) {
                                                     this.writeFail('File not found', err);

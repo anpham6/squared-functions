@@ -30,8 +30,7 @@ export function validateDatabase(credential: OCIDatabaseCredential, data: CloudD
 export async function createDatabaseClient(this: ICloud | IFileManager, credential: OCIDatabaseCredential) {
     try {
         const oracledb = require('oracledb');
-        const connection = await oracledb.getConnection(credential) as db.Connection;
-        return connection.getSodaDatabase();
+        return await oracledb.getConnection(credential) as db.Connection;
     }
     catch (err) {
         this.writeFail([`Install Oracle DB?`, 'npm i oracledb']);
@@ -45,41 +44,54 @@ export function setStorageCredential(this: ICloud | IFileManager, credential: OC
     credential.signatureVersion = 'v4';
 }
 
-export async function deleteObjects(this: ICloud, credential: OCIStorageCredential, bucket: string, service = 'OCI') {
+export async function deleteObjects(this: ICloud, credential: OCIStorageCredential, bucket: string, service = 'oci') {
     setStorageCredential.call(this, credential);
     return deleteObjects_s3.call(this, credential, bucket, service);
 }
 
 export async function execDatabaseQuery(this: ICloud | IFileManager, credential: OCIDatabaseCredential, data: OCIDatabaseQuery, cacheKey?: string) {
-    const client = await createDatabaseClient.call(this, credential);
+    const connection = await createDatabaseClient.call(this, credential);
     let result: Undef<any[]>;
     try {
-        const collection = await client.openCollection(data.table!);
-        if (collection) {
+        if (cacheKey) {
+            cacheKey += data.table;
+        }
+        if (data.id) {
             if (cacheKey) {
-                cacheKey += data.name + data.table!;
-            }
-            if (data.id) {
-                if (cacheKey) {
-                    cacheKey += data.id;
-                    if (CACHE_DB[cacheKey]) {
-                        return CACHE_DB[cacheKey];
-                    }
+                cacheKey += data.id;
+                if (CACHE_DB[cacheKey]) {
+                    return CACHE_DB[cacheKey];
                 }
+            }
+            const collection = await connection.getSodaDatabase().openCollection(data.table);
+            if (collection) {
                 const item = await collection.find().key(data.id).getOne();
                 if (item) {
                     result = [item.getContent()];
                 }
             }
-            else if (data.query) {
-                const [query, keyId] = typeof data.query === 'object' ? [data.query, JSON.stringify(data.query)] : [JSON.parse(data.query) as PlainObject, data.query];
-                if (cacheKey) {
-                    cacheKey += keyId.replace(/\s+/g, '');
-                    if (CACHE_DB[cacheKey]) {
-                        return CACHE_DB[cacheKey];
-                    }
+        }
+        else if (data.query) {
+            const [query, keyId] = typeof data.query === 'object' ? [data.query, JSON.stringify(data.query)] : [data.query, data.query];
+            const maxRows = Math.max(data.limit || 0, 0);
+            if (cacheKey) {
+                cacheKey += keyId.replace(/\s+/g, '') + maxRows;
+                if (CACHE_DB[cacheKey]) {
+                    return CACHE_DB[cacheKey];
                 }
-                result = (await collection.find().filter(query).getDocuments()).map(item => item.getContent());
+            }
+            if (typeof query === 'object') {
+                const collection = await connection.getSodaDatabase().openCollection(data.table);
+                if (collection) {
+                    let operation = collection.find().filter(query);
+                    if (maxRows > 0) {
+                        operation = operation.limit(maxRows);
+                    }
+                    result = (await operation.getDocuments()).map(item => item.getContent());
+                }
+            }
+            else {
+                result = (await connection.execute(query, [], { outFormat: 4002, maxRows })).rows;
             }
         }
     }

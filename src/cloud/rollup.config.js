@@ -62,33 +62,33 @@ export default [
         }
     },
     {
-        input: './build/cloud/gcs/index.js',
+        input: './build/cloud/gcloud/index.js',
         treeshake: false,
         output: {
-            file: './publish/cloud/gcs/index.js',
+            file: './publish/cloud/gcloud/index.js',
             format: 'cjs',
             strict: false,
-            banner: `/* @squared-functions/cloud/gcs ${version}\n   https://github.com/anpham6/squared-functions */\n`
+            banner: `/* @squared-functions/cloud/gcloud ${version}\n   https://github.com/anpham6/squared-functions */\n`
         }
     },
     {
-        input: './build/cloud/gcs/upload/index.js',
+        input: './build/cloud/gcloud/upload/index.js',
         treeshake: false,
         output: {
-            file: './publish/cloud/gcs/upload/index.js',
+            file: './publish/cloud/gcloud/upload/index.js',
             format: 'cjs',
             strict: false,
-            banner: `/* @squared-functions/cloud/gcs/upload ${version}\n   https://github.com/anpham6/squared-functions */\n`
+            banner: `/* @squared-functions/cloud/gcloud/upload ${version}\n   https://github.com/anpham6/squared-functions */\n`
         }
     },
     {
-        input: './build/cloud/gcs/download/index.js',
+        input: './build/cloud/gcloud/download/index.js',
         treeshake: false,
         output: {
-            file: './publish/cloud/gcs/download/index.js',
+            file: './publish/cloud/gcloud/download/index.js',
             format: 'cjs',
             strict: false,
-            banner: `/* @squared-functions/cloud/gcs/download ${version}\n   https://github.com/anpham6/squared-functions */\n`
+            banner: `/* @squared-functions/cloud/gcloud/download ${version}\n   https://github.com/anpham6/squared-functions */\n`
         }
     },
     {

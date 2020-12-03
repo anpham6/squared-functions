@@ -434,24 +434,25 @@ Manual installation of the SDK is required including an account with at least on
 
 ```xml
 * Amazon
-  - AWS: https://aws.amazon.com/free (5GB)
-  - OCI: https://www.oracle.com/cloud/free (10GB)
   - npm install aws-sdk
+  - AWS: https://aws.amazon.com/free (5GB)
 
 * Microsoft
-  - Azure: https://azure.microsoft.com/en-us/free (5GB)
   - npm install @azure/storage-blob
+  - Azure: https://azure.microsoft.com/en-us/free (5GB)
 
 * Google
-  - GCS: https://cloud.google.com/free (5GB)
   - npm install @google-cloud/storage
+  - GCloud: https://cloud.google.com/free (5GB)
 
 * IBM
-  - IBM: https://www.ibm.com/cloud/free (25GB)
   - npm install ibm-cos-sdk
+  - IBM: https://www.ibm.com/cloud/free (25GB)
 
 * Oracle
-  - OCI: Uses S3 compatibility API
+  - npm install aws-sdk
+  - OCI: https://www.oracle.com/cloud/free (10GB)
+  - Uses S3 compatibility API
   - Cannot create new public buckets
 ```
 
@@ -508,10 +509,10 @@ Other service providers can be integrated similarly except for credential verifi
       }
     },
     {
-      "service": "gcs",
+      "service": "gcloud",
       "bucket": "squared-003", // UUID generated when omitted (optional)
       "credential": {
-        "keyFilename": "./gcs.json" // Path to JSON credentials
+        "keyFilename": "./gcloud.json" // Path to JSON credentials
       },
       "admin": {
         "publicRead": false, // New buckets (optional: Not supported OCI)
@@ -588,18 +589,30 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
 
 ```xml
 * Microsoft Cosmos DB
-  - Azure: https://azure.microsoft.com/en-us/services/cosmos-db (5GB + 400RU/s)
   - npm install @azure/cosmos
+  - Azure: https://azure.microsoft.com/en-us/services/cosmos-db (5GB + 400RU/s)
   - SQL API
 
-* Oracle Autonomous JSON DB
-  - OCI: https://www.oracle.com/autonomous-database/autonomous-json-database (20GB)
+* Google Firestore
+  - npm install @google-cloud/firestore
+  - GCloud: https://cloud.google.com/firestore (1GB + 50K/20K read/write)
+
+* Oracle Autonomous
   - npm install oracledb
+
+  - Data Warehouse
+  - OCI: https://www.oracle.com/autonomous-database (20GB)
+  - SQL API
+
+  - JSON
+  - OCI: https://www.oracle.com/autonomous-database/autonomous-json-database (Paid - 1TB)
   - SODA API
 ```
 
 ```javascript
-// Azure: https://docs.microsoft.com/en-us/azure/cosmos-db/sql-query-getting-started
+// NOTE: Table is required and used by all providers for caching results
+
+/* Azure: https://docs.microsoft.com/en-us/azure/cosmos-db/sql-query-getting-started (query) */
 {
   "selector": ".card:nth-of-type(1) p",
   "type": "text",
@@ -616,7 +629,23 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
   }
 }
 
-// OCI: https://docs.oracle.com/en/database/oracle/simple-oracle-document-access/adsdi/overview-soda-filter-specifications-qbes.html
+/* GCloud: https://firebase.google.com/docs/firestore/query-data/queries (where + orderBy) */
+{
+  "selector": ".card:nth-of-type(1) p",
+  "type": "text",
+  "cloudDatabase": {
+    "service": "gcloud",
+    "credential": {
+      "keyFilename": "./gcloud.json"
+    },
+    "table": "demo",
+    "where": [["group", "==", "Firestore"], ["id", "==", "1"]],
+    "orderBy": [["title", "asc"]],
+    "value": "<b>${title}</b>: ${description}" // Only one field per template literal
+  }
+}
+
+/* OCI: https://docs.oracle.com/en/database/oracle/simple-oracle-document-access/adsdi/overview-soda-filter-specifications-qbes.html (query) */
 {
   "selector": ".card:nth-of-type(1) p",
   "type": "text",
@@ -628,27 +657,10 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
       "connectionString": "tcps://adb.us-phoenix-1.oraclecloud.com:1522/abcdefghijklmno_squared_high.adb.oraclecloud.com?wallet_location=/Users/Oracle/wallet"
     },
     "table": "demo",
-    "query": { "id": { "$eq": "1" } },
+    "query": "SELECT * from demo WHERE id = '1'", // SQL
+    "query": { "id": { "$eq": "1" } }, // SODA
+    "limit": 1, // optional
     "value": "<b>${title}</b>: ${description}"
-  }
-}
-```
-
-```javascript
-{
-  "selector": ".card:nth-of-type(2) img",
-  "type": "attribute",
-  "cloudDatabase": {
-    "service": "azure",
-    "credential": "db-main",
-    "name": "squared",
-    "table": "demo",
-    "id": "2", // Oracle (key)
-    "partitionKey": "Pictures", // Azure (required)
-    "value": {
-      "src": "imageData.src", // Template literal syntax is not supported
-      "style": [":join(; )" /* optional: " " */, "imageData.style[0]", "imageData.style[1]"]
-    }
   }
 }
 ```

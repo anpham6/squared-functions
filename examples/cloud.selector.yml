@@ -29,10 +29,10 @@ cloudStorage:
     accountKey: "**********"
   upload:
     endpoint: http://squaredjs.azureedge.net/squared-002
-- service: gcs
+- service: gcloud
   bucket: squared-003
   credential:
-    keyFilename: "./gcs.json"
+    keyFilename: "./gcloud.json"
   admin:
     publicRead: true
     emptyBucket: true

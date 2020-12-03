@@ -32,7 +32,7 @@ export function validateStorage(credential: AWSStorageCredential) {
     return !!(credential.accessKeyId && credential.secretAccessKey);
 }
 
-export function createStorageClient(this: ICloud | IFileManager, credential: AWSStorageCredential, service = 'AWS', sdk = 'aws-sdk/clients/s3') {
+export function createStorageClient(this: ICloud | IFileManager, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3') {
     try {
         const S3 = require(sdk) as Constructor<aws.S3>;
         return new S3(credential);
@@ -43,7 +43,7 @@ export function createStorageClient(this: ICloud | IFileManager, credential: AWS
     }
 }
 
-export async function deleteObjects(this: ICloud, credential: AWSStorageCredential, Bucket: string, service = 'AWS', sdk = 'aws-sdk/clients/s3') {
+export async function deleteObjects(this: ICloud, credential: AWSStorageCredential, Bucket: string, service = 'aws', sdk = 'aws-sdk/clients/s3') {
     try {
         const s3 = createStorageClient.call(this, credential, service, sdk);
         const Contents = (await s3.listObjects({ Bucket }).promise()).Contents;
@@ -62,7 +62,7 @@ export async function deleteObjects(this: ICloud, credential: AWSStorageCredenti
     }
 }
 
-export function setPublicRead(this: IFileManager, s3: aws.S3, Bucket: string, service = 'AWS') {
+export function setPublicRead(this: IFileManager, s3: aws.S3, Bucket: string, service = 'aws') {
     const callback = (err: Null<Error>) => {
         if (!err) {
             this.formatMessage(service, 'Grant public-read', Bucket, 'blue');

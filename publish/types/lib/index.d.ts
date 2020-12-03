@@ -49,11 +49,12 @@ declare namespace functions {
         }
 
         interface CloudDatabase extends CloudService {
-            value: string | ObjectMap<string | string[]>;
+            table: string;
             name?: string;
-            table?: string;
             id?: string;
             query?: string | PlainObject;
+            limit?: number;
+            value: string | ObjectMap<string | string[]>;
             element?: {
                 outerHTML?: string;
             };
@@ -294,7 +295,7 @@ declare namespace functions {
             azure?: {
                 [key: string]: external.Cloud.StorageSharedKeyCredential;
             };
-            gcs?: {
+            gcloud?: {
                 [key: string]: GoogleAuthOptions;
             };
             ibm?: {

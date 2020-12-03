@@ -20,7 +20,7 @@ export function setStorageCredential(this: ICloud | IFileManager, credential: IB
     credential.signatureVersion = 'iam';
 }
 
-export async function deleteObjects(this: ICloud, credential: IBMStorageCredential, bucket: string, service = 'IBM') {
+export async function deleteObjects(this: ICloud, credential: IBMStorageCredential, bucket: string, service = 'ibm') {
     setStorageCredential.call(this, credential);
     return deleteObjects_s3.call(this, credential as PlainObject, bucket, service, 'ibm-cos-sdk/clients/s3');
 }

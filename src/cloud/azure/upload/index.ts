@@ -12,7 +12,7 @@ type UploadData = functions.internal.Cloud.UploadData;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function upload(this: IFileManager, credential: AzureStorageCredential, service = 'AZURE'): UploadCallback {
+function upload(this: IFileManager, credential: AzureStorageCredential, service = 'azure'): UploadCallback {
     const blobServiceClient = createStorageClient.call(this, credential);
     return async (data: UploadData, success: (value: string) => void) => {
         const bucket = data.storage.bucket ||= data.bucketGroup || uuid.v4();

@@ -55,7 +55,7 @@ export function createDatabaseClient(this: ICloud | IFileManager, credential: Az
     }
 }
 
-export async function deleteObjects(this: ICloud, credential: AzureStorageCredential, bucket: string, service = 'AZURE') {
+export async function deleteObjects(this: ICloud, credential: AzureStorageCredential, bucket: string, service = 'azure') {
     try {
         const containerClient = createStorageClient.call(this, credential).getContainerClient(bucket);
         const tasks: Promise<storage.BlobDeleteResponse>[] = [];
@@ -82,11 +82,10 @@ export async function execDatabaseQuery(this: ICloud | IFileManager, credential:
     const client = createDatabaseClient.call(this, credential);
     let result: Undef<any[]>;
     try {
-        const database = client.database(data.name!);
-        const container = database.container(data.table!);
+        const container = client.database(data.name!).container(data.table);
         const partitionKey = data.partitionKey;
         if (cacheKey) {
-            cacheKey += data.name! + data.table! + (partitionKey || '');
+            cacheKey += data.name! + data.table + (partitionKey || '');
         }
         if (data.id) {
             if (cacheKey) {
@@ -101,8 +100,9 @@ export async function execDatabaseQuery(this: ICloud | IFileManager, credential:
             }
         }
         else if (typeof data.query === 'string') {
+            const limit = Math.max(data.limit || 0, 0);
             if (cacheKey) {
-                cacheKey += data.query;
+                cacheKey += data.query.replace(/\s+/g, '') + limit;
                 if (CACHE_DB[cacheKey]) {
                     return CACHE_DB[cacheKey];
                 }
@@ -124,6 +124,9 @@ export async function execDatabaseQuery(this: ICloud | IFileManager, credential:
                         options[attr] = data[attr];
                         break;
                 }
+            }
+            if (limit > 0) {
+                options.maxItemCount ||= limit;
             }
             result = (await container.items.query(data.query, options).fetchAll()).resources;
         }

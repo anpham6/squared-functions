@@ -5,7 +5,7 @@ import { setStorageCredential } from '../index';
 type IFileManager = functions.IFileManager;
 type UploadHost = functions.internal.Cloud.UploadHost;
 
-function upload(this: IFileManager, credential: IBMStorageCredential, service = 'IBM') {
+function upload(this: IFileManager, credential: IBMStorageCredential, service = 'ibm') {
     setStorageCredential.call(this, credential);
     return (require('../../aws/upload') as UploadHost).call(this, credential, service, 'ibm-cos-sdk/clients/s3');
 }

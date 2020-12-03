@@ -62,10 +62,10 @@ const Module = class implements functions.IModule {
         else {
             value = value.padEnd(60);
         }
-        this.writeMessage(title.padEnd(5), value, message, color, bgColor);
+        this.writeMessage(title.padEnd(6), value, message, color, bgColor);
     }
     writeMessage(title: string, value: string, message?: unknown, color: typeof ForegroundColor = 'green', bgColor: typeof BackgroundColor = 'bgBlack') {
-        console.log(`${chalk[bgColor].bold[color](title)}: ${value}` + getMessage(message));
+        console.log(`${chalk[bgColor].bold[color](title.toUpperCase())}: ${value}` + getMessage(message));
     }
 };
 
