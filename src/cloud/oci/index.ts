@@ -1,7 +1,7 @@
 import type { ConfigurationOptions } from 'aws-sdk/lib/core';
 import type * as db from 'oracledb';
 
-import { deleteObjects as deleteObjects_s3 } from '../s3';
+import { deleteObjects as deleteObjects_s3 } from '../aws';
 
 type IFileManager = functions.IFileManager;
 type ICloud = functions.ICloud;

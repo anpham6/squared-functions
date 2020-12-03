@@ -4,7 +4,7 @@ import type { ConfigurationOptions } from 'aws-sdk/lib/core';
 type IFileManager = functions.IFileManager;
 type ICloud = functions.ICloud;
 
-export interface S3StorageCredential extends ConfigurationOptions {
+export interface AWSStorageCredential extends ConfigurationOptions {
     endpoint?: string;
 }
 
@@ -28,11 +28,11 @@ function getPublicReadPolicy(bucket: string) {
     });
 }
 
-export function validateStorage(credential: S3StorageCredential) {
+export function validateStorage(credential: AWSStorageCredential) {
     return !!(credential.accessKeyId && credential.secretAccessKey);
 }
 
-export function createStorageClient(this: ICloud | IFileManager, credential: S3StorageCredential, service = 'S3', sdk = 'aws-sdk/clients/s3') {
+export function createStorageClient(this: ICloud | IFileManager, credential: AWSStorageCredential, service = 'AWS', sdk = 'aws-sdk/clients/s3') {
     try {
         const S3 = require(sdk) as Constructor<aws.S3>;
         return new S3(credential);
@@ -43,7 +43,7 @@ export function createStorageClient(this: ICloud | IFileManager, credential: S3S
     }
 }
 
-export async function deleteObjects(this: ICloud, credential: S3StorageCredential, Bucket: string, service = 'S3', sdk = 'aws-sdk/clients/s3') {
+export async function deleteObjects(this: ICloud, credential: AWSStorageCredential, Bucket: string, service = 'AWS', sdk = 'aws-sdk/clients/s3') {
     try {
         const s3 = createStorageClient.call(this, credential, service, sdk);
         const Contents = (await s3.listObjects({ Bucket }).promise()).Contents;
@@ -62,7 +62,7 @@ export async function deleteObjects(this: ICloud, credential: S3StorageCredentia
     }
 }
 
-export function setPublicRead(this: IFileManager, s3: aws.S3, Bucket: string, service = 'S3') {
+export function setPublicRead(this: IFileManager, s3: aws.S3, Bucket: string, service = 'AWS') {
     const callback = (err: Null<Error>) => {
         if (!err) {
             this.formatMessage(service, 'Grant public-read', Bucket, 'blue');
@@ -72,7 +72,7 @@ export function setPublicRead(this: IFileManager, s3: aws.S3, Bucket: string, se
         }
     };
     switch (service) {
-        case 'S3':
+        case 'AWS':
             s3.putBucketPolicy({ Bucket, Policy: getPublicReadPolicy(Bucket) }, callback);
             break;
         case 'IBM':

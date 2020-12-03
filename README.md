@@ -433,8 +433,8 @@ Here is the equivalent page using only inline commands with "data-chrome-file" a
 Manual installation of the SDK is required including an account with at least one of these cloud storage provider.
 
 ```xml
-* Amazon AWS
-  - S3: https://aws.amazon.com/free (5GB)
+* Amazon
+  - AWS: https://aws.amazon.com/free (5GB)
   - OCI: https://www.oracle.com/cloud/free (10GB)
   - npm install aws-sdk
 
@@ -468,7 +468,7 @@ Other service providers can be integrated similarly except for credential verifi
   ],
   "cloudStorage": [
     {
-      "service": "s3",
+      "service": "aws",
       "bucket": "squared-001",
       "credential": {
         "accessKeyId": "**********",
@@ -558,7 +558,7 @@ squared.saveAs('index.zip', {
     saveAs: {
         html: {
             cloudStorage: [{ // Create static website
-                service: 's3',
+                service: 'aws',
                 bucket: 'squared-001',
                 settings: 'main',
                 upload: {
@@ -570,7 +570,7 @@ squared.saveAs('index.zip', {
         },
         image: { // Non-element images using url() method
             cloudStorage: [{
-                service: 's3',
+                service: 'aws',
                 bucket: 'squared-001',
                 settings: 'main',
                 upload: {
@@ -692,7 +692,7 @@ squared.saveAs('index.zip', {
   ],
   "cloudStorage": [
     {
-      "service": "s3",
+      "service": "aws",
       "bucket": "squared-001",
       "credential": "main",
       "upload": {

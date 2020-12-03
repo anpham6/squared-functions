@@ -8,7 +8,7 @@ type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
 function download(this: IFileManager, credential: OCIStorageCredential, service = 'OCI'): DownloadCallback {
     setStorageCredential.call(this, credential);
-    return (require('../../s3/download') as DownloadHost).call(this, credential, service);
+    return (require('../../aws/download') as DownloadHost).call(this, credential, service);
 }
 
 if (typeof module !== 'undefined' && module.exports) {

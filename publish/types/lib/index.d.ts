@@ -288,7 +288,7 @@ declare namespace functions {
         }
 
         interface CloudModule {
-            s3?: {
+            aws?: {
                 [key: string]: ConfigurationOptions;
             };
             azure?: {
@@ -296,6 +296,12 @@ declare namespace functions {
             };
             gcs?: {
                 [key: string]: GoogleAuthOptions;
+            };
+            ibm?: {
+                [key: string]: ConfigurationOptions;
+            };
+            oci?: {
+                [key: string]: ConfigurationOptions;
             };
         }
 

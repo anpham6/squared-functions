@@ -1,6 +1,6 @@
 import type * as aws from 'aws-sdk';
 
-import type { S3StorageCredential } from '../index';
+import type { AWSStorageCredential } from '../index';
 
 import path = require('path');
 import uuid = require('uuid');
@@ -14,7 +14,7 @@ type UploadData = functions.internal.Cloud.UploadData;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function upload(this: IFileManager, credential: S3StorageCredential, service = 'S3', sdk = 'aws-sdk/clients/s3'): UploadCallback {
+function upload(this: IFileManager, credential: AWSStorageCredential, service = 'AWS', sdk = 'aws-sdk/clients/s3'): UploadCallback {
     const s3 = createStorageClient.call(this, credential, service, sdk);
     return async (data: UploadData, success: (value: string) => void) => {
         const Bucket = data.storage.bucket ||= data.bucketGroup || uuid.v4();

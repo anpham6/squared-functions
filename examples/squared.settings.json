@@ -1,6 +1,6 @@
 {
     "cloud": {
-      "s3": {
+      "aws": {
         "main": {
           "accessKeyId": null,
           "secretAccessKey": null

@@ -1,6 +1,6 @@
 import type { ConfigurationOptions } from 'ibm-cos-sdk/lib/config';
 
-import { deleteObjects as deleteObjects_s3 } from '../s3';
+import { deleteObjects as deleteObjects_s3 } from '../aws';
 
 type IFileManager = functions.IFileManager;
 type ICloud = functions.ICloud;

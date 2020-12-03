@@ -7,7 +7,7 @@ type UploadHost = functions.internal.Cloud.UploadHost;
 
 function upload(this: IFileManager, credential: OCIStorageCredential, service = 'OCI') {
     setStorageCredential.call(this, credential);
-    return (require('../../s3/upload') as UploadHost).call(this, credential, service);
+    return (require('../../aws/upload') as UploadHost).call(this, credential, service);
 }
 
 if (typeof module !== 'undefined' && module.exports) {

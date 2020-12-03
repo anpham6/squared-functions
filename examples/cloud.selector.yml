@@ -3,7 +3,7 @@ type: image
 commands:
 - png(100x200){90,180,270}
 cloudStorage:
-- service: s3
+- service: aws
   bucket: squared-001
   credential:
     region: us-west-2

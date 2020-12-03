@@ -2,33 +2,33 @@ const version = require('../../publish/cloud/package.json').version;
 
 export default [
     {
-        input: './build/cloud/s3/index.js',
+        input: './build/cloud/aws/index.js',
         treeshake: false,
         output: {
-            file: './publish/cloud/s3/index.js',
+            file: './publish/cloud/aws/index.js',
             format: 'cjs',
             strict: false,
-            banner: `/* @squared-functions/cloud/s3 ${version}\n   https://github.com/anpham6/squared-functions */\n`
+            banner: `/* @squared-functions/cloud/aws ${version}\n   https://github.com/anpham6/squared-functions */\n`
         }
     },
     {
-        input: './build/cloud/s3/upload/index.js',
+        input: './build/cloud/aws/upload/index.js',
         treeshake: false,
         output: {
-            file: './publish/cloud/s3/upload/index.js',
+            file: './publish/cloud/aws/upload/index.js',
             format: 'cjs',
             strict: false,
-            banner: `/* @squared-functions/cloud/s3/upload ${version}\n   https://github.com/anpham6/squared-functions */\n`
+            banner: `/* @squared-functions/cloud/aws/upload ${version}\n   https://github.com/anpham6/squared-functions */\n`
         }
     },
     {
-        input: './build/cloud/s3/download/index.js',
+        input: './build/cloud/aws/download/index.js',
         treeshake: false,
         output: {
-            file: './publish/cloud/s3/download/index.js',
+            file: './publish/cloud/aws/download/index.js',
             format: 'cjs',
             strict: false,
-            banner: `/* @squared-functions/cloud/s3/download ${version}\n   https://github.com/anpham6/squared-functions */\n`
+            banner: `/* @squared-functions/cloud/aws/download ${version}\n   https://github.com/anpham6/squared-functions */\n`
         }
     },
     {
