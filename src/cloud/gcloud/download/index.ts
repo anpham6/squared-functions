@@ -31,21 +31,21 @@ function download(this: IFileManager, credential: GCloudStorageCredential, servi
                 file.download({ destination })
                     .then(() => {
                         const location = Bucket + '/' + filename;
-                        this.formatMessage(service, 'Download success', location);
+                        this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Download success', location);
                         success(destination);
                         if (Download.deleteObject) {
                             file.delete({ ignoreNotFound: true }, err => {
                                 if (!err) {
-                                    this.formatMessage(service, 'Delete success', location, 'grey');
+                                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Delete success', location, 'grey');
                                 }
                                 else {
-                                    this.formatMessage(service, ['Delete failed', location], err, 'red');
+                                    this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Delete failed', location], err, 'red');
                                 }
                             });
                         }
                     })
                     .catch((err: Error) => {
-                        this.formatMessage(service, 'Download failed', err, 'red');
+                        this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Download failed', err, 'red');
                         success('');
                     });
             }
@@ -54,7 +54,7 @@ function download(this: IFileManager, credential: GCloudStorageCredential, servi
             }
         }
         else {
-            this.formatMessage(service, 'Container not specified', Download && Download.filename, 'red');
+            this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Container not specified', Download && Download.filename, 'red');
             success('');
         }
     };

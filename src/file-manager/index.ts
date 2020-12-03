@@ -129,6 +129,7 @@ class FileManager extends Module implements IFileManager {
             }
             Compress.validate(tinypng_api_key);
         }
+        super.loadSettings(value as PlainObject);
     }
 
     public static moduleNode() {
@@ -339,7 +340,7 @@ class FileManager extends Module implements IFileManager {
         let output: Undef<string>;
         for (let segment of segments) {
             segment = !base64 ? this.escapePosix(segment) : `[^"',]+,\\s*` + segment;
-            const pattern = new RegExp(`([sS][rR][cC]|[hH][rR][eE][fF]|[dD][aA][tT][aA]|[pP][oO][sS][tT][eE][rR]=)?(["'])?(\\s*)${segment}(\\s*)\\2?`, 'g');
+            const pattern = new RegExp(`(src|href|data|poster=)?(["'])?(\\s*)${segment}(\\s*)\\2?`, 'g');
             let match: Null<RegExpExecArray>;
             while (match = pattern.exec(source)) {
                 output = (output || source).replace(match[0], match[1] ? match[1].toLowerCase() + `"${value}"` : (match[2] || '') + match[3] + value + match[4] + (match[2] || ''));
@@ -436,7 +437,7 @@ class FileManager extends Module implements IFileManager {
         }
         return file.sourceUTF8 || '';
     }
-    async appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex: number) {
+    async appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex = 0) {
         const mimeType = file.mimeType;
         if (mimeType) {
             if (mimeType.endsWith('text/css')) {
@@ -667,12 +668,12 @@ class FileManager extends Module implements IFileManager {
             case '@text/html': {
                 let html = this.getUTF8String(file, fileUri),
                     source = html,
-                    current = html,
+                    current = '',
                     pattern: Undef<RegExp>,
                     match: Null<RegExpExecArray>;
                 const minifySpace = (value: string) => value.replace(/(\s+|\/)/g, '');
                 const getOuterHTML = (css: boolean, value: string) => css ? `<link rel="stylesheet" href="${value}" />` : `<script src="${value}"></script>`;
-                const checkInlineOptions = (value: string) => /data-chrome-options="[^"]*?inline[^"]*"/.test(value);
+                const checkInlineOptions = (value: string) => /data-chrome-options="[^"]*?inline\b/.test(value);
                 const formatTag = (outerHTML: string) => outerHTML.replace(/"\s*>$/, '" />');
                 const formatAttr = (key: string, value?: Null<string>) => value !== undefined ? key + (value !== null ? `="${value}"` : '') : '';
                 const replaceTry = (outerHTML: string, replaceWith: string) => {
@@ -710,10 +711,59 @@ class FileManager extends Module implements IFileManager {
                                 const template = item.value;
                                 let replaceWith = '';
                                 if (typeof template === 'string') {
-                                    match = /^(\s*<[^>]+?>)[\S\s]*?(<\/[^>]+?>\s*)$/.exec(outerHTML);
-                                    if (match) {
-                                        const opening = match[1];
-                                        const closing = match[2];
+                                    const forward = outerHTML.split('>');
+                                    const opposing = outerHTML.split('<');
+                                    let opening: Undef<string>,
+                                        closing: Undef<string>;
+                                    if (opposing.length === 1 || forward.length === 1) {
+                                        match = /^(\s*)<([\w-]+)(.*?)\/?>(\s*)$/.exec(outerHTML);
+                                        if (match) {
+                                            opening = match[1] + '<' + match[2] + match[3] + '>';
+                                            closing = `</${match[2]}>` + match[4];
+                                        }
+                                    }
+                                    else if (opposing.length === 2 && forward.length === 2 && /^\s*<([\w-]+)[^>]*>[\S\s]*?<\/\1>\s*$/.test(outerHTML)) {
+                                        opening = forward[0] + '>';
+                                        closing = '<' + opposing[1];
+                                    }
+                                    else {
+                                        const value = outerHTML.replace(/\s+$/, '');
+                                        let last = -1;
+                                        for (let i = 0, quote = '', length = value.length; i < length; ++i) {
+                                            const ch = value[i];
+                                            if (ch === '=') {
+                                                if (!quote) {
+                                                    switch (value[i + 1]) {
+                                                        case '"':
+                                                            quote = '"';
+                                                            ++i;
+                                                            break;
+                                                        case "'":
+                                                            quote = "'";
+                                                            ++i;
+                                                            break;
+                                                    }
+                                                }
+                                            }
+                                            else if (ch === quote) {
+                                                quote = '';
+                                            }
+                                            else if (ch === '>') {
+                                                if (!quote) {
+                                                    opening = outerHTML.substring(0, i + 1);
+                                                    break;
+                                                }
+                                                if (i < length - 1) {
+                                                    last = i;
+                                                }
+                                            }
+                                        }
+                                        if (!opening && last !== -1) {
+                                            opening = outerHTML.substring(0, last + 1);
+                                        }
+                                        closing = outerHTML.substring(outerHTML.lastIndexOf('<'));
+                                    }
+                                    if (opening && closing) {
                                         let output = '';
                                         for (const row of result) {
                                             let value = template;
@@ -786,20 +836,20 @@ class FileManager extends Module implements IFileManager {
                         saved.add(location);
                     }
                     else {
-                        const script = match[2].toLowerCase() === 'script';
-                        if (saved.has(location) || match[5] === 'export' && new RegExp(`<${script ? 'script' : 'link'}.+?(?:${script ? 'src' : 'href'}="${location}"|data-chrome-file="\\s*saveAs:\\s*${location}\\s*[:"])[^>]*>`, 'i').test(html)) {
+                        const js = match[2].toLowerCase() === 'script';
+                        if (saved.has(location) || match[5] === 'export' && new RegExp(`<${js ? 'script' : 'link'}.+?(?:${js ? 'src' : 'href'}="${location}"|data-chrome-file="\\s*saveAs:\\s*${location}\\s*[:"])[^>]*>`, 'i').test(html)) {
                             source = source.replace(match[0], '');
                         }
                         else if (match[5] === 'save') {
                             const content = match[0].replace(match[4], '');
-                            const src = new RegExp(`\\s+${script ? 'src' : 'href'}="(?:[^"]|(?<=\\\\)")+"`, 'i').exec(content);
+                            const src = new RegExp(`\\s+${js ? 'src' : 'href'}="(?:[^"]|(?<=\\\\)")+"`, 'i').exec(content);
                             if (src) {
-                                source = source.replace(match[0], content.replace(src[0], `${script ? ' src' : ' href'}="${location}"`));
+                                source = source.replace(match[0], content.replace(src[0], `${js ? ' src' : ' href'}="${location}"`));
                                 saved.add(location);
                             }
                         }
                         else {
-                            source = source.replace(match[0], match[1] + getOuterHTML(!script, location));
+                            source = source.replace(match[0], match[1] + getOuterHTML(!js, location));
                             saved.add(location);
                         }
                     }
@@ -810,7 +860,7 @@ class FileManager extends Module implements IFileManager {
                     if (item.invalid && !item.exclude) {
                         continue;
                     }
-                    const { trailingContent, outerHTML } = item;
+                    const { outerHTML, trailingContent } = item;
                     if (trailingContent) {
                         pattern.lastIndex = 0;
                         const content = trailingContent.map(trailing => minifySpace(trailing.value));
@@ -838,9 +888,11 @@ class FileManager extends Module implements IFileManager {
                             if (current !== source) {
                                 item.inlineContent = id;
                                 item.watch = false;
+                                item.outerHTML = replaceWith;
                                 if (item.fileUri) {
                                     this.filesToRemove.add(item.fileUri);
                                 }
+                                continue;
                             }
                         }
                         else if (bundleIndex === 0 || bundleIndex === -1) {
@@ -883,14 +935,10 @@ class FileManager extends Module implements IFileManager {
                                 replaceMinify(outerHTML, output, tagPattern);
                                 if (current !== source) {
                                     item.outerHTML = output;
-                                }
-                                else {
-                                    delete item.inlineCloud;
+                                    continue;
                                 }
                             }
-                            else {
-                                delete item.inlineCloud;
-                            }
+                            delete item.inlineCloud;
                         }
                     }
                 }
@@ -1104,7 +1152,6 @@ class FileManager extends Module implements IFileManager {
             const tasks: Promise<void>[] = [];
             const gz = Compress.findFormat(file.compress, 'gz');
             if (gz) {
-                this.formatMessage('GZ', 'Compressing file...', fileUri + '.gz', 'yellow');
                 tasks.push(
                     new Promise<void>(resolve => Compress.tryFile(fileUri, gz, null, (result: string) => {
                         if (result) {
@@ -1117,7 +1164,6 @@ class FileManager extends Module implements IFileManager {
             if (Node.checkVersion(11, 7)) {
                 const br = Compress.findFormat(file.compress, 'br');
                 if (br) {
-                    this.formatMessage('BR', 'Compressing file...', fileUri + '.br', 'yellow');
                     tasks.push(
                         new Promise<void>(resolve => Compress.tryFile(fileUri, br, null, (result: string) => {
                             if (result) {
@@ -1283,7 +1329,7 @@ class FileManager extends Module implements IFileManager {
                 if (file.bundleIndex === 0) {
                     let content = this.getUTF8String(file, fileUri);
                     if (content) {
-                        content = await this.appendContent(file, fileUri, content, 0);
+                        content = await this.appendContent(file, fileUri, content);
                         if (content) {
                             file.sourceUTF8 = content;
                         }
@@ -1315,10 +1361,10 @@ class FileManager extends Module implements IFileManager {
                     if (queue) {
                         const verifyBundle = async (value: string) => {
                             if (bundleMain) {
-                                return this.appendContent(queue!, fileUri, value, queue!.bundleIndex!);
+                                return this.appendContent(queue!, fileUri, value, queue!.bundleIndex);
                             }
                             if (value) {
-                                queue!.sourceUTF8 = await this.appendContent(queue!, fileUri, value, 0) || value;
+                                queue!.sourceUTF8 = await this.appendContent(queue!, fileUri, value) || value;
                                 queue!.invalid = false;
                                 queue!.cloudStorage = cloudStorage;
                                 bundleMain = queue;
@@ -1737,6 +1783,7 @@ class FileManager extends Module implements IFileManager {
                     fs.mkdirpSync(tempDir);
                     Promise.all(data.items.map(uri => fs.copyFile(uri, path.join(tempDir, path.basename(uri)))))
                         .then(() => {
+                            this.formatMessage(this.logType.CHROME, 'gulp', ['Executing task...', task], data.gulpfile, 'magenta');
                             child_process.exec(`gulp ${task} --gulpfile "${data.gulpfile}" --cwd "${tempDir}"`, { cwd: process.cwd() }, err => {
                                 if (!err) {
                                     Promise.all(data.items.map(uri => fs.unlink(uri).then(() => this.delete(uri))))
@@ -2077,7 +2124,6 @@ class FileManager extends Module implements IFileManager {
                         if (cloud.hasStorage('download', data)) {
                             const { active, pathname, filename, overwrite } = data.download!;
                             if (filename) {
-                                const service = data.service.toUpperCase();
                                 const fileUri = item.fileUri;
                                 let valid = false,
                                     downloadUri = pathname ? path.join(this.dirname, pathname.replace(/^([A-Z]:)?[\\/]+/i, '')) : data.admin?.preservePath && fileUri ? path.join(path.dirname(fileUri), filename) : path.join(this.dirname, filename);
@@ -2100,7 +2146,7 @@ class FileManager extends Module implements IFileManager {
                                     valid = true;
                                 }
                                 if (valid) {
-                                    const location = service + data.bucket + filename;
+                                    const location = data.service + data.bucket + filename;
                                     if (downloadMap[location]) {
                                         downloadMap[location].add(downloadUri);
                                     }
@@ -2122,14 +2168,14 @@ class FileManager extends Module implements IFileManager {
                                                         }
                                                     }
                                                     catch (err) {
-                                                        this.writeFail(['Write buffer', service], err);
+                                                        this.writeFail(['Write buffer', data.service], err);
                                                     }
                                                 }
                                             }, bucketGroup));
                                             downloadMap[location] = new Set<string>([downloadUri]);
                                         }
                                         catch (err) {
-                                            this.writeFail(['Download function not supported', service], err);
+                                            this.writeFail(['Download function not supported', data.service], err);
                                         }
                                     }
                                 }

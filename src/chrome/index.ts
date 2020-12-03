@@ -121,29 +121,32 @@ class Chrome extends Module implements functions.IChrome {
                     if (!options) {
                         this.writeFail('Unable to load configuration', plugin);
                     }
-                    else if (typeof options === 'function') {
-                        try {
-                            const result = options(require(plugin), value, output, input);
-                            if (result && typeof result === 'string') {
-                                value = result;
-                                valid = true;
-                            }
-                        }
-                        catch (err) {
-                            this.writeFail(['Install required?', `npm i ${plugin}`], err);
-                        }
-                    }
                     else {
-                        try {
-                            this._packageMap[plugin] ||= require(`./packages/${plugin}`).default;
-                            const result: Undef<string> = await this._packageMap[plugin].call(this, value, options, output, input);
-                            if (result) {
-                                value = result;
-                                valid = true;
+                        this.formatMessage(this.logType.CHROME, type, ['Transforming source...', plugin], name, 'magenta');
+                        if (typeof options === 'function') {
+                            try {
+                                const result = options(require(plugin), value, output, input);
+                                if (result && typeof result === 'string') {
+                                    value = result;
+                                    valid = true;
+                                }
+                            }
+                            catch (err) {
+                                this.writeFail(['Install required?', `npm i ${plugin}`], err);
                             }
                         }
-                        catch (err) {
-                            this.writeFail(['Transformer', plugin], err);
+                        else {
+                            try {
+                                this._packageMap[plugin] ||= require(`./packages/${plugin}`).default;
+                                const result: Undef<string> = await this._packageMap[plugin].call(this, value, options, output, input);
+                                if (result) {
+                                    value = result;
+                                    valid = true;
+                                }
+                            }
+                            catch (err) {
+                                this.writeFail(['Unable to transform source', plugin], err);
+                            }
                         }
                     }
                 }

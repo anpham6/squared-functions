@@ -23,21 +23,21 @@ function download(this: IFileManager, credential: AWSStorageCredential, service 
                 s3.getObject(params, (err, result) => {
                     const location = Bucket + '/' + Download.filename;
                     if (!err) {
-                        this.formatMessage(service, 'Download success', location);
+                        this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Download success', location);
                         success(result.Body as Buffer);
                         if (Download.deleteObject) {
                             s3.deleteObject(params, error => {
                                 if (!error) {
-                                    this.formatMessage(service, 'Delete success', location, 'grey');
+                                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Delete success', location, 'grey');
                                 }
                                 else {
-                                    this.formatMessage(service, ['Delete failed', location], error, 'red');
+                                    this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Delete failed', location], error, 'red');
                                 }
                             });
                         }
                     }
                     else {
-                        this.formatMessage(service, ['Download failed', location], err, 'red');
+                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Download failed', location], err, 'red');
                         success(null);
                     }
                 });
@@ -47,7 +47,7 @@ function download(this: IFileManager, credential: AWSStorageCredential, service 
             }
         }
         else {
-            this.formatMessage(service, 'Bucket not specified', Download && Download.filename, 'red');
+            this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket not specified', Download && Download.filename, 'red');
             success(null);
         }
     };

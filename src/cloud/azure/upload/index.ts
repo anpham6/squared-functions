@@ -23,12 +23,12 @@ function upload(this: IFileManager, credential: AzureStorageCredential, service 
                 if (!await containerClient.exists()) {
                     const { active, publicRead } = data.upload;
                     await containerClient.create({ access: data.storage.admin?.publicRead || publicRead || active && publicRead !== false ? 'blob' : 'container' });
-                    this.formatMessage(service, 'Container created', bucket, 'blue');
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Container created', bucket, 'blue');
                 }
             }
             catch (err) {
                 if (err.code !== 'ContainerAlreadyExists') {
-                    this.formatMessage(service, ['Unable to create container', bucket], err, 'red');
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to create container', bucket], err, 'red');
                     success('');
                     return;
                 }
@@ -65,11 +65,11 @@ function upload(this: IFileManager, credential: AzureStorageCredential, service 
                 }
                 while (exists && ++i);
                 if (i > 0) {
-                    this.formatMessage(service, 'File renamed', filename, 'yellow');
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'File renamed', filename, 'yellow');
                 }
             }
             catch (err) {
-                this.formatMessage(service, ['Unable to rename file', fileUri], err, 'red');
+                this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', fileUri], err, 'red');
                 success('');
                 return;
             }
@@ -88,14 +88,14 @@ function upload(this: IFileManager, credential: AzureStorageCredential, service 
                 .upload(Body[i], Body[i].byteLength, { blobHTTPHeaders: { blobContentType: ContentType[i] } })
                 .then(() => {
                     const url = (endpoint ? this.toPosix(endpoint) : `https://${credential.accountName!}.blob.core.windows.net/${bucket}`) + '/' + blobName;
-                    this.formatMessage(service, 'Upload success', url);
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Upload success', url);
                     if (i === 0) {
                         success(url);
                     }
                 })
                 .catch(err => {
                     if (i === 0) {
-                        this.formatMessage(service, ['Upload failed', Key[i]], err, 'red');
+                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Upload failed', Key[i]], err, 'red');
                         success('');
                     }
                 });

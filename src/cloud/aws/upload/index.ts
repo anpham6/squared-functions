@@ -31,7 +31,7 @@ function upload(this: IFileManager, credential: AWSStorageCredential, service = 
                     return await s3.createBucket(bucketRequest)
                         .promise()
                         .then(() => {
-                            this.formatMessage(service, 'Bucket created', Bucket, 'blue');
+                            this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket created', Bucket, 'blue');
                             BUCKET_MAP[service + Bucket] = true;
                             if (admin?.publicRead) {
                                 setPublicRead.call(this, s3, Bucket, service);
@@ -40,7 +40,7 @@ function upload(this: IFileManager, credential: AWSStorageCredential, service = 
                         })
                         .catch(err => {
                             if (err.code !== 'BucketAlreadyExists' && err.code !== 'BucketAlreadyOwnedByYou') {
-                                this.formatMessage(service, ['Unable to create bucket', Bucket], err, 'red');
+                                this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to create bucket', Bucket], err, 'red');
                                 return false;
                             }
                             return true;
@@ -83,11 +83,11 @@ function upload(this: IFileManager, credential: AWSStorageCredential, service = 
                 }
                 while (exists && ++i);
                 if (i > 0) {
-                    this.formatMessage(service, 'File renamed', filename, 'yellow');
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'File renamed', filename, 'yellow');
                 }
             }
             catch (err) {
-                this.formatMessage(service, ['Unable to rename file', fileUri], err, 'red');
+                this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', fileUri], err, 'red');
                 success('');
                 return;
             }
@@ -108,13 +108,13 @@ function upload(this: IFileManager, credential: AWSStorageCredential, service = 
             s3.upload({ Bucket, Key: pathname + Key[i], ACL, Body: Body[i], ContentType: ContentType[i] }, (err, result) => {
                 if (!err) {
                     const url = endpoint ? this.toPosix(endpoint, result.Key) : result.Location;
-                    this.formatMessage(service, 'Upload success', url);
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Upload success', url);
                     if (i === 0) {
                         success(url);
                     }
                 }
                 else if (i === 0) {
-                    this.formatMessage(service, ['Upload failed', fileUri], err, 'red');
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Upload failed', fileUri], err, 'red');
                     success('');
                 }
             });

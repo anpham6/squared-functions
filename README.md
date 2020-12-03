@@ -3,9 +3,7 @@
 These are some of the available options when creating archives or copying files with squared 2.1.
 
 ```javascript
-// NOTE: format: zip | tar | gz/tgz | compress: gz | br
-
-squared.settings.outputArchiveFormat = 'tar'; // Default: "zip"
+squared.settings.outputArchiveFormat = 'tar'; // Format: zip | tar | gz/tgz (default: zip)
 
 squared.saveAs('archive1', { // OR: archive1.gz
     format: 'gz',
@@ -65,7 +63,7 @@ npm install dwebp-bin && npm install cwebp-bin
 Placing an @ symbol (png@) after the format will remove the original file from the package. Using the % symbol (png%) instead will choose the smaller of the two files. You can also use these commands with the setting "convertImages" in the Android framework as a string with the "+" chain format.
 
 ```javascript
-// NOTE: Multiple transformations per asset use the "::" as the separator when using "data-chrome-commands"
+// Multiple transformations per asset use the "::" as the separator when using "data-chrome-commands"
 
 webp(50000,*)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,135,215,315#FFFFFF}|0.5||100[photo][75]|!opaque!greyscale
 ```
@@ -122,6 +120,8 @@ const options = {
 <img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg" data-android-tasks="compress" />
 ```
 
+NOTE: SRC (temp) and DEST (original) always read and write to the current directory.
+
 ```javascript
 // gulpfile.js
 
@@ -134,7 +134,6 @@ gulp.task('minify', () => {
     .pipe(gulp.dest('./'));
 });
 
-// NOTE: SRC (temp) and DEST (original) always read and write to the current directory
 ```
 
 Renaming files with Gulp is not recommended. It is better to use the "saveAs" or "filename" attributes when the asset is part of the HTML page.
@@ -150,6 +149,8 @@ Bundling options are available with these HTML tag names.
 Files with the same path and filename will automatically create a bundle assuming there are no conflicts in call ordering.
 
 ```javascript
+// JSON/YAML configuration is recommended
+
 {
   "selector": "head > script:nth-of-type(2), head > script:nth-of-type(3)",
   "type": "js",
@@ -201,7 +202,7 @@ Bundling with inline commands using a 1-2-1 format may cause the generated bundl
 ### Raw assets
 
 ```xml
-<!-- NOTE: img | video | audio | source | track | object | embed | iframe -->
+<!-- img | video | audio | source | track | object | embed | iframe -->
 
 <img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg"
      data-chrome-file="saveAs:images/harbour.jpg"
@@ -211,7 +212,7 @@ Bundling with inline commands using a 1-2-1 format may cause the generated bundl
 You can use images commands with saveTo (directory) on any element where the image is the primary display output.
 
 ```xml
-<!-- NOTE: img | object | embed | iframe -->
+<!-- img | object | embed | iframe -->
 
 <img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg"
      data-chrome-file="saveTo:../images/harbour"
@@ -459,7 +460,7 @@ Manual installation of the SDK is required including an account with at least on
 Other service providers can be integrated similarly except for credential verification.
 
 ```javascript
-// NOTE: Optional fields are supported by all services
+// Optional fields are supported by all services
 
 {
   "selector": "#picture1",
@@ -543,11 +544,12 @@ Other service providers can be integrated similarly except for credential verifi
         "accessKeyId": "**********",
         "secretAccessKey": "**********"
       }
-      // NOTE: Using S3 and OCI at the same time with identical bucket names causes a conflict with the S3 region cache
     }
   ]
 }
 ```
+
+NOTE: Using S3 and OCI at the same time with identical bucket names causes a conflict with the S3 region cache.
 
 - [cloud.selector.yml](https://github.com/anpham6/squared-functions/blob/master/examples/cloud.selector.yml)
 
@@ -614,7 +616,7 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
 ```
 
 ```javascript
-// NOTE: Table is required and used by all providers for caching results
+// Attribute "table" is required and used for caching results
 
 /* Azure: https://docs.microsoft.com/en-us/azure/cosmos-db/sql-query-getting-started (query) */
 {
@@ -646,7 +648,7 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
     "table": "demo",
     "where": [["group", "==", "Firestore"], ["id", "==", "1"]],
     "orderBy": [["title", "asc"]],
-    "value": "<b>${title}</b>: ${description}" // Only one field per template literal
+    "value": "<b>${title}</b>: ${description}"
   }
 }
 
@@ -685,24 +687,10 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
     "value": "<b>${title}</b>: ${description}"
   }
 }
-
-{
-  "selector": ".card:nth-of-type(1) p",
-  "type": "text",
-  "cloudDatabase": {
-    "service": "azure",
-    "credential": "db-main",
-    "name": "squared",
-    "table": "demo",
-    "id": "1",
-    "partitionKey": "Pictures", // Azure and IBM (optional)
-    "value": "<b>${title}</b>: ${description}"
-  }
-}
 ```
 
 ```javascript
-// NOTE: Retrieval using ID is supported by all providers
+// Retrieval using ID is supported by all providers
 
 {
   "selector": ".card:nth-of-type(2) img",
@@ -713,7 +701,7 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
     "name": "squared", // Azure (required)
     "table": "demo",
     "id": "2",
-    "partitionKey": "Pictures", // Azure and IBM
+    "partitionKey": "Pictures", // Azure and IBM (optional)
     "value": {
       "src": "imageData.src", // Template literal syntax is not supported
       "style": [":join(; )" /* optional: " " */, "imageData.style[0]", "imageData.style[1]"]
@@ -746,7 +734,7 @@ squared.saveAs('index.zip', {
 ```
 
 ```javascript
-// NOTE: js | css | image | video | audio
+// js | css | image | video | audio
 
 {
   "selector": "script",
@@ -788,7 +776,7 @@ squared.copyTo('/local/user/www', {
 <img src="images/harbour1.jpg" data-android-watch="1000::1h 30m" />
 ```
 
-File watching is available and uses HTTP HEAD requests to determine modifications. You can also watch any file that is served using HTTP on a different server or computer. The HTML page or any assets inlined cannot be watched since changes to the DOM structure requires a complete browser reload.
+File watching is available and uses HTTP HEAD requests to determine modifications. You can also watch any file that is served using HTTP on a different server or computer. The HTML page itself or any inlined assets cannot be watched since changes to the DOM structure requires a complete browser reload.
 
 ### Asset exclusion
 

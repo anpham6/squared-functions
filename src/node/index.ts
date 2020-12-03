@@ -84,7 +84,7 @@ const Node = new class extends Module implements functions.INode {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = Node;
     module.exports.default = Node;
-    module.exports.__esModule = true;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }
 
 export default Node;

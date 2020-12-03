@@ -52,23 +52,23 @@ export async function deleteObjects(this: ICloud, credential: AWSStorageCredenti
                 .promise()
                 .then(data => {
                     if (data.Deleted) {
-                        this.formatMessage(service, ['Bucket emptied', data.Deleted.length + ' files'], Bucket, 'blue');
+                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Bucket emptied', data.Deleted.length + ' files'], Bucket, 'blue');
                     }
                 });
         }
     }
     catch (err) {
-        this.formatMessage(service, ['Unable to empty bucket', Bucket], err, 'yellow');
+        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to empty bucket', Bucket], err, 'yellow');
     }
 }
 
 export function setPublicRead(this: IFileManager, s3: aws.S3, Bucket: string, service = 'aws') {
     const callback = (err: Null<Error>) => {
         if (!err) {
-            this.formatMessage(service, 'Grant public-read', Bucket, 'blue');
+            this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Grant public-read', Bucket, 'blue');
         }
         else {
-            this.formatMessage(service, ['Unable to grant public-read', Bucket], err, 'yellow');
+            this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to grant public-read', Bucket], err, 'yellow');
         }
     };
     switch (service) {
@@ -82,6 +82,11 @@ export function setPublicRead(this: IFileManager, s3: aws.S3, Bucket: string, se
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { validateStorage, createStorageClient, deleteObjects, setPublicRead };
+    module.exports = {
+        validateStorage,
+        createStorageClient,
+        deleteObjects,
+        setPublicRead
+    };
     Object.defineProperty(module.exports, '__esModule', { value: true });
 }

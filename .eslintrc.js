@@ -45,6 +45,7 @@ module.exports = {
         "no-new-wrappers": "error",
         "no-shadow": ["error", {
             "allow": [
+                "LOGGING",
                 "settings"
             ]
         }],

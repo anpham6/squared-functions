@@ -61,10 +61,10 @@ export async function deleteObjects(this: ICloud, credential: GCloudStorageCrede
         return createStorageClient.call(this, credential)
             .bucket(bucket)
             .deleteFiles({ force: true })
-            .then(() => this.formatMessage(service, 'Bucket emptied', bucket, 'blue'));
+            .then(() => this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket emptied', bucket, 'blue'));
     }
     catch (err) {
-        this.formatMessage(service, ['Unable to empty bucket', bucket], err, 'yellow');
+        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to empty bucket', bucket], err, 'yellow');
     }
 }
 
@@ -129,11 +129,11 @@ export async function executeQuery(this: ICloud | IFileManager, credential: GClo
 export function setPublicRead(this: IFileManager, acl: Acl, filename: string, requested?: boolean) {
     acl.add({ entity: 'allUsers', role: 'READER' })
         .then(() => {
-            this.formatMessage('GCloud', 'Grant public-read', filename, 'blue');
+            this.formatMessage(this.logType.CLOUD_STORAGE, 'gcloud', 'Grant public-read', filename, 'blue');
         })
         .catch(err => {
             if (requested) {
-                this.formatMessage('GCloud', ['Unable to grant public-read', filename], err, 'yellow');
+                this.formatMessage(this.logType.CLOUD_STORAGE, 'gcloud', ['Unable to grant public-read', filename], err, 'yellow');
             }
         });
 }
@@ -143,6 +143,15 @@ export function getProjectId(credential: GoogleAuthOptions) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { validateStorage, createStorageClient, validateDatabase, createDatabaseClient, deleteObjects, executeQuery, getProjectId, setPublicRead };
+    module.exports = {
+        validateStorage,
+        createStorageClient,
+        validateDatabase,
+        createDatabaseClient,
+        deleteObjects,
+        executeQuery,
+        getProjectId,
+        setPublicRead
+    };
     Object.defineProperty(module.exports, '__esModule', { value: true });
 }

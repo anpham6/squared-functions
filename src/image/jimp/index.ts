@@ -1,3 +1,4 @@
+import path = require('path');
 import fs = require('fs');
 import child_process = require('child_process');
 import jimp = require('jimp');
@@ -85,6 +86,7 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
                         this.performAsyncTask();
                         jimp.read(tempFile || getFile())
                             .then(img => {
+                                this.formatMessage(this.logType.IMAGE, 'jimp', ['Transforming image...', path.basename(fileUri)], command, 'magenta');
                                 const proxy = new Jimp(img, fileUri, command, finalAs);
                                 proxy.method();
                                 proxy.resize();

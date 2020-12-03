@@ -36,6 +36,7 @@ export function setStorageCredential(this: ICloud | IFileManager, credential: OC
 export async function createDatabaseClient(this: ICloud | IFileManager, credential: OCIDatabaseCredential) {
     try {
         const oracledb = require('oracledb');
+        oracledb.autoCommit = true;
         return await oracledb.getConnection(credential) as db.Connection;
     }
     catch (err) {
@@ -109,6 +110,13 @@ export async function executeQuery(this: ICloud | IFileManager, credential: OCID
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { validateStorage, setStorageCredential, validateDatabase, createDatabaseClient, deleteObjects, executeQuery };
+    module.exports = {
+        validateStorage,
+        setStorageCredential,
+        validateDatabase,
+        createDatabaseClient,
+        deleteObjects,
+        executeQuery
+    };
     Object.defineProperty(module.exports, '__esModule', { value: true });
 }

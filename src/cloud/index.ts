@@ -120,7 +120,7 @@ class Cloud extends Module implements functions.ICloud {
         }
     }
     downloadObject(credential: PlainObject, storage: CloudStorage, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string) {
-        const downloadHandler = this.getDownloadHandler(credential, storage.service);
+        const downloadHandler = this.getDownloadHandler(credential, storage.service).bind(this);
         return new Promise<void>(resolve => {
             downloadHandler({ storage, bucketGroup }, async (value: Null<Buffer | string>) => {
                 await callback(value);
@@ -131,7 +131,11 @@ class Cloud extends Module implements functions.ICloud {
     deleteObjects(credential: PlainObject, storage: CloudStorage): Promise<void> {
         const { service, bucket } = storage;
         if (service && bucket) {
-            return (CLOUD_SERVICE[service] ||= require(`../cloud/${service}`) as ServiceClient).deleteObjects.call(this, credential, bucket, service.toUpperCase());
+            const deleteHandler = (CLOUD_SERVICE[service] ||= require(`../cloud/${service}`) as ServiceClient).deleteObjects?.bind(this);
+            if (deleteHandler) {
+                return deleteHandler.call(this, credential, bucket, service);
+            }
+            this.writeFail(['Delete objects function not supported', service]);
         }
         return Promise.resolve();
     }
@@ -179,9 +183,9 @@ class Cloud extends Module implements functions.ICloud {
             const credential = this.getCredential(data);
             switch (feature) {
                 case 'storage':
-                    return typeof client.validateStorage === 'function' && client.validateStorage(credential, data as CloudStorage);
+                    return typeof client.validateStorage === 'function' && client.validateStorage(credential, data);
                 case 'database':
-                    return typeof client.validateDatabase === 'function' && client.validateDatabase(credential, data as CloudDatabase);
+                    return typeof client.validateDatabase === 'function' && client.validateDatabase(credential, data);
             }
         }
         catch (err) {
@@ -190,10 +194,10 @@ class Cloud extends Module implements functions.ICloud {
         return false;
     }
     getUploadHandler(credential: PlainObject, service: string): UploadCallback {
-        return (CLOUD_UPLOAD[service] ||= require(`../cloud/${service}/upload`) as UploadHost).call(this, credential, service.toUpperCase());
+        return (CLOUD_UPLOAD[service] ||= require(`../cloud/${service}/upload`) as UploadHost).call(this, credential, service);
     }
     getDownloadHandler(credential: PlainObject, service: string): DownloadCallback {
-        return (CLOUD_DOWNLOAD[service] ||= require(`../cloud/${service}/download`) as DownloadHost).call(this, credential, service.toUpperCase());
+        return (CLOUD_DOWNLOAD[service] ||= require(`../cloud/${service}/download`) as DownloadHost).call(this, credential, service);
     }
 }
 

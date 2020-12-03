@@ -64,17 +64,17 @@ export async function deleteObjects(this: ICloud, credential: AzureStorageCreden
             tasks.push(
                 containerClient.deleteBlob(blob.name, { versionId: blob.versionId })
                     .catch(err => {
-                        this.formatMessage(service, ['Unable to delete blob', bucket], err, 'yellow');
+                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to delete blob', bucket], err, 'yellow');
                         --fileCount;
                         return err;
                     })
             );
         }
         fileCount = tasks.length;
-        return Promise.all(tasks).then(() => this.formatMessage(service, ['Container emptied', fileCount + ' files'], bucket, 'blue'));
+        return Promise.all(tasks).then(() => this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Container emptied', fileCount + ' files'], bucket, 'blue'));
     }
     catch (err) {
-        this.formatMessage(service, ['Unable to empty container', bucket], err, 'yellow');
+        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to empty container', bucket], err, 'yellow');
     }
 }
 
@@ -143,6 +143,13 @@ export async function executeQuery(this: ICloud | IFileManager, credential: Azur
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { validateStorage, createStorageClient, validateDatabase, createDatabaseClient, deleteObjects, executeQuery };
+    module.exports = {
+        validateStorage,
+        createStorageClient,
+        validateDatabase,
+        createDatabaseClient,
+        deleteObjects,
+        executeQuery
+    };
     Object.defineProperty(module.exports, '__esModule', { value: true });
 }

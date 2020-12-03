@@ -4,9 +4,32 @@ import path = require('path');
 import fs = require('fs');
 import chalk = require('chalk');
 
-const getMessage = (value: unknown) => value ? ` (${value as string})` : '';
+type Settings = functions.Settings;
+type LoggingModule = functions.settings.LoggingModule;
+
+let SETTINGS: LoggingModule = {};
+
+export enum LOGGING {
+    UNKNOWN = 0,
+    SYSTEM = 1,
+    CHROME = 2,
+    COMPRESS = 4,
+    IMAGE = 8,
+    NODE = 16,
+    WATCH = 32,
+    CLOUD_STORAGE = 64,
+    CLOUD_DATABASE = 128
+}
+
+const getMessage = (value: unknown) => value ? ' ' + chalk.blackBright('(') + value + chalk.blackBright(')') : '';
 
 const Module = class implements functions.IModule {
+    public static loadSettings(value: Settings) {
+        if (value.logging) {
+            SETTINGS = value.logging;
+        }
+    }
+
     public major: number;
     public minor: number;
     public patch: number;
@@ -52,20 +75,70 @@ const Module = class implements functions.IModule {
         return value.replace(/\\+/g, '/').replace(/\/+$/, '') + (filename ? '/' + filename : '');
     }
     writeFail(value: string | [string, string], message?: unknown) {
-        this.formatMessage('FAIL', value, message, 'white', 'bgRed');
+        this.formatMessage(LOGGING.SYSTEM, 'FAIL', value, message, 'white', 'bgRed');
     }
-    formatMessage(title: string, value: string | [string, string], message?: unknown, color: typeof ForegroundColor = 'green', bgColor: typeof BackgroundColor = 'bgBlack') {
+    formatMessage(type: LOGGING, title: string, value: string | [string, string], message?: unknown, color: typeof ForegroundColor = 'green', bgColor: typeof BackgroundColor = 'bgBlack') {
+        switch (type) {
+            case LOGGING.SYSTEM:
+                if (SETTINGS.system === false) {
+                    return;
+                }
+                break;
+            case LOGGING.CHROME:
+                if (SETTINGS.chrome === false) {
+                    return;
+                }
+                break;
+            case LOGGING.COMPRESS:
+                if (SETTINGS.compress === false) {
+                    return;
+                }
+                break;
+            case LOGGING.IMAGE:
+                if (SETTINGS.image === false) {
+                    return;
+                }
+                break;
+            case LOGGING.NODE:
+                if (SETTINGS.node === false) {
+                    return;
+                }
+                break;
+            case LOGGING.WATCH:
+                if (SETTINGS.watch === false) {
+                    return;
+                }
+                break;
+            case LOGGING.CLOUD_STORAGE:
+                if (SETTINGS.cloud_storage === false) {
+                    return;
+                }
+                break;
+            case LOGGING.CLOUD_DATABASE:
+                if (SETTINGS.cloud_database === false) {
+                    return;
+                }
+                break;
+            default:
+                if (SETTINGS.unknown === false) {
+                    return;
+                }
+                break;
+        }
         if (Array.isArray(value)) {
             const length = value[1] ? value[1].length : 0;
-            value = length ? value[0].padEnd(30) + (length < 28 ? chalk.blackBright(' '.repeat(28 - length)) : '') + chalk.blackBright('[') + (length > 28 ? value[1].substring(0, 25) + '...' : value[1]) + chalk.blackBright(']') : value[0].padEnd(60);
+            value = length ? value[0].padEnd(35) + (length < 30 ? chalk.blackBright(' '.repeat(30 - length)) : '') + chalk.blackBright('[') + (length > 30 ? value[1].substring(0, 27) + '...' : value[1]) + chalk.blackBright(']') : value[0].padEnd(67);
         }
         else {
-            value = value.padEnd(60);
+            value = value.padEnd(67);
         }
         this.writeMessage(title.padEnd(6), value, message, color, bgColor);
     }
     writeMessage(title: string, value: string, message?: unknown, color: typeof ForegroundColor = 'green', bgColor: typeof BackgroundColor = 'bgBlack') {
-        console.log(`${chalk[bgColor].bold[color](title.toUpperCase())}: ${value}` + getMessage(message));
+        console.log(chalk[bgColor].bold[color](title.toUpperCase()) + chalk.blackBright(':') + ' ' + value + getMessage(message));
+    }
+    get logType() {
+        return LOGGING;
     }
 };
 

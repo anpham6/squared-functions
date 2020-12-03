@@ -237,11 +237,11 @@ declare namespace functions {
             interface DownloadData extends FunctionData {}
 
             interface ServiceClient {
-                validateStorage?(credential: PlainObject, data?: squared.CloudStorage): boolean;
+                validateStorage?(credential: PlainObject, data?: squared.CloudService): boolean;
+                validateDatabase?(credential: PlainObject, data?: squared.CloudService): boolean;
                 createStorageClient?<T>(this: ICloud | IFileManager, credential: unknown, service?: string): T;
-                validateDatabase?(credential: PlainObject, data?: squared.CloudDatabase): boolean;
                 createDatabaseClient?<T>(this: ICloud | IFileManager, credential: unknown): T;
-                deleteObjects(this: ICloud | IFileManager, credential: unknown, bucket: string, service?: string, sdk?: string): Promise<void>;
+                deleteObjects?(this: ICloud | IFileManager, credential: unknown, bucket: string, service?: string, sdk?: string): Promise<void>;
                 executeQuery?(this: ICloud | IFileManager, credential: unknown, data: squared.CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
             }
 
@@ -261,6 +261,18 @@ declare namespace functions {
             pathname: string;
             fileUri: string;
         }
+
+        enum LOGGING {
+            UNKNOWN = 0,
+            SYSTEM = 1,
+            CHROME = 2,
+            COMPRESS = 4,
+            IMAGE = 8,
+            NODE = 16,
+            WATCH = 32,
+            CLOUD_STORAGE = 64,
+            CLOUD_DATABASE = 128
+        }
     }
 
     namespace external {
@@ -275,6 +287,18 @@ declare namespace functions {
     }
 
     namespace settings {
+        interface LoggingModule {
+            unknown?: boolean;
+            system?: boolean;
+            chrome?: boolean;
+            compress?: boolean;
+            image?: boolean;
+            node?: boolean;
+            watch?: boolean;
+            cloud_storage?: boolean;
+            cloud_database?: boolean;
+        }
+
         interface ImageModule {
             proxy?: string;
         }
@@ -437,7 +461,7 @@ declare namespace functions {
         absolutePath(value: string, href: string): string;
         assignFilename(file: ExternalAsset): Undef<string>;
         getUTF8String(file: ExternalAsset, fileUri?: string): string;
-        appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex: number): Promise<string>;
+        appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex?: number): Promise<string>;
         getTrailingContent(file: ExternalAsset): Promise<string>;
         getBundleContent(fileUri: string): Undef<string>;
         createSourceMap(file: ExternalAsset, fileUri: string, sourcesContent: string): internal.Chrome.SourceMapInput;
@@ -466,6 +490,7 @@ declare namespace functions {
     const FileManager: FileManagerConstructor;
 
     interface IModule {
+        logType: typeof internal.LOGGING;
         readonly major: number;
         readonly minor: number;
         readonly patch: number;
@@ -475,12 +500,13 @@ declare namespace functions {
         getTempDir(): string;
         escapePosix(value: string): string;
         toPosix(value: string, filename?: string): string;
+        formatMessage(type: internal.LOGGING, title: string, value: string | [string, string], message?: unknown, color?: typeof ForegroundColor, bgColor?: typeof BackgroundColor): void;
         writeFail(value: string | [string, string], message?: unknown): void;
-        formatMessage(title: string, value: string | [string, string], message?: unknown, color?: typeof ForegroundColor, bgColor?: typeof BackgroundColor): void;
         writeMessage(title: string, value: string, message?: unknown, color?: typeof ForegroundColor, bgColor?: typeof BackgroundColor): void;
     }
 
     interface ModuleConstructor {
+        loadSettings(value: Settings): void;
         new(): IModule;
     }
 
@@ -531,6 +557,7 @@ declare namespace functions {
         env?: string;
         port?: StringMap;
         routing?: internal.Serve.Routing;
+        logging?: settings.LoggingModule;
         watch?: settings.WatchModule;
         image?: settings.ImageModule;
         compress?: settings.CompressModule;

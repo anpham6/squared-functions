@@ -39,7 +39,11 @@ const Watch = new class extends Module implements functions.IWatch {
             }
         }
         for (const dest in destMap) {
-            const items = destMap[dest];
+            let items = destMap[dest];
+            if (!items.some(item => item.watch)) {
+                continue;
+            }
+            items = items.map(item => ({ ...item }));
             items.sort((a, b) => {
                 if (a.bundleId && !b.bundleId) {
                     return -1;
@@ -102,44 +106,44 @@ const Watch = new class extends Module implements functions.IWatch {
                             clearInterval(timer[0]);
                         }
                         const timeout = setInterval(() => {
-                            const req = request(uri, { method: 'HEAD' });
-                            req.on('response', res => {
-                                const map = HTTP_MAP[uri];
-                                for (const [output, input] of map) {
-                                    if (!input.expires || Date.now() < input.expires) {
-                                        const value = (res.headers['etag'] || res.headers['last-modified']) as string;
-                                        if (value) {
-                                            if (value !== input.etag) {
-                                                input.etag = value;
-                                                if (this.whenModified) {
-                                                    this.whenModified(input.assets);
+                            request(uri, { method: 'HEAD' })
+                                .on('response', res => {
+                                    const map = HTTP_MAP[uri];
+                                    for (const [output, input] of map) {
+                                        if (!input.expires || Date.now() < input.expires) {
+                                            const value = (res.headers['etag'] || res.headers['last-modified']) as string;
+                                            if (value) {
+                                                if (value !== input.etag) {
+                                                    input.etag = value;
+                                                    if (this.whenModified) {
+                                                        this.whenModified(input.assets);
+                                                    }
+                                                    this.formatMessage(this.logType.WATCH, 'WATCH', 'File modified', uri, 'yellow');
                                                 }
-                                                this.formatMessage('WATCH', 'File modified', uri, 'yellow');
+                                                else {
+                                                    return;
+                                                }
                                             }
-                                            else {
-                                                return;
+                                        }
+                                        else if (input.expires) {
+                                            map.delete(output);
+                                            if (map.size === 0) {
+                                                this.formatMessage(this.logType.WATCH, 'WATCH', ['Expired', `since ${formatDate(start)}`], uri, 'grey');
+                                                clearInterval(timeout);
                                             }
                                         }
                                     }
-                                    else if (input.expires) {
-                                        map.delete(output);
-                                        if (map.size === 0) {
-                                            this.formatMessage('WATCH', ['Expired', `since ${formatDate(start)}`], uri, 'grey');
-                                            clearInterval(timeout);
-                                        }
-                                    }
-                                }
-                            });
-                            req.on('error', err => {
-                                HTTP_MAP[uri].clear();
-                                clearInterval(timeout);
-                                this.writeFail(['Unable to watch', uri], err);
-                            });
+                                })
+                                .on('error', err => {
+                                    HTTP_MAP[uri].clear();
+                                    clearInterval(timeout);
+                                    this.writeFail(['Unable to watch', uri], err);
+                                });
                         }, interval);
                         (HTTP_MAP[uri] ||= new Map()).set(dest, data);
                         TIMER_MAP[uri] = [timeout, interval];
                     }
-                    this.formatMessage('WATCH', ['Start', `${interval}ms ${expires ? formatDate(expires) : 'never'}`], uri, 'blue');
+                    this.formatMessage(this.logType.WATCH, 'WATCH', ['Start', `${interval}ms ${expires ? formatDate(expires) : 'never'}`], uri, 'blue');
                 }
             }
         }
@@ -149,7 +153,7 @@ const Watch = new class extends Module implements functions.IWatch {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = Watch;
     module.exports.default = Watch;
-    module.exports.__esModule = true;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }
 
 export default Watch;

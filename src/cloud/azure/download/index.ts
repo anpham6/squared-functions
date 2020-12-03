@@ -18,20 +18,20 @@ function download(this: IFileManager, credential: AzureStorageCredential, servic
                 blobClient.getBlockBlobClient(Download.filename)
                     .downloadToBuffer()
                     .then(buffer => {
-                        this.formatMessage(service, 'Download success', location);
+                        this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Download success', location);
                         success(buffer);
                         if (Download.deleteObject) {
                             blobClient.delete()
-                                .then(() => this.formatMessage(service, 'Delete success', location, 'grey'))
+                                .then(() => this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Delete success', location, 'grey'))
                                 .catch(err => {
                                     if (err.code !== 'BlobNotFound') {
-                                        this.formatMessage(service, ['Delete failed', location], err, 'red');
+                                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Delete failed', location], err, 'red');
                                     }
                                 });
                         }
                     })
                     .catch(err => {
-                        this.formatMessage(service, ['Download failed', location], err, 'red');
+                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Download failed', location], err, 'red');
                         success(null);
                     });
             }
@@ -40,7 +40,7 @@ function download(this: IFileManager, credential: AzureStorageCredential, servic
             }
         }
         else {
-            this.formatMessage(service, 'Container not specified', Download && Download.filename, 'red');
+            this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Container not specified', Download && Download.filename, 'red');
             success(null);
         }
     };

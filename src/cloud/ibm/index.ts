@@ -101,6 +101,13 @@ export async function executeQuery(this: ICloud | IFileManager, credential: IBMD
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { validateStorage, setStorageCredential, validateDatabase, createDatabaseClient, deleteObjects, executeQuery };
+    module.exports = {
+        validateStorage,
+        setStorageCredential,
+        validateDatabase,
+        createDatabaseClient,
+        deleteObjects,
+        executeQuery
+    };
     Object.defineProperty(module.exports, '__esModule', { value: true });
 }

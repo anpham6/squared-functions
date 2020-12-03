@@ -27,7 +27,7 @@ function upload(this: IFileManager, credential: GCloudStorageCredential, service
                     storage.projectId = getProjectId(credential);
                     [bucket] = await storage.createBucket(bucketName, credential);
                     bucketName = bucket.name;
-                    this.formatMessage(service, 'Bucket created', bucketName, 'blue');
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket created', bucketName, 'blue');
                     if (data.storage?.publicRead) {
                         bucket.makePublic().then(() => setPublicRead.call(this, bucket!.acl.default, bucketName, true));
                     }
@@ -35,7 +35,7 @@ function upload(this: IFileManager, credential: GCloudStorageCredential, service
             }
             catch (err) {
                 if (err.code !== 409) {
-                    this.formatMessage(service, ['Unable to create bucket', bucketName], err, 'red');
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to create bucket', bucketName], err, 'red');
                     success('');
                     return;
                 }
@@ -67,11 +67,11 @@ function upload(this: IFileManager, credential: GCloudStorageCredential, service
                 }
                 while (exists && ++i);
                 if (i > 0) {
-                    this.formatMessage(service, 'File renamed', filename, 'yellow');
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'File renamed', filename, 'yellow');
                 }
             }
             catch (err) {
-                this.formatMessage(service, ['Unable to rename file', fileUri], err, 'red');
+                this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', fileUri], err, 'red');
                 success('');
                 return;
             }
@@ -92,7 +92,7 @@ function upload(this: IFileManager, credential: GCloudStorageCredential, service
                     fs.mkdirpSync(path.dirname(srcUri));
                 }
                 catch (err) {
-                    this.formatMessage(service, ['Unable to create directory', srcUri], err, 'red');
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to create directory', srcUri], err, 'red');
                     success('');
                     return;
                 }
@@ -105,7 +105,7 @@ function upload(this: IFileManager, credential: GCloudStorageCredential, service
                     }
                 }
                 catch (err) {
-                    this.formatMessage(service, ['Unable to write buffer', fileUri], err, 'red');
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to write buffer', fileUri], err, 'red');
                     success('');
                     return;
                 }
@@ -114,7 +114,7 @@ function upload(this: IFileManager, credential: GCloudStorageCredential, service
                 if (file) {
                     const { active, endpoint, publicRead } = data.upload;
                     const url = (endpoint ? this.toPosix(endpoint) : 'https://storage.googleapis.com/' + bucketName) + '/' + file.name;
-                    this.formatMessage(service, 'Upload success', url);
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Upload success', url);
                     if (i === 0) {
                         success(url);
                     }
@@ -123,7 +123,7 @@ function upload(this: IFileManager, credential: GCloudStorageCredential, service
                     }
                 }
                 else if (i === 0) {
-                    this.formatMessage(service, ['Upload failed', srcUri], err, 'red');
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Upload failed', srcUri], err, 'red');
                     success('');
                 }
             });
