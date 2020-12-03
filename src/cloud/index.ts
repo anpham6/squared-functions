@@ -181,7 +181,7 @@ class Cloud extends Module implements functions.ICloud {
                 case 'storage':
                     return typeof client.validateStorage === 'function' && client.validateStorage(credential);
                 case 'database':
-                    return typeof client.validateDatabase === 'function' && client.validateDatabase(credential, (data as CloudDatabase).table);
+                    return typeof client.validateDatabase === 'function' && client.validateDatabase(credential, data as CloudDatabase);
             }
         }
         catch (err) {

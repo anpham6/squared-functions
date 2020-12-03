@@ -3,6 +3,7 @@ import type * as db from '@azure/cosmos';
 
 type IFileManager = functions.IFileManager;
 type ICloud = functions.ICloud;
+type CloudDatabase = functions.squared.CloudDatabase;
 
 const CACHE_DB: ObjectMap<any[]> = {};
 
@@ -18,8 +19,8 @@ export function validateStorage(credential: AzureStorageCredential) {
     return !!(credential.accountName && credential.accountKey || credential.connectionString || credential.sharedAccessSignature);
 }
 
-export function validateDatabase(credential: AzureDatabaseCredential, tableName?: string) {
-    return !!(credential.key && credential.endpoint && tableName);
+export function validateDatabase(credential: AzureDatabaseCredential, data: CloudDatabase) {
+    return !!(credential.key && credential.endpoint && data.name && data.table);
 }
 
 export function createStorageClient(this: ICloud | IFileManager, credential: AzureStorageCredential): storage.BlobServiceClient {
@@ -81,11 +82,11 @@ export async function execDatabaseQuery(this: ICloud | IFileManager, credential:
     const client = createDatabaseClient.call(this, credential);
     let result: Undef<any[]>;
     try {
-        const database = client.database(data.name);
+        const database = client.database(data.name!);
         const container = database.container(data.table!);
         const partitionKey = data.partitionKey;
         if (cacheKey) {
-            cacheKey += data.name + data.table! + (partitionKey || '');
+            cacheKey += data.name! + data.table! + (partitionKey || '');
         }
         if (data.id) {
             if (cacheKey) {
@@ -99,7 +100,7 @@ export async function execDatabaseQuery(this: ICloud | IFileManager, credential:
                 result = [item.resource];
             }
         }
-        else if (data.query) {
+        else if (typeof data.query === 'string') {
             if (cacheKey) {
                 cacheKey += data.query;
                 if (CACHE_DB[cacheKey]) {

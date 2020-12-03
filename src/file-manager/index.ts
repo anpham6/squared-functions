@@ -54,7 +54,7 @@ interface GulpTask {
     data: GulpData;
 }
 
-const REGEXP_INDEXOBJECT = /([^[\s.]+)((?:\s*\[[^\]]+\]\s*)+)?\s*\.?\s*/g;
+const REGEXP_INDEXOBJECT = /([^[.\s]+)((?:\s*\[[^\]]+\]\s*)+)?\s*\.?\s*/g;
 const REGEXP_INDEXARRAY = /\[\s*(["'])?(.+?)\1\s*\]/g;
 
 function getObjectValue(data: PlainObject, key: string, joinString = ' ') {
@@ -63,15 +63,15 @@ function getObjectValue(data: PlainObject, key: string, joinString = ' ') {
         value: unknown = data,
         match: Null<RegExpMatchArray>;
     while (match = REGEXP_INDEXOBJECT.exec(key)) {
-        if (typeof value === 'object' && value !== null) {
+        if (isObject(value)) {
             value = value[match[1]];
             if (match[2]) {
                 REGEXP_INDEXARRAY.lastIndex = 0;
-                let subMatch: Null<RegExpMatchArray>;
-                while (subMatch = REGEXP_INDEXARRAY.exec(match[2])) {
-                    const index = subMatch[2].trim();
-                    if (typeof value === 'object' && value !== null && subMatch[1] || /^\d+$/.test(index) && (typeof value === 'string' || Array.isArray(value))) {
-                        value = value[index];
+                let index: Null<RegExpMatchArray>;
+                while (index = REGEXP_INDEXARRAY.exec(match[2])) {
+                    const attr = index[1] ? index[2] : index[2].trim();
+                    if (index[1] && isObject(value) || /^\d+$/.test(attr) && (typeof value === 'string' || Array.isArray(value))) {
+                        value = value[attr];
                     }
                     else {
                         return '';
@@ -97,6 +97,7 @@ function getObjectValue(data: PlainObject, key: string, joinString = ' ') {
     return '';
 }
 
+const isObject = (value: unknown): value is PlainObject => typeof value === 'object' && value !== null;
 const getRelativePath = (file: ExternalAsset, filename = file.filename) => Node.toPosix(path.join(file.moveTo || '', file.pathname, filename));
 
 class FileManager extends Module implements IFileManager {

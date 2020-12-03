@@ -587,13 +587,19 @@ squared.saveAs('index.zip', {
 Basic text replacement can be achieved using any of these cloud databases. Each provider has a different query syntax and consulting their documentation is recommended.
 
 ```xml
-* Microsoft
-  - Azure: https://azure.microsoft.com/en-us/free (5GB + 400RU/s)
+* Microsoft Cosmos DB
+  - Azure: https://azure.microsoft.com/en-us/services/cosmos-db (5GB + 400RU/s)
   - npm install @azure/cosmos
   - SQL API
+
+* Oracle Autonomous JSON DB
+  - OCI: https://www.oracle.com/autonomous-database/autonomous-json-database (20GB)
+  - npm install oracledb
+  - SODA API
 ```
 
 ```javascript
+// Azure: https://docs.microsoft.com/en-us/azure/cosmos-db/sql-query-getting-started
 {
   "selector": ".card:nth-of-type(1) p",
   "type": "text",
@@ -603,10 +609,27 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
       "endpoint": "https://squared-001.documents.azure.com:443",
       "key": "**********"
     },
-    "name": "squared", // Database name
+    "name": "squared", // Database name (required)
     "table": "demo",
-    "query": "SELECT * FROM c WHERE c.id = '1'", // https://docs.microsoft.com/en-us/azure/cosmos-db/sql-query-getting-started
+    "query": "SELECT * FROM c WHERE c.id = '1'",
     "value": "<b>${title}</b>: ${description}" // Only one field per template literal
+  }
+}
+
+// OCI: https://docs.oracle.com/en/database/oracle/simple-oracle-document-access/adsdi/overview-soda-filter-specifications-qbes.html
+{
+  "selector": ".card:nth-of-type(1) p",
+  "type": "text",
+  "cloudDatabase": {
+    "service": "oci",
+    "credential": {
+      "user": "dev",
+      "password": "**********",
+      "connectionString": "tcps://adb.us-phoenix-1.oraclecloud.com:1522/abcdefghijklmno_squared_high.adb.oraclecloud.com?wallet_location=/Users/Oracle/wallet"
+    },
+    "table": "demo",
+    "query": { "id": { "$eq": "1" } },
+    "value": "<b>${title}</b>: ${description}"
   }
 }
 ```
@@ -620,8 +643,8 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
     "credential": "db-main",
     "name": "squared",
     "table": "demo",
-    "id": "2",
-    "partitionKey": "Pictures",
+    "id": "2", // Oracle (key)
+    "partitionKey": "Pictures", // Azure (required)
     "value": {
       "src": "imageData.src", // Template literal syntax is not supported
       "style": [":join(; )" /* optional: " " */, "imageData.style[0]", "imageData.style[1]"]

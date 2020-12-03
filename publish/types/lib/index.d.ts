@@ -49,11 +49,11 @@ declare namespace functions {
         }
 
         interface CloudDatabase extends CloudService {
-            name: string;
             value: string | ObjectMap<string | string[]>;
-            id?: string;
+            name?: string;
             table?: string;
-            query?: string;
+            id?: string;
+            query?: string | PlainObject;
             element?: {
                 outerHTML?: string;
             };
@@ -242,7 +242,7 @@ declare namespace functions {
                 validateStorage?(credential: PlainObject): boolean;
                 createStorageClient?<T>(this: ICloud | IFileManager, credential: unknown, service?: string): T;
                 deleteObjects(this: ICloud | IFileManager, credential: unknown, bucket: string, service?: string, sdk?: string): Promise<void>;
-                validateDatabase?(credential: PlainObject, tableName?: string): boolean;
+                validateDatabase?(credential: PlainObject, data: squared.CloudDatabase): boolean;
                 createDatabaseClient?<T>(this: ICloud | IFileManager, credential: unknown): T;
                 execDatabaseQuery?(this: ICloud | IFileManager, credential: unknown, data: squared.CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
             }
