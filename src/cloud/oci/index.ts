@@ -27,6 +27,12 @@ export function validateDatabase(credential: OCIDatabaseCredential, data: CloudD
     return !!(credential.user && credential.password && (credential.connectString || credential.connectionString) && data.table);
 }
 
+export function setStorageCredential(this: ICloud | IFileManager, credential: OCIStorageCredential) {
+    credential.endpoint = `https://${credential.namespace}.compat.objectstorage.${credential.region}.oraclecloud.com`;
+    credential.s3ForcePathStyle = true;
+    credential.signatureVersion = 'v4';
+}
+
 export async function createDatabaseClient(this: ICloud | IFileManager, credential: OCIDatabaseCredential) {
     try {
         const oracledb = require('oracledb');
@@ -38,52 +44,47 @@ export async function createDatabaseClient(this: ICloud | IFileManager, credenti
     }
 }
 
-export function setStorageCredential(this: ICloud | IFileManager, credential: OCIStorageCredential) {
-    credential.endpoint = `https://${credential.namespace}.compat.objectstorage.${credential.region}.oraclecloud.com`;
-    credential.s3ForcePathStyle = true;
-    credential.signatureVersion = 'v4';
-}
-
 export async function deleteObjects(this: ICloud, credential: OCIStorageCredential, bucket: string, service = 'oci') {
     setStorageCredential.call(this, credential);
     return deleteObjects_s3.call(this, credential, bucket, service);
 }
 
-export async function execDatabaseQuery(this: ICloud | IFileManager, credential: OCIDatabaseCredential, data: OCIDatabaseQuery, cacheKey?: string) {
+export async function executeQuery(this: ICloud | IFileManager, credential: OCIDatabaseCredential, data: OCIDatabaseQuery, cacheKey?: string) {
     const connection = await createDatabaseClient.call(this, credential);
     let result: Undef<any[]>;
     try {
+        const { table, id, query, limit = 0 } = data;
         if (cacheKey) {
-            cacheKey += data.table;
+            cacheKey += table;
         }
-        if (data.id) {
+        if (id) {
             if (cacheKey) {
-                cacheKey += data.id;
+                cacheKey += id;
                 if (CACHE_DB[cacheKey]) {
                     return CACHE_DB[cacheKey];
                 }
             }
-            const collection = await connection.getSodaDatabase().openCollection(data.table);
+            const collection = await connection.getSodaDatabase().openCollection(table);
             if (collection) {
-                const item = await collection.find().key(data.id).getOne();
+                const item = await collection.find().key(id).getOne();
                 if (item) {
                     result = [item.getContent()];
                 }
             }
         }
-        else if (data.query) {
-            const [query, keyId] = typeof data.query === 'object' ? [data.query, JSON.stringify(data.query)] : [data.query, data.query];
-            const maxRows = Math.max(data.limit || 0, 0);
+        else if (query) {
+            const [queryString, keyId] = typeof query === 'object' ? [query, JSON.stringify(query)] : [query, query];
+            const maxRows = Math.max(limit, 0);
             if (cacheKey) {
                 cacheKey += keyId.replace(/\s+/g, '') + maxRows;
                 if (CACHE_DB[cacheKey]) {
                     return CACHE_DB[cacheKey];
                 }
             }
-            if (typeof query === 'object') {
+            if (typeof queryString === 'object') {
                 const collection = await connection.getSodaDatabase().openCollection(data.table);
                 if (collection) {
-                    let operation = collection.find().filter(query);
+                    let operation = collection.find().filter(queryString);
                     if (maxRows > 0) {
                         operation = operation.limit(maxRows);
                     }
@@ -91,7 +92,7 @@ export async function execDatabaseQuery(this: ICloud | IFileManager, credential:
                 }
             }
             else {
-                result = (await connection.execute(query, [], { outFormat: 4002, maxRows })).rows;
+                result = (await connection.execute(queryString, [], { outFormat: 4002, maxRows })).rows;
             }
         }
     }
@@ -108,6 +109,6 @@ export async function execDatabaseQuery(this: ICloud | IFileManager, credential:
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { validateStorage, setStorageCredential, deleteObjects, validateDatabase, createDatabaseClient, execDatabaseQuery };
+    module.exports = { validateStorage, setStorageCredential, validateDatabase, createDatabaseClient, deleteObjects, executeQuery };
     Object.defineProperty(module.exports, '__esModule', { value: true });
 }

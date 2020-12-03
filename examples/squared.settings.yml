@@ -1,10 +1,38 @@
 cloud:
   aws:
     main:
-      accessKeyId:
-      secretAccessKey:
+      accessKeyId: ""
+      secretAccessKey: ""
+  azure:
+    main:
+      accountName: ""
+      accountKey: ""
+    db-main:
+      endpoint: ""
+      key: ""
+  gcloud:
+    main:
+      keyFilename: ""
+    db-main:
+      keyFilename: ""
+  oci:
+    main:
+      region: ""
+      namespace: ""
+      accessKeyId: ""
+      secretAccessKey: ""
+    db-main:
+      user: ""
+      password: ""
+      connectionString: ""
+  ibm:
+    main:
+      apiKeyId: ""
+      serviceInstanceId: ""
+      endpoint: ""
+      region: ""
 gulp:
-  minify: ./gulpfile.js
+  minify: "./gulpfile.js"
 chrome:
   html:
     prettier:
@@ -14,23 +42,23 @@ chrome:
         tabWidth: 4
   js:
     terser:
-      minify-example: >
-        function(context, value, config) {
-          return context.minify(value, config).code;
+      minify-example: |
+        function(context, value, output) {
+          return context.minify(value, output).code;
         }
       minify-example-output:
         keep_classnames: true
     "@babel/core":
-      es5-example: ./es5.js
+      es5-example: "./es5.js"
     rollup:
-      bundle: ./rollup.config.js
+      bundle: "./rollup.config.js"
       bundle-es6:
         external:
         - lodash
-      bundle-es6-output: ./rollup.output.config.js
+      bundle-es6-output: "./rollup.output.config.js"
   css:
     node-sass:
-      sass-example: >
+      sass-example: |
         function(context, value) {
           return context.renderSync({ data: value }, functions: {});
         }

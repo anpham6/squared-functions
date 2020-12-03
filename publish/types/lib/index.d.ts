@@ -5,9 +5,6 @@ import type { CorsOptions } from 'cors';
 import type { WriteStream } from 'fs';
 import type { BackgroundColor, ForegroundColor } from 'chalk';
 
-import type { ConfigurationOptions } from 'aws-sdk/lib/core';
-import type { GoogleAuthOptions } from 'google-auth-library';
-
 type BoolString = boolean | string;
 
 declare namespace functions {
@@ -48,11 +45,11 @@ declare namespace functions {
             credential: string | PlainObject;
         }
 
-        interface CloudDatabase extends CloudService {
+        interface CloudDatabase<T = string | PlainObject> extends CloudService {
             table: string;
             name?: string;
             id?: string;
-            query?: string | PlainObject;
+            query?: T;
             limit?: number;
             value: string | ObjectMap<string | string[]>;
             element?: {
@@ -240,12 +237,12 @@ declare namespace functions {
             interface DownloadData extends FunctionData {}
 
             interface ServiceClient {
-                validateStorage?(credential: PlainObject): boolean;
+                validateStorage?(credential: PlainObject, data?: squared.CloudStorage): boolean;
                 createStorageClient?<T>(this: ICloud | IFileManager, credential: unknown, service?: string): T;
-                deleteObjects(this: ICloud | IFileManager, credential: unknown, bucket: string, service?: string, sdk?: string): Promise<void>;
-                validateDatabase?(credential: PlainObject, data: squared.CloudDatabase): boolean;
+                validateDatabase?(credential: PlainObject, data?: squared.CloudDatabase): boolean;
                 createDatabaseClient?<T>(this: ICloud | IFileManager, credential: unknown): T;
-                execDatabaseQuery?(this: ICloud | IFileManager, credential: unknown, data: squared.CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
+                deleteObjects(this: ICloud | IFileManager, credential: unknown, bucket: string, service?: string, sdk?: string): Promise<void>;
+                executeQuery?(this: ICloud | IFileManager, credential: unknown, data: squared.CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
             }
 
             type ServiceHost<T> = (this: ICloud | IFileManager, credential: unknown, service?: string, sdk?: string) => T;
@@ -289,21 +286,11 @@ declare namespace functions {
         }
 
         interface CloudModule {
-            aws?: {
-                [key: string]: ConfigurationOptions;
-            };
-            azure?: {
-                [key: string]: external.Cloud.StorageSharedKeyCredential;
-            };
-            gcloud?: {
-                [key: string]: GoogleAuthOptions;
-            };
-            ibm?: {
-                [key: string]: ConfigurationOptions;
-            };
-            oci?: {
-                [key: string]: ConfigurationOptions;
-            };
+            aws?: ObjectMap<StringMap>;
+            azure?: ObjectMap<StringMap>;
+            gcloud?: ObjectMap<StringMap>;
+            ibm?: ObjectMap<StringMap>;
+            oci?: ObjectMap<StringMap>;
         }
 
         interface GulpModule extends StringMap {}

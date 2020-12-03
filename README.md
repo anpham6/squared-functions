@@ -481,7 +481,7 @@ Other service providers can be integrated similarly except for credential verifi
       "upload": {
         "active": false, // Rewrites "src" to cloud storage location (optional)
         "localStorage": true, // Remove current file from archive or local disk (optional)
-        "filename": "picture1.webp" // Choose a different bucket filename (optional)
+        "filename": "picture1.webp", // Choose a different bucket filename (optional)
         "all": false, // Include transforms (optional)
         "overwrite": false // Always use current filename (optional)
       },
@@ -500,11 +500,11 @@ Other service providers can be integrated similarly except for credential verifi
       "credential": {
         "accountName": "**********", // +1 password option (required)
         "accountKey": "**********",
-        "connectionString": "**********",  
+        "connectionString": "**********",
         "sharedAccessSignature": "**********"
       },
       "upload": {
-        "pathname": "a/b/c/" // Virtual directory in bucket (optional: Overrides "preservePath")
+        "pathname": "a/b/c/", // Virtual directory in bucket (optional: Overrides "preservePath")
         "endpoint": "http://squaredjs.azureedge.net/squared-002" // e.g. CDN (optional)
       }
     },
@@ -516,7 +516,7 @@ Other service providers can be integrated similarly except for credential verifi
       },
       "admin": {
         "publicRead": false, // New buckets (optional: Not supported OCI)
-        "emptyBucket": false // More convenient than using "overwrite" (optional),
+        "emptyBucket": false, // More convenient than using "overwrite" (optional),
         "preservePath": false // Use current pathname as file prefix
       },
       "upload": {
@@ -531,7 +531,7 @@ Other service providers can be integrated similarly except for credential verifi
         "apiKeyId": "**********",
         "serviceInstanceId": "**********",
         "region": "us-south",
-        "endpoint": "https://s3.us-south.cloud-object-storage.appdomain.cloud", // Same as region (optional)
+        "endpoint": "https://s3.us-south.cloud-object-storage.appdomain.cloud" // Same as region (optional)
       }
     },
     {
@@ -595,7 +595,11 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
 
 * Google Firestore
   - npm install @google-cloud/firestore
-  - GCloud: https://cloud.google.com/firestore (1GB + 50K/20K read/write)
+  - GCloud: https://cloud.google.com/firestore (1GB + 50K/20K r/w@day)
+
+* IBM Cloudant
+  - npm install @cloudant/cloudant
+  - IBM: https://www.ibm.com/cloud/cloudant (1GB + 20/10 r/w@sec)
 
 * Oracle Autonomous
   - npm install oracledb
@@ -624,6 +628,7 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
     },
     "name": "squared", // Database name (required)
     "table": "demo",
+    "partitionKey": "Pictures", // optional
     "query": "SELECT * FROM c WHERE c.id = '1'",
     "value": "<b>${title}</b>: ${description}" // Only one field per template literal
   }
@@ -645,6 +650,23 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
   }
 }
 
+/* IBM: https://github.com/cloudant/nodejs-cloudant#readme (query) */
+{
+  "selector": ".card:nth-of-type(1) p",
+  "type": "text",
+  "cloudDatabase": {
+    "service": "ibm",
+    "credential": {
+      "account": "**********", // IAM and legacy credentials
+      "password": "**********",
+      "url": "https://<account>:<password>@<account>.cloudantnosqldb.appdomain.cloud" // OR: Service credentials
+    },
+    "table": "demo",
+    "query": { "selector": { "id": { "$eq": "1" } } },
+    "value": "<b>${title}</b>: ${description}"
+  }
+}
+
 /* OCI: https://docs.oracle.com/en/database/oracle/simple-oracle-document-access/adsdi/overview-soda-filter-specifications-qbes.html (query) */
 {
   "selector": ".card:nth-of-type(1) p",
@@ -661,6 +683,41 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
     "query": { "id": { "$eq": "1" } }, // SODA
     "limit": 1, // optional
     "value": "<b>${title}</b>: ${description}"
+  }
+}
+
+{
+  "selector": ".card:nth-of-type(1) p",
+  "type": "text",
+  "cloudDatabase": {
+    "service": "azure",
+    "credential": "db-main",
+    "name": "squared",
+    "table": "demo",
+    "id": "1",
+    "partitionKey": "Pictures", // Azure and IBM (optional)
+    "value": "<b>${title}</b>: ${description}"
+  }
+}
+```
+
+```javascript
+// NOTE: Retrieval using ID is supported by all providers
+
+{
+  "selector": ".card:nth-of-type(2) img",
+  "type": "attribute",
+  "cloudDatabase": {
+    "service": "azure",
+    "credential": "db-main",
+    "name": "squared", // Azure (required)
+    "table": "demo",
+    "id": "2",
+    "partitionKey": "Pictures", // Azure and IBM
+    "value": {
+      "src": "imageData.src", // Template literal syntax is not supported
+      "style": [":join(; )" /* optional: " " */, "imageData.style[0]", "imageData.style[1]"]
+    }
   }
 }
 ```

@@ -1,49 +1,88 @@
 {
-    "cloud": {
-      "aws": {
-        "main": {
-          "accessKeyId": null,
-          "secretAccessKey": null
+  "cloud": {
+    "aws": {
+      "main": {
+        "accessKeyId": "",
+        "secretAccessKey": ""
+      }
+    },
+    "azure": {
+      "main": {
+        "accountName": "",
+        "accountKey": ""
+      },
+      "db-main": {
+        "endpoint": "",
+        "key": ""
+      }
+    },
+    "gcloud": {
+      "main": {
+        "keyFilename": ""
+      },
+      "db-main": {
+        "keyFilename": ""
+      }
+    },
+    "oci": {
+      "main": {
+        "region": "",
+        "namespace": "",
+        "accessKeyId": "",
+        "secretAccessKey": ""
+      },
+      "db-main": {
+        "user": "",
+        "password": "",
+        "connectionString": ""
+      }
+    },
+    "ibm": {
+      "main": {
+        "apiKeyId": "",
+        "serviceInstanceId": "",
+        "endpoint": "",
+        "region": ""
+      }
+    }
+  },
+  "gulp": {
+    "minify": "./gulpfile.js"
+  },
+  "chrome": {
+    "html": {
+      "prettier": {
+        "beautify": {
+          "parser": "html",
+          "printWidth": 120,
+          "tabWidth": 4
         }
       }
     },
-    "gulp": {
-      "minify": "./gulpfile.js"
+    "js": {
+      "terser": {
+        "minify-example": "function(context, value, output) {\n  return context.minify(value, output).code;\n}\n",
+        "minify-example-output": {
+          "keep_classnames": true
+        }
+      },
+      "@babel/core": {
+        "es5-example": "./es5.js"
+      },
+      "rollup": {
+        "bundle": "./rollup.config.js",
+        "bundle-es6": {
+          "external": [
+            "lodash"
+          ]
+        },
+        "bundle-es6-output": "./rollup.output.config.js"
+      }
     },
-    "chrome": {
-      "html": {
-        "prettier": {
-          "beautify": {
-            "parser": "html",
-            "printWidth": 120,
-            "tabWidth": 4
-          }
-        }
-      },
-      "js": {
-        "terser": {
-          "minify-example": "function(context, value, output) {\n  return context.minify(value, output).code;\n}\n",
-          "minify-example-output": {
-            "keep_classnames": true
-          }
-        },
-        "@babel/core": {
-          "es5-example": "./es5.js"
-        },
-        "rollup": {
-          "bundle": "./rollup.config.js",
-          "bundle-es6": {
-            "external": [
-              "lodash"
-            ]
-          },
-          "bundle-es6-output": "./rollup.output.config.js"
-        }
-      },
-      "css": {
-        "node-sass": {
-          "sass-example": "function(context, value) {\n  return context.renderSync({ data: value }, functions: {});\n}"
-        }
+    "css": {
+      "node-sass": {
+        "sass-example": "function(context, value) {\n  return context.renderSync({ data: value }, functions: {});\n}"
       }
     }
   }
+}

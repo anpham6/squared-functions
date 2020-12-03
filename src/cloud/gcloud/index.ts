@@ -68,25 +68,25 @@ export async function deleteObjects(this: ICloud, credential: GCloudStorageCrede
     }
 }
 
-export async function execDatabaseQuery(this: ICloud | IFileManager, credential: GCloudDatabaseCredential, data: GCloudDatabaseQuery, cacheKey?: string) {
+export async function executeQuery(this: ICloud | IFileManager, credential: GCloudDatabaseCredential, data: GCloudDatabaseQuery, cacheKey?: string) {
     const client = createDatabaseClient.call(this, credential);
     let result: Undef<any[]>;
     try {
+        const { table, id, where, orderBy, limit = 0 } = data;
         if (cacheKey) {
-            cacheKey += data.table;
+            cacheKey += table;
         }
-        if (data.id) {
+        if (id) {
             if (cacheKey) {
-                cacheKey += data.id;
+                cacheKey += id;
                 if (CACHE_DB[cacheKey]) {
                     return CACHE_DB[cacheKey];
                 }
             }
-            const item = await client.collection(data.table).doc(data.id).get();
+            const item = await client.collection(table).doc(id).get();
             result = [item.data()];
         }
         else if (data.where) {
-            const { where, orderBy, limit = 0 } = data;
             if (cacheKey) {
                 cacheKey += JSON.stringify(where).replace(/\s+/g, '');
                 if (orderBy) {
@@ -97,7 +97,7 @@ export async function execDatabaseQuery(this: ICloud | IFileManager, credential:
                     return CACHE_DB[cacheKey];
                 }
             }
-            let collection = client.collection(data.table) as gcf.Query<gcf.DocumentData>;
+            let collection = client.collection(table) as gcf.Query<gcf.DocumentData>;
             for (const query of where) {
                 if (query.length === 3) {
                     collection = collection.where(query[0] as string, query[1] as gcf.WhereFilterOp, query[2] as any);
@@ -143,6 +143,6 @@ export function getProjectId(credential: GoogleAuthOptions) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { validateStorage, createStorageClient, deleteObjects, validateDatabase, createDatabaseClient, execDatabaseQuery, setPublicRead, getProjectId };
+    module.exports = { validateStorage, createStorageClient, validateDatabase, createDatabaseClient, deleteObjects, executeQuery, getProjectId, setPublicRead };
     Object.defineProperty(module.exports, '__esModule', { value: true });
 }

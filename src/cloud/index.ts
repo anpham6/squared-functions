@@ -8,8 +8,8 @@ type CloudFeatures = functions.CloudFeatures;
 type CloudFunctions = functions.CloudFunctions;
 type CloudModule = functions.settings.CloudModule;
 type CloudService = functions.squared.CloudService;
-type CloudDatabase = functions.squared.CloudDatabase;
 type CloudStorage = functions.squared.CloudStorage;
+type CloudDatabase = functions.squared.CloudDatabase;
 type CloudStorageAction = functions.squared.CloudStorageAction;
 type CloudStorageUpload = functions.squared.CloudStorageUpload;
 type ServiceClient = functions.internal.Cloud.ServiceClient;
@@ -135,14 +135,14 @@ class Cloud extends Module implements functions.ICloud {
         }
         return Promise.resolve();
     }
-    async getDatabaseRows(database: CloudDatabase, cacheKey?: string): Promise<PlainObject[]> {
+    getDatabaseRows(database: CloudDatabase, cacheKey?: string): Promise<PlainObject[]> {
         if (this.hasCredential('database', database)) {
             const host = CLOUD_SERVICE[database.service];
-            if (host.execDatabaseQuery) {
-                return host.execDatabaseQuery.call(this, this.getCredential(database), database, cacheKey);
+            if (host.executeQuery) {
+                return host.executeQuery.call(this, this.getCredential(database), database, cacheKey);
             }
         }
-        return [];
+        return Promise.resolve([]);
     }
     getCredential(data: CloudService): PlainObject {
         return typeof data.credential === 'string' ? { ...this.settings[data.service] && this.settings[data.service][data.credential] } : { ...data.credential };
@@ -179,7 +179,7 @@ class Cloud extends Module implements functions.ICloud {
             const credential = this.getCredential(data);
             switch (feature) {
                 case 'storage':
-                    return typeof client.validateStorage === 'function' && client.validateStorage(credential);
+                    return typeof client.validateStorage === 'function' && client.validateStorage(credential, data as CloudStorage);
                 case 'database':
                     return typeof client.validateDatabase === 'function' && client.validateDatabase(credential, data as CloudDatabase);
             }

@@ -78,31 +78,30 @@ export async function deleteObjects(this: ICloud, credential: AzureStorageCreden
     }
 }
 
-export async function execDatabaseQuery(this: ICloud | IFileManager, credential: AzureDatabaseCredential, data: AzureDatabaseQuery, cacheKey?: string) {
+export async function executeQuery(this: ICloud | IFileManager, credential: AzureDatabaseCredential, data: AzureDatabaseQuery, cacheKey?: string) {
     const client = createDatabaseClient.call(this, credential);
     let result: Undef<any[]>;
     try {
-        const container = client.database(data.name!).container(data.table);
-        const partitionKey = data.partitionKey;
+        const { name, table, id, query, partitionKey = '', limit = 0 } = data;
+        const container = client.database(name!).container(table);
         if (cacheKey) {
-            cacheKey += data.name! + data.table + (partitionKey || '');
+            cacheKey += name! + table + partitionKey;
         }
-        if (data.id) {
+        if (id) {
             if (cacheKey) {
-                cacheKey += data.id;
+                cacheKey += id;
                 if (CACHE_DB[cacheKey]) {
                     return CACHE_DB[cacheKey];
                 }
             }
-            const item = await container.item(data.id.toString(), partitionKey).read();
+            const item = await container.item(id.toString(), partitionKey).read();
             if (item.statusCode === 200) {
                 result = [item.resource];
             }
         }
-        else if (typeof data.query === 'string') {
-            const limit = Math.max(data.limit || 0, 0);
+        else if (typeof query === 'string') {
             if (cacheKey) {
-                cacheKey += data.query.replace(/\s+/g, '') + limit;
+                cacheKey += query.replace(/\s+/g, '') + limit;
                 if (CACHE_DB[cacheKey]) {
                     return CACHE_DB[cacheKey];
                 }
@@ -128,7 +127,7 @@ export async function execDatabaseQuery(this: ICloud | IFileManager, credential:
             if (limit > 0) {
                 options.maxItemCount ||= limit;
             }
-            result = (await container.items.query(data.query, options).fetchAll()).resources;
+            result = (await container.items.query(query, options).fetchAll()).resources;
         }
     }
     catch (err) {
@@ -144,6 +143,6 @@ export async function execDatabaseQuery(this: ICloud | IFileManager, credential:
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { validateStorage, createStorageClient, deleteObjects, validateDatabase, createDatabaseClient, execDatabaseQuery };
+    module.exports = { validateStorage, createStorageClient, validateDatabase, createDatabaseClient, deleteObjects, executeQuery };
     Object.defineProperty(module.exports, '__esModule', { value: true });
 }

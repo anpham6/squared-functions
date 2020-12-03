@@ -749,7 +749,7 @@ class FileManager extends Module implements IFileManager {
                                             if (value) {
                                                 const replacement = ' ' + formatAttr(attr, value);
                                                 match = new RegExp(`\\s*${attr}="(?:[^"]|(?<=\\\\)")*"`).exec(replaceWith);
-                                                replaceWith = match ? replaceWith.replace(match[0], replacement) : replaceWith.replace(/^(\s*<[\w-]+)\s*/, (...capture) => capture[1] + replacement);
+                                                replaceWith = match ? replaceWith.replace(match[0], replacement) : replaceWith.replace(/^(\s*<[\w-]+)(\s*)/, (...capture) => capture[1] + replacement + (capture[2] ? ' ' : ''));
                                                 break;
                                             }
                                         }
@@ -775,7 +775,7 @@ class FileManager extends Module implements IFileManager {
                 }
                 const baseUri = file.uri!;
                 const saved = new Set<string>();
-                pattern = /(\s*)<(script|link|style)([^>]*?)(\s+data-chrome-file="\s*(save|export)As:\s*((?:[^"]|(?<=\\)")+)")([^>]*)>(?:[\s\S]*?<\/\2>\n*)?/ig;
+                pattern = /(\s*)<(script|link|style)(.*?)(\s+data-chrome-file="\s*(save|export)As:\s*((?:[^"]|(?<=\\)")+)")([^>]*)>(?:[\s\S]*?<\/\2>\n*)?/ig;
                 while (match = pattern.exec(html)) {
                     const items = match[6].split('::').map(item => item.trim());
                     if (items[0] === '~') {
@@ -787,7 +787,7 @@ class FileManager extends Module implements IFileManager {
                     }
                     else {
                         const script = match[2].toLowerCase() === 'script';
-                        if (saved.has(location) || match[5] === 'export' && new RegExp(`<${script ? 'script' : 'link'}[^>]+?(?:${script ? 'src' : 'href'}="${location}"|data-chrome-file="\\s*saveAs:\\s*${location}\\s*[:"])[^>]*>`, 'i').test(html)) {
+                        if (saved.has(location) || match[5] === 'export' && new RegExp(`<${script ? 'script' : 'link'}.+?(?:${script ? 'src' : 'href'}="${location}"|data-chrome-file="\\s*saveAs:\\s*${location}\\s*[:"])[^>]*>`, 'i').test(html)) {
                             source = source.replace(match[0], '');
                         }
                         else if (match[5] === 'save') {
@@ -973,10 +973,10 @@ class FileManager extends Module implements IFileManager {
                     }
                 }
                 source = (this.transformCss(file, source) || source)
-                    .replace(/\s*<(script|link|style)[^>]+?data-chrome-file="exclude"[^>]*>[\s\S]*?<\/\1>\n*/ig, '')
-                    .replace(/\s*<script[^>]*?data-chrome-template="([^"]|(?<=\\)")*"[^>]*>[\s\S]*?<\/script>\n*/ig, '')
-                    .replace(/\s*<(script|link)[^>]+?data-chrome-file="exclude"[^>]*>\n*/ig, '')
-                    .replace(/\s+data-(?:use|chrome-[\w-]+)="([^"]|(?<=\\)")*"/g, '');
+                    .replace(/\s*<([\w-]+).+?data-chrome-file="exclude"[\s\S]*?<\/\1>\n*/ig, '')
+                    .replace(/\s*<([\w-]+).+?data-chrome-file="exclude"[^>]*>\n*/ig, '')
+                    .replace(/\s*<script.+?data-chrome-template="([^"]|(?<=\\)")*"[\s\S]*?<\/script>\n*/ig, '')
+                    .replace(/\s+data-(use|chrome-[\w-]+)="([^"]|(?<=\\)")*"/g, '');
                 if (format) {
                     const result = await module.transform('html', format, source, this.createSourceMap(file, fileUri, source));
                     if (result) {
