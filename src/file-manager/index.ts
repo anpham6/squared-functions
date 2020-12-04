@@ -56,6 +56,23 @@ interface GulpTask {
 
 const REGEXP_INDEXOBJECT = /([^[.\s]+)((?:\s*\[[^\]]+\]\s*)+)?\s*\.?\s*/g;
 const REGEXP_INDEXARRAY = /\[\s*(["'])?(.+?)\1\s*\]/g;
+const REGEXP_FILESAVEAS = /(\s*)<(script|link|style)(.*?)(\s+data-chrome-file="\s*(save|export)As:\s*((?:[^"]|(?<=\\)")+)")([^>]*)>(?:[\s\S]*?<\/\2>\n*)?/g;
+const REGEXP_TAGTEXT = /^\s*<([\w-]+)[^>]*>[\S\s]*?<\/\1>\s*$/;
+const REGEXP_TRAILINGCONTENT = /(\s*)<(script|style)[^>]*>([\s\S]*?)<\/\2>\n*/g;
+const REGEXP_DBCOLUMN = /\$\{\s*(\w+)\s*\}/g;
+const REGEXP_FILEEXCLUDE = /\s*<(script|link|style).+?data-chrome-file="exclude"[\s\S]*?<\/\1>\n*/g;
+const REGEXP_FILEEXCLUDECLOSED = /\s*<(script|link).+?data-chrome-file="exclude"[^>]*>\n*/g;
+const REGEXP_SCRIPTTEMPLATE = /\s*<script.+?data-chrome-template="([^"]|(?<=\\)")*"[\s\S]*?<\/script>\n*/g;
+const REGEXP_CHROMEATTRIBUTE = /\s+data-(use|chrome-[\w-]+)="([^"]|(?<=\\)")*"/g;
+const REGEXP_CSSURL = /url\(\s*([^)]+)\s*\)/g;
+
+function removeFileCommands(value: string) {
+    return value
+        .replace(REGEXP_FILEEXCLUDE, '')
+        .replace(REGEXP_FILEEXCLUDECLOSED, '')
+        .replace(REGEXP_SCRIPTTEMPLATE, '')
+        .replace(REGEXP_CHROMEATTRIBUTE, '');
+}
 
 function getObjectValue(data: PlainObject, key: string, joinString = ' ') {
     REGEXP_INDEXOBJECT.lastIndex = 0;
@@ -525,11 +542,11 @@ class FileManager extends Module implements IFileManager {
         if (output) {
             source = output;
         }
+        REGEXP_CSSURL.lastIndex = 0;
         const fileUri = file.uri!;
         const baseUri = this.baseAsset?.uri;
-        const pattern = /url\(\s*([^)]+)\s*\)/ig;
         let match: Null<RegExpExecArray>;
-        while (match = pattern.exec(source)) {
+        while (match = REGEXP_CSSURL.exec(source)) {
             const url = match[1].replace(/^["']\s*/, '').replace(/\s*["']$/, '');
             if (!Node.isFileURI(url) || Node.fromSameOrigin(fileUri, url)) {
                 let location = this.relativePosix(file, url);
@@ -669,11 +686,10 @@ class FileManager extends Module implements IFileManager {
                 let html = this.getUTF8String(file, fileUri),
                     source = html,
                     current = '',
-                    pattern: Undef<RegExp>,
                     match: Null<RegExpExecArray>;
                 const minifySpace = (value: string) => value.replace(/(\s+|\/)/g, '');
                 const getOuterHTML = (css: boolean, value: string) => css ? `<link rel="stylesheet" href="${value}" />` : `<script src="${value}"></script>`;
-                const checkInlineOptions = (value: string) => /data-chrome-options="[^"]*?inline\b/.test(value);
+                const isInlined = (value: string) => /data-chrome-options="[^"]*?inline\b/.test(value);
                 const formatTag = (outerHTML: string) => outerHTML.replace(/"\s*>$/, '" />');
                 const formatAttr = (key: string, value?: Null<string>) => value !== undefined ? key + (value !== null ? `="${value}"` : '') : '';
                 const replaceTry = (outerHTML: string, replaceWith: string) => {
@@ -682,15 +698,10 @@ class FileManager extends Module implements IFileManager {
                         source = source.replace(formatTag(outerHTML), replaceWith);
                     }
                 };
-                const replaceMinify = (outerHTML: string, replaceWith: string, tagPattern?: RegExp) => {
+                const replaceMinify = (outerHTML: string, replaceWith: string) => {
                     if (current === source) {
                         outerHTML = minifySpace(outerHTML);
-                        if (tagPattern) {
-                            tagPattern.lastIndex = 0;
-                        }
-                        else {
-                            tagPattern = /(\s*)<[\w-]+[^>]*>[\s\S]*?<\/\2>\n*/g;
-                        }
+                        const tagPattern = /(\s*)<([\w-]+)[\s\S]*?<\/\2>\n*/g;
                         while (match = tagPattern.exec(html)) {
                             if (outerHTML === minifySpace(match[0])) {
                                 source = source.replace(match[0], (replaceWith ? match[1] : '') + replaceWith);
@@ -722,7 +733,7 @@ class FileManager extends Module implements IFileManager {
                                             closing = `</${match[2]}>` + match[4];
                                         }
                                     }
-                                    else if (opposing.length === 2 && forward.length === 2 && /^\s*<([\w-]+)[^>]*>[\S\s]*?<\/\1>\s*$/.test(outerHTML)) {
+                                    else if (opposing.length === 2 && forward.length === 2 && REGEXP_TAGTEXT.test(outerHTML)) {
                                         opening = forward[0] + '>';
                                         closing = '<' + opposing[1];
                                     }
@@ -767,8 +778,8 @@ class FileManager extends Module implements IFileManager {
                                         let output = '';
                                         for (const row of result) {
                                             let value = template;
-                                            pattern = /\$\{\s*(\w+)\s*\}/g;
-                                            while (match = pattern.exec(template)) {
+                                            REGEXP_DBCOLUMN.lastIndex = 0;
+                                            while (match = REGEXP_DBCOLUMN.exec(template)) {
                                                 value = value.replace(match[0], getObjectValue(row, match[1]));
                                             }
                                             output += value;
@@ -825,14 +836,14 @@ class FileManager extends Module implements IFileManager {
                 }
                 const baseUri = file.uri!;
                 const saved = new Set<string>();
-                pattern = /(\s*)<(script|link|style)(.*?)(\s+data-chrome-file="\s*(save|export)As:\s*((?:[^"]|(?<=\\)")+)")([^>]*)>(?:[\s\S]*?<\/\2>\n*)?/ig;
-                while (match = pattern.exec(html)) {
+                REGEXP_FILESAVEAS.lastIndex = 0;
+                while (match = REGEXP_FILESAVEAS.exec(html)) {
                     const items = match[6].split('::').map(item => item.trim());
                     if (items[0] === '~') {
                         continue;
                     }
                     const location = this.absolutePath(items[0], baseUri);
-                    if ((checkInlineOptions(match[3]) || checkInlineOptions(match[7])) && !saved.has(location)) {
+                    if ((isInlined(match[3]) || isInlined(match[7])) && !saved.has(location)) {
                         saved.add(location);
                     }
                     else {
@@ -855,16 +866,15 @@ class FileManager extends Module implements IFileManager {
                     }
                 }
                 html = source;
-                pattern = /(\s*)<(script|style)[^>]*>([\s\S]*?)<\/\2>\n*/g;
                 for (const item of this.assets) {
                     if (item.invalid && !item.exclude) {
                         continue;
                     }
                     const { outerHTML, trailingContent } = item;
                     if (trailingContent) {
-                        pattern.lastIndex = 0;
-                        const content = trailingContent.map(trailing => minifySpace(trailing.value));
-                        while (match = pattern.exec(html)) {
+                        REGEXP_TRAILINGCONTENT.lastIndex = 0;
+                        const content = trailingContent.map(innerHTML => minifySpace(innerHTML.value));
+                        while (match = REGEXP_TRAILINGCONTENT.exec(html)) {
                             if (content.includes(minifySpace(match[3]))) {
                                 source = source.replace(match[0], '');
                             }
@@ -874,8 +884,7 @@ class FileManager extends Module implements IFileManager {
                     if (outerHTML) {
                         current = source;
                         const { bundleIndex, inlineContent, attributes = {} } = item;
-                        let output = '',
-                            tagPattern: Undef<RegExp>;
+                        let output = '';
                         if (inlineContent) {
                             const id = `<!-- ${uuid.v4()} -->`;
                             let replaceWith = '<' + inlineContent;
@@ -884,7 +893,7 @@ class FileManager extends Module implements IFileManager {
                             }
                             replaceWith += `>${id}</${inlineContent}>`;
                             replaceTry(outerHTML, replaceWith);
-                            replaceMinify(outerHTML, replaceWith, pattern);
+                            replaceMinify(outerHTML, replaceWith);
                             if (current !== source) {
                                 item.inlineContent = id;
                                 item.watch = false;
@@ -904,14 +913,13 @@ class FileManager extends Module implements IFileManager {
                             else {
                                 value = item.relativePath!;
                             }
-                            output = getOuterHTML(/^\s*<link\b/i.test(outerHTML) || !!item.mimeType?.endsWith('/css'), value);
-                            tagPattern = pattern;
+                            output = getOuterHTML(/^\s*<link\b/.test(outerHTML) || !!item.mimeType?.endsWith('/css'), value);
                         }
                         else if (item.exclude || bundleIndex !== undefined) {
                             source = source.replace(new RegExp(`\\s*${escapeRegexp(outerHTML)}\\n*`), '');
                             if (current === source) {
                                 source = source.replace(new RegExp(`\\s*${escapeRegexp(formatTag(outerHTML))}\\n*`), '');
-                                replaceMinify(outerHTML, '', bundleIndex !== undefined ? pattern : undefined);
+                                replaceMinify(outerHTML, '');
                             }
                             continue;
                         }
@@ -932,7 +940,7 @@ class FileManager extends Module implements IFileManager {
                             }
                             if (output !== outerHTML) {
                                 replaceTry(outerHTML, output);
-                                replaceMinify(outerHTML, output, tagPattern);
+                                replaceMinify(outerHTML, output);
                                 if (current !== source) {
                                     item.outerHTML = output;
                                     continue;
@@ -988,8 +996,8 @@ class FileManager extends Module implements IFileManager {
                                 }
                             }
                             if (relativePath) {
-                                pattern = new RegExp(`(["'\\s,=])(` + (ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + this.escapePosix(relativePath) + ')', 'g');
-                                while (match = pattern.exec(html)) {
+                                const directory = new RegExp(`(["'\\s,=])(` + (ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + this.escapePosix(relativePath) + ')', 'g');
+                                while (match = directory.exec(html)) {
                                     if (uri === Node.resolvePath(match[2], baseUri)) {
                                         const result = source.replace(match[0], match[1] + value);
                                         if (result !== source) {
@@ -1020,11 +1028,7 @@ class FileManager extends Module implements IFileManager {
                         }
                     }
                 }
-                source = (this.transformCss(file, source) || source)
-                    .replace(/\s*<([\w-]+).+?data-chrome-file="exclude"[\s\S]*?<\/\1>\n*/ig, '')
-                    .replace(/\s*<([\w-]+).+?data-chrome-file="exclude"[^>]*>\n*/ig, '')
-                    .replace(/\s*<script.+?data-chrome-template="([^"]|(?<=\\)")*"[\s\S]*?<\/script>\n*/ig, '')
-                    .replace(/\s+data-(use|chrome-[\w-]+)="([^"]|(?<=\\)")*"/g, '');
+                source = removeFileCommands(this.transformCss(file, source) || source);
                 if (format) {
                     const result = await module.transform('html', format, source, this.createSourceMap(file, fileUri, source));
                     if (result) {

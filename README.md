@@ -184,17 +184,21 @@ These are the available option modifiers:
     - br: Brotli
 ```
 
+NOTE: Placing the "chrome" dataset commands at the end is recommended especially if you are using the ">" character in your attributes. When possible use the "&amp;gt;" entity instead.
+
 ```xml
-<link data-chrome-file="saveAs:css/prod.css::beautify" data-chrome-options="preserve|inline" rel="stylesheet" href="css/dev.css" />
+<!-- Required: Lowercase tag names and attributes with no extra spaces -->
+
+<link rel="stylesheet" href="css/dev.css" data-chrome-file="saveAs:css/prod.css::beautify" data-chrome-options="preserve|inline" />
 <style data-chrome-file="exportAs:css/prod.css::minify+beautify" data-chrome-options="compress[gz]">
     body {
         font: 1em/1.4 Helvetica, Arial, sans-serif;
         background-color: #fafafa;
     }
 </style>
-<script data-chrome-file="saveAs:js/bundle1.js::minify" src="/dist/squared.js"></script>
-<script data-chrome-file="saveAs:js/bundle1.js::minify" src="/dist/squared.base.js"></script>
-<script data-chrome-file="saveAs:js/bundle2.js" src="/dist/chrome.framework.js"></script>
+<script src="/dist/squared.js" data-chrome-file="saveAs:js/bundle1.js::minify"></script>
+<script src="/dist/squared.base.js" data-chrome-file="saveAs:js/bundle1.js::minify"></script>
+<script src="/dist/chrome.framework.js" data-chrome-file="saveAs:js/bundle2.js"></script>
 ```
 
 Bundling with inline commands using a 1-2-1 format may cause the generated bundle to execute incorrectly. Other configuration methods will create a new file when it finds any conflicts. The advantages of bundling this way gives you the ability to debug source code inside &lt;script&gt; elements.
@@ -616,7 +620,7 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
 ```
 
 ```javascript
-// Attribute "table" is required and used for caching results
+// Required: Attribute "table" is used for caching results
 
 /* Azure: https://docs.microsoft.com/en-us/azure/cosmos-db/sql-query-getting-started */
 {
