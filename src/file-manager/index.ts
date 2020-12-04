@@ -303,7 +303,7 @@ class FileManager extends Module implements IFileManager {
                     fs.renameSync(replaceWith, fileUri);
                 }
                 catch (err) {
-                    this.writeFail(['Unable to rename file', replaceWith], err);
+                    this.writeFail(['Unable to rename file', path.basename(replaceWith)], err);
                 }
             }
             else {
@@ -448,7 +448,7 @@ class FileManager extends Module implements IFileManager {
                     file.sourceUTF8 = fs.readFileSync(fileUri, 'utf8');
                 }
                 catch (err) {
-                    this.writeFail(['File not found', fileUri], err);
+                    this.writeFail(['File not found', path.basename(fileUri)], err);
                 }
             }
         }
@@ -1135,7 +1135,7 @@ class FileManager extends Module implements IFileManager {
                     fs.copyFileSync(fileUri, output);
                 }
                 catch (err) {
-                    this.writeFail(['Unable to copy file', fileUri], err);
+                    this.writeFail(['Unable to copy file', path.basename(fileUri)], err);
                     return '';
                 }
             }
@@ -1179,7 +1179,7 @@ class FileManager extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                return Promise.all(tasks).catch(err => this.writeFail(['Compress', fileUri], err));
+                return Promise.all(tasks).catch(err => this.writeFail(['Compress', path.basename(fileUri)], err));
             }
         }
     }
@@ -1188,10 +1188,7 @@ class FileManager extends Module implements IFileManager {
             const png = Compress.hasImageService() && Compress.findFormat(data.file.compress, 'png');
             if (png && Compress.withinSizeRange(data.fileUri, png.condition)) {
                 try {
-                    Compress.tryImage(data.fileUri, (result: string, err: Null<Error>) => {
-                        if (err) {
-                            throw err;
-                        }
+                    Compress.tryImage(data.fileUri, (result: string) => {
                         if (result) {
                             data.fileUri = result;
                             delete data.file.buffer;
@@ -1200,7 +1197,7 @@ class FileManager extends Module implements IFileManager {
                     });
                 }
                 catch (err) {
-                    this.writeFail(['Unable to compress image', data.fileUri], err);
+                    this.writeFail(['Unable to compress image', path.basename(data.fileUri)], err);
                     this.finalizeAsset(data);
                 }
                 return;
@@ -1211,7 +1208,7 @@ class FileManager extends Module implements IFileManager {
     finalizeImage(options: UsingOptions, error?: Null<Error>) {
         const { data, output, command = '', compress } = options;
         if (error || !output) {
-            this.writeFail(['Unable to finalize image', output || ''], error);
+            this.writeFail(['Unable to finalize image', path.basename(output || '')], error);
             this.completeAsyncTask();
         }
         else {
@@ -1239,12 +1236,13 @@ class FileManager extends Module implements IFileManager {
                 }
             }
             if (compress) {
-                Compress.tryImage(output, (result: string, err: Null<Error>) => {
-                    if (err) {
-                        this.writeFail(['Unable to compress image', output], err);
-                    }
-                    this.completeAsyncTask(result || output, parent);
-                });
+                try {
+                    Compress.tryImage(output, (result: string) => this.completeAsyncTask(result || output, parent));
+                }
+                catch (err) {
+                    this.writeFail(['Unable to compress image', path.basename(output)], err);
+                    this.completeAsyncTask(output, parent);
+                }
             }
             else {
                 this.completeAsyncTask(output, parent);
@@ -1266,7 +1264,7 @@ class FileManager extends Module implements IFileManager {
                         await this.Image.using.call(this, { data, compress, callback });
                     }
                     catch (err) {
-                        this.writeFail(['Unable to read image buffer', fileUri], err);
+                        this.writeFail(['Unable to read image buffer', path.basename(fileUri)], err);
                         file.invalid = true;
                     }
                 }
@@ -1288,7 +1286,7 @@ class FileManager extends Module implements IFileManager {
                     fs.unlinkSync(fileUri);
                 }
                 catch (err) {
-                    this.writeFail(['Unable to delete file', fileUri], err);
+                    this.writeFail(['Unable to delete file', path.basename(fileUri)], err);
                 }
             }
             this.completeAsyncTask('');
@@ -1787,7 +1785,8 @@ class FileManager extends Module implements IFileManager {
                     fs.mkdirpSync(tempDir);
                     Promise.all(data.items.map(uri => fs.copyFile(uri, path.join(tempDir, path.basename(uri)))))
                         .then(() => {
-                            this.formatMessage(this.logType.CHROME, 'gulp', ['Executing task...', task], data.gulpfile, 'magenta');
+                            this.formatMessage(this.logType.CHROME, 'gulp', ['Executing task...', task], data.gulpfile, { titleColor: 'magenta' });
+                            const time = Date.now();
                             child_process.exec(`gulp ${task} --gulpfile "${data.gulpfile}" --cwd "${tempDir}"`, { cwd: process.cwd() }, err => {
                                 if (!err) {
                                     Promise.all(data.items.map(uri => fs.unlink(uri).then(() => this.delete(uri))))
@@ -1799,9 +1798,12 @@ class FileManager extends Module implements IFileManager {
                                                             const uri = path.join(origDir, filename);
                                                             return fs.move(path.join(tempDir, filename), uri, { overwrite: true }).then(() => this.add(uri));
                                                         }))
-                                                        .then(() => callback())
+                                                        .then(() => {
+                                                            this.writeTimeElapsed('gulp', task, time);
+                                                            callback();
+                                                        })
                                                         .catch(err_w => {
-                                                            this.writeFail(['Unable to replace original files', `gulp:${task}`], err_w);
+                                                            this.writeFail(['Unable to replace original files', `gulp: ${task}`], err_w);
                                                             callback();
                                                         });
                                                 }
@@ -1810,15 +1812,15 @@ class FileManager extends Module implements IFileManager {
                                                 }
                                             });
                                         })
-                                        .catch(error => this.writeFail(['Unable to delete original files', `gulp:${task}`], error));
+                                        .catch(error => this.writeFail(['Unable to delete original files', `gulp: ${task}`], error));
                                 }
                                 else {
-                                    this.writeFail(['Exec', `gulp:${task}`], err);
+                                    this.writeFail(['Unknown', `gulp: ${task}`], err);
                                     callback();
                                 }
                             });
                         })
-                        .catch(err => this.writeFail(['Unable to copy original files', `gulp:${task}`], err));
+                        .catch(err => this.writeFail(['Unable to copy original files', `gulp: ${task}`], err));
                 }
                 catch (err) {
                     this.writeFail(['Unknown', `gulp:${task}`], err);

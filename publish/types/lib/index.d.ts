@@ -14,7 +14,7 @@ declare namespace functions {
     type FileManagerWriteImageCallback = (options: internal.Image.UsingOptions, error?: Null<Error>) => void;
     type FileManagerPerformAsyncTaskCallback = (parent?: ExternalAsset) => void;
     type FileManagerCompleteAsyncTaskCallback = (value?: unknown, parent?: ExternalAsset) => void;
-    type CompressTryImageCallback = (result: string, err?: Null<Error>) => void;
+    type CompressTryImageCallback = (result: string) => void;
 
     namespace squared {
         interface LocationUri {
@@ -159,6 +159,7 @@ declare namespace functions {
                 output?: string;
                 command?: string;
                 compress?: CompressFormat;
+                time?: number;
                 callback?: FileManagerWriteImageCallback;
             }
 
@@ -267,7 +268,7 @@ declare namespace functions {
             fileUri: string;
         }
 
-        enum LOGGING {
+        enum LOG_TYPE {
             UNKNOWN = 0,
             SYSTEM = 1,
             CHROME = 2,
@@ -276,23 +277,24 @@ declare namespace functions {
             NODE = 16,
             WATCH = 32,
             CLOUD_STORAGE = 64,
-            CLOUD_DATABASE = 128
+            CLOUD_DATABASE = 128,
+            TIME_ELAPSED = 256
         }
-    }
 
-    namespace external {
-        namespace Cloud {
-            interface StorageSharedKeyCredential {
-                accountName?: string;
-                accountKey?: string;
-                connectionString?: string;
-                sharedAccessSignature?: string;
-            }
+        interface LogMessageOptions {
+            titleColor?: typeof ForegroundColor;
+            titleBgColor?: typeof BackgroundColor;
+            valueColor?: typeof ForegroundColor;
+            valueBgColor?: typeof BackgroundColor;
+            messageColor?: typeof ForegroundColor;
+            messageBgColor?: typeof BackgroundColor;
+            hintColor?: typeof ForegroundColor;
+            hintBgColor?: typeof BackgroundColor;
         }
     }
 
     namespace settings {
-        interface LoggingModule {
+        interface LoggerModule {
             unknown?: boolean;
             system?: boolean;
             chrome?: boolean;
@@ -302,6 +304,7 @@ declare namespace functions {
             watch?: boolean;
             cloud_storage?: boolean;
             cloud_database?: boolean;
+            time_elapsed?: boolean;
         }
 
         interface ImageModule {
@@ -496,7 +499,7 @@ declare namespace functions {
     const FileManager: FileManagerConstructor;
 
     interface IModule {
-        logType: typeof internal.LOGGING;
+        logType: typeof internal.LOG_TYPE;
         readonly major: number;
         readonly minor: number;
         readonly patch: number;
@@ -506,9 +509,11 @@ declare namespace functions {
         getTempDir(): string;
         escapePosix(value: string): string;
         toPosix(value: string, filename?: string): string;
-        formatMessage(type: internal.LOGGING, title: string, value: string | [string, string], message?: unknown, color?: typeof ForegroundColor, bgColor?: typeof BackgroundColor): void;
+        formatMessage(type: internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options?: internal.LogMessageOptions): void;
+        formatFail(type: internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown): void;
         writeFail(value: string | [string, string], message?: unknown): void;
-        writeMessage(title: string, value: string, message?: unknown, color?: typeof ForegroundColor, bgColor?: typeof BackgroundColor): void;
+        writeTimeElapsed(title: string, value: string, time: number, options?: internal.LogMessageOptions): void;
+        writeMessage(title: string, value: string, message?: unknown, options?: internal.LogMessageOptions): void;
     }
 
     interface ModuleConstructor {
@@ -563,7 +568,7 @@ declare namespace functions {
         env?: string;
         port?: StringMap;
         routing?: internal.Serve.Routing;
-        logging?: settings.LoggingModule;
+        logger?: settings.LoggerModule;
         watch?: settings.WatchModule;
         image?: settings.ImageModule;
         compress?: settings.CompressModule;

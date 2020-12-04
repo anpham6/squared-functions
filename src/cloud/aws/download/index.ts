@@ -28,16 +28,16 @@ function download(this: IFileManager, credential: AWSStorageCredential, service 
                         if (Download.deleteObject) {
                             s3.deleteObject(params, error => {
                                 if (!error) {
-                                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Delete success', location, 'grey');
+                                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Delete success', location, { titleColor: 'grey' });
                                 }
                                 else {
-                                    this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Delete failed', location], error, 'red');
+                                    this.formatFail(this.logType.CLOUD_STORAGE, service, ['Delete failed', location], error);
                                 }
                             });
                         }
                     }
                     else {
-                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Download failed', location], err, 'red');
+                        this.formatFail(this.logType.CLOUD_STORAGE, service, ['Download failed', location], err);
                         success(null);
                     }
                 });
@@ -47,7 +47,7 @@ function download(this: IFileManager, credential: AWSStorageCredential, service 
             }
         }
         else {
-            this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket not specified', Download && Download.filename, 'red');
+            this.formatFail(this.logType.CLOUD_STORAGE, service, 'Bucket not specified', Download && Download.filename);
             success(null);
         }
     };

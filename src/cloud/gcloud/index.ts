@@ -61,7 +61,7 @@ export async function createBucket(this: InstanceHost, credential: GCloudStorage
         if (!exists) {
             storage.projectId = getProjectId(credential);
             const [response] = await storage.createBucket(bucket, credential);
-            this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket created', bucket, 'blue');
+            this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket created', bucket, { titleColor: 'blue' });
             if (publicRead) {
                 response.makePublic().then(() => setPublicRead.call(this, response.acl.default, bucket, true));
             }
@@ -69,7 +69,7 @@ export async function createBucket(this: InstanceHost, credential: GCloudStorage
     }
     catch (err) {
         if (err.code !== 409) {
-            this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to create bucket', bucket], err, 'red');
+            this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to create bucket', bucket], err);
             return false;
         }
     }
@@ -81,10 +81,10 @@ export async function deleteObjects(this: InstanceHost, credential: GCloudStorag
         return createStorageClient.call(this, credential)
             .bucket(bucket)
             .deleteFiles({ force: true })
-            .then(() => this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket emptied', bucket, 'blue'));
+            .then(() => this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket emptied', bucket, { titleColor: 'blue' }));
     }
     catch (err) {
-        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to empty bucket', bucket], err, 'yellow');
+        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to empty bucket', bucket], err, { titleColor: 'yellow' });
     }
 }
 
@@ -151,11 +151,11 @@ export async function executeQuery(this: InstanceHost, credential: GCloudDatabas
 export function setPublicRead(this: InstanceHost, acl: Acl, filename: string, requested?: boolean) {
     acl.add({ entity: 'allUsers', role: 'READER' })
         .then(() => {
-            this.formatMessage(this.logType.CLOUD_STORAGE, 'gcloud', 'Grant public-read', filename, 'blue');
+            this.formatMessage(this.logType.CLOUD_STORAGE, 'gcloud', 'Grant public-read', filename, { titleColor: 'blue' });
         })
         .catch(err => {
             if (requested) {
-                this.formatMessage(this.logType.CLOUD_STORAGE, 'gcloud', ['Unable to grant public-read', filename], err, 'yellow');
+                this.formatMessage(this.logType.CLOUD_STORAGE, 'gcloud', ['Unable to grant public-read', filename], err, { titleColor: 'yellow' });
             }
         });
 }

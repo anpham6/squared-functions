@@ -1,5 +1,5 @@
 import type { ConfigurationOptions } from 'aws-sdk/lib/core';
-import type * as db from 'oracledb';
+import type { Connection, ConnectionAttributes } from 'oracledb';
 
 import { createBucket as createBucket_s3, deleteObjects as deleteObjects_s3 } from '../aws';
 
@@ -14,7 +14,7 @@ export interface OCIStorageCredential extends ConfigurationOptions {
     endpoint?: string;
 }
 
-export interface OCIDatabaseCredential extends db.ConnectionAttributes {}
+export interface OCIDatabaseCredential extends ConnectionAttributes {}
 
 export interface OCIDatabaseQuery extends functions.squared.CloudDatabase<PlainObject | string> {}
 
@@ -36,7 +36,7 @@ export async function createDatabaseClient(this: InstanceHost, credential: OCIDa
     try {
         const oracledb = require('oracledb');
         oracledb.autoCommit = true;
-        return await oracledb.getConnection(credential) as db.Connection;
+        return await oracledb.getConnection(credential) as Connection;
     }
     catch (err) {
         this.writeFail([`Install Oracle DB?`, 'npm i oracledb']);

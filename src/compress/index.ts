@@ -84,9 +84,11 @@ const Compress = new class extends Module implements functions.ICompress {
                 if (initialize) {
                     initialize();
                 }
-                this.formatMessage(this.logType.COMPRESS, data.format, 'Compressing file...', output, 'magenta');
+                this.formatMessage(this.logType.COMPRESS, data.format, 'Compressing file...', output, { titleColor: 'magenta' });
+                const time = Date.now();
                 Compress[methodName](fileUri, output, data.level)
                     .on('finish', () => {
+                        this.writeTimeElapsed(data.format, path.basename(output), time);
                         if (data.condition?.includes('%') && this.getFileSize(output) >= this.getFileSize(fileUri)) {
                             fs.unlink(output, () => {
                                 if (callback) {
@@ -99,7 +101,7 @@ const Compress = new class extends Module implements functions.ICompress {
                         }
                     })
                     .on('error', err => {
-                        this.writeFail(['Unable to compress file', output], err);
+                        this.writeFail(['Unable to compress file', path.basename(output)], err);
                         if (callback) {
                             callback();
                         }
@@ -112,23 +114,37 @@ const Compress = new class extends Module implements functions.ICompress {
         }
     }
     tryImage(fileUri: string, callback: CompressTryImageCallback) {
-        this.formatMessage(this.logType.COMPRESS, path.extname(fileUri).substring(1), 'Compressing image...', fileUri, 'magenta');
+        const ext = path.extname(fileUri).substring(1);
+        this.formatMessage(this.logType.COMPRESS, ext, 'Compressing image...', fileUri, { titleColor: 'magenta' });
+        const time = Date.now();
+        const failed = (err: Error) => this.writeFail(['Unable to compress image', path.basename(fileUri)], err);
         fs.readFile(fileUri, (err, buffer) => {
             if (!err) {
                 tinify.fromBuffer(buffer).toBuffer((err_r, data) => {
                     if (data && !err_r) {
-                        fs.writeFile(fileUri, data, err_w => callback(err_w ? '' : fileUri, err_w));
+                        fs.writeFile(fileUri, data, err_w => {
+                            if (!err_w) {
+                                callback(fileUri);
+                                this.writeTimeElapsed(ext, path.basename(fileUri), time);
+                            }
+                            else {
+                                failed(err_w);
+                                callback('');
+                            }
+                        });
                     }
                     else {
                         if (err_r) {
+                            failed(err_r);
                             this.validate(this.tinifyApiKey);
                         }
-                        callback('', err_r);
+                        callback('');
                     }
                 });
             }
             else {
-                callback('', err);
+                failed(err);
+                callback('');
             }
         });
     }

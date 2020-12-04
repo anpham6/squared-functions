@@ -1,6 +1,6 @@
 import type { ConfigurationOptions } from 'ibm-cos-sdk/lib/config';
 import type { MangoQuery } from 'nano';
-import type * as db from '@cloudant/cloudant';
+import type { Configuration, ServerScope } from '@cloudant/cloudant';
 
 import { createBucket as createBucket_s3, deleteObjects as deleteObjects_s3 } from '../aws';
 
@@ -13,7 +13,7 @@ export interface IBMStorageCredential extends ConfigurationOptions {
     endpoint?: string;
 }
 
-export interface IBMDatabaseCredential extends db.Configuration {}
+export interface IBMDatabaseCredential extends Configuration {}
 
 export interface IBMDatabaseQuery extends functions.squared.CloudDatabase<MangoQuery> {
     partitionKey?: string;
@@ -37,7 +37,7 @@ export function setStorageCredential(this: InstanceHost, credential: IBMStorageC
 export function createDatabaseClient(this: InstanceHost, credential: IBMDatabaseCredential) {
     try {
         const Cloudant = require('@cloudant/cloudant');
-        return new Cloudant(credential) as db.ServerScope;
+        return new Cloudant(credential) as ServerScope;
     }
     catch (err) {
         this.writeFail([`Install IBM Cloudant?`, 'npm i @cloudant/cloudant']);

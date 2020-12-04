@@ -1,15 +1,14 @@
-import type { BackgroundColor, ForegroundColor } from 'chalk';
-
 import path = require('path');
 import fs = require('fs');
 import chalk = require('chalk');
 
 type Settings = functions.Settings;
-type LoggingModule = functions.settings.LoggingModule;
+type LoggerModule = functions.settings.LoggerModule;
+type LogMessageOptions = functions.internal.LogMessageOptions;
 
-let SETTINGS: LoggingModule = {};
+let SETTINGS: LoggerModule = {};
 
-export enum LOGGING {
+export enum LOG_TYPE {
     UNKNOWN = 0,
     SYSTEM = 1,
     CHROME = 2,
@@ -18,15 +17,14 @@ export enum LOGGING {
     NODE = 16,
     WATCH = 32,
     CLOUD_STORAGE = 64,
-    CLOUD_DATABASE = 128
+    CLOUD_DATABASE = 128,
+    TIME_ELAPSED = 256
 }
-
-const getMessage = (value: unknown) => value ? ' ' + chalk.blackBright('(') + value + chalk.blackBright(')') : '';
 
 const Module = class implements functions.IModule {
     public static loadSettings(value: Settings) {
-        if (value.logging) {
-            SETTINGS = value.logging;
+        if (value.logger) {
+            SETTINGS = value.logger;
         }
     }
 
@@ -74,48 +72,62 @@ const Module = class implements functions.IModule {
     toPosix(value: string, filename?: string) {
         return value.replace(/\\+/g, '/').replace(/\/+$/, '') + (filename ? '/' + filename : '');
     }
-    writeFail(value: string | [string, string], message?: unknown) {
-        this.formatMessage(LOGGING.SYSTEM, 'FAIL', value, message, 'white', 'bgRed');
+    writeTimeElapsed(title: string, value: string, time: number, options: LogMessageOptions = {}) {
+        options.hintColor ||= 'magenta';
+        this.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Completed', (Date.now() - time) / 1000 + 's'], value, options);
     }
-    formatMessage(type: LOGGING, title: string, value: string | [string, string], message?: unknown, color: typeof ForegroundColor = 'green', bgColor: typeof BackgroundColor = 'bgBlack') {
+    writeFail(value: string | [string, string], message?: unknown) {
+        this.formatFail(LOG_TYPE.SYSTEM, 'FAIL', value, message);
+    }
+    formatFail(type: LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options: LogMessageOptions = {}) {
+        options.titleColor ||= 'white';
+        options.titleBgColor ||= 'bgRed';
+        this.formatMessage(type, title, value, message, options);
+    }
+    formatMessage(type: LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options: LogMessageOptions = {}) {
         switch (type) {
-            case LOGGING.SYSTEM:
+            case LOG_TYPE.SYSTEM:
                 if (SETTINGS.system === false) {
                     return;
                 }
                 break;
-            case LOGGING.CHROME:
+            case LOG_TYPE.CHROME:
                 if (SETTINGS.chrome === false) {
                     return;
                 }
                 break;
-            case LOGGING.COMPRESS:
+            case LOG_TYPE.COMPRESS:
                 if (SETTINGS.compress === false) {
                     return;
                 }
                 break;
-            case LOGGING.IMAGE:
+            case LOG_TYPE.IMAGE:
                 if (SETTINGS.image === false) {
                     return;
                 }
                 break;
-            case LOGGING.NODE:
+            case LOG_TYPE.NODE:
                 if (SETTINGS.node === false) {
                     return;
                 }
                 break;
-            case LOGGING.WATCH:
+            case LOG_TYPE.WATCH:
                 if (SETTINGS.watch === false) {
                     return;
                 }
                 break;
-            case LOGGING.CLOUD_STORAGE:
+            case LOG_TYPE.CLOUD_STORAGE:
                 if (SETTINGS.cloud_storage === false) {
                     return;
                 }
                 break;
-            case LOGGING.CLOUD_DATABASE:
+            case LOG_TYPE.CLOUD_DATABASE:
                 if (SETTINGS.cloud_database === false) {
+                    return;
+                }
+                break;
+            case LOG_TYPE.TIME_ELAPSED:
+                if (SETTINGS.time_elapsed === false) {
                     return;
                 }
                 break;
@@ -127,18 +139,49 @@ const Module = class implements functions.IModule {
         }
         if (Array.isArray(value)) {
             const length = value[1] ? value[1].length : 0;
-            value = length ? value[0].padEnd(35) + (length < 30 ? chalk.blackBright(' '.repeat(30 - length)) : '') + chalk.blackBright('[') + (length > 30 ? value[1].substring(0, 27) + '...' : value[1]) + chalk.blackBright(']') : value[0].padEnd(67);
+            if (length) {
+                const formatHint = (hint: string) => {
+                    const { hintColor, hintBgColor } = options;
+                    if (hintColor) {
+                        hint = chalk[hintColor](hint);
+                    }
+                    if (hintBgColor) {
+                        hint = chalk[hintBgColor](hint);
+                    }
+                    return hint;
+                };
+                value = value[0].padEnd(35) + (length < 30 ? chalk.blackBright(' '.repeat(30 - length)) : '') + chalk.blackBright('[') + (length > 30 ? value[1].substring(0, 27) + '...' : formatHint(value[1])) + chalk.blackBright(']');
+            }
+            else {
+                value = value[0].padEnd(67);
+            }
         }
         else {
             value = value.padEnd(67);
         }
-        this.writeMessage(title.padEnd(6), value, message, color, bgColor);
+        this.writeMessage(title.padEnd(6), value, message, options);
     }
-    writeMessage(title: string, value: string, message?: unknown, color: typeof ForegroundColor = 'green', bgColor: typeof BackgroundColor = 'bgBlack') {
-        console.log(chalk[bgColor].bold[color](title.toUpperCase()) + chalk.blackBright(':') + ' ' + value + getMessage(message));
+    writeMessage(title: string, value: string, message: unknown = '', options: LogMessageOptions = {}) {
+        const { titleColor = 'green', titleBgColor = 'bgBlack', valueColor, valueBgColor, messageColor, messageBgColor } = options;
+        if (valueColor) {
+            value = chalk[valueColor](value);
+        }
+        if (valueBgColor) {
+            value = chalk[valueBgColor](value);
+        }
+        if (message) {
+            if (messageColor) {
+                message = chalk[messageColor](message);
+            }
+            if (messageBgColor) {
+                message = chalk[messageBgColor](message);
+            }
+            message = ' ' + chalk.blackBright('(') + message + chalk.blackBright(')');
+        }
+        console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase()) + chalk.blackBright(':') + ' ' + value + message);
     }
     get logType() {
-        return LOGGING;
+        return LOG_TYPE;
     }
 };
 

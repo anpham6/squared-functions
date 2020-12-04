@@ -122,13 +122,16 @@ class Chrome extends Module implements functions.IChrome {
                         this.writeFail('Unable to load configuration', plugin);
                     }
                     else {
-                        this.formatMessage(this.logType.CHROME, type, ['Transforming source...', plugin], name, 'magenta');
+                        this.formatMessage(this.logType.CHROME, type, ['Transforming source...', plugin], name, { titleColor: 'magenta', hintColor: 'cyan' });
+                        const time = Date.now();
+                        const success = () => this.writeTimeElapsed(type, plugin + ': ' + name, time);
                         if (typeof options === 'function') {
                             try {
                                 const result = options(require(plugin), value, output, input);
                                 if (result && typeof result === 'string') {
                                     value = result;
                                     valid = true;
+                                    success();
                                 }
                             }
                             catch (err) {
@@ -142,6 +145,7 @@ class Chrome extends Module implements functions.IChrome {
                                 if (result) {
                                     value = result;
                                     valid = true;
+                                    success();
                                 }
                             }
                             catch (err) {

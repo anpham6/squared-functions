@@ -36,16 +36,16 @@ function download(this: IFileManager, credential: GCloudStorageCredential, servi
                         if (Download.deleteObject) {
                             file.delete({ ignoreNotFound: true }, err => {
                                 if (!err) {
-                                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Delete success', location, 'grey');
+                                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Delete success', location, { titleColor: 'grey' });
                                 }
                                 else {
-                                    this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Delete failed', location], err, 'red');
+                                    this.formatFail(this.logType.CLOUD_STORAGE, service, ['Delete failed', location], err);
                                 }
                             });
                         }
                     })
                     .catch((err: Error) => {
-                        this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Download failed', err, 'red');
+                        this.formatFail(this.logType.CLOUD_STORAGE, service, 'Download failed', err);
                         success('');
                     });
             }
@@ -54,7 +54,7 @@ function download(this: IFileManager, credential: GCloudStorageCredential, servi
             }
         }
         else {
-            this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Container not specified', Download && Download.filename, 'red');
+            this.formatFail(this.logType.CLOUD_STORAGE, service, 'Container not specified', Download && Download.filename);
             success('');
         }
     };

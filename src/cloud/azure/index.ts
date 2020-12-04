@@ -6,7 +6,12 @@ type InstanceHost = functions.internal.Cloud.InstanceHost;
 
 const CACHE_DB: ObjectMap<any[]> = {};
 
-export interface AzureStorageCredential extends functions.external.Cloud.StorageSharedKeyCredential {}
+export interface AzureStorageCredential {
+    accountName?: string;
+    accountKey?: string;
+    connectionString?: string;
+    sharedAccessSignature?: string;
+}
 
 export interface AzureDatabaseCredential extends db.CosmosClientOptions {}
 
@@ -61,16 +66,16 @@ export async function createBucket(this: InstanceHost, credential: AzureStorageC
         if (!await containerClient.exists()) {
             const response = await containerClient.create({ access: publicRead ? 'blob' : 'container' });
             if (response.errorCode) {
-                this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Container created with errors', 'Error code: ' + response.errorCode], bucket, 'yellow');
+                this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Container created with errors', 'Error code: ' + response.errorCode], bucket, { titleColor: 'yellow' });
             }
             else {
-                this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Container created', bucket, 'blue');
+                this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Container created', bucket, { titleColor: 'blue' });
             }
         }
     }
     catch (err) {
         if (err.code !== 'ContainerAlreadyExists') {
-            this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to create container', bucket], err, 'red');
+            this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to create container', bucket], err);
             return false;
         }
     }
@@ -86,17 +91,17 @@ export async function deleteObjects(this: InstanceHost, credential: AzureStorage
             tasks.push(
                 containerClient.deleteBlob(blob.name, { versionId: blob.versionId })
                     .catch(err => {
-                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to delete blob', bucket], err, 'yellow');
+                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to delete blob', bucket], err, { titleColor: 'yellow' });
                         --fileCount;
                         return err;
                     })
             );
         }
         fileCount = tasks.length;
-        return Promise.all(tasks).then(() => this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Container emptied', fileCount + ' files'], bucket, 'blue'));
+        return Promise.all(tasks).then(() => this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Container emptied', fileCount + ' files'], bucket, { titleColor: 'blue' }));
     }
     catch (err) {
-        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to empty container', bucket], err, 'yellow');
+        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to empty container', bucket], err, { titleColor: 'yellow' });
     }
 }
 

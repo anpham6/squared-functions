@@ -56,11 +56,11 @@ function upload(this: IFileManager, credential: AzureStorageCredential, service 
                 }
                 while (exists && ++i);
                 if (i > 0) {
-                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'File renamed', filename, 'yellow');
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'File renamed', filename, { titleColor: 'yellow' });
                 }
             }
             catch (err) {
-                this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', fileUri], err, 'red');
+                this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', path.basename(fileUri)], err);
                 success('');
                 return;
             }
@@ -86,7 +86,7 @@ function upload(this: IFileManager, credential: AzureStorageCredential, service 
                 })
                 .catch(err => {
                     if (i === 0) {
-                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Upload failed', Key[i]], err, 'red');
+                        this.formatFail(this.logType.CLOUD_STORAGE, service, ['Upload failed', Key[i]], err);
                         success('');
                     }
                 });

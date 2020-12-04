@@ -84,9 +84,10 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
                     const output = this.queueImage(data, jimpType, saveAs, command);
                     if (output) {
                         this.performAsyncTask();
+                        this.formatMessage(this.logType.IMAGE, 'jimp', ['Transforming image...', path.basename(fileUri)], command, { titleColor: 'magenta' });
+                        const time = Date.now();
                         jimp.read(tempFile || getFile())
                             .then(img => {
-                                this.formatMessage(this.logType.IMAGE, 'jimp', ['Transforming image...', path.basename(fileUri)], command, 'magenta');
                                 const proxy = new Jimp(img, fileUri, command, finalAs);
                                 proxy.method();
                                 proxy.resize();
@@ -98,11 +99,12 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
                                     proxy.opacity();
                                 }
                                 proxy.rotate(this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this), file);
+                                options.time = time;
                                 proxy.write(output, options);
                             })
                             .catch(err => {
                                 this.completeAsyncTask();
-                                this.writeFail(['Unable to read image buffer', fileUri], err);
+                                this.writeFail(['Unable to read image buffer', path.basename(fileUri)], err);
                             });
                     }
                 }
@@ -290,7 +292,12 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
     write(output: string, options: UsingOptions) {
         this.instance.write(output, err => {
             if (options.data && options.callback) {
-                this.finalize(output, (result: string) => options.callback!({ ...options, output: result }, err));
+                this.finalize(output, (result: string) => {
+                    if (options.time) {
+                        this.writeTimeElapsed('jimp', path.basename(result), options.time);
+                    }
+                    options.callback!({ ...options, output: result }, err);
+                });
             }
             else if (err && this.errorHandler) {
                 this.errorHandler(err);

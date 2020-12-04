@@ -49,11 +49,11 @@ function upload(this: IFileManager, credential: GCloudStorageCredential, service
                 }
                 while (exists && ++i);
                 if (i > 0) {
-                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'File renamed', filename, 'yellow');
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'File renamed', filename, { titleColor: 'yellow' });
                 }
             }
             catch (err) {
-                this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', fileUri], err, 'red');
+                this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', path.basename(fileUri)], err);
                 success('');
                 return;
             }
@@ -74,7 +74,7 @@ function upload(this: IFileManager, credential: GCloudStorageCredential, service
                     fs.mkdirpSync(path.dirname(srcUri));
                 }
                 catch (err) {
-                    this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to create directory', srcUri], err, 'red');
+                    this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to create directory', srcUri], err);
                     success('');
                     return;
                 }
@@ -87,7 +87,7 @@ function upload(this: IFileManager, credential: GCloudStorageCredential, service
                     }
                 }
                 catch (err) {
-                    this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to write buffer', fileUri], err, 'red');
+                    this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to write buffer', path.basename(fileUri)], err);
                     success('');
                     return;
                 }
@@ -105,7 +105,7 @@ function upload(this: IFileManager, credential: GCloudStorageCredential, service
                     }
                 }
                 else if (i === 0) {
-                    this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Upload failed', srcUri], err, 'red');
+                    this.formatFail(this.logType.CLOUD_STORAGE, service, ['Upload failed', path.basename(srcUri)], err);
                     success('');
                 }
             });

@@ -56,11 +56,11 @@ function upload(this: IFileManager, credential: AWSStorageCredential, service = 
                 }
                 while (exists && ++i);
                 if (i > 0) {
-                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'File renamed', filename, 'yellow');
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'File renamed', filename, { titleColor: 'yellow' });
                 }
             }
             catch (err) {
-                this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', fileUri], err, 'red');
+                this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', path.basename(fileUri)], err);
                 success('');
                 return;
             }
@@ -87,7 +87,7 @@ function upload(this: IFileManager, credential: AWSStorageCredential, service = 
                     }
                 }
                 else if (i === 0) {
-                    this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Upload failed', fileUri], err, 'red');
+                    this.formatFail(this.logType.CLOUD_STORAGE, service, ['Upload failed', path.basename(fileUri)], err);
                     success('');
                 }
             });

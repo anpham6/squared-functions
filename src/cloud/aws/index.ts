@@ -60,7 +60,7 @@ export async function createBucket(this: InstanceHost, credential: Configuration
             return await s3.createBucket(bucketRequest)
                 .promise()
                 .then(() => {
-                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket created', Bucket, 'blue');
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket created', Bucket, { titleColor: 'blue' });
                     if (publicRead) {
                         setPublicRead.call(this, s3, Bucket, service);
                     }
@@ -68,7 +68,7 @@ export async function createBucket(this: InstanceHost, credential: Configuration
                 })
                 .catch(err => {
                     if (err.code !== 'BucketAlreadyExists' && err.code !== 'BucketAlreadyOwnedByYou') {
-                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to create bucket', Bucket], err, 'red');
+                        this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to create bucket', Bucket], err);
                         return false;
                     }
                     return true;
@@ -85,23 +85,23 @@ export async function deleteObjects(this: InstanceHost, credential: AWSStorageCr
                 .promise()
                 .then(data => {
                     if (data.Deleted) {
-                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Bucket emptied', data.Deleted.length + ' files'], Bucket, 'blue');
+                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Bucket emptied', data.Deleted.length + ' files'], Bucket, { titleColor: 'blue' });
                     }
                 });
         }
     }
     catch (err) {
-        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to empty bucket', Bucket], err, 'yellow');
+        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to empty bucket', Bucket], err, { titleColor: 'yellow' });
     }
 }
 
 export function setPublicRead(this: InstanceHost, s3: aws.S3, Bucket: string, service = 'aws') {
     const callback = (err: Null<Error>) => {
         if (!err) {
-            this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Grant public-read', Bucket, 'blue');
+            this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Grant public-read', Bucket, { titleColor: 'blue' });
         }
         else {
-            this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to grant public-read', Bucket], err, 'yellow');
+            this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to grant public-read', Bucket], err, { titleColor: 'yellow' });
         }
     };
     switch (service) {

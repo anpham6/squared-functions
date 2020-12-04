@@ -118,7 +118,7 @@ const Watch = new class extends Module implements functions.IWatch {
                                                     if (this.whenModified) {
                                                         this.whenModified(input.assets);
                                                     }
-                                                    this.formatMessage(this.logType.WATCH, 'WATCH', 'File modified', uri, 'yellow');
+                                                    this.formatMessage(this.logType.WATCH, 'WATCH', 'File modified', uri, { titleColor: 'yellow' });
                                                 }
                                                 else {
                                                     return;
@@ -128,7 +128,7 @@ const Watch = new class extends Module implements functions.IWatch {
                                         else if (input.expires) {
                                             map.delete(output);
                                             if (map.size === 0) {
-                                                this.formatMessage(this.logType.WATCH, 'WATCH', ['Expired', `since ${formatDate(start)}`], uri, 'grey');
+                                                this.formatMessage(this.logType.WATCH, 'WATCH', ['Expired', `since ${formatDate(start)}`], uri, { titleColor: 'grey' });
                                                 clearInterval(timeout);
                                             }
                                         }
@@ -143,7 +143,7 @@ const Watch = new class extends Module implements functions.IWatch {
                         (HTTP_MAP[uri] ||= new Map()).set(dest, data);
                         TIMER_MAP[uri] = [timeout, interval];
                     }
-                    this.formatMessage(this.logType.WATCH, 'WATCH', ['Start', `${interval}ms ${expires ? formatDate(expires) : 'never'}`], uri, 'blue');
+                    this.formatMessage(this.logType.WATCH, 'WATCH', ['Start', `${interval}ms ${expires ? formatDate(expires) : 'never'}`], uri, { titleColor: 'blue' });
                 }
             }
         }

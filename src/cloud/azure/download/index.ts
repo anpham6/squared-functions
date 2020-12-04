@@ -22,16 +22,16 @@ function download(this: IFileManager, credential: AzureStorageCredential, servic
                         success(buffer);
                         if (Download.deleteObject) {
                             blobClient.delete()
-                                .then(() => this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Delete success', location, 'grey'))
+                                .then(() => this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Delete success', location, { titleColor: 'grey' }))
                                 .catch(err => {
                                     if (err.code !== 'BlobNotFound') {
-                                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Delete failed', location], err, 'red');
+                                        this.formatFail(this.logType.CLOUD_STORAGE, service, ['Delete failed', location], err);
                                     }
                                 });
                         }
                     })
                     .catch(err => {
-                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Download failed', location], err, 'red');
+                        this.formatFail(this.logType.CLOUD_STORAGE, service, ['Download failed', location], err);
                         success(null);
                     });
             }
@@ -40,7 +40,7 @@ function download(this: IFileManager, credential: AzureStorageCredential, servic
             }
         }
         else {
-            this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Container not specified', Download && Download.filename, 'red');
+            this.formatFail(this.logType.CLOUD_STORAGE, service, 'Container not specified', Download && Download.filename);
             success(null);
         }
     };
