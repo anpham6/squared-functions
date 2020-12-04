@@ -12,7 +12,7 @@ type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 function download(this: IFileManager, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3'): DownloadCallback {
     const s3 = createStorageClient.call(this, credential, service, sdk);
     return async (data: DownloadData, success: (value: Null<Buffer>) => void) => {
-        const { bucket: Bucket, download: Download } = data.storage;
+        const { bucket: Bucket, download: Download } = data;
         if (Bucket && Download && Download.filename) {
             try {
                 const params: aws.S3.Types.GetObjectRequest = {

@@ -2,11 +2,10 @@ import type { ConfigurationOptions } from 'ibm-cos-sdk/lib/config';
 import type { MangoQuery } from 'nano';
 import type * as db from '@cloudant/cloudant';
 
-import { deleteObjects as deleteObjects_s3 } from '../aws';
+import { createBucket as createBucket_s3, deleteObjects as deleteObjects_s3 } from '../aws';
 
-type IFileManager = functions.IFileManager;
-type ICloud = functions.ICloud;
 type CloudDatabase = functions.squared.CloudDatabase;
+type InstanceHost = functions.internal.Cloud.InstanceHost;
 
 const CACHE_DB: ObjectMap<any[]> = {};
 
@@ -28,14 +27,14 @@ export function validateDatabase(credential: IBMDatabaseCredential, data: CloudD
     return !!((credential.account && credential.password || credential.url) && data.table);
 }
 
-export function setStorageCredential(this: ICloud | IFileManager, credential: IBMStorageCredential) {
+export function setStorageCredential(this: InstanceHost, credential: IBMStorageCredential) {
     credential.region ||= 'us-east';
     credential.endpoint ||= `https://s3.${credential.region}.cloud-object-storage.appdomain.cloud`;
     credential.ibmAuthEndpoint = 'https://iam.cloud.ibm.com/identity/token';
     credential.signatureVersion = 'iam';
 }
 
-export function createDatabaseClient(this: ICloud | IFileManager, credential: IBMDatabaseCredential) {
+export function createDatabaseClient(this: InstanceHost, credential: IBMDatabaseCredential) {
     try {
         const Cloudant = require('@cloudant/cloudant');
         return new Cloudant(credential) as db.ServerScope;
@@ -46,12 +45,16 @@ export function createDatabaseClient(this: ICloud | IFileManager, credential: IB
     }
 }
 
-export async function deleteObjects(this: ICloud, credential: IBMStorageCredential, bucket: string, service = 'ibm') {
+export async function createBucket(this: InstanceHost, credential: IBMStorageCredential, bucket: string, publicRead?: boolean) {
+    return createBucket_s3.call(this, credential as PlainObject, bucket, publicRead, 'ibm', 'ibm-cos-sdk/clients/s3');
+}
+
+export async function deleteObjects(this: InstanceHost, credential: IBMStorageCredential, bucket: string, service = 'ibm') {
     setStorageCredential.call(this, credential);
     return deleteObjects_s3.call(this, credential as PlainObject, bucket, service, 'ibm-cos-sdk/clients/s3');
 }
 
-export async function executeQuery(this: ICloud | IFileManager, credential: IBMDatabaseCredential, data: IBMDatabaseQuery, cacheKey?: string) {
+export async function executeQuery(this: InstanceHost, credential: IBMDatabaseCredential, data: IBMDatabaseQuery, cacheKey?: string) {
     const client = createDatabaseClient.call(this, credential);
     let result: Undef<any[]>;
     try {
@@ -106,6 +109,7 @@ if (typeof module !== 'undefined' && module.exports) {
         setStorageCredential,
         validateDatabase,
         createDatabaseClient,
+        createBucket,
         deleteObjects,
         executeQuery
     };

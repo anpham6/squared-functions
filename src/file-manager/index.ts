@@ -1887,7 +1887,7 @@ class FileManager extends Module implements IFileManager {
                         }
                         let uploadHandler: UploadCallback;
                         try {
-                            uploadHandler = cloud.getUploadHandler(cloud.getCredential(storage), storage.service);
+                            uploadHandler = cloud.getUploadHandler(storage.service, cloud.getCredential(storage));
                         }
                         catch (err) {
                             this.writeFail(['Upload function not supported', storage.service], err);
@@ -1927,7 +1927,7 @@ class FileManager extends Module implements IFileManager {
                                                                 filename = path.basename(fileUri);
                                                             }
                                                         }
-                                                        uploadHandler({ buffer, storage, upload, fileUri, fileGroup, bucketGroup, filename, mimeType: mimeType || mime.lookup(fileUri) || undefined }, success);
+                                                        uploadHandler({ buffer, upload, fileUri, fileGroup, bucket: storage.bucket, bucketGroup, filename, mimeType: mimeType || mime.lookup(fileUri) || undefined }, success);
                                                     }
                                                     else {
                                                         success('');
@@ -2013,7 +2013,7 @@ class FileManager extends Module implements IFileManager {
             }
             for (const service in bucketMap) {
                 for (const [bucket, credential] of bucketMap[service]) {
-                    tasks.push(cloud.deleteObjects(credential, { service, bucket, credential }).catch(err => this.writeFail(['Cloud provider not found', service], err)));
+                    tasks.push(cloud.deleteObjects(service, credential, bucket).catch(err => this.writeFail(['Cloud provider not found', service], err)));
                 }
             }
             if (tasks.length) {
@@ -2152,7 +2152,7 @@ class FileManager extends Module implements IFileManager {
                                     }
                                     else {
                                         try {
-                                            tasks.push(cloud.downloadObject(cloud.getCredential(data), data, (value: Null<Buffer | string>) => {
+                                            tasks.push(cloud.downloadObject(data.service, cloud.getCredential(data), data.bucket!, data.download!, (value: Null<Buffer | string>) => {
                                                 if (value) {
                                                     try {
                                                         const items = Array.from(downloadMap[location]);

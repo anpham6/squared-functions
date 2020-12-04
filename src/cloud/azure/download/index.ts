@@ -10,7 +10,7 @@ type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 function download(this: IFileManager, credential: AzureStorageCredential, service = 'azure'): DownloadCallback {
     const blobServiceClient = createStorageClient.call(this, credential);
     return async (data: DownloadData, success: (value: Null<Buffer>) => void) => {
-        const { bucket: Bucket, download: Download } = data.storage;
+        const { bucket: Bucket, download: Download } = data;
         if (Bucket && Download && Download.filename) {
             try {
                 const location = Bucket + '/' + Download.filename;

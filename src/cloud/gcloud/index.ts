@@ -5,9 +5,8 @@ import type * as gcf from '@google-cloud/firestore';
 
 import path = require('path');
 
-type IFileManager = functions.IFileManager;
-type ICloud = functions.ICloud;
 type CloudDatabase = functions.squared.CloudDatabase;
+type InstanceHost = functions.internal.Cloud.InstanceHost;
 
 const CACHE_DB: ObjectMap<any[]> = {};
 
@@ -20,9 +19,8 @@ export interface GCloudDatabaseCredential extends GoogleAuthOptions {}
 
 export interface GCloudCloudBucket extends functions.squared.CloudService {}
 
-export interface GCloudDatabaseQuery extends functions.squared.CloudDatabase {
-    where: unknown[][];
-    orderBy: unknown[][];
+export interface GCloudDatabaseQuery extends functions.squared.CloudDatabase<[string, string, unknown][]> {
+    orderBy?: [string, string][];
 }
 
 export function validateStorage(credential: GCloudStorageCredential) {
@@ -33,7 +31,7 @@ export function validateDatabase(credential: GCloudDatabaseCredential, data: Clo
     return validateStorage(credential) && !!data.table;
 }
 
-export function createStorageClient(this: ICloud | IFileManager, credential: GCloudStorageCredential) {
+export function createStorageClient(this: InstanceHost, credential: GCloudStorageCredential) {
     try {
         const { Storage } = require('@google-cloud/storage');
         return new Storage(credential) as gcs.Storage;
@@ -44,7 +42,7 @@ export function createStorageClient(this: ICloud | IFileManager, credential: GCl
     }
 }
 
-export function createDatabaseClient(this: ICloud | IFileManager, credential: GCloudDatabaseCredential) {
+export function createDatabaseClient(this: InstanceHost, credential: GCloudDatabaseCredential) {
     try {
         const Firestore = require('@google-cloud/firestore');
         credential.projectId = getProjectId(credential);
@@ -56,7 +54,29 @@ export function createDatabaseClient(this: ICloud | IFileManager, credential: GC
     }
 }
 
-export async function deleteObjects(this: ICloud, credential: GCloudStorageCredential, bucket: string, service = 'gcloud') {
+export async function createBucket(this: InstanceHost, credential: GCloudStorageCredential, bucket: string, publicRead?: boolean, service = 'gcloud') {
+    const storage = createStorageClient.call(this, credential);
+    try {
+        const [exists] = await storage.bucket(bucket).exists();
+        if (!exists) {
+            storage.projectId = getProjectId(credential);
+            const [response] = await storage.createBucket(bucket, credential);
+            this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket created', bucket, 'blue');
+            if (publicRead) {
+                response.makePublic().then(() => setPublicRead.call(this, response.acl.default, bucket, true));
+            }
+        }
+    }
+    catch (err) {
+        if (err.code !== 409) {
+            this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to create bucket', bucket], err, 'red');
+            return false;
+        }
+    }
+    return true;
+}
+
+export async function deleteObjects(this: InstanceHost, credential: GCloudStorageCredential, bucket: string, service = 'gcloud') {
     try {
         return createStorageClient.call(this, credential)
             .bucket(bucket)
@@ -68,11 +88,11 @@ export async function deleteObjects(this: ICloud, credential: GCloudStorageCrede
     }
 }
 
-export async function executeQuery(this: ICloud | IFileManager, credential: GCloudDatabaseCredential, data: GCloudDatabaseQuery, cacheKey?: string) {
+export async function executeQuery(this: InstanceHost, credential: GCloudDatabaseCredential, data: GCloudDatabaseQuery, cacheKey?: string) {
     const client = createDatabaseClient.call(this, credential);
     let result: Undef<any[]>;
     try {
-        const { table, id, where, orderBy, limit = 0 } = data;
+        const { table, id, query, orderBy, limit = 0 } = data;
         if (cacheKey) {
             cacheKey += table;
         }
@@ -86,9 +106,9 @@ export async function executeQuery(this: ICloud | IFileManager, credential: GClo
             const item = await client.collection(table).doc(id).get();
             result = [item.data()];
         }
-        else if (data.where) {
+        else if (Array.isArray(query)) {
             if (cacheKey) {
-                cacheKey += JSON.stringify(where).replace(/\s+/g, '');
+                cacheKey += JSON.stringify(query).replace(/\s+/g, '');
                 if (orderBy) {
                     cacheKey += JSON.stringify(orderBy).replace(/\s+/g, '');
                 }
@@ -98,14 +118,16 @@ export async function executeQuery(this: ICloud | IFileManager, credential: GClo
                 }
             }
             let collection = client.collection(table) as gcf.Query<gcf.DocumentData>;
-            for (const query of where) {
+            for (const where of query) {
                 if (query.length === 3) {
-                    collection = collection.where(query[0] as string, query[1] as gcf.WhereFilterOp, query[2] as any);
+                    collection = collection.where(where[0], where[1] as gcf.WhereFilterOp, where[2] as any);
                 }
             }
-            for (const query of orderBy) {
-                if (query.length) {
-                    collection = collection.orderBy(query[0] as string, query[1] === 'desc' || query[1] === 'asc' ? query[1] : undefined);
+            if (orderBy) {
+                for (const order of orderBy) {
+                    if (query.length) {
+                        collection = collection.orderBy(order[0], order[1] === 'desc' || order[1] === 'asc' ? order[1] : undefined);
+                    }
                 }
             }
             if (limit > 0) {
@@ -126,7 +148,7 @@ export async function executeQuery(this: ICloud | IFileManager, credential: GClo
     return [];
 }
 
-export function setPublicRead(this: IFileManager, acl: Acl, filename: string, requested?: boolean) {
+export function setPublicRead(this: InstanceHost, acl: Acl, filename: string, requested?: boolean) {
     acl.add({ entity: 'allUsers', role: 'READER' })
         .then(() => {
             this.formatMessage(this.logType.CLOUD_STORAGE, 'gcloud', 'Grant public-read', filename, 'blue');
@@ -148,6 +170,7 @@ if (typeof module !== 'undefined' && module.exports) {
         createStorageClient,
         validateDatabase,
         createDatabaseClient,
+        createBucket,
         deleteObjects,
         executeQuery,
         getProjectId,

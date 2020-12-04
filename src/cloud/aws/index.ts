@@ -1,8 +1,7 @@
 import type * as aws from 'aws-sdk';
 import type { ConfigurationOptions } from 'aws-sdk/lib/core';
 
-type IFileManager = functions.IFileManager;
-type ICloud = functions.ICloud;
+type InstanceHost = functions.internal.Cloud.InstanceHost;
 
 export interface AWSStorageCredential extends ConfigurationOptions {
     endpoint?: string;
@@ -32,7 +31,7 @@ export function validateStorage(credential: AWSStorageCredential) {
     return !!(credential.accessKeyId && credential.secretAccessKey);
 }
 
-export function createStorageClient(this: ICloud | IFileManager, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3') {
+export function createStorageClient(this: InstanceHost, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3') {
     try {
         const S3 = require(sdk) as Constructor<aws.S3>;
         return new S3(credential);
@@ -43,7 +42,41 @@ export function createStorageClient(this: ICloud | IFileManager, credential: AWS
     }
 }
 
-export async function deleteObjects(this: ICloud, credential: AWSStorageCredential, Bucket: string, service = 'aws', sdk = 'aws-sdk/clients/s3') {
+export async function createBucket(this: InstanceHost, credential: ConfigurationOptions, Bucket: string, publicRead?: boolean, service = 'aws', sdk = 'aws-sdk/clients/s3') {
+    const s3 = createStorageClient.call(this, credential, service, sdk);
+    return await s3.headBucket({ Bucket })
+        .promise()
+        .then(() => {
+            if (publicRead) {
+                setPublicRead.call(this, s3, Bucket, service);
+            }
+            return true;
+        })
+        .catch(async () => {
+            const bucketRequest = { Bucket } as aws.S3.CreateBucketRequest;
+            if (credential.region) {
+                bucketRequest.CreateBucketConfiguration = { LocationConstraint: credential.region };
+            }
+            return await s3.createBucket(bucketRequest)
+                .promise()
+                .then(() => {
+                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket created', Bucket, 'blue');
+                    if (publicRead) {
+                        setPublicRead.call(this, s3, Bucket, service);
+                    }
+                    return true;
+                })
+                .catch(err => {
+                    if (err.code !== 'BucketAlreadyExists' && err.code !== 'BucketAlreadyOwnedByYou') {
+                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to create bucket', Bucket], err, 'red');
+                        return false;
+                    }
+                    return true;
+                });
+        });
+}
+
+export async function deleteObjects(this: InstanceHost, credential: AWSStorageCredential, Bucket: string, service = 'aws', sdk = 'aws-sdk/clients/s3') {
     try {
         const s3 = createStorageClient.call(this, credential, service, sdk);
         const Contents = (await s3.listObjects({ Bucket }).promise()).Contents;
@@ -62,7 +95,7 @@ export async function deleteObjects(this: ICloud, credential: AWSStorageCredenti
     }
 }
 
-export function setPublicRead(this: IFileManager, s3: aws.S3, Bucket: string, service = 'aws') {
+export function setPublicRead(this: InstanceHost, s3: aws.S3, Bucket: string, service = 'aws') {
     const callback = (err: Null<Error>) => {
         if (!err) {
             this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Grant public-read', Bucket, 'blue');
@@ -85,6 +118,7 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         validateStorage,
         createStorageClient,
+        createBucket,
         deleteObjects,
         setPublicRead
     };

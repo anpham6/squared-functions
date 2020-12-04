@@ -1,9 +1,8 @@
 import type * as storage from '@azure/storage-blob';
 import type * as db from '@azure/cosmos';
 
-type IFileManager = functions.IFileManager;
-type ICloud = functions.ICloud;
 type CloudDatabase = functions.squared.CloudDatabase;
+type InstanceHost = functions.internal.Cloud.InstanceHost;
 
 const CACHE_DB: ObjectMap<any[]> = {};
 
@@ -11,7 +10,7 @@ export interface AzureStorageCredential extends functions.external.Cloud.Storage
 
 export interface AzureDatabaseCredential extends db.CosmosClientOptions {}
 
-export interface AzureDatabaseQuery extends functions.squared.CloudDatabase {
+export interface AzureDatabaseQuery extends functions.squared.CloudDatabase<string> {
     partitionKey?: string;
 }
 
@@ -23,7 +22,7 @@ export function validateDatabase(credential: AzureDatabaseCredential, data: Clou
     return !!(credential.key && credential.endpoint && data.name && data.table);
 }
 
-export function createStorageClient(this: ICloud | IFileManager, credential: AzureStorageCredential): storage.BlobServiceClient {
+export function createStorageClient(this: InstanceHost, credential: AzureStorageCredential): storage.BlobServiceClient {
     try {
         const { BlobServiceClient, StorageSharedKeyCredential } = require('@azure/storage-blob');
         const { connectionString, sharedAccessSignature } = credential;
@@ -44,7 +43,7 @@ export function createStorageClient(this: ICloud | IFileManager, credential: Azu
     }
 }
 
-export function createDatabaseClient(this: ICloud | IFileManager, credential: AzureDatabaseCredential): db.CosmosClient {
+export function createDatabaseClient(this: InstanceHost, credential: AzureDatabaseCredential): db.CosmosClient {
     try {
         const { CosmosClient } = require('@azure/cosmos');
         return new CosmosClient(credential);
@@ -55,7 +54,30 @@ export function createDatabaseClient(this: ICloud | IFileManager, credential: Az
     }
 }
 
-export async function deleteObjects(this: ICloud, credential: AzureStorageCredential, bucket: string, service = 'azure') {
+export async function createBucket(this: InstanceHost, credential: AzureStorageCredential, bucket: string, publicRead?: boolean, service = 'azure') {
+    const blobServiceClient = createStorageClient.call(this, credential);
+    try {
+        const containerClient = blobServiceClient.getContainerClient(bucket);
+        if (!await containerClient.exists()) {
+            const response = await containerClient.create({ access: publicRead ? 'blob' : 'container' });
+            if (response.errorCode) {
+                this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Container created with errors', 'Error code: ' + response.errorCode], bucket, 'yellow');
+            }
+            else {
+                this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Container created', bucket, 'blue');
+            }
+        }
+    }
+    catch (err) {
+        if (err.code !== 'ContainerAlreadyExists') {
+            this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to create container', bucket], err, 'red');
+            return false;
+        }
+    }
+    return true;
+}
+
+export async function deleteObjects(this: InstanceHost, credential: AzureStorageCredential, bucket: string, service = 'azure') {
     try {
         const containerClient = createStorageClient.call(this, credential).getContainerClient(bucket);
         const tasks: Promise<storage.BlobDeleteResponse>[] = [];
@@ -78,7 +100,7 @@ export async function deleteObjects(this: ICloud, credential: AzureStorageCreden
     }
 }
 
-export async function executeQuery(this: ICloud | IFileManager, credential: AzureDatabaseCredential, data: AzureDatabaseQuery, cacheKey?: string) {
+export async function executeQuery(this: InstanceHost, credential: AzureDatabaseCredential, data: AzureDatabaseQuery, cacheKey?: string) {
     const client = createDatabaseClient.call(this, credential);
     let result: Undef<any[]>;
     try {
@@ -148,6 +170,7 @@ if (typeof module !== 'undefined' && module.exports) {
         createStorageClient,
         validateDatabase,
         createDatabaseClient,
+        createBucket,
         deleteObjects,
         executeQuery
     };

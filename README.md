@@ -618,7 +618,7 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
 ```javascript
 // Attribute "table" is required and used for caching results
 
-/* Azure: https://docs.microsoft.com/en-us/azure/cosmos-db/sql-query-getting-started (query) */
+/* Azure: https://docs.microsoft.com/en-us/azure/cosmos-db/sql-query-getting-started */
 {
   "selector": ".card:nth-of-type(1) p",
   "type": "text",
@@ -632,11 +632,12 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
     "table": "demo",
     "partitionKey": "Pictures", // optional
     "query": "SELECT * FROM c WHERE c.id = '1'",
+    "limit": 1, // All providers (optional)
     "value": "<b>${title}</b>: ${description}" // Only one field per template literal
   }
 }
 
-/* GCloud: https://firebase.google.com/docs/firestore/query-data/queries (where + orderBy) */
+/* GCloud: https://firebase.google.com/docs/firestore/query-data/queries */
 {
   "selector": ".card:nth-of-type(1) p",
   "type": "text",
@@ -646,13 +647,13 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
       "keyFilename": "./gcloud.json"
     },
     "table": "demo",
-    "where": [["group", "==", "Firestore"], ["id", "==", "1"]],
-    "orderBy": [["title", "asc"]],
+    "query": [["group", "==", "Firestore"], ["id", "==", "1"]], // where
+    "orderBy": [["title", "asc"]], // optional
     "value": "<b>${title}</b>: ${description}"
   }
 }
 
-/* IBM: https://github.com/cloudant/nodejs-cloudant#readme (query) */
+/* IBM: https://github.com/cloudant/nodejs-cloudant#readme */
 {
   "selector": ".card:nth-of-type(1) p",
   "type": "text",
@@ -669,21 +670,20 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
   }
 }
 
-/* OCI: https://docs.oracle.com/en/database/oracle/simple-oracle-document-access/adsdi/overview-soda-filter-specifications-qbes.html (query) */
+/* OCI: https://docs.oracle.com/en/database/oracle/simple-oracle-document-access/adsdi/overview-soda-filter-specifications-qbes.html */
 {
   "selector": ".card:nth-of-type(1) p",
   "type": "text",
   "cloudDatabase": {
     "service": "oci",
     "credential": {
-      "user": "dev",
+      "user": "**********",
       "password": "**********",
       "connectionString": "tcps://adb.us-phoenix-1.oraclecloud.com:1522/abcdefghijklmno_squared_high.adb.oraclecloud.com?wallet_location=/Users/Oracle/wallet"
     },
     "table": "demo",
     "query": "SELECT * from demo WHERE id = '1'", // SQL
     "query": { "id": { "$eq": "1" } }, // SODA
-    "limit": 1, // optional
     "value": "<b>${title}</b>: ${description}"
   }
 }

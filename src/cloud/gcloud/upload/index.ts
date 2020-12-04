@@ -1,12 +1,10 @@
-import type * as gcs from '@google-cloud/storage';
-
 import type { GCloudStorageCredential } from '../index';
 
 import path = require('path');
 import fs = require('fs-extra');
 import uuid = require('uuid');
 
-import { createStorageClient, getProjectId, setPublicRead } from '../index';
+import { createBucket, createStorageClient, setPublicRead } from '../index';
 
 type IFileManager = functions.IFileManager;
 type UploadHost = functions.internal.Cloud.UploadHost;
@@ -18,33 +16,17 @@ const BUCKET_MAP: ObjectMap<boolean> = {};
 function upload(this: IFileManager, credential: GCloudStorageCredential, service = 'gcloud'): UploadCallback {
     const storage = createStorageClient.call(this, credential);
     return async (data: UploadData, success: (value: string) => void) => {
-        let bucketName = data.storage.bucket ||= data.bucketGroup || uuid.v4(),
-            bucket: Undef<gcs.Bucket>;
-        if (!BUCKET_MAP[bucketName]) {
-            try {
-                const [exists] = await storage.bucket(bucketName).exists();
-                if (!exists) {
-                    storage.projectId = getProjectId(credential);
-                    [bucket] = await storage.createBucket(bucketName, credential);
-                    bucketName = bucket.name;
-                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket created', bucketName, 'blue');
-                    if (data.storage?.publicRead) {
-                        bucket.makePublic().then(() => setPublicRead.call(this, bucket!.acl.default, bucketName, true));
-                    }
-                }
+        const bucket = data.bucket ||= data.bucketGroup || uuid.v4();
+        if (!BUCKET_MAP[bucket]) {
+            if (!await createBucket.call(this, credential, bucket, data.admin?.publicRead)) {
+                success('');
+                return;
             }
-            catch (err) {
-                if (err.code !== 409) {
-                    this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to create bucket', bucketName], err, 'red');
-                    success('');
-                    return;
-                }
-            }
-            BUCKET_MAP[bucketName] = true;
+            BUCKET_MAP[bucket] = true;
         }
-        bucket ||= storage.bucket(bucketName);
+        const bucketClient = storage.bucket(bucket);
         const fileUri = data.fileUri;
-        const pathname = data.storage.upload?.pathname || '';
+        const pathname = data.upload?.pathname || '';
         let filename = data.filename;
         if (!filename || !data.upload.overwrite) {
             filename ||= path.basename(fileUri);
@@ -63,7 +45,7 @@ function upload(this: IFileManager, credential: GCloudStorageCredential, service
                             break;
                         }
                     }
-                    [exists] = await bucket.file(pathname + filename).exists();
+                    [exists] = await bucketClient.file(pathname + filename).exists();
                 }
                 while (exists && ++i);
                 if (i > 0) {
@@ -110,16 +92,16 @@ function upload(this: IFileManager, credential: GCloudStorageCredential, service
                     return;
                 }
             }
-            bucket.upload(srcUri, { contentType: ContentType[i], destination: pathname ? pathname + path.basename(srcUri) : undefined }, (err, file) => {
+            bucketClient.upload(srcUri, { contentType: ContentType[i], destination: pathname ? pathname + path.basename(srcUri) : undefined }, (err, file) => {
                 if (file) {
                     const { active, endpoint, publicRead } = data.upload;
-                    const url = (endpoint ? this.toPosix(endpoint) : 'https://storage.googleapis.com/' + bucketName) + '/' + file.name;
+                    const url = (endpoint ? this.toPosix(endpoint) : 'https://storage.googleapis.com/' + bucket) + '/' + file.name;
                     this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Upload success', url);
                     if (i === 0) {
                         success(url);
                     }
                     if (publicRead || active && publicRead !== false) {
-                        setPublicRead.call(this, file.acl, bucketName + '/' + file.name, publicRead);
+                        setPublicRead.call(this, file.acl, bucket + '/' + file.name, publicRead);
                     }
                 }
                 else if (i === 0) {

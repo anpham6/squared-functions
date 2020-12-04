@@ -1,11 +1,10 @@
 import type { ConfigurationOptions } from 'aws-sdk/lib/core';
 import type * as db from 'oracledb';
 
-import { deleteObjects as deleteObjects_s3 } from '../aws';
+import { createBucket as createBucket_s3, deleteObjects as deleteObjects_s3 } from '../aws';
 
-type IFileManager = functions.IFileManager;
-type ICloud = functions.ICloud;
 type CloudDatabase = functions.squared.CloudDatabase;
+type InstanceHost = functions.internal.Cloud.InstanceHost;
 
 const CACHE_DB: ObjectMap<any[]> = {};
 
@@ -17,7 +16,7 @@ export interface OCIStorageCredential extends ConfigurationOptions {
 
 export interface OCIDatabaseCredential extends db.ConnectionAttributes {}
 
-export interface OCIDatabaseQuery extends functions.squared.CloudDatabase {}
+export interface OCIDatabaseQuery extends functions.squared.CloudDatabase<PlainObject | string> {}
 
 export function validateStorage(credential: OCIStorageCredential) {
     return !!(credential.region && credential.namespace && credential.accessKeyId && credential.secretAccessKey);
@@ -27,13 +26,13 @@ export function validateDatabase(credential: OCIDatabaseCredential, data: CloudD
     return !!(credential.user && credential.password && (credential.connectString || credential.connectionString) && data.table);
 }
 
-export function setStorageCredential(this: ICloud | IFileManager, credential: OCIStorageCredential) {
+export function setStorageCredential(this: InstanceHost, credential: OCIStorageCredential) {
     credential.endpoint = `https://${credential.namespace}.compat.objectstorage.${credential.region}.oraclecloud.com`;
     credential.s3ForcePathStyle = true;
     credential.signatureVersion = 'v4';
 }
 
-export async function createDatabaseClient(this: ICloud | IFileManager, credential: OCIDatabaseCredential) {
+export async function createDatabaseClient(this: InstanceHost, credential: OCIDatabaseCredential) {
     try {
         const oracledb = require('oracledb');
         oracledb.autoCommit = true;
@@ -45,12 +44,16 @@ export async function createDatabaseClient(this: ICloud | IFileManager, credenti
     }
 }
 
-export async function deleteObjects(this: ICloud, credential: OCIStorageCredential, bucket: string, service = 'oci') {
+export async function createBucket(this: InstanceHost, credential: OCIStorageCredential, bucket: string, publicRead?: boolean) {
+    return createBucket_s3.call(this, credential, bucket, publicRead, 'oci');
+}
+
+export async function deleteObjects(this: InstanceHost, credential: OCIStorageCredential, bucket: string, service = 'oci') {
     setStorageCredential.call(this, credential);
     return deleteObjects_s3.call(this, credential, bucket, service);
 }
 
-export async function executeQuery(this: ICloud | IFileManager, credential: OCIDatabaseCredential, data: OCIDatabaseQuery, cacheKey?: string) {
+export async function executeQuery(this: InstanceHost, credential: OCIDatabaseCredential, data: OCIDatabaseQuery, cacheKey?: string) {
     const connection = await createDatabaseClient.call(this, credential);
     let result: Undef<any[]>;
     try {
@@ -73,8 +76,8 @@ export async function executeQuery(this: ICloud | IFileManager, credential: OCID
                 }
             }
         }
-        else if (query) {
-            const [queryString, keyId] = typeof query === 'object' ? [query, JSON.stringify(query)] : [query, query];
+        else if (query && !Array.isArray(query)) {
+            const keyId = typeof query === 'object' ? JSON.stringify(query) : query;
             const maxRows = Math.max(limit, 0);
             if (cacheKey) {
                 cacheKey += keyId.replace(/\s+/g, '') + maxRows;
@@ -82,10 +85,10 @@ export async function executeQuery(this: ICloud | IFileManager, credential: OCID
                     return CACHE_DB[cacheKey];
                 }
             }
-            if (typeof queryString === 'object') {
+            if (typeof query === 'object') {
                 const collection = await connection.getSodaDatabase().openCollection(data.table);
                 if (collection) {
-                    let operation = collection.find().filter(queryString);
+                    let operation = collection.find().filter(query);
                     if (maxRows > 0) {
                         operation = operation.limit(maxRows);
                     }
@@ -93,7 +96,7 @@ export async function executeQuery(this: ICloud | IFileManager, credential: OCID
                 }
             }
             else {
-                result = (await connection.execute(queryString, [], { outFormat: 4002, maxRows })).rows;
+                result = (await connection.execute(query, [], { outFormat: 4002, maxRows })).rows;
             }
         }
     }
@@ -115,6 +118,7 @@ if (typeof module !== 'undefined' && module.exports) {
         setStorageCredential,
         validateDatabase,
         createDatabaseClient,
+        createBucket,
         deleteObjects,
         executeQuery
     };

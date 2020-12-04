@@ -45,7 +45,7 @@ declare namespace functions {
             credential: string | PlainObject;
         }
 
-        interface CloudDatabase<T = string | PlainObject> extends CloudService {
+        interface CloudDatabase<T = string | PlainObject | any[]> extends CloudService {
             table: string;
             name?: string;
             id?: string;
@@ -215,13 +215,15 @@ declare namespace functions {
         }
 
         namespace Cloud {
+            type InstanceHost = ICloud | IFileManager;
             type CloudService = squared.CloudService;
             type CloudStorage = squared.CloudStorage;
             type CloudStorageUpload = squared.CloudStorageUpload;
             type CloudStorageDownload = squared.CloudStorageDownload;
 
             interface FunctionData {
-                storage: CloudStorage;
+                admin?: squared.CloudStorageAdmin;
+                bucket?: string;
                 bucketGroup?: string;
             }
 
@@ -234,18 +236,21 @@ declare namespace functions {
                 mimeType?: string;
             }
 
-            interface DownloadData extends FunctionData {}
+            interface DownloadData extends FunctionData {
+                download: CloudStorageDownload;
+            }
 
             interface ServiceClient {
                 validateStorage?(credential: PlainObject, data?: squared.CloudService): boolean;
                 validateDatabase?(credential: PlainObject, data?: squared.CloudService): boolean;
-                createStorageClient?<T>(this: ICloud | IFileManager, credential: unknown, service?: string): T;
-                createDatabaseClient?<T>(this: ICloud | IFileManager, credential: unknown): T;
-                deleteObjects?(this: ICloud | IFileManager, credential: unknown, bucket: string, service?: string, sdk?: string): Promise<void>;
-                executeQuery?(this: ICloud | IFileManager, credential: unknown, data: squared.CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
+                createStorageClient?<T>(this: InstanceHost, credential: unknown, service?: string): T;
+                createDatabaseClient?<T>(this: InstanceHost, credential: unknown): T;
+                createBucket?(this: InstanceHost, credential: unknown, bucket: string, publicRead?: boolean, service?: string, sdk?: string): Promise<boolean>;
+                deleteObjects?(this: InstanceHost, credential: unknown, bucket: string, service?: string, sdk?: string): Promise<void>;
+                executeQuery?(this: InstanceHost, credential: unknown, data: squared.CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
             }
 
-            type ServiceHost<T> = (this: ICloud | IFileManager, credential: unknown, service?: string, sdk?: string) => T;
+            type ServiceHost<T> = (this: InstanceHost, credential: unknown, service?: string, sdk?: string) => T;
             type UploadHost = ServiceHost<UploadCallback>;
             type DownloadHost = ServiceHost<DownloadCallback>;
             type UploadCallback = (data: UploadData, success: (value: string) => void) => Promise<void>;
@@ -380,15 +385,16 @@ declare namespace functions {
         settings: settings.CloudModule;
         database: squared.CloudDatabase[];
         setObjectKeys(assets: ExternalAsset[]): void;
-        deleteObjects(credential: unknown, storage: squared.CloudStorage, bucketGroup?: string): Promise<void>;
-        downloadObject(credential: PlainObject, storage: squared.CloudStorage, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string): Promise<void>;
+        createBucket(service: string, credential: unknown, bucket: string, publicRead?: boolean): Promise<boolean>;
+        deleteObjects(service: string, credential: unknown, bucket: string): Promise<void>;
+        downloadObject(service: string, credential: PlainObject, bucket: string, download: squared.CloudStorageDownload, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string): Promise<void>;
         getStorage(action: CloudFunctions, data: Undef<squared.CloudStorage[]>): Undef<squared.CloudStorage>;
         hasStorage(action: CloudFunctions, storage: squared.CloudStorage): squared.CloudStorageUpload | false;
         getDatabaseRows(database: squared.CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
-        hasCredential(feature: CloudFeatures, service: squared.CloudService): boolean;
+        hasCredential(feature: CloudFeatures, data: squared.CloudService): boolean;
         getCredential(data: squared.CloudService): PlainObject;
-        getUploadHandler(credential: PlainObject, service: string): internal.Cloud.UploadCallback;
-        getDownloadHandler(credential: PlainObject, service: string): internal.Cloud.DownloadCallback;
+        getUploadHandler(service: string, credential: PlainObject): internal.Cloud.UploadCallback;
+        getDownloadHandler(service: string, credential: PlainObject): internal.Cloud.DownloadCallback;
     }
 
     interface CloudConstructor {

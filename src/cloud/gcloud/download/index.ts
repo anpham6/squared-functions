@@ -14,7 +14,7 @@ type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 function download(this: IFileManager, credential: GCloudStorageCredential, service = 'gcloud'): DownloadCallback {
     const storage = createStorageClient.call(this, credential);
     return async (data: DownloadData, success: (value: string) => void) => {
-        const { bucket: Bucket, download: Download } = data.storage;
+        const { bucket: Bucket, download: Download } = data;
         if (Bucket && Download && Download.filename) {
             try {
                 let tempDir = this.getTempDir() + uuid.v4() + path.sep;

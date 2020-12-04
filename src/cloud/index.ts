@@ -12,6 +12,7 @@ type CloudStorage = functions.squared.CloudStorage;
 type CloudDatabase = functions.squared.CloudDatabase;
 type CloudStorageAction = functions.squared.CloudStorageAction;
 type CloudStorageUpload = functions.squared.CloudStorageUpload;
+type CloudStorageDownload = functions.squared.CloudStorageDownload;
 type ServiceClient = functions.internal.Cloud.ServiceClient;
 type UploadHost = functions.internal.Cloud.UploadHost;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
@@ -119,25 +120,30 @@ class Cloud extends Module implements functions.ICloud {
             }
         }
     }
-    downloadObject(credential: PlainObject, storage: CloudStorage, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string) {
-        const downloadHandler = this.getDownloadHandler(credential, storage.service).bind(this);
+    createBucket(service: string, credential: PlainObject, bucket: string, publicRead?: boolean): Promise<boolean> {
+        const createHandler = (CLOUD_SERVICE[service] ||= require(`../cloud/${service}`) as ServiceClient).createBucket?.bind(this);
+        if (createHandler) {
+            return createHandler.call(this, credential, bucket, publicRead);
+        }
+        this.writeFail(['Create bucket function not supported', service]);
+        return Promise.resolve(false);
+    }
+    deleteObjects(service: string, credential: PlainObject, bucket: string): Promise<void> {
+        const deleteHandler = (CLOUD_SERVICE[service] ||= require(`../cloud/${service}`) as ServiceClient).deleteObjects?.bind(this);
+        if (deleteHandler) {
+            return deleteHandler.call(this, credential, bucket, service);
+        }
+        this.writeFail(['Delete objects function not supported', service]);
+        return Promise.resolve();
+    }
+    downloadObject(service: string, credential: PlainObject, bucket: string, download: CloudStorageDownload, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string) {
+        const downloadHandler = this.getDownloadHandler(service, credential).bind(this);
         return new Promise<void>(resolve => {
-            downloadHandler({ storage, bucketGroup }, async (value: Null<Buffer | string>) => {
+            downloadHandler({ bucket, bucketGroup, download }, async (value: Null<Buffer | string>) => {
                 await callback(value);
                 resolve();
             });
         });
-    }
-    deleteObjects(credential: PlainObject, storage: CloudStorage): Promise<void> {
-        const { service, bucket } = storage;
-        if (service && bucket) {
-            const deleteHandler = (CLOUD_SERVICE[service] ||= require(`../cloud/${service}`) as ServiceClient).deleteObjects?.bind(this);
-            if (deleteHandler) {
-                return deleteHandler.call(this, credential, bucket, service);
-            }
-            this.writeFail(['Delete objects function not supported', service]);
-        }
-        return Promise.resolve();
     }
     getDatabaseRows(database: CloudDatabase, cacheKey?: string): Promise<PlainObject[]> {
         if (this.hasCredential('database', database)) {
@@ -193,10 +199,10 @@ class Cloud extends Module implements functions.ICloud {
         }
         return false;
     }
-    getUploadHandler(credential: PlainObject, service: string): UploadCallback {
+    getUploadHandler(service: string, credential: PlainObject): UploadCallback {
         return (CLOUD_UPLOAD[service] ||= require(`../cloud/${service}/upload`) as UploadHost).call(this, credential, service);
     }
-    getDownloadHandler(credential: PlainObject, service: string): DownloadCallback {
+    getDownloadHandler(service: string, credential: PlainObject): DownloadCallback {
         return (CLOUD_DOWNLOAD[service] ||= require(`../cloud/${service}/download`) as DownloadHost).call(this, credential, service);
     }
 }

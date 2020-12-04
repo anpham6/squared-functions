@@ -1,11 +1,9 @@
-import type * as aws from 'aws-sdk';
-
 import type { AWSStorageCredential } from '../index';
 
 import path = require('path');
 import uuid = require('uuid');
 
-import { createStorageClient, setPublicRead } from '../index';
+import { createBucket, createStorageClient } from '../index';
 
 type IFileManager = functions.IFileManager;
 type UploadHost = functions.internal.Cloud.UploadHost;
@@ -17,42 +15,17 @@ const BUCKET_MAP: ObjectMap<boolean> = {};
 function upload(this: IFileManager, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3'): UploadCallback {
     const s3 = createStorageClient.call(this, credential, service, sdk);
     return async (data: UploadData, success: (value: string) => void) => {
-        const Bucket = data.storage.bucket ||= data.bucketGroup || uuid.v4();
-        const admin = data.storage.admin;
+        const Bucket = data.bucket ||= data.bucketGroup || uuid.v4();
+        const admin = data.admin;
         if (!BUCKET_MAP[service + Bucket] || admin?.publicRead) {
-             const result = await s3.headBucket({ Bucket })
-                .promise()
-                .then(() => true)
-                .catch(async () => {
-                    const bucketRequest = { Bucket } as aws.S3.CreateBucketRequest;
-                    if (credential.region) {
-                        bucketRequest.CreateBucketConfiguration = { LocationConstraint: credential.region };
-                    }
-                    return await s3.createBucket(bucketRequest)
-                        .promise()
-                        .then(() => {
-                            this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket created', Bucket, 'blue');
-                            BUCKET_MAP[service + Bucket] = true;
-                            if (admin?.publicRead) {
-                                setPublicRead.call(this, s3, Bucket, service);
-                            }
-                            return true;
-                        })
-                        .catch(err => {
-                            if (err.code !== 'BucketAlreadyExists' && err.code !== 'BucketAlreadyOwnedByYou') {
-                                this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to create bucket', Bucket], err, 'red');
-                                return false;
-                            }
-                            return true;
-                        });
-                });
-            if (!result) {
+            if (!await createBucket.call(this, credential, Bucket, admin?.publicRead, service, sdk)) {
                 success('');
                 return;
             }
+            BUCKET_MAP[service + Bucket] = true;
         }
         const fileUri = data.fileUri;
-        const pathname = data.storage.upload?.pathname || '';
+        const pathname = data.upload?.pathname || '';
         let filename = data.filename;
         if (!filename || !data.upload.overwrite) {
             filename ||= path.basename(fileUri);
