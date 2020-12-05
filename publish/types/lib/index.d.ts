@@ -408,6 +408,8 @@ declare namespace functions {
 
     interface IChrome extends IModule {
         settings: settings.ChromeModule;
+        serverRoot: string;
+        productionRelease: boolean;
         unusedStyles?: string[];
         transpileMap?: chrome.TranspileMap;
         findPlugin(settings: Undef<ObjectMap<StandardMap>>, name: string): internal.Chrome.PluginConfig;
@@ -425,17 +427,15 @@ declare namespace functions {
     }
 
     interface ChromeConstructor {
-        new(): IChrome;
+        new(body: RequestBody, settings?: settings.ChromeModule, productionRelease?: boolean, ): IChrome;
     }
 
     const Chrome: ChromeConstructor;
 
     interface IFileManager extends IModule {
-        serverRoot: string;
         delayed: number;
         cleared: boolean;
         emptyDirectory: boolean;
-        productionRelease: boolean;
         Image: Null<ImageConstructor>;
         Chrome: Null<IChrome>;
         Cloud: Null<ICloud>;
@@ -451,7 +451,7 @@ declare namespace functions {
         readonly dirname: string;
         readonly assets: ExternalAsset[];
         readonly postFinalize: FunctionType<void>;
-        readonly baseAsset: Null<ExternalAsset>;
+        readonly baseAsset?: ExternalAsset;
         install(name: string, ...args: unknown[]): void;
         add(value: string): void;
         delete(value: string): void;
@@ -467,7 +467,6 @@ declare namespace functions {
         getHtmlPages(): ExternalAsset[];
         removeCwd(value: Undef<string>): string;
         relativePosix(file: ExternalAsset, uri: string): Undef<string>;
-        absolutePath(value: string, href: string): string;
         assignFilename(file: ExternalAsset): Undef<string>;
         getUTF8String(file: ExternalAsset, fileUri?: string): string;
         appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex?: number): Promise<string>;

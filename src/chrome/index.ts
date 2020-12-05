@@ -17,12 +17,13 @@ type ConfigOrTranspiler = functions.internal.Chrome.ConfigOrTranspiler;
 const validLocalPath = (value: string) => /^\.?\.[\\/]/.test(value);
 
 class Chrome extends Module implements functions.IChrome {
+    public serverRoot = '__serverroot__';
     public unusedStyles?: string[];
     public transpileMap?: TranspileMap;
 
     private _packageMap: ObjectMap<FunctionType<Undef<string>>> = {};
 
-    constructor (public settings: ChromeModule = {}, body: RequestBody) {
+    constructor (body: RequestBody, public settings: ChromeModule = {}, public productionRelease = false) {
         super();
         this.unusedStyles = body.unusedStyles;
         this.transpileMap = body.transpileMap;

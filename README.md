@@ -201,7 +201,7 @@ NOTE: Placing the "chrome" dataset commands at the end is recommended especially
 <script src="/dist/chrome.framework.js" data-chrome-file="saveAs:js/bundle2.js"></script>
 ```
 
-Bundling with inline commands using a 1-2-1 format may cause the generated bundle to execute incorrectly. Other configuration methods will create a new file when it finds any conflicts. The advantages of bundling this way gives you the ability to debug source code inside &lt;script&gt; elements.
+Bundling with "exportAs" gives you the ability to debug source code inside &lt;script&gt; elements.
 
 ### Raw assets
 

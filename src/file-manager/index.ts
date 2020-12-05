@@ -56,7 +56,6 @@ interface GulpTask {
 
 const REGEXP_INDEXOBJECT = /([^[.\s]+)((?:\s*\[[^\]]+\]\s*)+)?\s*\.?\s*/g;
 const REGEXP_INDEXARRAY = /\[\s*(["'])?(.+?)\1\s*\]/g;
-const REGEXP_FILESAVEAS = /(\s*)<(script|link|style)(.*?)(\s+data-chrome-file="\s*(save|export)As:\s*((?:[^"]|(?<=\\)")+)")([^>]*)>(?:[\s\S]*?<\/\2>\n*)?/g;
 const REGEXP_TAGTEXT = /^\s*<([\w-]+)[^>]*>[\S\s]*?<\/\1>\s*$/;
 const REGEXP_TRAILINGCONTENT = /(\s*)<(script|style)[^>]*>([\s\S]*?)<\/\2>\n*/g;
 const REGEXP_DBCOLUMN = /\$\{\s*(\w+)\s*\}/g;
@@ -193,18 +192,15 @@ class FileManager extends Module implements IFileManager {
         return true;
     }
 
-    public serverRoot = '__serverroot__';
     public delayed = 0;
     public cleared = false;
     public emptyDirectory = false;
-    public productionRelease = false;
     public Image: Null<ImageConstructor> = null;
     public Chrome: Null<IChrome> = null;
     public Cloud: Null<ICloud> = null;
     public Watch: Null<IWatch> = null;
     public Compress: Null<CompressModule> = null;
     public Gulp: Null<GulpModule> = null;
-    public baseAsset: Null<ExternalAsset> = null;
     public readonly assets: ExternalAsset[];
     public readonly files = new Set<string>();
     public readonly filesQueued = new Set<string>();
@@ -212,6 +208,7 @@ class FileManager extends Module implements IFileManager {
     public readonly filesToCompare = new Map<ExternalAsset, string[]>();
     public readonly contentToAppend = new Map<string, string[]>();
     public readonly postFinalize: FunctionType<void>;
+    public readonly baseAsset?: ExternalAsset;
 
     constructor(
         public readonly dirname: string,
@@ -221,6 +218,7 @@ class FileManager extends Module implements IFileManager {
         super();
         this.assets = this.body.assets;
         this.postFinalize = postFinalize.bind(this);
+        this.baseAsset = this.assets.find(item => item.baseUrl);
     }
 
     install(name: string, ...args: unknown[]) {
@@ -228,26 +226,21 @@ class FileManager extends Module implements IFileManager {
             case 'image':
                 this.Image = args[0] as ImageConstructor;
                 break;
-            case 'chrome': {
-                this.Chrome = new Chrome(args[0] as ChromeModule, this.body);
-                const baseAsset = this.assets.find(item => item.baseUrl);
-                if (baseAsset) {
-                    this.baseAsset = baseAsset;
-                    this.assets.sort((a, b) => {
-                        if (a.bundleId && a.bundleId === b.bundleId) {
-                            return a.bundleIndex! - b.bundleIndex!;
-                        }
-                        if (a === baseAsset) {
-                            return 1;
-                        }
-                        if (b === baseAsset) {
-                            return -1;
-                        }
-                        return 0;
-                    });
-                }
+            case 'chrome':
+                this.Chrome = new Chrome(this.body, args[0] as ChromeModule, args[1] === true);
+                this.assets.sort((a, b) => {
+                    if (a.bundleId && a.bundleId === b.bundleId) {
+                        return a.bundleIndex! - b.bundleIndex!;
+                    }
+                    if (a === this.baseAsset) {
+                        return 1;
+                    }
+                    if (b === this.baseAsset) {
+                        return -1;
+                    }
+                    return 0;
+                });
                 break;
-            }
             case 'cloud':
                 this.Cloud = new Cloud(args[0] as CloudModule, this.body.database);
                 break;
@@ -386,14 +379,12 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (asset) {
-            const { baseAsset, serverRoot } = this;
             const baseDir = (file.rootDir || '') + file.pathname;
+            const baseAsset = this.baseAsset;
             if (Node.fromSameOrigin(origin, asset.uri!)) {
                 const rootDir = asset.rootDir;
-                if (asset.moveTo === serverRoot) {
-                    if (file.moveTo === serverRoot) {
-                        return Node.toPosix(path.join(asset.pathname, asset.filename));
-                    }
+                if (file.moveTo && file.moveTo === asset.moveTo) {
+                    return Node.toPosix(path.join(asset.pathname, asset.filename));
                 }
                 else if (rootDir) {
                     if (baseDir === rootDir + asset.pathname) {
@@ -413,21 +404,6 @@ class FileManager extends Module implements IFileManager {
                 return '../'.repeat(originDir.length - 1) + asset.relativePath;
             }
         }
-    }
-    absolutePath(value: string, href: string) {
-        value = Node.toPosix(value);
-        let moveTo = '';
-        if (value[0] === '/') {
-            moveTo = this.serverRoot;
-        }
-        else if (value.startsWith('../')) {
-            moveTo = this.serverRoot;
-            value = Node.resolvePath(value, href, false) || ('/' + value.replace(/\.\.\//g, ''));
-        }
-        else if (value.startsWith('./')) {
-            return value.substring(2);
-        }
-        return moveTo + value;
     }
     assignFilename(file: ExternalAsset | CloudStorageUpload) {
         const filename = file.filename;
@@ -689,7 +665,6 @@ class FileManager extends Module implements IFileManager {
                     match: Null<RegExpExecArray>;
                 const minifySpace = (value: string) => value.replace(/(\s+|\/)/g, '');
                 const getOuterHTML = (css: boolean, value: string) => css ? `<link rel="stylesheet" href="${value}" />` : `<script src="${value}"></script>`;
-                const isInlined = (value: string) => /data-chrome-options="[^"]*?inline\b/.test(value);
                 const formatTag = (outerHTML: string) => outerHTML.replace(/"\s*>$/, '" />');
                 const formatAttr = (key: string, value?: Null<string>) => value !== undefined ? key + (value !== null ? `="${value}"` : '') : '';
                 const replaceTry = (outerHTML: string, replaceWith: string) => {
@@ -698,14 +673,18 @@ class FileManager extends Module implements IFileManager {
                         source = source.replace(formatTag(outerHTML), replaceWith);
                     }
                 };
-                const replaceMinify = (outerHTML: string, replaceWith: string) => {
+                const replaceMinify = (outerHTML: string, replaceWith: string, content?: string) => {
                     if (current === source) {
-                        outerHTML = minifySpace(outerHTML);
-                        const tagPattern = /(\s*)<([\w-]+)[\s\S]*?<\/\2>\n*/g;
-                        while (match = tagPattern.exec(html)) {
-                            if (outerHTML === minifySpace(match[0])) {
-                                source = source.replace(match[0], (replaceWith ? match[1] : '') + replaceWith);
-                                break;
+                        const tagName = /\s*<([\w-]+)/.exec(outerHTML)?.[1];
+                        if (tagName) {
+                            content &&= minifySpace(content);
+                            outerHTML = minifySpace(outerHTML);
+                            const innerHTML = new RegExp(`(\\s*)<${tagName}[^>]*>([\\s\\S]*?)<\\/${tagName}>\\n*`, 'g');
+                            while (match = innerHTML.exec(html)) {
+                                if (outerHTML === minifySpace(match[0]) || content && content === minifySpace(match[2])) {
+                                    source = source.replace(match[0], (replaceWith ? match[1] : '') + replaceWith);
+                                    break;
+                                }
                             }
                         }
                     }
@@ -835,36 +814,6 @@ class FileManager extends Module implements IFileManager {
                     html = source;
                 }
                 const baseUri = file.uri!;
-                const saved = new Set<string>();
-                REGEXP_FILESAVEAS.lastIndex = 0;
-                while (match = REGEXP_FILESAVEAS.exec(html)) {
-                    const items = match[6].split('::').map(item => item.trim());
-                    if (items[0] === '~') {
-                        continue;
-                    }
-                    const location = this.absolutePath(items[0], baseUri);
-                    if ((isInlined(match[3]) || isInlined(match[7])) && !saved.has(location)) {
-                        saved.add(location);
-                    }
-                    else {
-                        const js = match[2].toLowerCase() === 'script';
-                        if (saved.has(location) || match[5] === 'export' && new RegExp(`<${js ? 'script' : 'link'}.+?(?:${js ? 'src' : 'href'}="${location}"|data-chrome-file="\\s*saveAs:\\s*${location}\\s*[:"])[^>]*>`, 'i').test(html)) {
-                            source = source.replace(match[0], '');
-                        }
-                        else if (match[5] === 'save') {
-                            const content = match[0].replace(match[4], '');
-                            const src = new RegExp(`\\s+${js ? 'src' : 'href'}="(?:[^"]|(?<=\\\\)")+"`, 'i').exec(content);
-                            if (src) {
-                                source = source.replace(match[0], content.replace(src[0], `${js ? ' src' : ' href'}="${location}"`));
-                                saved.add(location);
-                            }
-                        }
-                        else {
-                            source = source.replace(match[0], match[1] + getOuterHTML(!js, location));
-                            saved.add(location);
-                        }
-                    }
-                }
                 html = source;
                 for (const item of this.assets) {
                     if (item.invalid && !item.exclude) {
@@ -883,7 +832,7 @@ class FileManager extends Module implements IFileManager {
                     }
                     if (outerHTML) {
                         current = source;
-                        const { bundleIndex, inlineContent, attributes = {} } = item;
+                        const { content, bundleIndex, inlineContent, attributes = {} } = item;
                         let output = '';
                         if (inlineContent) {
                             const id = `<!-- ${uuid.v4()} -->`;
@@ -893,7 +842,7 @@ class FileManager extends Module implements IFileManager {
                             }
                             replaceWith += `>${id}</${inlineContent}>`;
                             replaceTry(outerHTML, replaceWith);
-                            replaceMinify(outerHTML, replaceWith);
+                            replaceMinify(outerHTML, replaceWith, content);
                             if (current !== source) {
                                 item.inlineContent = id;
                                 item.watch = false;
@@ -919,7 +868,7 @@ class FileManager extends Module implements IFileManager {
                             source = source.replace(new RegExp(`\\s*${escapeRegexp(outerHTML)}\\n*`), '');
                             if (current === source) {
                                 source = source.replace(new RegExp(`\\s*${escapeRegexp(formatTag(outerHTML))}\\n*`), '');
-                                replaceMinify(outerHTML, '');
+                                replaceMinify(outerHTML, '', content);
                             }
                             continue;
                         }
@@ -940,7 +889,7 @@ class FileManager extends Module implements IFileManager {
                             }
                             if (output !== outerHTML) {
                                 replaceTry(outerHTML, output);
-                                replaceMinify(outerHTML, output);
+                                replaceMinify(outerHTML, output, content);
                                 if (current !== source) {
                                     item.outerHTML = output;
                                     continue;
@@ -1639,7 +1588,8 @@ class FileManager extends Module implements IFileManager {
                 tasks = [];
             }
             const replaced = this.assets.filter(item => item.originalName && !item.invalid);
-            if (replaced.length || Object.keys(base64Map) || this.productionRelease) {
+            const productionRelease = this.Chrome.productionRelease;
+            if (replaced.length || Object.keys(base64Map) || productionRelease) {
                 const replaceContent = (file: ExternalAsset, value: string) => {
                     for (const id in base64Map) {
                         value = value.replace(new RegExp(id, 'g'), base64Map[id]!);
@@ -1647,8 +1597,8 @@ class FileManager extends Module implements IFileManager {
                     for (const asset of replaced) {
                         value = value.replace(new RegExp(this.escapePosix(getRelativePath(asset, asset.originalName)), 'g'), asset.relativePath!);
                     }
-                    if (this.productionRelease) {
-                        value = value.replace(new RegExp(`(\\.\\./)*${this.serverRoot}`, 'g'), '');
+                    if (productionRelease) {
+                        value = value.replace(new RegExp(`(\\.\\./)*${this.Chrome!.serverRoot}`, 'g'), '');
                     }
                     file.sourceUTF8 = value;
                 };
