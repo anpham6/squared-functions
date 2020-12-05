@@ -77,9 +77,9 @@ export async function createBucket(this: InstanceHost, credential: GCloudStorage
 }
 
 export async function deleteObjects(this: InstanceHost, credential: GCloudStorageCredential, bucket: string, service = 'gcloud') {
+    const storage = createStorageClient.call(this, credential);
     try {
-        return createStorageClient.call(this, credential)
-            .bucket(bucket)
+        return storage.bucket(bucket)
             .deleteFiles({ force: true })
             .then(() => this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket emptied', bucket, { titleColor: 'blue' }));
     }

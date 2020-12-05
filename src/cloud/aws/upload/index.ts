@@ -44,8 +44,7 @@ function upload(this: IFileManager, credential: AWSStorageCredential, service = 
                             break;
                         }
                     }
-                    exists = await s3.headObject({ Bucket, Key: pathname + filename })
-                        .promise()
+                    exists = await s3.headObject({ Bucket, Key: pathname + filename }).promise()
                         .then(() => true)
                         .catch(err => {
                             if (err.code !== 'NotFound') {

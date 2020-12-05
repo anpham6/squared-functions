@@ -254,8 +254,8 @@ class FileManager extends Module implements IFileManager {
                     if (this.Chrome) {
                         manager.install('chrome', this.Chrome.settings);
                     }
-                     if (this.Cloud) {
-                        manager.install('cloud', this.Cloud.settings, this.Cloud.database);
+                    if (this.Cloud) {
+                        manager.install('cloud', this.Cloud.settings);
                     }
                     if (this.Compress) {
                         manager.install('compress', this.Compress);
@@ -1310,24 +1310,24 @@ class FileManager extends Module implements IFileManager {
                         queue = items.shift();
                     }
                     if (queue) {
-                        const verifyBundle = async (value: string) => {
+                        const verifyBundle = async (next: ExternalAsset, value: string) => {
                             if (bundleMain) {
-                                return this.appendContent(queue!, fileUri, value, queue!.bundleIndex);
+                                return this.appendContent(next, fileUri, value, next.bundleIndex);
                             }
                             if (value) {
-                                queue!.sourceUTF8 = await this.appendContent(queue!, fileUri, value) || value;
-                                queue!.invalid = false;
-                                queue!.cloudStorage = cloudStorage;
+                                next.sourceUTF8 = await this.appendContent(next, fileUri, value) || value;
+                                next.invalid = false;
+                                next.cloudStorage = cloudStorage;
                                 bundleMain = queue;
                             }
                             else {
-                                queue!.invalid = true;
+                                next.invalid = true;
                             }
                         };
                         const resumeQueue = () => processQueue(queue!, fileUri, bundleMain);
                         const uri = queue.uri;
                         if (queue.content) {
-                            verifyBundle(queue.content).then(resumeQueue);
+                            verifyBundle(queue, queue.content).then(resumeQueue);
                         }
                         else if (uri) {
                             request(uri, (err, res) => {
@@ -1339,7 +1339,7 @@ class FileManager extends Module implements IFileManager {
                                 }
                                 else {
                                     queue!.etag = (res.headers['etag'] || res.headers['last-modified']) as string;
-                                    verifyBundle(res.body).then(resumeQueue);
+                                    verifyBundle(queue!, res.body).then(resumeQueue);
                                 }
                             });
                         }
@@ -1432,30 +1432,20 @@ class FileManager extends Module implements IFileManager {
                 if (!checkQueue(file, fileUri, true)) {
                     file.sourceUTF8 = file.content;
                     this.performAsyncTask();
-                    fs.writeFile(
-                        fileUri,
-                        file.content,
-                        'utf8',
-                        err => fileReceived(err)
-                    );
+                    fs.writeFile(fileUri, file.content, 'utf8', err => fileReceived(err));
                 }
             }
             else if (file.base64) {
                 this.performAsyncTask();
-                fs.writeFile(
-                    fileUri,
-                    file.base64,
-                    'base64',
-                    err => {
-                        if (!err) {
-                            this.writeBuffer({ file, fileUri });
-                        }
-                        else {
-                            file.invalid = true;
-                            this.completeAsyncTask();
-                        }
+                fs.writeFile(fileUri, file.base64, 'base64', err => {
+                    if (!err) {
+                        this.writeBuffer({ file, fileUri });
                     }
-                );
+                    else {
+                        file.invalid = true;
+                        this.completeAsyncTask();
+                    }
+                });
             }
             else {
                 const uri = file.uri;
@@ -1495,11 +1485,7 @@ class FileManager extends Module implements IFileManager {
                     else if (Node.hasUNCRead() && Node.isFileUNC(uri) || Node.hasDiskRead() && path.isAbsolute(uri)) {
                         if (!checkQueue(file, fileUri)) {
                             this.performAsyncTask();
-                            fs.copyFile(
-                                uri,
-                                fileUri,
-                                err => fileReceived(err)
-                            );
+                            fs.copyFile(uri, fileUri, err => fileReceived(err));
                         }
                     }
                     else {

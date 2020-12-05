@@ -5,6 +5,7 @@ import chalk = require('chalk');
 type Settings = functions.Settings;
 type LoggerModule = functions.settings.LoggerModule;
 type LogMessageOptions = functions.internal.LogMessageOptions;
+type LogValue = string | [string, string];
 
 let SETTINGS: LoggerModule = {};
 
@@ -76,15 +77,15 @@ const Module = class implements functions.IModule {
         options.hintColor ||= 'magenta';
         this.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Completed', (Date.now() - time) / 1000 + 's'], value, options);
     }
-    writeFail(value: string | [string, string], message?: unknown) {
+    writeFail(value: LogValue, message?: unknown) {
         this.formatFail(LOG_TYPE.SYSTEM, 'FAIL', value, message);
     }
-    formatFail(type: LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options: LogMessageOptions = {}) {
+    formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
         options.titleColor ||= 'white';
         options.titleBgColor ||= 'bgRed';
         this.formatMessage(type, title, value, message, options);
     }
-    formatMessage(type: LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options: LogMessageOptions = {}) {
+    formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
         switch (type) {
             case LOG_TYPE.SYSTEM:
                 if (SETTINGS.system === false) {

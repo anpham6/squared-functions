@@ -589,6 +589,8 @@ squared.saveAs('index.zip', {
 });
 ```
 
+Inline commands are not supported when using cloud features.
+
 ### Cloud database
 
 Basic text replacement can be achieved using any of these cloud databases. Each provider has a different query syntax and consulting their documentation is recommended.
@@ -622,6 +624,17 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
 ```javascript
 // Required: Attribute "table" is used for caching results
 
+interface CloudDatabase<T = string | PlainObject | any[]> {
+    table: string;
+    value: string | ObjectMap<string | string[]>;
+    name?: string;
+    id?: string;
+    query?: T;
+    limit?: number;
+    params?: unknown[];
+    options?: PlainObject;
+}
+
 /* Azure: https://docs.microsoft.com/en-us/azure/cosmos-db/sql-query-getting-started */
 {
   "selector": ".card:nth-of-type(1) p",
@@ -635,8 +648,8 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
     "name": "squared", // Database name (required)
     "table": "demo",
     "partitionKey": "Pictures", // optional
-    "query": "SELECT * FROM c WHERE c.id = '1'",
-    "limit": 1, // All providers (optional)
+    "query": "SELECT * FROM c WHERE c.id = '1'", // OR: storedProcedureId + partitionKey? + params?
+    "limit": 1, // optional
     "value": "<b>${title}</b>: ${description}" // Only one field per template literal
   }
 }
@@ -714,7 +727,7 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
 }
 ```
 
-Inline commands are not supported when using cloud features.
+Some queries use an optional parameters array (params) or configuration object (options) which is sent with the query when applicable. If you require this advanced usage then further information can be found in the database provider documenation.
 
 ### Options: Development / Production
 

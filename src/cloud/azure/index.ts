@@ -17,6 +17,7 @@ export interface AzureDatabaseCredential extends db.CosmosClientOptions {}
 
 export interface AzureDatabaseQuery extends functions.squared.CloudDatabase<string> {
     partitionKey?: string;
+    storedProcedureId?: string;
 }
 
 export function validateStorage(credential: AzureStorageCredential) {
@@ -83,8 +84,9 @@ export async function createBucket(this: InstanceHost, credential: AzureStorageC
 }
 
 export async function deleteObjects(this: InstanceHost, credential: AzureStorageCredential, bucket: string, service = 'azure') {
+    const blobServiceClient = createStorageClient.call(this, credential);
     try {
-        const containerClient = createStorageClient.call(this, credential).getContainerClient(bucket);
+        const containerClient = blobServiceClient.getContainerClient(bucket);
         const tasks: Promise<storage.BlobDeleteResponse>[] = [];
         let fileCount = 0;
         for await (const blob of containerClient.listBlobsFlat({ includeUncommitedBlobs: true })) {
@@ -109,19 +111,25 @@ export async function executeQuery(this: InstanceHost, credential: AzureDatabase
     const client = createDatabaseClient.call(this, credential);
     let result: Undef<any[]>;
     try {
-        const { name, table, id, query, partitionKey = '', limit = 0 } = data;
+        const { name, table, id, query, storedProcedureId, params, partitionKey = '', limit = 0 } = data;
         const container = client.database(name!).container(table);
         if (cacheKey) {
             cacheKey += name! + table + partitionKey;
         }
-        if (id) {
+        if (storedProcedureId && params) {
+            const item = await container.scripts.storedProcedure(storedProcedureId).execute(partitionKey, params, data.options);
+            if (item.statusCode === 200) {
+                result = Array.isArray(item.resource) ? item.resource : [item.resource];
+            }
+        }
+        else if (id) {
             if (cacheKey) {
                 cacheKey += id;
                 if (CACHE_DB[cacheKey]) {
                     return CACHE_DB[cacheKey];
                 }
             }
-            const item = await container.item(id.toString(), partitionKey).read();
+            const item = await container.item(id.toString(), partitionKey).read(data.options);
             if (item.statusCode === 200) {
                 result = [item.resource];
             }
@@ -133,28 +141,10 @@ export async function executeQuery(this: InstanceHost, credential: AzureDatabase
                     return CACHE_DB[cacheKey];
                 }
             }
-            const options: db.FeedOptions = {};
-            for (const attr in data) {
-                switch (attr) {
-                    case 'continuationToken':
-                    case 'continuationTokenLimitInKB':
-                    case 'enableScanInQuery':
-                    case 'maxDegreeOfParallelism':
-                    case 'maxItemCount':
-                    case 'useIncrementalFeed':
-                    case 'accessCondition':
-                    case 'populateQueryMetrics':
-                    case 'bufferItems':
-                    case 'forceQueryPlan':
-                    case 'partitionKey':
-                        options[attr] = data[attr];
-                        break;
-                }
-            }
             if (limit > 0) {
-                options.maxItemCount ||= limit;
+                (data.options ||= {}).maxItemCount = limit;
             }
-            result = (await container.items.query(query, options).fetchAll()).resources;
+            result = (await container.items.query(query, data.options).fetchAll()).resources;
         }
     }
     catch (err) {

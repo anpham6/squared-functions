@@ -15,8 +15,7 @@ function download(this: IFileManager, credential: AzureStorageCredential, servic
             try {
                 const location = Bucket + '/' + Download.filename;
                 const blobClient = blobServiceClient.getContainerClient(Bucket);
-                blobClient.getBlockBlobClient(Download.filename)
-                    .downloadToBuffer()
+                blobClient.getBlockBlobClient(Download.filename).downloadToBuffer()
                     .then(buffer => {
                         this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Download success', location);
                         success(buffer);

@@ -96,7 +96,7 @@ export async function executeQuery(this: InstanceHost, credential: OCIDatabaseCr
                 }
             }
             else {
-                result = (await connection.execute(query, [], { outFormat: 4002, maxRows })).rows;
+                result = (await connection.execute(query, data.params || [], { ...data.options, outFormat: 4002, maxRows })).rows;
             }
         }
     }

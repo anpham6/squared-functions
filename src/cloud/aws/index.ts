@@ -44,8 +44,7 @@ export function createStorageClient(this: InstanceHost, credential: AWSStorageCr
 
 export async function createBucket(this: InstanceHost, credential: ConfigurationOptions, Bucket: string, publicRead?: boolean, service = 'aws', sdk = 'aws-sdk/clients/s3') {
     const s3 = createStorageClient.call(this, credential, service, sdk);
-    return await s3.headBucket({ Bucket })
-        .promise()
+    return await s3.headBucket({ Bucket }).promise()
         .then(() => {
             if (publicRead) {
                 setPublicRead.call(this, s3, Bucket, service);
@@ -57,8 +56,7 @@ export async function createBucket(this: InstanceHost, credential: Configuration
             if (credential.region) {
                 bucketRequest.CreateBucketConfiguration = { LocationConstraint: credential.region };
             }
-            return await s3.createBucket(bucketRequest)
-                .promise()
+            return await s3.createBucket(bucketRequest).promise()
                 .then(() => {
                     this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket created', Bucket, { titleColor: 'blue' });
                     if (publicRead) {
@@ -77,12 +75,11 @@ export async function createBucket(this: InstanceHost, credential: Configuration
 }
 
 export async function deleteObjects(this: InstanceHost, credential: AWSStorageCredential, Bucket: string, service = 'aws', sdk = 'aws-sdk/clients/s3') {
+    const s3 = createStorageClient.call(this, credential, service, sdk);
     try {
-        const s3 = createStorageClient.call(this, credential, service, sdk);
         const Contents = (await s3.listObjects({ Bucket }).promise()).Contents;
         if (Contents && Contents.length) {
-            return s3.deleteObjects({ Bucket, Delete: { Objects: Contents.map(data => ({ Key: data.Key! })) } })
-                .promise()
+            return s3.deleteObjects({ Bucket, Delete: { Objects: Contents.map(data => ({ Key: data.Key! })) } }).promise()
                 .then(data => {
                     if (data.Deleted) {
                         this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Bucket emptied', data.Deleted.length + ' files'], Bucket, { titleColor: 'blue' });
