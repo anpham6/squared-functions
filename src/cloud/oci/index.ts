@@ -9,8 +9,7 @@ type InstanceHost = functions.internal.Cloud.InstanceHost;
 const CACHE_DB: ObjectMap<any[]> = {};
 
 export interface OCIStorageCredential extends ConfigurationOptions {
-    region: string;
-    namespace: string;
+    namespace?: string;
     endpoint?: string;
 }
 
@@ -19,7 +18,7 @@ export interface OCIDatabaseCredential extends ConnectionAttributes {}
 export interface OCIDatabaseQuery extends functions.squared.CloudDatabase<PlainObject | string> {}
 
 export function validateStorage(credential: OCIStorageCredential) {
-    return !!(credential.region && credential.namespace && credential.accessKeyId && credential.secretAccessKey);
+    return !!(credential.accessKeyId && credential.secretAccessKey || (credential.region && credential.namespace || credential.endpoint));
 }
 
 export function validateDatabase(credential: OCIDatabaseCredential, data: CloudDatabase) {
@@ -27,7 +26,8 @@ export function validateDatabase(credential: OCIDatabaseCredential, data: CloudD
 }
 
 export function setStorageCredential(this: InstanceHost, credential: OCIStorageCredential) {
-    credential.endpoint = `https://${credential.namespace}.compat.objectstorage.${credential.region}.oraclecloud.com`;
+    credential.endpoint ||= `https://${credential.namespace!}.compat.objectstorage.${credential.region!}.oraclecloud.com`;
+    credential.region ||= /([^.]+)\.oraclecloud\.com$/.exec(credential.endpoint)?.[1];
     credential.s3ForcePathStyle = true;
     credential.signatureVersion = 'v4';
 }

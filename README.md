@@ -480,7 +480,7 @@ Other service providers can be integrated similarly except for credential verifi
         "accessKeyId": "**********",
         "secretAccessKey": "**********",
         "region": "us-west-2", // Custom properties are sent to the S3 client (optional)
-        "sessionToken": "**********"
+        "sessionToken": "**********" // optional
       },
       "credential": "main", // OR: Load host configuration from settings at instantiation
       "upload": {
@@ -593,13 +593,16 @@ Inline commands are not supported when using cloud features.
 
 ### Cloud database
 
-Basic text replacement can be achieved using any of these cloud databases. Each provider has a different query syntax and consulting their documentation is recommended.
+Basic text replacement can be achieved using any of these cloud based document databases. Each provider has a different query syntax and consulting their documentation is recommended.
 
 ```xml
+* Amazon DynamoDB
+  - npm install aws-sdk
+  - AWS: https://aws.amazon.com/dynamodb (25GB + 25 RCU/WCU)
+
 * Microsoft Cosmos DB
   - npm install @azure/cosmos
   - Azure: https://azure.microsoft.com/en-us/services/cosmos-db (5GB + 400RU/s)
-  - SQL API
 
 * Google Firestore
   - npm install @google-cloud/firestore
@@ -609,30 +612,47 @@ Basic text replacement can be achieved using any of these cloud databases. Each 
   - npm install @cloudant/cloudant
   - IBM: https://www.ibm.com/cloud/cloudant (1GB + 20/10 r/w@sec)
 
-* Oracle Autonomous
+* Oracle Autonomous DB
   - npm install oracledb
-
-  - Data Warehouse
   - OCI: https://www.oracle.com/autonomous-database (20GB)
-  - SQL API
-
-  - JSON
-  - OCI: https://www.oracle.com/autonomous-database/autonomous-json-database (Paid - 1TB)
-  - SODA API
+         https://www.oracle.com/autonomous-database/autonomous-json-database (Paid - 1TB)
 ```
 
 ```javascript
 // Required: Attribute "table" is used for caching results
 
-interface CloudDatabase<T = string | PlainObject | any[]> {
+interface CloudDatabase {
     table: string;
     value: string | ObjectMap<string | string[]>;
     name?: string;
     id?: string;
-    query?: T;
+    query?: string | PlainObject | any[];
     limit?: number;
     params?: unknown[];
     options?: PlainObject;
+}
+
+/* AWS: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GettingStarted.NodeJs.html */
+{
+  "selector": ".card:nth-of-type(1) p",
+  "type": "text",
+  "cloudDatabase": {
+    "service": "aws",
+    "credential": {
+      "accessKeyId": "**********",
+      "secretAccessKey": "**********",
+      "region": "us-east-1", // Endpoint specified (optional)
+      "endpoint": "https://dynamodb.us-east-1.amazonaws.com" // Local development (required) 
+    },
+    "table": "demo",
+    "query": {
+      "KeyConditionExpression": "#name = :value",
+      "ExpressionAttributeNames": { "#name": "id" },
+      "ExpressionAttributeValues": { ":value": "1" }
+    },
+    "limit": 1, // optional
+    "value": "<b>${title}</b>: ${description}" // Only one field per template literal
+  }
 }
 
 /* Azure: https://docs.microsoft.com/en-us/azure/cosmos-db/sql-query-getting-started */
@@ -649,8 +669,7 @@ interface CloudDatabase<T = string | PlainObject | any[]> {
     "table": "demo",
     "partitionKey": "Pictures", // optional
     "query": "SELECT * FROM c WHERE c.id = '1'", // OR: storedProcedureId + partitionKey? + params?
-    "limit": 1, // optional
-    "value": "<b>${title}</b>: ${description}" // Only one field per template literal
+    "value": "<b>${title}</b>: ${description}"
   }
 }
 
@@ -687,7 +706,7 @@ interface CloudDatabase<T = string | PlainObject | any[]> {
   }
 }
 
-/* OCI: https://docs.oracle.com/en/database/oracle/simple-oracle-document-access/adsdi/overview-soda-filter-specifications-qbes.html */
+/* OCI: https://docs.oracle.com/en/database/oracle/simple-oracle-document-access/adsdi/oracle-database-introduction-simple-oracle-document-access-soda.pdf */
 {
   "selector": ".card:nth-of-type(1) p",
   "type": "text",
@@ -699,7 +718,7 @@ interface CloudDatabase<T = string | PlainObject | any[]> {
       "connectionString": "tcps://adb.us-phoenix-1.oraclecloud.com:1522/abcdefghijklmno_squared_high.adb.oraclecloud.com?wallet_location=/Users/Oracle/wallet"
     },
     "table": "demo",
-    "query": "SELECT * from demo WHERE id = '1'", // SQL
+    "query": "SELECT d.* from demo NESTED json_document COLUMNS(id, title, description) d WHERE d.id = '1'", // SQL: Column names might be UPPERCASED
     "query": { "id": { "$eq": "1" } }, // SODA
     "value": "<b>${title}</b>: ${description}"
   }
@@ -717,8 +736,8 @@ interface CloudDatabase<T = string | PlainObject | any[]> {
     "credential": "db-main",
     "name": "squared", // Azure (required)
     "table": "demo",
-    "id": "2",
-    "partitionKey": "Pictures", // Azure and IBM (optional)
+    "id": "2", // OCI (server assigned)
+    "partitionKey": "Pictures", // AWS (required) | Azure and IBM (optional)
     "value": {
       "src": "imageData.src", // Template literal syntax is not supported
       "style": [":join(; )" /* optional: " " */, "imageData.style[0]", "imageData.style[1]"]

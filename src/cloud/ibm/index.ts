@@ -20,7 +20,7 @@ export interface IBMDatabaseQuery extends functions.squared.CloudDatabase<MangoQ
 }
 
 export function validateStorage(credential: IBMStorageCredential) {
-    return !!(credential.apiKeyId && credential.serviceInstanceId);
+    return !!(credential.apiKeyId && credential.serviceInstanceId && (credential.region || credential.endpoint));
 }
 
 export function validateDatabase(credential: IBMDatabaseCredential, data: CloudDatabase) {
@@ -28,8 +28,8 @@ export function validateDatabase(credential: IBMDatabaseCredential, data: CloudD
 }
 
 export function setStorageCredential(this: InstanceHost, credential: IBMStorageCredential) {
-    credential.region ||= 'us-east';
-    credential.endpoint ||= `https://s3.${credential.region}.cloud-object-storage.appdomain.cloud`;
+    credential.endpoint ||= `https://s3.${credential.region!}.cloud-object-storage.appdomain.cloud`;
+    credential.region ||= /([^.]+)\.cloud-object-storage\.appdomain\.cloud$/.exec(credential.endpoint)?.[1];
     credential.ibmAuthEndpoint = 'https://iam.cloud.ibm.com/identity/token';
     credential.signatureVersion = 'iam';
 }
@@ -81,7 +81,7 @@ export async function executeQuery(this: InstanceHost, credential: IBMDatabaseCr
                 }
             }
             if (limit > 0) {
-                query.limit ||= limit;
+                query.limit = limit;
             }
             if (partitionKey) {
                 result = (await scope.partitionedFind(partitionKey, query)).docs;
