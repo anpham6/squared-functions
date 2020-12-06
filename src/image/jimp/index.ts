@@ -11,47 +11,42 @@ type IFileManager = functions.IFileManager;
 type ExternalAsset = functions.ExternalAsset;
 type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTaskCallback;
 type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
+type FileData = functions.internal.FileData;
+type UsingOptions = functions.internal.Image.UsingOptions;
 type ResizeData = functions.internal.Image.ResizeData;
 type CropData = functions.internal.Image.CropData;
 type RotateData = functions.internal.Image.RotateData;
 type QualityData = functions.internal.Image.QualityData;
-type UsingOptions = functions.internal.Image.UsingOptions;
+
+const getBuffer = (data: FileData) => (data.file.buffer as unknown) as string || data.fileUri;
 
 class Jimp extends Image implements functions.ImageProxy<jimp> {
-    public static async using(this: IFileManager, options: UsingOptions) {
-        const { data, compress } = options;
-        const { file, fileUri } = data;
-        const command = options.command?.trim().toLowerCase();
-        const mimeType = file.mimeType || mime.lookup(fileUri);
-        const getFile = () => {
-            const buffer = file.buffer;
-            if (buffer) {
-                delete file.buffer;
-                return (buffer as unknown) as string;
+    public static async resolveMime(this: IFileManager, data: FileData) {
+        const img = await jimp.read(getBuffer(data));
+        const mimeType = img.getMIME();
+        switch (mimeType) {
+            case jimp.MIME_PNG:
+            case jimp.MIME_JPEG:
+            case jimp.MIME_BMP:
+            case jimp.MIME_GIF:
+            case jimp.MIME_TIFF: {
+                const { file, fileUri } = data;
+                const output = Image.renameExt(fileUri, mimeType.split('/')[1]);
+                fs.renameSync(fileUri, output);
+                this.replace(file, output);
+                data.fileUri = output;
+                file.mimeType = mimeType;
+                return true;
             }
-            return fileUri;
-        };
-        if (!command || !mimeType || mimeType === 'image/unknown') {
-            const img = await jimp.read(getFile());
-            const unknownType = img.getMIME();
-            switch (unknownType) {
-                case jimp.MIME_PNG:
-                case jimp.MIME_JPEG:
-                case jimp.MIME_BMP:
-                case jimp.MIME_GIF:
-                case jimp.MIME_TIFF: {
-                    options.output = Image.renameExt(fileUri, unknownType.split('/')[1]);
-                    options.command = '@';
-                    options.compress = unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG ? compress : undefined;
-                    file.mimeType = unknownType;
-                    fs.renameSync(fileUri, options.output);
-                    break;
-                }
-            }
-            this.finalizeImage(options);
         }
-        else {
-            file.mimeType = mimeType;
+        return false;
+    }
+
+    public static async using(this: IFileManager, data: FileData, options: UsingOptions) {
+        const command = options.command?.trim();
+        if (command) {
+            const { file, fileUri } = data;
+            const mimeType = file.mimeType || mime.lookup(fileUri);
             let jimpType: Undef<string>,
                 tempFile: Undef<string>,
                 saveAs: Undef<string>,
@@ -85,9 +80,10 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
                     if (output) {
                         this.performAsyncTask();
                         this.formatMessage(this.logType.IMAGE, 'jimp', ['Transforming image...', path.basename(fileUri)], command, { titleColor: 'magenta' });
-                        const time = Date.now();
-                        jimp.read(tempFile || getFile())
+                        options.time = Date.now();
+                        jimp.read(tempFile || getBuffer(data))
                             .then(img => {
+                                delete file.buffer;
                                 const proxy = new Jimp(img, fileUri, command, finalAs);
                                 proxy.method();
                                 proxy.resize();
@@ -99,8 +95,7 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
                                     proxy.opacity();
                                 }
                                 proxy.rotate(this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this), file);
-                                options.time = time;
-                                proxy.write(output, options);
+                                proxy.write(data, output, options);
                             })
                             .catch(err => {
                                 this.completeAsyncTask();
@@ -128,6 +123,9 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
             else {
                 resumeThread();
             }
+        }
+        else {
+            this.finalizeImage(data, data.fileUri, options);
         }
     }
 
@@ -289,17 +287,21 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
             }
         }
     }
-    write(output: string, options: UsingOptions) {
+    write(data: FileData, output: string, options?: UsingOptions) {
         this.instance.write(output, err => {
-            if (options.data && options.callback) {
+            if (!err) {
                 this.finalize(output, (result: string) => {
-                    if (options.time) {
-                        this.writeTimeElapsed('jimp', path.basename(result), options.time);
+                    if (options) {
+                        if (options.time) {
+                            this.writeTimeElapsed('jimp', path.basename(result), options.time);
+                        }
+                        if (options.callback) {
+                            options.callback(data, result, options, err);
+                        }
                     }
-                    options.callback!({ ...options, output: result }, err);
                 });
             }
-            else if (err && this.errorHandler) {
+            else if (this.errorHandler) {
                 this.errorHandler(err);
             }
         });

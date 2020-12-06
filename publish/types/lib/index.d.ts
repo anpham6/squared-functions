@@ -11,7 +11,7 @@ declare namespace functions {
     type ExternalCategory = "html" | "css" | "js";
     type CloudFeatures = "storage" | "database";
     type CloudFunctions = "upload" | "download";
-    type FileManagerWriteImageCallback = (options: internal.Image.UsingOptions, error?: Null<Error>) => void;
+    type FileManagerWriteImageCallback = (data: internal.FileData, output: string, options?: internal.Image.UsingOptions, error?: Null<Error>) => void;
     type FileManagerPerformAsyncTaskCallback = (parent?: ExternalAsset) => void;
     type FileManagerCompleteAsyncTaskCallback = (value?: unknown, parent?: ExternalAsset) => void;
     type CompressTryImageCallback = (result: string) => void;
@@ -155,9 +155,8 @@ declare namespace functions {
 
         namespace Image {
             interface UsingOptions {
-                data: FileData;
-                output?: string;
                 command?: string;
+                output?: string;
                 compress?: squared.CompressFormat;
                 time?: number;
                 callback?: FileManagerWriteImageCallback;
@@ -374,11 +373,33 @@ declare namespace functions {
     }
 
     interface ImageConstructor extends ModuleConstructor {
-        using(this: IFileManager, options: internal.Image.UsingOptions): void;
+        resolveMime(this: IFileManager, data: internal.FileData): Promise<boolean>;
+        using(this: IFileManager, data: internal.FileData, options?: internal.Image.UsingOptions): void;
         new(): IImage;
     }
 
     const Image: ImageConstructor;
+
+    class ImageProxy<T> {
+        instance: T;
+        fileUri: string
+        command: string
+        resizeData?: internal.Image.ResizeData;
+        cropData?: internal.Image.CropData;
+        rotateData?: internal.Image.RotateData;
+        qualityData?: internal.Image.QualityData;
+        opacityValue: number;
+        errorHandler?: (err: Error) => void;
+        method(): void;
+        resize(): void;
+        crop(): void;
+        opacity(): void;
+        quality(): void;
+        rotate(initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback, parent?: ExternalAsset): void;
+        write(data: internal.FileData, output: string, options?: internal.Image.UsingOptions): void;
+        finalize(output: string, callback: (result: string) => void): void;
+        constructor(instance: T, fileUri: string, command?: string, finalAs?: string);
+    }
 
     interface ICloud extends IModule {
         settings: settings.CloudModule;
@@ -423,7 +444,7 @@ declare namespace functions {
     }
 
     interface ChromeConstructor extends ModuleConstructor {
-        new(body: RequestBody, settings?: settings.ChromeModule, productionRelease?: boolean, ): IChrome;
+        new(body: RequestBody, settings?: settings.ChromeModule, productionRelease?: boolean): IChrome;
     }
 
     const Chrome: ChromeConstructor;
@@ -431,10 +452,10 @@ declare namespace functions {
     interface IFileManager extends IModule {
         delayed: number;
         cleared: boolean;
-        Image: Null<ImageConstructor>;
         Chrome: Null<IChrome>;
         Cloud: Null<ICloud>;
         Watch: Null<IWatch>;
+        Image: Null<ImageConstructor>;
         Compress: Null<settings.CompressModule>;
         Gulp: Null<settings.GulpModule>;
         readonly body: RequestBody;
@@ -472,7 +493,6 @@ declare namespace functions {
         transformSource(data: internal.FileData, module?: IChrome): Promise<void>;
         queueImage(data: internal.FileData, ouputType: string, saveAs: string, command?: string): string;
         compressFile(file: ExternalAsset): Promise<unknown>;
-        writeBuffer(data: internal.FileData): void;
         finalizeImage: FileManagerWriteImageCallback;
         finalizeAsset(data: internal.FileData, parent?: ExternalAsset): Promise<void>;
         processAssets(watch?: boolean): void;
@@ -513,27 +533,6 @@ declare namespace functions {
     }
 
     const Module: ModuleConstructor;
-
-    class ImageProxy<T> {
-        instance: T;
-        fileUri: string
-        command: string
-        resizeData?: internal.Image.ResizeData;
-        cropData?: internal.Image.CropData;
-        rotateData?: internal.Image.RotateData;
-        qualityData?: internal.Image.QualityData;
-        opacityValue: number;
-        errorHandler?: (err: Error) => void;
-        method(): void;
-        resize(): void;
-        crop(): void;
-        opacity(): void;
-        quality(): void;
-        rotate(initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback, parent?: ExternalAsset): void;
-        write(output: string, options: internal.Image.UsingOptions): void;
-        finalize(output: string, callback: (result: string) => void): void;
-        constructor(instance: T, fileUri: string, command?: string, finalAs?: string);
-    }
 
     interface Arguments {
         accessAll?: boolean;

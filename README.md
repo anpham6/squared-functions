@@ -756,7 +756,7 @@ interface CloudDatabase {
 }
 ```
 
-Some queries use an optional parameters array (params) or configuration object (options) which is sent with the query when applicable. If you require this advanced usage then further information can be found in the database provider documenation.
+Some queries use an optional parameters array (params) or configuration object (options) which is sent with the query when applicable. If you require this advanced usage then further instructions can be found in the database provider documentation.
 
 ### Options: Development / Production
 
