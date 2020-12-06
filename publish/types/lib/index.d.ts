@@ -154,13 +154,11 @@ declare namespace functions {
         }
 
         namespace Image {
-            type CompressFormat = squared.CompressFormat;
-
             interface UsingOptions {
                 data: FileData;
                 output?: string;
                 command?: string;
-                compress?: CompressFormat;
+                compress?: squared.CompressFormat;
                 time?: number;
                 callback?: FileManagerWriteImageCallback;
             }
@@ -219,10 +217,6 @@ declare namespace functions {
 
         namespace Cloud {
             type InstanceHost = ICloud | IFileManager;
-            type CloudService = squared.CloudService;
-            type CloudStorage = squared.CloudStorage;
-            type CloudStorageUpload = squared.CloudStorageUpload;
-            type CloudStorageDownload = squared.CloudStorageDownload;
 
             interface FunctionData {
                 admin?: squared.CloudStorageAdmin;
@@ -231,7 +225,7 @@ declare namespace functions {
             }
 
             interface UploadData extends FunctionData {
-                upload: CloudStorageUpload;
+                upload: squared.CloudStorageUpload;
                 buffer: Buffer;
                 fileUri: string;
                 fileGroup: [Buffer | string, string][];
@@ -240,7 +234,7 @@ declare namespace functions {
             }
 
             interface DownloadData extends FunctionData {
-                download: CloudStorageDownload;
+                download: squared.CloudStorageDownload;
             }
 
             interface ServiceClient {
@@ -288,10 +282,10 @@ declare namespace functions {
             titleBgColor?: typeof BackgroundColor;
             valueColor?: typeof ForegroundColor;
             valueBgColor?: typeof BackgroundColor;
-            messageColor?: typeof ForegroundColor;
-            messageBgColor?: typeof BackgroundColor;
             hintColor?: typeof ForegroundColor;
             hintBgColor?: typeof BackgroundColor;
+            messageColor?: typeof ForegroundColor;
+            messageBgColor?: typeof BackgroundColor;
         }
     }
 

@@ -2,10 +2,10 @@ import type { OCIStorageCredential } from '../index';
 
 import { setStorageCredential } from '../index';
 
-type IFileManager = functions.IFileManager;
+type InstanceHost = functions.internal.Cloud.InstanceHost;
 type UploadHost = functions.internal.Cloud.UploadHost;
 
-function upload(this: IFileManager, credential: OCIStorageCredential, service = 'oci') {
+function upload(this: InstanceHost, credential: OCIStorageCredential, service = 'oci') {
     setStorageCredential.call(this, credential);
     return (require('../../aws/upload') as UploadHost).call(this, credential, service);
 }

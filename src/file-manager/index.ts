@@ -136,6 +136,63 @@ function replaceUri(source: string, segments: string[], value: string, matchSing
     return output;
 }
 
+function findClosingTag(outerHTML: string): [string, string, string] {
+    const forward = outerHTML.split('>');
+    const opposing = outerHTML.split('<');
+    if (opposing.length === 1 || forward.length === 1) {
+        const match = /^(\s*)<([\w-]+)(.*?)\/?>(\s*)$/.exec(outerHTML);
+        if (match) {
+            return [match[1] + '<' + match[2] + match[3] + '>', `</${match[2]}>` + match[4], ''];
+        }
+    }
+    else if (opposing.length === 2 && forward.length === 2 && REGEXP_TAGTEXT.test(outerHTML)) {
+        return [forward[0] + '>', '<' + opposing[1], forward[1] + opposing[0]];
+    }
+    else {
+        const value = outerHTML.replace(/\s+$/, '');
+        const length = value.length;
+        let opening = '',
+            start = -1;
+        for (let i = 0, quote = ''; i < length; ++i) {
+            const ch = value[i];
+            if (ch === '=') {
+                if (!quote) {
+                    switch (value[i + 1]) {
+                        case '"':
+                            quote = '"';
+                            start = ++i;
+                            break;
+                        case "'":
+                            quote = "'";
+                            start = ++i;
+                            break;
+                    }
+                }
+            }
+            else if (ch === quote) {
+                quote = '';
+            }
+            else if (ch === '>' && !quote) {
+                opening = outerHTML.substring(0, i + 1);
+                break;
+            }
+        }
+        if (!opening && start !== -1) {
+            for (let j = start + 1; j < length; ++j) {
+                if (outerHTML[j] === '>') {
+                    opening = outerHTML.substring(0, j + 1);
+                    break;
+                }
+            }
+        }
+        if (opening) {
+            const index = outerHTML.lastIndexOf('<');
+            return [opening, outerHTML.substring(index), outerHTML.substring(opening.length + 1, index)];
+        }
+    }
+    return ['', '', ''];
+}
+
 function getRootDirectory(location: string, asset: string): [string[], string[]] {
     const locationDir = location.split(/[\\/]/);
     const assetDir = asset.split(/[\\/]/);
@@ -407,7 +464,7 @@ class FileManager extends Module implements IFileManager {
                 }
             }
             if (baseAsset && Node.fromSameOrigin(origin, baseAsset.uri!)) {
-                const [originDir] = getRootDirectory(baseDir + '/' + file.filename, Node.parsePath(baseAsset.uri!)!);
+                const [originDir] = getRootDirectory(this.joinPosix(baseDir, file.filename), Node.parsePath(baseAsset.uri!)!);
                 return '../'.repeat(originDir.length - 1) + asset.relativePath;
             }
         }
@@ -680,9 +737,9 @@ class FileManager extends Module implements IFileManager {
                         if (tagName) {
                             content &&= minifySpace(content);
                             outerHTML = minifySpace(outerHTML);
-                            const innerHTML = new RegExp(`(\\s*)<${tagName}[^>]*>([\\s\\S]*?)<\\/${tagName}>\\n*`, 'g');
+                            const innerHTML = new RegExp(`(\\s*)<${tagName}[\\s\\S]*?<\\/${tagName}>\\n*`, 'g');
                             while (match = innerHTML.exec(html)) {
-                                if (outerHTML === minifySpace(match[0]) || content && content === minifySpace(match[2])) {
+                                if (outerHTML === minifySpace(match[0]) || content && content === minifySpace(findClosingTag(match[0])[2])) {
                                     source = source.replace(match[0], (replaceWith ? match[1] : '') + replaceWith);
                                     break;
                                 }
@@ -702,63 +759,12 @@ class FileManager extends Module implements IFileManager {
                                 const template = item.value;
                                 let replaceWith = '';
                                 if (typeof template === 'string') {
-                                    const forward = outerHTML.split('>');
-                                    const opposing = outerHTML.split('<');
-                                    let opening: Undef<string>,
-                                        closing: Undef<string>;
-                                    if (opposing.length === 1 || forward.length === 1) {
-                                        match = /^(\s*)<([\w-]+)(.*?)\/?>(\s*)$/.exec(outerHTML);
-                                        if (match) {
-                                            opening = match[1] + '<' + match[2] + match[3] + '>';
-                                            closing = `</${match[2]}>` + match[4];
-                                        }
-                                    }
-                                    else if (opposing.length === 2 && forward.length === 2 && REGEXP_TAGTEXT.test(outerHTML)) {
-                                        opening = forward[0] + '>';
-                                        closing = '<' + opposing[1];
-                                    }
-                                    else {
-                                        const value = outerHTML.replace(/\s+$/, '');
-                                        let last = -1;
-                                        for (let i = 0, quote = '', length = value.length; i < length; ++i) {
-                                            const ch = value[i];
-                                            if (ch === '=') {
-                                                if (!quote) {
-                                                    switch (value[i + 1]) {
-                                                        case '"':
-                                                            quote = '"';
-                                                            ++i;
-                                                            break;
-                                                        case "'":
-                                                            quote = "'";
-                                                            ++i;
-                                                            break;
-                                                    }
-                                                }
-                                            }
-                                            else if (ch === quote) {
-                                                quote = '';
-                                            }
-                                            else if (ch === '>') {
-                                                if (!quote) {
-                                                    opening = outerHTML.substring(0, i + 1);
-                                                    break;
-                                                }
-                                                if (i < length - 1) {
-                                                    last = i;
-                                                }
-                                            }
-                                        }
-                                        if (!opening && last !== -1) {
-                                            opening = outerHTML.substring(0, last + 1);
-                                        }
-                                        closing = outerHTML.substring(outerHTML.lastIndexOf('<'));
-                                    }
+                                    const [opening, closing] = findClosingTag(outerHTML);
                                     if (opening && closing) {
                                         let output = '';
                                         for (const row of result) {
-                                            let value = template;
                                             REGEXP_DBCOLUMN.lastIndex = 0;
+                                            let value = template;
                                             while (match = REGEXP_DBCOLUMN.exec(template)) {
                                                 value = value.replace(match[0], getObjectValue(row, match[1]));
                                             }

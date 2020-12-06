@@ -25,7 +25,7 @@ export function validateStorage(credential: AzureStorageCredential) {
 }
 
 export function validateDatabase(credential: AzureDatabaseCredential, data: CloudDatabase) {
-    return !!(credential.key && credential.endpoint && data.name && data.table);
+    return !!(credential.endpoint && credential.key && data.name && data.table);
 }
 
 export function createStorageClient(this: InstanceHost, credential: AzureStorageCredential): storage.BlobServiceClient {

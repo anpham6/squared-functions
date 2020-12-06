@@ -6,14 +6,14 @@ import uuid = require('uuid');
 
 import { createBucket, createStorageClient, setPublicRead } from '../index';
 
-type IFileManager = functions.IFileManager;
+type InstanceHost = functions.internal.Cloud.InstanceHost;
 type UploadHost = functions.internal.Cloud.UploadHost;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 type UploadData = functions.internal.Cloud.UploadData;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function upload(this: IFileManager, credential: GCloudStorageCredential, service = 'gcloud'): UploadCallback {
+function upload(this: InstanceHost, credential: GCloudStorageCredential, service = 'gcloud'): UploadCallback {
     const storage = createStorageClient.call(this, credential);
     return async (data: UploadData, success: (value: string) => void) => {
         const bucket = data.bucket ||= data.bucketGroup || uuid.v4();
@@ -101,7 +101,7 @@ function upload(this: IFileManager, credential: GCloudStorageCredential, service
                         success(url);
                     }
                     if (publicRead || active && publicRead !== false) {
-                        setPublicRead.call(this, file.acl, bucket + '/' + file.name, publicRead);
+                        setPublicRead.call(this, file.acl, this.joinPosix(bucket, file.name), publicRead);
                     }
                 }
                 else if (i === 0) {

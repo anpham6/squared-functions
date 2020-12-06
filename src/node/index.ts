@@ -76,7 +76,7 @@ const Node = new class extends Module implements functions.INode {
                 }
                 value = trailing.join('/');
             }
-            return origin + pathname.join('/') + '/' + value;
+            return this.joinPosix(origin, pathname.join('/'), value);
         }
     }
 }();

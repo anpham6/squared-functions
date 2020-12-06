@@ -2,18 +2,18 @@ import type { AzureStorageCredential } from '../index';
 
 import { createStorageClient } from '../index';
 
-type IFileManager = functions.IFileManager;
+type InstanceHost = functions.internal.Cloud.InstanceHost;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 type DownloadData = functions.internal.Cloud.DownloadData;
 type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
-function download(this: IFileManager, credential: AzureStorageCredential, service = 'azure'): DownloadCallback {
+function download(this: InstanceHost, credential: AzureStorageCredential, service = 'azure'): DownloadCallback {
     const blobServiceClient = createStorageClient.call(this, credential);
     return async (data: DownloadData, success: (value: Null<Buffer>) => void) => {
         const { bucket: Bucket, download: Download } = data;
         if (Bucket && Download && Download.filename) {
             try {
-                const location = Bucket + '/' + Download.filename;
+                const location = this.joinPosix(Bucket, Download.filename);
                 const blobClient = blobServiceClient.getContainerClient(Bucket);
                 blobClient.getBlockBlobClient(Download.filename).downloadToBuffer()
                     .then(buffer => {

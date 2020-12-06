@@ -440,15 +440,15 @@ Manual installation of the SDK is required including an account with at least on
 ```xml
 * Amazon
   - npm install aws-sdk
-  - AWS: https://aws.amazon.com/free (5GB)
+  - AWS: https://aws.amazon.com/free (5GB - 12 months)
 
 * Microsoft
   - npm install @azure/storage-blob
-  - Azure: https://azure.microsoft.com/en-us/free (5GB)
+  - Azure: https://azure.microsoft.com/en-us/free (5GB - 12 months)
 
 * Google
   - npm install @google-cloud/storage
-  - GCloud: https://cloud.google.com/free (5GB)
+  - GCloud: https://cloud.google.com/free (5GB - US)
 
 * IBM
   - npm install ibm-cos-sdk
@@ -616,6 +616,16 @@ Basic text replacement can be achieved using any of these cloud based document d
   - npm install oracledb
   - OCI: https://www.oracle.com/autonomous-database (20GB)
          https://www.oracle.com/autonomous-database/autonomous-json-database (Paid - 1TB)
+```
+
+The entire contents of the outer element (p.card) will be erased with "value" and to simplify parsing and performance it is recommended you do not include nested elements with the same tag name in your template mockup.
+
+```xml
+<p class="card">
+    1
+    <p>2</p> <!-- <div>2</div> -->
+    3
+</p>
 ```
 
 ```javascript

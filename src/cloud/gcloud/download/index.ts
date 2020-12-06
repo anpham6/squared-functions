@@ -6,12 +6,12 @@ import path = require('path');
 import fs = require('fs-extra');
 import uuid = require('uuid');
 
-type IFileManager = functions.IFileManager;
+type InstanceHost = functions.internal.Cloud.InstanceHost;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 type DownloadData = functions.internal.Cloud.DownloadData;
 type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
-function download(this: IFileManager, credential: GCloudStorageCredential, service = 'gcloud'): DownloadCallback {
+function download(this: InstanceHost, credential: GCloudStorageCredential, service = 'gcloud'): DownloadCallback {
     const storage = createStorageClient.call(this, credential);
     return async (data: DownloadData, success: (value: string) => void) => {
         const { bucket: Bucket, download: Download } = data;
@@ -26,11 +26,11 @@ function download(this: IFileManager, credential: GCloudStorageCredential, servi
                 }
                 const filename = Download.filename;
                 const destination = tempDir + filename;
+                const location = this.joinPosix(Bucket, filename);
                 const bucket = storage.bucket(Bucket);
                 const file = bucket.file(filename, { generation: Download.versionId });
                 file.download({ destination })
                     .then(() => {
-                        const location = Bucket + '/' + filename;
                         this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Download success', location);
                         success(destination);
                         if (Download.deleteObject) {
@@ -45,7 +45,7 @@ function download(this: IFileManager, credential: GCloudStorageCredential, servi
                         }
                     })
                     .catch((err: Error) => {
-                        this.formatFail(this.logType.CLOUD_STORAGE, service, 'Download failed', err);
+                        this.formatFail(this.logType.CLOUD_STORAGE, service, ['Download failed', location], err);
                         success('');
                     });
             }

@@ -37,6 +37,25 @@ function getPublicReadPolicy(bucket: string) {
     });
 }
 
+function setPublicRead(this: InstanceHost, s3: aws.S3, Bucket: string, service = 'aws') {
+    const callback = (err: Null<Error>) => {
+        if (!err) {
+            this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Grant public-read', Bucket, { titleColor: 'blue' });
+        }
+        else {
+            this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to grant public-read', Bucket], err, { titleColor: 'yellow' });
+        }
+    };
+    switch (service) {
+        case 'AWS':
+            s3.putBucketPolicy({ Bucket, Policy: getPublicReadPolicy(Bucket) }, callback);
+            break;
+        case 'IBM':
+            s3.putBucketAcl({ Bucket, AccessControlPolicy }, callback);
+            break;
+    }
+}
+
 export function validateStorage(credential: AWSStorageCredential) {
     return !!(credential.accessKeyId && credential.secretAccessKey || credential.fromPath || credential.profile || process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY || process.env.AWS_SDK_LOAD_CONFIG);
 }
@@ -193,25 +212,6 @@ export async function executeQuery(this: InstanceHost, credential: AWSDatabaseCr
     return [];
 }
 
-export function setPublicRead(this: InstanceHost, s3: aws.S3, Bucket: string, service = 'aws') {
-    const callback = (err: Null<Error>) => {
-        if (!err) {
-            this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Grant public-read', Bucket, { titleColor: 'blue' });
-        }
-        else {
-            this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to grant public-read', Bucket], err, { titleColor: 'yellow' });
-        }
-    };
-    switch (service) {
-        case 'AWS':
-            s3.putBucketPolicy({ Bucket, Policy: getPublicReadPolicy(Bucket) }, callback);
-            break;
-        case 'IBM':
-            s3.putBucketAcl({ Bucket, AccessControlPolicy }, callback);
-            break;
-    }
-}
-
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         validateStorage,
@@ -220,8 +220,7 @@ if (typeof module !== 'undefined' && module.exports) {
         createDatabaseClient,
         createBucket,
         deleteObjects,
-        executeQuery,
-        setPublicRead
+        executeQuery
     };
     Object.defineProperty(module.exports, '__esModule', { value: true });
 }
