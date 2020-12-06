@@ -113,8 +113,42 @@ function getObjectValue(data: PlainObject, key: string, joinString = ' ') {
     return '';
 }
 
+function assignFilename(file: ExternalAsset | CloudStorageUpload) {
+    const filename = file.filename;
+    if (filename) {
+        return filename.startsWith('__assign__') ? file.filename = uuid.v4() + filename.substring(10) : filename;
+    }
+}
+
+function replaceUri(source: string, segments: string[], value: string, matchSingle = true, base64?: boolean) {
+    let output: Undef<string>;
+    for (let segment of segments) {
+        segment = !base64 ? escapePosix(segment) : `[^"',]+,\\s*` + segment;
+        const pattern = new RegExp(`(src|href|data|poster=)?(["'])?(\\s*)${segment}(\\s*)\\2?`, 'g');
+        let match: Null<RegExpExecArray>;
+        while (match = pattern.exec(source)) {
+            output = (output || source).replace(match[0], match[1] ? match[1].toLowerCase() + `"${value}"` : (match[2] || '') + match[3] + value + match[4] + (match[2] || ''));
+            if (matchSingle && output !== source) {
+                break;
+            }
+        }
+    }
+    return output;
+}
+
+function getRootDirectory(location: string, asset: string): [string[], string[]] {
+    const locationDir = location.split(/[\\/]/);
+    const assetDir = asset.split(/[\\/]/);
+    while (locationDir.length && assetDir.length && locationDir[0] === assetDir[0]) {
+        locationDir.shift();
+        assetDir.shift();
+    }
+    return [locationDir.filter(value => value), assetDir];
+}
+
+const escapePosix = (value: string) => value.replace(/[\\/]/g, '[\\\\/]');
 const isObject = (value: unknown): value is PlainObject => typeof value === 'object' && value !== null;
-const getRelativePath = (file: ExternalAsset, filename = file.filename) => Node.toPosix(path.join(file.moveTo || '', file.pathname, filename));
+const getRelativePath = (file: ExternalAsset, filename = file.filename) => Node.joinPosix(file.moveTo || '', file.pathname, filename);
 
 class FileManager extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {
@@ -156,11 +190,7 @@ class FileManager extends Module implements IFileManager {
         return Compress;
     }
 
-    public static moduleCloud() {
-        return Cloud;
-    }
-
-    public static checkPermissions(dirname: string, res?: Response) {
+    public static hasPermissions(dirname: string, res?: Response) {
         if (Node.isDirectoryUNC(dirname)) {
             if (!Node.hasUNCWrite()) {
                 if (res) {
@@ -194,7 +224,6 @@ class FileManager extends Module implements IFileManager {
 
     public delayed = 0;
     public cleared = false;
-    public emptyDirectory = false;
     public Image: Null<ImageConstructor> = null;
     public Chrome: Null<IChrome> = null;
     public Cloud: Null<ICloud> = null;
@@ -211,7 +240,7 @@ class FileManager extends Module implements IFileManager {
     public readonly baseAsset?: ExternalAsset;
 
     constructor(
-        public readonly dirname: string,
+        public readonly baseDirectory: string,
         public readonly body: RequestBody,
         postFinalize: FunctionType<void> = () => undefined)
     {
@@ -250,7 +279,7 @@ class FileManager extends Module implements IFileManager {
                     Watch.interval = args[0];
                 }
                 Watch.whenModified = (assets: ExternalAsset[]) => {
-                    const manager = new FileManager(this.dirname, { ...this.body, assets });
+                    const manager = new FileManager(this.baseDirectory, { ...this.body, assets });
                     if (this.Chrome) {
                         manager.install('chrome', this.Chrome.settings);
                     }
@@ -331,45 +360,21 @@ class FileManager extends Module implements IFileManager {
             this.finalize().then(() => this.postFinalize());
         }
     }
-    getRootDirectory(location: string, asset: string): [string[], string[]] {
-        const locationDir = location.split(/[\\/]/);
-        const assetDir = asset.split(/[\\/]/);
-        while (locationDir.length && assetDir.length && locationDir[0] === assetDir[0]) {
-            locationDir.shift();
-            assetDir.shift();
-        }
-        return [locationDir.filter(value => value), assetDir];
-    }
     getHtmlPages() {
         return this.assets.filter(item => item.mimeType === '@text/html');
     }
-    findAsset(uri: string, fromElement?: boolean) {
-        return this.assets.find(item => item.uri === uri && (fromElement && item.outerHTML || !fromElement && !item.outerHTML) && !item.invalid);
-    }
-    replaceUri(source: string, segments: string[], value: string, matchSingle = true, base64?: boolean) {
-        let output: Undef<string>;
-        for (let segment of segments) {
-            segment = !base64 ? this.escapePosix(segment) : `[^"',]+,\\s*` + segment;
-            const pattern = new RegExp(`(src|href|data|poster=)?(["'])?(\\s*)${segment}(\\s*)\\2?`, 'g');
-            let match: Null<RegExpExecArray>;
-            while (match = pattern.exec(source)) {
-                output = (output || source).replace(match[0], match[1] ? match[1].toLowerCase() + `"${value}"` : (match[2] || '') + match[3] + value + match[4] + (match[2] || ''));
-                if (matchSingle && output !== source) {
-                    break;
-                }
-            }
-        }
-        return output;
-    }
     setFileUri(file: ExternalAsset): FileOutput {
-        this.assignFilename(file);
-        const pathname = path.join(this.dirname, file.moveTo || '', file.pathname);
+        assignFilename(file);
+        const pathname = path.join(this.baseDirectory, file.moveTo || '', file.pathname);
         const fileUri = path.join(pathname, file.filename);
         file.fileUri = fileUri;
         file.relativePath = getRelativePath(file);
         return { pathname, fileUri };
     }
-    relativePosix(file: ExternalAsset, uri: string) {
+    findAsset(uri: string, fromElement?: boolean) {
+        return this.assets.find(item => item.uri === uri && (fromElement && item.outerHTML || !fromElement && !item.outerHTML) && !item.invalid);
+    }
+    findRelativePath(file: ExternalAsset, uri: string) {
         const origin = file.uri!;
         let asset = this.findAsset(uri);
         if (!asset) {
@@ -383,36 +388,32 @@ class FileManager extends Module implements IFileManager {
             const baseAsset = this.baseAsset;
             if (Node.fromSameOrigin(origin, asset.uri!)) {
                 const rootDir = asset.rootDir;
-                if (file.moveTo && file.moveTo === asset.moveTo) {
-                    return Node.toPosix(path.join(asset.pathname, asset.filename));
+                if (asset.moveTo) {
+                    if (file.moveTo === asset.moveTo) {
+                        return this.joinPosix(asset.pathname, asset.filename);
+                    }
                 }
                 else if (rootDir) {
                     if (baseDir === rootDir + asset.pathname) {
                         return asset.filename;
                     }
                     else if (baseDir === rootDir) {
-                        return Node.toPosix(path.join(asset.pathname, asset.filename));
+                        return this.joinPosix(asset.pathname, asset.filename);
                     }
                 }
                 else {
-                    const [originDir, uriDir] = this.getRootDirectory(Node.parsePath(origin)!, Node.parsePath(asset.uri!)!);
+                    const [originDir, uriDir] = getRootDirectory(Node.parsePath(origin)!, Node.parsePath(asset.uri!)!);
                     return '../'.repeat(originDir.length - 1) + uriDir.join('/');
                 }
             }
             if (baseAsset && Node.fromSameOrigin(origin, baseAsset.uri!)) {
-                const [originDir] = this.getRootDirectory(baseDir + '/' + file.filename, Node.parsePath(baseAsset.uri!)!);
+                const [originDir] = getRootDirectory(baseDir + '/' + file.filename, Node.parsePath(baseAsset.uri!)!);
                 return '../'.repeat(originDir.length - 1) + asset.relativePath;
             }
         }
     }
-    assignFilename(file: ExternalAsset | CloudStorageUpload) {
-        const filename = file.filename;
-        if (filename) {
-            return filename.startsWith('__assign__') ? file.filename = uuid.v4() + filename.substring(10) : filename;
-        }
-    }
     removeCwd(value: Undef<string>) {
-        return value ? value.substring(this.dirname.length + 1) : '';
+        return value ? value.substring(this.baseDirectory.length + 1) : '';
     }
     getUTF8String(file: ExternalAsset, fileUri?: string) {
         if (!file.sourceUTF8) {
@@ -503,9 +504,9 @@ class FileManager extends Module implements IFileManager {
         let output: Undef<string>;
         for (const item of this.assets) {
             if (item.base64 && item.uri && !item.outerHTML && !item.invalid) {
-                const url = this.relativePosix(file, item.uri);
+                const url = this.findRelativePath(file, item.uri);
                 if (url) {
-                    const replaced = this.replaceUri(output || source, [item.base64.replace(/\+/g, '\\+')], getCloudUUID(item, url), false, true);
+                    const replaced = replaceUri(output || source, [item.base64.replace(/\+/g, '\\+')], getCloudUUID(item, url), false, true);
                     if (replaced) {
                         output = replaced;
                     }
@@ -525,7 +526,7 @@ class FileManager extends Module implements IFileManager {
         while (match = REGEXP_CSSURL.exec(source)) {
             const url = match[1].replace(/^["']\s*/, '').replace(/\s*["']$/, '');
             if (!Node.isFileURI(url) || Node.fromSameOrigin(fileUri, url)) {
-                let location = this.relativePosix(file, url);
+                let location = this.findRelativePath(file, url);
                 if (location) {
                     const uri = Node.resolvePath(url, fileUri);
                     output = (output || source).replace(match[0], `url(${getCloudUUID(uri ? this.findAsset(uri) : undefined, location)})`);
@@ -535,7 +536,7 @@ class FileManager extends Module implements IFileManager {
                     if (location) {
                         const asset = this.findAsset(location);
                         if (asset) {
-                            location = this.relativePosix(file, location);
+                            location = this.findRelativePath(file, location);
                             if (location) {
                                 output = (output || source).replace(match[0], `url(${getCloudUUID(asset, location)})`);
                             }
@@ -621,8 +622,8 @@ class FileManager extends Module implements IFileManager {
             }
         }) as SourceMapInput;
     }
-    writeSourceMap(file: ExternalAsset, fileUri: string, sourceData: [string, Map<string, SourceMapOutput>], sourceContent: string, modified: boolean) {
-        const items = Array.from(sourceData[1]);
+    writeSourceMap(outputData: [string, Map<string, SourceMapOutput>], file: ExternalAsset, fileUri: string, sourcesContent = '', modified?: boolean) {
+        const items = Array.from(outputData[1]);
         const excludeSources = items.some(data => data[1].sourcesContent === null);
         const [name, data] = items.pop()!;
         const filename = path.basename(fileUri);
@@ -638,13 +639,13 @@ class FileManager extends Module implements IFileManager {
         }
         if (!excludeSources) {
             if (!Array.isArray(map.sourcesContent) || map.sourcesContent.length === 1 && !map.sourcesContent[0]) {
-                map.sourcesContent = [data.sourcesContent || sourceContent];
+                map.sourcesContent = [data.sourcesContent || sourcesContent];
             }
         }
         else {
             delete map.sourcesContent;
         }
-        sourceData[0] = sourceData[0].replace(/# sourceMappingURL=[\S\s]+$/, '# sourceMappingURL=' + mapFile);
+        outputData[0] = outputData[0].replace(/# sourceMappingURL=[\S\s]+$/, '# sourceMappingURL=' + mapFile);
         try {
             const mapUri = path.join(path.dirname(fileUri), mapFile);
             fs.writeFileSync(mapUri, JSON.stringify(map), 'utf8');
@@ -654,7 +655,7 @@ class FileManager extends Module implements IFileManager {
             this.writeFail(['Unable to generate source map', name], err);
         }
     }
-    async transformSource(module: IChrome, data: FileData) {
+    async transformSource(data: FileData, module = this.Chrome) {
         const { file, fileUri } = data;
         const { format, mimeType } = file;
         switch (mimeType) {
@@ -935,7 +936,7 @@ class FileManager extends Module implements IFileManager {
                                 item.watch = false;
                             }
                             const innerContent = outerHTML.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/\w+>)?\s*$/, '');
-                            const replaced = this.replaceUri(innerContent, segments, value);
+                            const replaced = replaceUri(innerContent, segments, value);
                             if (replaced) {
                                 const result = source.replace(innerContent, replaced);
                                 if (result !== source) {
@@ -945,7 +946,7 @@ class FileManager extends Module implements IFileManager {
                                 }
                             }
                             if (relativePath) {
-                                const directory = new RegExp(`(["'\\s,=])(` + (ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + this.escapePosix(relativePath) + ')', 'g');
+                                const directory = new RegExp(`(["'\\s,=])(` + (ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + escapePosix(relativePath) + ')', 'g');
                                 while (match = directory.exec(html)) {
                                     if (uri === Node.resolvePath(match[2], baseUri)) {
                                         const result = source.replace(match[0], match[1] + value);
@@ -966,7 +967,7 @@ class FileManager extends Module implements IFileManager {
                                 value = uuid.v4();
                                 item.inlineCloud = value;
                             }
-                            const result = this.replaceUri(source, [item.base64.replace(/\+/g, '\\+')], value, false, true);
+                            const result = replaceUri(source, [item.base64.replace(/\+/g, '\\+')], value, false, true);
                             if (result) {
                                 source = result;
                                 html = source;
@@ -978,7 +979,7 @@ class FileManager extends Module implements IFileManager {
                     }
                 }
                 source = removeFileCommands(this.transformCss(file, source) || source);
-                if (format) {
+                if (format && module) {
                     const result = await module.transform('html', format, source, this.createSourceMap(file, fileUri, source));
                     if (result) {
                         file.sourceUTF8 = result[0];
@@ -989,7 +990,7 @@ class FileManager extends Module implements IFileManager {
                 break;
             }
             case 'text/html':
-                if (format) {
+                if (format && module) {
                     const source = this.getUTF8String(file, fileUri);
                     const result = await module.transform('html', format, source, this.createSourceMap(file, fileUri, source));
                     if (result) {
@@ -999,7 +1000,7 @@ class FileManager extends Module implements IFileManager {
                 break;
             case 'text/css':
             case '@text/css': {
-                const unusedStyles = file.preserve !== true && module.unusedStyles;
+                const unusedStyles = file.preserve !== true && module?.unusedStyles;
                 const transform = mimeType[0] === '@';
                 const trailing = await this.getTrailingContent(file);
                 const bundle = this.getBundleContent(fileUri);
@@ -1029,11 +1030,11 @@ class FileManager extends Module implements IFileManager {
                 if (bundle) {
                     source += bundle;
                 }
-                if (format) {
+                if (format && module) {
                     const result = await module.transform('css', format, source, this.createSourceMap(file, fileUri, source));
                     if (result) {
                         if (result[1].size) {
-                            this.writeSourceMap(file, fileUri, result, source, modified);
+                            this.writeSourceMap(result, file, fileUri, source, modified);
                         }
                         source = result[0];
                     }
@@ -1056,11 +1057,11 @@ class FileManager extends Module implements IFileManager {
                 if (bundle) {
                     source += bundle;
                 }
-                if (format) {
+                if (format && module) {
                     const result = await module.transform('js', format, source, this.createSourceMap(file, fileUri, source));
                     if (result) {
                         if (result[1].size) {
-                            this.writeSourceMap(file, fileUri, result, source, modified);
+                            this.writeSourceMap(result, file, fileUri, source, modified);
                         }
                         source = result[0];
                     }
@@ -1077,7 +1078,7 @@ class FileManager extends Module implements IFileManager {
             if (!command.includes('@') || this.filesQueued.has(fileUri)) {
                 let i = 1;
                 do {
-                    output = this.replaceExtension(fileUri, '__copy__.' + (i > 1 ? `(${i}).` : '') + saveAs);
+                    output = Module.renameExt(fileUri, '__copy__.' + (i > 1 ? `(${i}).` : '') + saveAs);
                 }
                 while (this.filesQueued.has(output) && ++i);
                 try {
@@ -1092,7 +1093,7 @@ class FileManager extends Module implements IFileManager {
         else {
             let i = 1;
             do {
-                output = this.replaceExtension(fileUri, (i > 1 ? `(${i}).` : '') + saveAs);
+                output = Module.renameExt(fileUri, (i > 1 ? `(${i}).` : '') + saveAs);
             }
             while (this.filesQueued.has(output) && ++i);
         }
@@ -1114,7 +1115,7 @@ class FileManager extends Module implements IFileManager {
                     }))
                 );
             }
-            if (Node.checkVersion(11, 7)) {
+            if (Node.supported(11, 7)) {
                 const br = Compress.findFormat(file.compress, 'br');
                 if (br) {
                     tasks.push(
@@ -1227,7 +1228,7 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (this.Chrome) {
-            await this.transformSource(this.Chrome, data);
+            await this.transformSource(data, this.Chrome);
         }
         if (file.invalid) {
             if (!file.bundleId) {
@@ -1244,7 +1245,7 @@ class FileManager extends Module implements IFileManager {
             this.completeAsyncTask(data.fileUri, parent);
         }
     }
-    processAssets() {
+    processAssets(emptyDirectory?: boolean) {
         const emptyDir = new Set<string>();
         const notFound: ObjectMap<boolean> = {};
         const processing: ObjectMap<ExternalAsset[]> = {};
@@ -1411,7 +1412,7 @@ class FileManager extends Module implements IFileManager {
                 }
             };
             if (!emptyDir.has(pathname)) {
-                if (this.emptyDirectory) {
+                if (emptyDirectory) {
                     try {
                         fs.emptyDirSync(pathname);
                     }
@@ -1505,9 +1506,9 @@ class FileManager extends Module implements IFileManager {
         for (const [file, output] of this.filesToCompare) {
             const fileUri = file.fileUri!;
             let minFile = fileUri,
-                minSize = this.getFileSize(minFile);
+                minSize = Module.getFileSize(minFile);
             for (const other of output) {
-                const size = this.getFileSize(other);
+                const size = Module.getFileSize(other);
                 if (minSize === 0 || size > 0 && size < minSize) {
                     this.filesToRemove.add(minFile);
                     minFile = other;
@@ -1581,7 +1582,7 @@ class FileManager extends Module implements IFileManager {
                         value = value.replace(new RegExp(id, 'g'), base64Map[id]!);
                     }
                     for (const asset of replaced) {
-                        value = value.replace(new RegExp(this.escapePosix(getRelativePath(asset, asset.originalName)), 'g'), asset.relativePath!);
+                        value = value.replace(new RegExp(escapePosix(getRelativePath(asset, asset.originalName)), 'g'), asset.relativePath!);
                     }
                     if (productionRelease) {
                         value = value.replace(new RegExp(`(\\.\\./)*${this.Chrome!.serverRoot}`, 'g'), '');
@@ -1801,7 +1802,7 @@ class FileManager extends Module implements IFileManager {
             if (htmlFiles.length === 1) {
                 const upload = cloud.getStorage('upload', htmlFiles[0].cloudStorage)?.upload;
                 if (upload && upload.endpoint) {
-                    endpoint = this.toPosix(upload.endpoint) + '/';
+                    endpoint = Module.toPosix(upload.endpoint) + '/';
                 }
             }
             const getFiles = (item: ExternalAsset, data: CloudStorageUpload) => {
@@ -1863,7 +1864,7 @@ class FileManager extends Module implements IFileManager {
                                                                 filename = path.basename(item.cloudUri);
                                                             }
                                                             else if (upload.filename) {
-                                                                filename = this.assignFilename(upload);
+                                                                filename = assignFilename(upload);
                                                             }
                                                             else if (upload.overwrite) {
                                                                 filename = path.basename(fileUri);
@@ -2035,8 +2036,8 @@ class FileManager extends Module implements IFileManager {
                             ...group.map(value => {
                                 return fs.unlink(value)
                                     .then(() => {
-                                        let dir = this.dirname;
-                                        for (const seg of path.dirname(value).substring(this.dirname.length + 1).split(/[\\/]/)) {
+                                        let dir = this.baseDirectory;
+                                        for (const seg of path.dirname(value).substring(this.baseDirectory.length + 1).split(/[\\/]/)) {
                                             dir += path.sep + seg;
                                             emptyDir.add(dir);
                                         }
@@ -2068,7 +2069,7 @@ class FileManager extends Module implements IFileManager {
                             if (filename) {
                                 const fileUri = item.fileUri;
                                 let valid = false,
-                                    downloadUri = pathname ? path.join(this.dirname, pathname.replace(/^([A-Z]:)?[\\/]+/i, '')) : data.admin?.preservePath && fileUri ? path.join(path.dirname(fileUri), filename) : path.join(this.dirname, filename);
+                                    downloadUri = pathname ? path.join(this.baseDirectory, pathname.replace(/^([A-Z]:)?[\\/]+/i, '')) : data.admin?.preservePath && fileUri ? path.join(path.dirname(fileUri), filename) : path.join(this.baseDirectory, filename);
                                 if (fs.existsSync(downloadUri)) {
                                     if (active || overwrite) {
                                         valid = true;

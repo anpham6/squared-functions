@@ -379,7 +379,7 @@ declare namespace functions {
         parseMethod(value: string): Undef<string[]>;
     }
 
-    interface ImageConstructor {
+    interface ImageConstructor extends ModuleConstructor {
         using(this: IFileManager, options: internal.Image.UsingOptions): void;
         new(): IImage;
     }
@@ -402,7 +402,7 @@ declare namespace functions {
         getDownloadHandler(service: string, credential: PlainObject): internal.Cloud.DownloadCallback;
     }
 
-    interface CloudConstructor {
+    interface CloudConstructor extends ModuleConstructor {
         new(settings: settings.CloudModule): ICloud;
     }
 
@@ -428,7 +428,7 @@ declare namespace functions {
         start(assets: ExternalAsset[]): void;
     }
 
-    interface ChromeConstructor {
+    interface ChromeConstructor extends ModuleConstructor {
         new(body: RequestBody, settings?: settings.ChromeModule, productionRelease?: boolean, ): IChrome;
     }
 
@@ -437,7 +437,6 @@ declare namespace functions {
     interface IFileManager extends IModule {
         delayed: number;
         cleared: boolean;
-        emptyDirectory: boolean;
         Image: Null<ImageConstructor>;
         Chrome: Null<IChrome>;
         Cloud: Null<ICloud>;
@@ -450,9 +449,9 @@ declare namespace functions {
         readonly filesToRemove: Set<string>;
         readonly filesToCompare: Map<ExternalAsset, string[]>;
         readonly contentToAppend: Map<string, string[]>;
-        readonly dirname: string;
         readonly assets: ExternalAsset[];
         readonly postFinalize: FunctionType<void>;
+        readonly baseDirectory: string;
         readonly baseAsset?: ExternalAsset;
         install(name: string, ...args: unknown[]): void;
         add(value: string): void;
@@ -463,22 +462,20 @@ declare namespace functions {
         removeAsyncTask(): void;
         completeAsyncTask: FileManagerCompleteAsyncTaskCallback;
         performFinalize(): void;
-        replaceUri(source: string, segments: string[], value: string, matchSingle?: boolean, base64?: boolean): Undef<string>;
         setFileUri(file: ExternalAsset): internal.FileOutput;
         findAsset(uri: string, fromElement?: boolean): Undef<ExternalAsset>;
+        findRelativePath(file: ExternalAsset, uri: string): Undef<string>;
         getHtmlPages(): ExternalAsset[];
         removeCwd(value: Undef<string>): string;
-        relativePosix(file: ExternalAsset, uri: string): Undef<string>;
-        assignFilename(file: ExternalAsset): Undef<string>;
         getUTF8String(file: ExternalAsset, fileUri?: string): string;
         appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex?: number): Promise<string>;
         getTrailingContent(file: ExternalAsset): Promise<string>;
         getBundleContent(fileUri: string): Undef<string>;
         createSourceMap(file: ExternalAsset, fileUri: string, sourcesContent: string): internal.Chrome.SourceMapInput;
-        writeSourceMap(file: ExternalAsset, fileUri: string, sourceData: [string, Map<string, internal.Chrome.SourceMapOutput>], sourceContent: string, modified: boolean): void;
+        writeSourceMap(outputData: [string, Map<string, internal.Chrome.SourceMapOutput>], file: ExternalAsset, fileUri: string, sourceContent?: string, modified?: boolean): void;
         removeCss(source: string, styles: string[]): Undef<string>;
         transformCss(file: ExternalAsset, content: string): Undef<string>;
-        transformSource(module: IChrome, data: internal.FileData): Promise<void>;
+        transformSource(data: internal.FileData, module?: IChrome): Promise<void>;
         queueImage(data: internal.FileData, ouputType: string, saveAs: string, command?: string): string;
         compressFile(file: ExternalAsset): Promise<unknown>;
         writeBuffer(data: internal.FileData): void;
@@ -488,12 +485,11 @@ declare namespace functions {
         finalize(): Promise<void>;
     }
 
-    interface FileManagerConstructor {
-        checkPermissions(dirname: string, res?: Response): boolean;
+    interface FileManagerConstructor extends ModuleConstructor {
+        hasPermissions(dirname: string, res?: Response): boolean;
         loadSettings(value: Settings, ignorePermissions?: boolean): void;
         moduleNode(): INode;
         moduleCompress(): ICompress;
-        moduleCloud(): ICloud;
         new(dirname: string, body: RequestBody, postFinalize?: FunctionType<void>): IFileManager;
     }
 
@@ -504,12 +500,9 @@ declare namespace functions {
         readonly major: number;
         readonly minor: number;
         readonly patch: number;
-        checkVersion(major: number, minor: number, patch?: number): boolean;
-        getFileSize(fileUri: string): number;
-        replaceExtension(value: string, ext: string): string;
+        supported(major: number, minor: number, patch?: number): boolean;
+        joinPosix(...paths: string[]): string;
         getTempDir(): string;
-        escapePosix(value: string): string;
-        toPosix(value: string, filename?: string): string;
         formatMessage(type: internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options?: internal.LogMessageOptions): void;
         formatFail(type: internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown): void;
         writeFail(value: string | [string, string], message?: unknown): void;
@@ -519,6 +512,9 @@ declare namespace functions {
 
     interface ModuleConstructor {
         loadSettings(value: Settings): void;
+        getFileSize(fileUri: string): number;
+        toPosix(value: string, filename?: string): string;
+        renameExt(value: string, ext: string): string;
         new(): IModule;
     }
 

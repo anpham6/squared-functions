@@ -40,7 +40,7 @@ const Compress = new class extends Module implements functions.ICompress {
                     params: {
                         [zlib.constants.BROTLI_PARAM_MODE]: mimeType.includes('text/') ? zlib.constants.BROTLI_MODE_TEXT : zlib.constants.BROTLI_MODE_GENERIC,
                         [zlib.constants.BROTLI_PARAM_QUALITY]: quality ?? this.brotliQuality,
-                        [zlib.constants.BROTLI_PARAM_SIZE_HINT]: this.getFileSize(source)
+                        [zlib.constants.BROTLI_PARAM_SIZE_HINT]: Module.getFileSize(source)
                     }
                 })
             )
@@ -60,7 +60,7 @@ const Compress = new class extends Module implements functions.ICompress {
         if (value) {
             const [minSize, maxSize] = this.parseSizeRange(value);
             if (minSize > 0 || maxSize < Infinity) {
-                const fileSize = this.getFileSize(fileUri);
+                const fileSize = Module.getFileSize(fileUri);
                 if (fileSize === 0 || fileSize < minSize || fileSize > maxSize) {
                     return false;
                 }
@@ -89,7 +89,7 @@ const Compress = new class extends Module implements functions.ICompress {
                 Compress[methodName](fileUri, output, data.level)
                     .on('finish', () => {
                         this.writeTimeElapsed(data.format, path.basename(output), time);
-                        if (data.condition?.includes('%') && this.getFileSize(output) >= this.getFileSize(fileUri)) {
+                        if (data.condition?.includes('%') && Module.getFileSize(output) >= Module.getFileSize(fileUri)) {
                             fs.unlink(output, () => {
                                 if (callback) {
                                     callback();

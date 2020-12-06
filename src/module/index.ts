@@ -29,6 +29,24 @@ const Module = class implements functions.IModule {
         }
     }
 
+    public static getFileSize(fileUri: string) {
+        try {
+            return fs.statSync(fileUri).size;
+        }
+        catch {
+        }
+        return 0;
+    }
+
+    public static toPosix(value: string, filename?: string) {
+        return value.replace(/\\+/g, '/').replace(/\/+$/, '') + (filename ? '/' + filename : '');
+    }
+
+    public static renameExt(value: string, ext: string) {
+        const index = value.lastIndexOf('.');
+        return (index !== -1 ?value.substring(0, index) : value) + '.' + ext;
+    }
+
     public major: number;
     public minor: number;
     public patch: number;
@@ -37,7 +55,7 @@ const Module = class implements functions.IModule {
         [this.major, this.minor, this.patch] = process.version.substring(1).split('.').map(value => +value);
     }
 
-    checkVersion(major: number, minor: number, patch = 0) {
+    supported(major: number, minor: number, patch = 0) {
         if (this.major < major) {
             return false;
         }
@@ -52,26 +70,22 @@ const Module = class implements functions.IModule {
         }
         return true;
     }
-    getFileSize(fileUri: string) {
-        try {
-            return fs.statSync(fileUri).size;
-        }
-        catch {
-        }
-        return 0;
-    }
-    replaceExtension(value: string, ext: string) {
-        const index = value.lastIndexOf('.');
-        return (index !== -1 ?value.substring(0, index) : value) + '.' + ext;
-    }
     getTempDir() {
         return process.cwd() + path.sep + 'temp' + path.sep;
     }
-    escapePosix(value: string) {
-        return value.replace(/[\\/]/g, '[\\\\/]');
-    }
-    toPosix(value: string, filename?: string) {
-        return value.replace(/\\+/g, '/').replace(/\/+$/, '') + (filename ? '/' + filename : '');
+    joinPosix(...paths: string[]) {
+        let result = '';
+        for (let i = 0; i < paths.length; ++i) {
+            const trailing = (paths[i] || '').trim().replace(/\\+/g, '/');
+            if (i === 0) {
+                result = trailing;
+            }
+            else {
+                const leading = paths[i - 1];
+                result += (leading && trailing && !leading.endsWith('/') && !trailing.startsWith('/') ? '/' : '') + trailing;
+            }
+        }
+        return result;
     }
     writeTimeElapsed(title: string, value: string, time: number, options: LogMessageOptions = {}) {
         options.hintColor ||= 'magenta';

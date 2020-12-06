@@ -40,7 +40,7 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
                 case jimp.MIME_BMP:
                 case jimp.MIME_GIF:
                 case jimp.MIME_TIFF: {
-                    options.output = this.replaceExtension(fileUri, unknownType.split('/')[1]);
+                    options.output = Image.renameExt(fileUri, unknownType.split('/')[1]);
                     options.command = '@';
                     options.compress = unknownType === jimp.MIME_PNG || unknownType === jimp.MIME_JPEG ? compress : undefined;
                     file.mimeType = unknownType;
@@ -306,7 +306,7 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
     }
     finalize(output: string, callback: (result: string) => void) {
         if (this.finalAs === 'webp') {
-            const webp = this.replaceExtension(output, 'webp');
+            const webp = Image.renameExt(output, 'webp');
             const args = [output, '-mt', '-m', '6'];
             const qualityData = this.qualityData;
             if (qualityData) {

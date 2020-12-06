@@ -1,4 +1,4 @@
-### squared-functions 0.8
+### squared-functions 0.9
 
 These are some of the available options when creating archives or copying files with squared 2.1.
 
