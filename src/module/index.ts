@@ -165,14 +165,14 @@ const Module = class implements functions.IModule {
                     }
                     return hint;
                 };
-                value = value[0].padEnd(35) + (length < 30 ? chalk.blackBright(' '.repeat(30 - length)) : '') + chalk.blackBright('[') + (length > 30 ? value[1].substring(0, 27) + '...' : formatHint(value[1])) + chalk.blackBright(']');
+                value = value[0].padEnd(38) + (length < 32 ? chalk.blackBright(' '.repeat(32 - length)) : '') + chalk.blackBright('[') + formatHint(length > 32 ? value[1].substring(0, 29) + '...' : value[1]) + chalk.blackBright(']');
             }
             else {
-                value = value[0].padEnd(67);
+                value = value[0].padEnd(72);
             }
         }
         else {
-            value = value.padEnd(67);
+            value = value.padEnd(72);
         }
         this.writeMessage(title.padEnd(6), value, message, options);
     }

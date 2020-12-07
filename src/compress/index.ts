@@ -12,6 +12,11 @@ type CompressTryFileMethod = functions.CompressTryFileMethod;
 
 type CompressFormat = functions.squared.CompressFormat;
 
+function parseSizeRange(value: string): [number, number] {
+    const match = /\(\s*(\d+)\s*,\s*(\d+|\*)\s*\)/.exec(value);
+    return match ? [+match[1], match[2] === '*' ? Infinity : +match[2]] : [0, Infinity];
+}
+
 const Compress = new class extends Module implements functions.ICompress {
     public gzipLevel = 9;
     public brotliQuality = 11;
@@ -55,13 +60,9 @@ const Compress = new class extends Module implements functions.ICompress {
     hasImageService() {
         return this.tinifyApiKey !== '';
     }
-    parseSizeRange(value: string): [number, number] {
-        const match = /\(\s*(\d+)\s*,\s*(\d+|\*)\s*\)/.exec(value);
-        return match ? [+match[1], match[2] === '*' ? Infinity : +match[2]] : [0, Infinity];
-    }
     withinSizeRange(fileUri: string, value: Undef<string>) {
         if (value) {
-            const [minSize, maxSize] = this.parseSizeRange(value);
+            const [minSize, maxSize] = parseSizeRange(value);
             if (minSize > 0 || maxSize < Infinity) {
                 const fileSize = Module.getFileSize(fileUri);
                 if (fileSize === 0 || fileSize < minSize || fileSize > maxSize) {
@@ -118,22 +119,22 @@ const Compress = new class extends Module implements functions.ICompress {
         }
     }
     tryImage(fileUri: string, callback: CompressTryImageCallback) {
+        const failed = (err: Error) => this.writeFail(['Unable to compress image', path.basename(fileUri)], err);
         const ext = path.extname(fileUri).substring(1);
         this.formatMessage(this.logType.COMPRESS, ext, 'Compressing image...', fileUri, { titleColor: 'magenta' });
         const time = Date.now();
-        const failed = (err: Error) => this.writeFail(['Unable to compress image', path.basename(fileUri)], err);
         fs.readFile(fileUri, (err, buffer) => {
             if (!err) {
                 tinify.fromBuffer(buffer).toBuffer((err_r, data) => {
                     if (data && !err_r) {
                         fs.writeFile(fileUri, data, err_w => {
                             if (!err_w) {
-                                callback(fileUri);
+                                callback(true);
                                 this.writeTimeElapsed(ext, path.basename(fileUri), time);
                             }
                             else {
                                 failed(err_w);
-                                callback('');
+                                callback(false);
                             }
                         });
                     }
@@ -142,13 +143,13 @@ const Compress = new class extends Module implements functions.ICompress {
                             failed(err_r);
                             this.validate(this.tinifyApiKey);
                         }
-                        callback('');
+                        callback(false);
                     }
                 });
             }
             else {
                 failed(err);
-                callback('');
+                callback(false);
             }
         });
     }

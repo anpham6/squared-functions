@@ -15,7 +15,7 @@ declare namespace functions {
     type FileManagerPerformAsyncTaskCallback = (parent?: ExternalAsset) => void;
     type FileManagerCompleteAsyncTaskCallback = (value?: unknown, parent?: ExternalAsset) => void;
     type CompressTryFileMethod = (fileUri: string, data: squared.CompressFormat, initalize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback) => void;
-    type CompressTryImageCallback = (result: string) => void;
+    type CompressTryImageCallback = (success?: boolean) => void;
 
     namespace squared {
         interface LocationUri {
@@ -111,7 +111,6 @@ declare namespace functions {
     }
 
     namespace chrome {
-        type OutputAttribute = KeyValue<string, Null<string>>;
         type UnusedStyles = string[];
 
         interface ChromeAsset {
@@ -303,9 +302,7 @@ declare namespace functions {
         isFileURI(value: string): boolean;
         isFileUNC(value: string): boolean;
         isDirectoryUNC(value: string): boolean;
-        fromSameOrigin(value: string, other: string): boolean;
-        parsePath(value: string): Undef<string>;
-        resolvePath(value: string, href: string, hostname?: boolean): Undef<string>;
+        resolvePath(value: string, href: string): string;
     }
 
     interface ICompress extends IModule {
@@ -318,7 +315,6 @@ declare namespace functions {
         createWriteStreamAsBrotli(source: string, fileUri: string, quality?: number, mimeType?: string): WriteStream;
         findFormat(compress: Undef<squared.CompressFormat[]>, format: string): Undef<squared.CompressFormat>;
         hasImageService(): boolean;
-        parseSizeRange(value: string): [number, number];
         withinSizeRange(fileUri: string, value: Undef<string>): boolean;
         tryFile: CompressTryFileMethod;
         tryImage(fileUri: string, callback: CompressTryImageCallback): void;
@@ -443,7 +439,7 @@ declare namespace functions {
         performFinalize(): void;
         setFileUri(file: ExternalAsset): internal.FileOutput;
         findAsset(uri: string, fromElement?: boolean): Undef<ExternalAsset>;
-        findRelativePath(file: ExternalAsset, uri: string): Undef<string>;
+        findRelativePath(file: ExternalAsset, location: string, partial?: boolean): Undef<string>;
         getHtmlPages(): ExternalAsset[];
         removeCwd(value: Undef<string>): string;
         getUTF8String(file: ExternalAsset, fileUri?: string): string;

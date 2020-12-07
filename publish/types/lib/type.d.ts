@@ -1,15 +1,15 @@
 type Undef<T> = T | undefined;
 type Null<T> = T | null;
 type Void<T> = T | void;
-
 type Constructor<T> = new(...args: any[]) => T;
-type FunctionType<T> = (...args: unknown[]) => T;
+type FunctionType<T, U = unknown> = (...args: U[]) => T;
 
 type NumString = number | string;
 
-type StringMap = Record<string, Undef<string>>;
 type StandardMap = Record<string, any>;
 type PlainObject = Record<string | number | symbol, unknown>;
+type StringMap = Record<string, Undef<string>>;
+
 type ObjectMap<T> = Record<string, T>;
 
 interface Point {
@@ -20,9 +20,4 @@ interface Point {
 interface Dimension {
     width: number;
     height: number;
-}
-
-interface KeyValue<T, U> {
-    key: T;
-    value: U;
 }

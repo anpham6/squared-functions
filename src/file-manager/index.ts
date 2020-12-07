@@ -203,6 +203,7 @@ function getRootDirectory(location: string, asset: string): [string[], string[]]
     return [locationDir.filter(value => value), assetDir];
 }
 
+const fromSameOrigin = (value: string, other: string) => new URL(value).origin === new URL(other).origin;
 const escapePosix = (value: string) => value.replace(/[\\/]/g, '[\\\\/]');
 const isObject = (value: unknown): value is PlainObject => typeof value === 'object' && value !== null;
 const getRelativePath = (file: ExternalAsset, filename = file.filename) => Node.joinPosix(file.moveTo || '', file.pathname, filename);
@@ -431,19 +432,21 @@ class FileManager extends Module implements IFileManager {
     findAsset(uri: string, fromElement?: boolean) {
         return this.assets.find(item => item.uri === uri && (fromElement && item.outerHTML || !fromElement && !item.outerHTML) && !item.invalid);
     }
-    findRelativePath(file: ExternalAsset, uri: string) {
+    findRelativePath(file: ExternalAsset, location: string, partial?: boolean) {
         const origin = file.uri!;
-        let asset = this.findAsset(uri);
-        if (!asset) {
-            const location = Node.resolvePath(uri, origin);
+        let asset: Undef<ExternalAsset>;
+        if (partial) {
+            location = Node.resolvePath(location, origin);
             if (location) {
                 asset = this.findAsset(location);
             }
         }
+        else {
+            asset = this.findAsset(location);
+        }
         if (asset) {
             const baseDir = (file.rootDir || '') + file.pathname;
-            const baseAsset = this.baseAsset;
-            if (Node.fromSameOrigin(origin, asset.uri!)) {
+            if (fromSameOrigin(origin, asset.uri!)) {
                 const rootDir = asset.rootDir;
                 if (asset.moveTo) {
                     if (file.moveTo === asset.moveTo) {
@@ -459,12 +462,13 @@ class FileManager extends Module implements IFileManager {
                     }
                 }
                 else {
-                    const [originDir, uriDir] = getRootDirectory(Node.parsePath(origin)!, Node.parsePath(asset.uri!)!);
+                    const [originDir, uriDir] = getRootDirectory(new URL(origin).pathname, new URL(asset.uri!).pathname);
                     return '../'.repeat(originDir.length - 1) + uriDir.join('/');
                 }
             }
-            if (baseAsset && Node.fromSameOrigin(origin, baseAsset.uri!)) {
-                const [originDir] = getRootDirectory(this.joinPosix(baseDir, file.filename), Node.parsePath(baseAsset.uri!)!);
+            const baseAsset = this.baseAsset;
+            if (baseAsset && fromSameOrigin(origin, baseAsset.uri!)) {
+                const [originDir] = getRootDirectory(this.joinPosix(baseDir, file.filename), new URL(baseAsset.uri!).pathname);
                 return '../'.repeat(originDir.length - 1) + asset.relativePath;
             }
         }
@@ -558,9 +562,10 @@ class FileManager extends Module implements IFileManager {
             }
             return url;
         };
+        const cssUri = file.uri!;
         let output: Undef<string>;
         for (const item of this.assets) {
-            if (item.base64 && item.uri && !item.outerHTML && !item.invalid) {
+            if (item.base64 && item.uri && new URL(cssUri).origin === new URL(item.uri).origin && !item.outerHTML && !item.invalid) {
                 const url = this.findRelativePath(file, item.uri);
                 if (url) {
                     const replaced = replaceUri(output || source, [item.base64.replace(/\+/g, '\\+')], getCloudUUID(item, url), false, true);
@@ -577,15 +582,14 @@ class FileManager extends Module implements IFileManager {
             source = output;
         }
         REGEXP_CSSURL.lastIndex = 0;
-        const fileUri = file.uri!;
         const baseUri = this.baseAsset?.uri;
         let match: Null<RegExpExecArray>;
         while (match = REGEXP_CSSURL.exec(source)) {
             const url = match[1].replace(/^["']\s*/, '').replace(/\s*["']$/, '');
-            if (!Node.isFileURI(url) || Node.fromSameOrigin(fileUri, url)) {
-                let location = this.findRelativePath(file, url);
+            if (!Node.isFileURI(url) || fromSameOrigin(cssUri, url)) {
+                let location = this.findRelativePath(file, url, true);
                 if (location) {
-                    const uri = Node.resolvePath(url, fileUri);
+                    const uri = Node.resolvePath(url, cssUri);
                     output = (output || source).replace(match[0], `url(${getCloudUUID(uri ? this.findAsset(uri) : undefined, location)})`);
                 }
                 else if (baseUri) {
@@ -973,7 +977,7 @@ class FileManager extends Module implements IFileManager {
                                     relativePath = '';
                                 }
                             }
-                            if (!relativePath && Node.fromSameOrigin(baseUri, uri)) {
+                            if (!relativePath && fromSameOrigin(baseUri, uri)) {
                                 relativePath = path.join(item.pathname, path.basename(uri));
                                 ascending = true;
                             }
@@ -992,9 +996,12 @@ class FileManager extends Module implements IFileManager {
                             const innerContent = outerHTML.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/\w+>)?\s*$/, '');
                             const replaced = replaceUri(innerContent, segments, value);
                             if (replaced) {
-                                const result = source.replace(innerContent, replaced);
-                                if (result !== source) {
-                                    source = result;
+                                current = source;
+                                source = source.replace(innerContent, replaced);
+                                if (current === source) {
+                                    source = source.replace(new RegExp(escapeRegexp(innerContent).replace(/\s+/g, '\\s+')), replaced);
+                                }
+                                if (current !== source) {
                                     html = source;
                                     break found;
                                 }
@@ -1214,7 +1221,7 @@ class FileManager extends Module implements IFileManager {
             }
             if (compress) {
                 try {
-                    Compress.tryImage(output, (result: string) => this.completeAsyncTask(result || output, parent));
+                    Compress.tryImage(output, () => this.completeAsyncTask(output, parent));
                 }
                 catch (err) {
                     this.writeFail(['Unable to compress image', path.basename(output)], err);
@@ -1683,7 +1690,7 @@ class FileManager extends Module implements IFileManager {
                                         }
                                         catch (err) {
                                             this.writeFail(['Unable to compress image', path.basename(fileUri)], err);
-                                            resolve('');
+                                            resolve(false);
                                         }
                                     }));
                                 break;

@@ -1,7 +1,5 @@
 import Module from '../module';
 
-const REGEXP_URL = /^([A-Za-z]+:\/\/[A-Za-z\d.-]+(?::\d+)?)(\/.*)/;
-
 const Node = new class extends Module implements functions.INode {
     private _disk_read = false;
     private _disk_write = false;
@@ -41,19 +39,11 @@ const Node = new class extends Module implements functions.INode {
     isDirectoryUNC(value: string) {
         return /^\\\\([\w.-]+)\\([\w-]+\$|[\w-]+\$\\.+|[\w-]+\\.*)$/.test(value);
     }
-    fromSameOrigin(value: string, other: string) {
-        const baseMatch = REGEXP_URL.exec(value);
-        const otherMatch = REGEXP_URL.exec(other);
-        return baseMatch && otherMatch ? baseMatch[1] === otherMatch[1] : false;
-    }
-    parsePath(value: string) {
-        return REGEXP_URL.exec(value)?.[2];
-    }
-    resolvePath(value: string, href: string, hostname = true) {
-        const match = REGEXP_URL.exec(href.replace(/\\/g, '/'));
-        if (match) {
-            const origin = hostname ? match[1] : '';
-            const pathname = match[2].split('/');
+    resolvePath(value: string, href: string) {
+        if (href.startsWith('http')) {
+            const url = new URL(href);
+            const origin = url.origin;
+            const pathname = url.pathname.split('/');
             --pathname.length;
             value = value.replace(/\\/g, '/');
             if (value[0] === '/') {
@@ -78,6 +68,7 @@ const Node = new class extends Module implements functions.INode {
             }
             return this.joinPosix(origin, pathname.join('/'), value);
         }
+        return '';
     }
 }();
 
