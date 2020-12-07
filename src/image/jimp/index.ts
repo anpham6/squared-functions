@@ -11,6 +11,7 @@ type IFileManager = functions.IFileManager;
 type ExternalAsset = functions.ExternalAsset;
 type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTaskCallback;
 type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
+
 type FileData = functions.internal.FileData;
 type UsingOptions = functions.internal.Image.UsingOptions;
 type ResizeData = functions.internal.Image.ResizeData;

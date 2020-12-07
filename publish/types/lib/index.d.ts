@@ -1,8 +1,8 @@
 /// <reference path="type.d.ts" />
 
+import type { WriteStream } from 'fs';
 import type { Response } from 'express';
 import type { CorsOptions } from 'cors';
-import type { WriteStream } from 'fs';
 import type { BackgroundColor, ForegroundColor } from 'chalk';
 
 type BoolString = boolean | string;
@@ -288,50 +288,6 @@ declare namespace functions {
         }
     }
 
-    namespace settings {
-        interface LoggerModule {
-            unknown?: boolean;
-            system?: boolean;
-            chrome?: boolean;
-            compress?: boolean;
-            image?: boolean;
-            node?: boolean;
-            watch?: boolean;
-            cloud_storage?: boolean;
-            cloud_database?: boolean;
-            time_elapsed?: boolean;
-        }
-
-        interface ImageModule {
-            proxy?: string;
-        }
-
-        interface CompressModule {
-            gzip_level?: NumString;
-            brotli_quality?: NumString;
-            tinypng_api_key?: string;
-        }
-
-        interface CloudModule {
-            aws?: ObjectMap<StringMap>;
-            azure?: ObjectMap<StringMap>;
-            gcloud?: ObjectMap<StringMap>;
-            ibm?: ObjectMap<StringMap>;
-            oci?: ObjectMap<StringMap>;
-        }
-
-        interface GulpModule extends StringMap {}
-
-        interface ChromeModule extends Partial<chrome.TranspileMap> {
-            eval_function?: boolean;
-            eval_text_template?: boolean;
-        }
-
-        interface WatchModule {
-            interval?: number;
-        }
-    }
-
     interface INode extends IModule {
         setDiskRead(): void;
         setDiskWrite(): void;
@@ -402,7 +358,7 @@ declare namespace functions {
     }
 
     interface ICloud extends IModule {
-        settings: settings.CloudModule;
+        settings: ExtendedSettings.CloudModule;
         database: squared.CloudDatabase[];
         setObjectKeys(assets: ExternalAsset[]): void;
         createBucket(service: string, credential: unknown, bucket: string, publicRead?: boolean): Promise<boolean>;
@@ -418,13 +374,13 @@ declare namespace functions {
     }
 
     interface CloudConstructor extends ModuleConstructor {
-        new(settings: settings.CloudModule): ICloud;
+        new(settings: ExtendedSettings.CloudModule): ICloud;
     }
 
     const Cloud: CloudConstructor;
 
     interface IChrome extends IModule {
-        settings: settings.ChromeModule;
+        settings: ExtendedSettings.ChromeModule;
         serverRoot: string;
         productionRelease: boolean;
         unusedStyles?: string[];
@@ -444,7 +400,7 @@ declare namespace functions {
     }
 
     interface ChromeConstructor extends ModuleConstructor {
-        new(body: RequestBody, settings?: settings.ChromeModule, productionRelease?: boolean): IChrome;
+        new(body: RequestBody, settings?: ExtendedSettings.ChromeModule, productionRelease?: boolean): IChrome;
     }
 
     const Chrome: ChromeConstructor;
@@ -456,8 +412,8 @@ declare namespace functions {
         Cloud: Null<ICloud>;
         Watch: Null<IWatch>;
         Image: Null<ImageConstructor>;
-        Compress: Null<settings.CompressModule>;
-        Gulp: Null<settings.GulpModule>;
+        Compress: Null<ExtendedSettings.CompressModule>;
+        Gulp: Null<ExtendedSettings.GulpModule>;
         readonly body: RequestBody;
         readonly files: Set<string>;
         readonly filesQueued: Set<string>;
@@ -554,17 +510,61 @@ declare namespace functions {
         unc_read?: BoolString;
         unc_write?: BoolString;
         cors?: CorsOptions;
-        request_post_limit?: string;
         env?: string;
         port?: StringMap;
         routing?: internal.Serve.Routing;
-        logger?: settings.LoggerModule;
-        watch?: settings.WatchModule;
-        image?: settings.ImageModule;
-        compress?: settings.CompressModule;
-        cloud?: settings.CloudModule;
-        gulp?: settings.GulpModule;
-        chrome?: settings.ChromeModule;
+        request_post_limit?: string;
+        logger?: ExtendedSettings.LoggerModule;
+        watch?: ExtendedSettings.WatchModule;
+        image?: ExtendedSettings.ImageModule;
+        compress?: ExtendedSettings.CompressModule;
+        cloud?: ExtendedSettings.CloudModule;
+        gulp?: ExtendedSettings.GulpModule;
+        chrome?: ExtendedSettings.ChromeModule;
+    }
+
+    namespace ExtendedSettings {
+        interface LoggerModule {
+            unknown?: boolean;
+            system?: boolean;
+            chrome?: boolean;
+            compress?: boolean;
+            image?: boolean;
+            node?: boolean;
+            watch?: boolean;
+            cloud_storage?: boolean;
+            cloud_database?: boolean;
+            time_elapsed?: boolean;
+        }
+
+        interface ImageModule {
+            proxy?: string;
+        }
+
+        interface CompressModule {
+            gzip_level?: NumString;
+            brotli_quality?: NumString;
+            tinypng_api_key?: string;
+        }
+
+        interface CloudModule {
+            aws?: ObjectMap<StringMap>;
+            azure?: ObjectMap<StringMap>;
+            gcloud?: ObjectMap<StringMap>;
+            ibm?: ObjectMap<StringMap>;
+            oci?: ObjectMap<StringMap>;
+        }
+
+        interface GulpModule extends StringMap {}
+
+        interface ChromeModule extends Partial<chrome.TranspileMap> {
+            eval_function?: boolean;
+            eval_text_template?: boolean;
+        }
+
+        interface WatchModule {
+            interval?: number;
+        }
     }
 
     interface RequestBody extends PlainObject {

@@ -3,7 +3,7 @@ import fs = require('fs');
 import chalk = require('chalk');
 
 type Settings = functions.Settings;
-type LoggerModule = functions.settings.LoggerModule;
+type LoggerModule = functions.ExtendedSettings.LoggerModule;
 type LogMessageOptions = functions.internal.LogMessageOptions;
 type LogValue = string | [string, string];
 

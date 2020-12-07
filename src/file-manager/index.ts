@@ -30,10 +30,10 @@ type ResponseData = functions.squared.ResponseData;
 type CloudService = functions.squared.CloudService;
 type CloudStorageUpload = functions.squared.CloudStorageUpload;
 
-type CompressModule = functions.settings.CompressModule;
-type CloudModule = functions.settings.CloudModule;
-type GulpModule = functions.settings.GulpModule;
-type ChromeModule = functions.settings.ChromeModule;
+type CompressModule = functions.ExtendedSettings.CompressModule;
+type CloudModule = functions.ExtendedSettings.CloudModule;
+type GulpModule = functions.ExtendedSettings.GulpModule;
+type ChromeModule = functions.ExtendedSettings.ChromeModule;
 
 type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;

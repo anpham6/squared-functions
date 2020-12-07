@@ -6,8 +6,9 @@ import Module from '../module';
 type ExternalCategory = functions.ExternalCategory;
 type RequestBody = functions.RequestBody;
 
-type ChromeModule = functions.settings.ChromeModule;
 type TranspileMap = functions.chrome.TranspileMap;
+
+type ChromeModule = functions.ExtendedSettings.ChromeModule;
 
 type SourceMapInput = functions.internal.Chrome.SourceMapInput;
 type SourceMapOutput = functions.internal.Chrome.SourceMapOutput;
