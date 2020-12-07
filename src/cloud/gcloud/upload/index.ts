@@ -31,14 +31,26 @@ function upload(this: InstanceHost, credential: GCloudStorageCredential, service
         if (!filename || !data.upload.overwrite) {
             filename ||= path.basename(fileUri);
             try {
-                const originalName = filename;
-                const index = originalName.indexOf('.');
                 let i = 0,
-                    exists: Undef<boolean>;
+                    exists: Undef<boolean>,
+                    basename: Undef<string>,
+                    suffix: Undef<string>;
                 do {
                     if (i > 0) {
-                        if (index !== -1) {
-                            filename = originalName.substring(0, index) + `_${i}` + originalName.substring(index);
+                        if (i === 1) {
+                            const index = filename.indexOf('.');
+                            if (index !== -1) {
+                                basename = filename.substring(0, index);
+                                suffix = filename.substring(index);
+                                const match = /^(.+?)_(\d+)$/.exec(basename);
+                                if (match) {
+                                    basename = match[1];
+                                    i = parseInt(match[2]) + 1;
+                                }
+                            }
+                        }
+                        if (basename) {
+                            filename = basename + `_${i}` + suffix;
                         }
                         else {
                             filename = uuid.v4() + path.extname(fileUri);
