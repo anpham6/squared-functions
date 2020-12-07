@@ -7,6 +7,8 @@ type ICloud = functions.ICloud;
 type CloudDatabase = functions.squared.CloudDatabase;
 type InstanceHost = functions.internal.Cloud.InstanceHost;
 
+const OUT_FORMAT_OBJECT = 4002;
+
 export interface OCIStorageCredential extends ConfigurationOptions {
     namespace?: string;
     endpoint?: string;
@@ -96,7 +98,7 @@ export async function executeQuery(this: ICloud, credential: OCIDatabaseCredenti
                 if (result) {
                     return result;
                 }
-                result = (await connection.execute(query, data.params || [], { ...data.options, outFormat: 4002, maxRows })).rows;
+                result = (await connection.execute(query, data.params || [], { ...data.options, outFormat: OUT_FORMAT_OBJECT, maxRows })).rows;
             }
         }
     }

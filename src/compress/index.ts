@@ -8,15 +8,15 @@ import Module from '../module';
 type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTaskCallback;
 type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
 type CompressTryImageCallback = functions.CompressTryImageCallback;
+type CompressTryFileMethod = functions.CompressTryFileMethod;
 
 type CompressFormat = functions.squared.CompressFormat;
-
-type NodeBuiltInCompressionMethod = "createWriteStreamAsGzip" | "createWriteStreamAsBrotli";
 
 const Compress = new class extends Module implements functions.ICompress {
     public gzipLevel = 9;
     public brotliQuality = 11;
     public tinifyApiKey = '';
+    public compressorProxy: ObjectMap<CompressTryFileMethod> = {};
 
     validate(value: Undef<string>) {
         if (value) {
@@ -27,6 +27,9 @@ const Compress = new class extends Module implements functions.ICompress {
                 }
             });
         }
+    }
+    registerCompressor(format: string, callback: CompressTryFileMethod) {
+        this.compressorProxy[format] = callback;
     }
     createWriteStreamAsGzip(source: string, fileUri: string, level?: number) {
         return fs.createReadStream(source)
@@ -70,47 +73,48 @@ const Compress = new class extends Module implements functions.ICompress {
     }
     tryFile(fileUri: string, data: CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback) {
         if (this.withinSizeRange(fileUri, data.condition)) {
-            const output = `${fileUri}.${data.format}`;
-            let methodName: Undef<NodeBuiltInCompressionMethod>;
             switch (data.format) {
                 case 'gz':
-                    methodName = 'createWriteStreamAsGzip';
+                case 'br': {
+                    if (initialize) {
+                        initialize();
+                    }
+                    const output = `${fileUri}.${data.format}`;
+                    this.formatMessage(this.logType.COMPRESS, data.format, 'Compressing file...', output, { titleColor: 'magenta' });
+                    const time = Date.now();
+                    this[data.format === 'gz' ? 'createWriteStreamAsGzip' : 'createWriteStreamAsBrotli'](fileUri, output, data.level)
+                        .on('finish', () => {
+                            this.writeTimeElapsed(data.format, path.basename(output), time);
+                            if (data.condition?.includes('%') && Module.getFileSize(output) >= Module.getFileSize(fileUri)) {
+                                fs.unlink(output, () => {
+                                    if (callback) {
+                                        callback();
+                                    }
+                                });
+                            }
+                            else if (callback) {
+                                callback(output);
+                            }
+                        })
+                        .on('error', err => {
+                            this.writeFail(['Unable to compress file', path.basename(output)], err);
+                            if (callback) {
+                                callback();
+                            }
+                        });
                     break;
-                case 'br':
-                    methodName = 'createWriteStreamAsBrotli';
-                    break;
-            }
-            if (methodName) {
-                if (initialize) {
-                    initialize();
                 }
-                this.formatMessage(this.logType.COMPRESS, data.format, 'Compressing file...', output, { titleColor: 'magenta' });
-                const time = Date.now();
-                Compress[methodName](fileUri, output, data.level)
-                    .on('finish', () => {
-                        this.writeTimeElapsed(data.format, path.basename(output), time);
-                        if (data.condition?.includes('%') && Module.getFileSize(output) >= Module.getFileSize(fileUri)) {
-                            fs.unlink(output, () => {
-                                if (callback) {
-                                    callback();
-                                }
-                            });
-                        }
-                        else if (callback) {
-                            callback(output);
-                        }
-                    })
-                    .on('error', err => {
-                        this.writeFail(['Unable to compress file', path.basename(output)], err);
-                        if (callback) {
-                            callback();
-                        }
-                    });
-                return;
+                default: {
+                    const compressor = this.compressorProxy[data.format]?.bind(this);
+                    if (typeof compressor === 'function') {
+                        compressor.call(this, fileUri, data, initialize, callback);
+                    }
+                    else if (callback) {
+                        callback();
+                    }
+                    break;
+                }
             }
-        }
-        if (!initialize && callback) {
-            callback();
         }
     }
     tryImage(fileUri: string, callback: CompressTryImageCallback) {

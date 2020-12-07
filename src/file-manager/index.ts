@@ -1155,25 +1155,25 @@ class FileManager extends Module implements IFileManager {
         return output;
     }
     async compressFile(file: ExternalAsset) {
-        const { fileUri, compress } = file;
-        if (fileUri && this.has(fileUri)) {
+        const { compress, fileUri } = file;
+        if (compress && fileUri && this.has(fileUri)) {
             const tasks: Promise<void>[] = [];
-            const gz = Compress.findFormat(compress, 'gz');
-            if (gz) {
-                tasks.push(
-                    new Promise<void>(resolve => Compress.tryFile(fileUri, gz, null, (result: string) => {
-                        if (result) {
-                            this.add(result, file);
-                        }
-                        resolve();
-                    }))
-                );
-            }
-            if (Node.supported(11, 7)) {
-                const br = Compress.findFormat(compress, 'br');
-                if (br) {
+            for (const item of compress) {
+                let valid = false;
+                switch (item.format) {
+                    case 'gz':
+                        valid = true;
+                        break;
+                    case 'br':
+                        valid = Node.supported(11, 7);
+                        break;
+                    default:
+                        valid = typeof Compress.compressorProxy[item.format] === 'function';
+                        break;
+                }
+                if (valid) {
                     tasks.push(
-                        new Promise<void>(resolve => Compress.tryFile(fileUri, br, null, (result: string) => {
+                        new Promise<void>(resolve => Compress.tryFile(fileUri, item, null, (result: string) => {
                             if (result) {
                                 this.add(result, file);
                             }
@@ -1857,9 +1857,13 @@ class FileManager extends Module implements IFileManager {
             const htmlFiles = this.getHtmlPages();
             const cssFiles: ExternalAsset[] = [];
             const rawFiles: ExternalAsset[] = [];
+            const compressFormat = new Set(['.map', '.gz', '.br']);
             let endpoint: Undef<string>,
                 modifiedHtml: Undef<boolean>,
                 modifiedCss: Undef<Set<ExternalAsset>>;
+            for (const format in Compress.compressorProxy) {
+                compressFormat.add('.' + format);
+            }
             cloud.setObjectKeys(this.assets);
             if (htmlFiles.length === 1) {
                 const upload = cloud.getStorage('upload', htmlFiles[0].cloudStorage)?.upload;
@@ -1872,7 +1876,8 @@ class FileManager extends Module implements IFileManager {
                 const transforms: string[] = [];
                 if (item.transforms && data.all) {
                     for (const value of item.transforms) {
-                        if (/\.(map|gz|br)$/.test(value)) {
+                        const ext = path.extname(value);
+                        if (compressFormat.has(ext) && value === files[0] + ext) {
                             files.push(value);
                         }
                         else if (!item.cloudUri) {

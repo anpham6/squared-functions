@@ -11,9 +11,10 @@ declare namespace functions {
     type ExternalCategory = "html" | "css" | "js";
     type CloudFeatures = "storage" | "database";
     type CloudFunctions = "upload" | "download";
-    type FileManagerWriteImageCallback = (output: string, data: internal.FileData, options?: internal.Image.UsingOptions, error?: Null<Error>) => void;
+    type FileManagerFinalizeImageMethod = (output: string, data: internal.FileData, options?: internal.Image.UsingOptions, error?: Null<Error>) => void;
     type FileManagerPerformAsyncTaskCallback = (parent?: ExternalAsset) => void;
     type FileManagerCompleteAsyncTaskCallback = (value?: unknown, parent?: ExternalAsset) => void;
+    type CompressTryFileMethod = (fileUri: string, data: squared.CompressFormat, initalize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback) => void;
     type CompressTryImageCallback = (result: string) => void;
 
     namespace squared {
@@ -148,7 +149,7 @@ declare namespace functions {
                 output?: string;
                 compress?: squared.CompressFormat;
                 time?: number;
-                callback?: FileManagerWriteImageCallback;
+                callback?: FileManagerFinalizeImageMethod;
             }
 
             interface RotateData {
@@ -311,13 +312,15 @@ declare namespace functions {
         gzipLevel: number;
         brotliQuality: number;
         tinifyApiKey: string;
+        compressorProxy: ObjectMap<CompressTryFileMethod>;
+        registerCompressor(format: string, callback: CompressTryFileMethod): void;
         createWriteStreamAsGzip(source: string, fileUri: string, level?: number): WriteStream;
         createWriteStreamAsBrotli(source: string, fileUri: string, quality?: number, mimeType?: string): WriteStream;
         findFormat(compress: Undef<squared.CompressFormat[]>, format: string): Undef<squared.CompressFormat>;
         hasImageService(): boolean;
         parseSizeRange(value: string): [number, number];
         withinSizeRange(fileUri: string, value: Undef<string>): boolean;
-        tryFile(fileUri: string, data: squared.CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback): void;
+        tryFile: CompressTryFileMethod;
         tryImage(fileUri: string, callback: CompressTryImageCallback): void;
     }
 
@@ -454,7 +457,7 @@ declare namespace functions {
         transformSource(data: internal.FileData, module?: IChrome): Promise<void>;
         queueImage(data: internal.FileData, ouputType: string, saveAs: string, command?: string): string;
         compressFile(file: ExternalAsset): Promise<unknown>;
-        finalizeImage: FileManagerWriteImageCallback;
+        finalizeImage: FileManagerFinalizeImageMethod;
         finalizeAsset(data: internal.FileData, parent?: ExternalAsset): Promise<void>;
         processAssets(watch?: boolean): void;
         finalize(): Promise<void>;
