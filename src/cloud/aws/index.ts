@@ -2,6 +2,8 @@ import type { ConfigurationOptions, SharedIniFileCredentials } from 'aws-sdk/lib
 import type { ServiceConfigurationOptions } from 'aws-sdk/lib/service';
 import type * as aws from 'aws-sdk';
 
+type ICloud = functions.ICloud;
+type CloudDatabase = functions.squared.CloudDatabase;
 type InstanceHost = functions.internal.Cloud.InstanceHost;
 
 export interface AWSStorageCredential extends ConfigurationOptions {
@@ -14,8 +16,6 @@ export interface AWSDatabaseCredential extends AWSStorageCredential, ServiceConf
 export interface AWSDatabaseQuery extends functions.squared.CloudDatabase<aws.DynamoDB.QueryInput> {
     partitionKey?: string;
 }
-
-const CACHE_DB: ObjectMap<any[]> = {};
 
 const AccessControlPolicy: aws.S3.Types.AccessControlPolicy = {
     Grants: [{
@@ -60,8 +60,8 @@ export function validateStorage(credential: AWSStorageCredential) {
     return !!(credential.accessKeyId && credential.secretAccessKey || credential.fromPath || credential.profile || process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY || process.env.AWS_SDK_LOAD_CONFIG);
 }
 
-export function validateDatabase(credential: AWSDatabaseCredential) {
-    return validateStorage(credential) && !!(credential.region || credential.endpoint);
+export function validateDatabase(credential: AWSDatabaseCredential, data: CloudDatabase) {
+    return validateStorage(credential) && !!(credential.region || credential.endpoint) && !!data.table;
 }
 
 export function createStorageClient(this: InstanceHost, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3') {
@@ -163,20 +163,18 @@ export async function deleteObjects(this: InstanceHost, credential: AWSStorageCr
     }
 }
 
-export async function executeQuery(this: InstanceHost, credential: AWSDatabaseCredential, data: AWSDatabaseQuery, cacheKey?: string) {
+export async function executeQuery(this: ICloud, credential: AWSDatabaseCredential, data: AWSDatabaseQuery, cacheKey?: string) {
     const client = createDatabaseClient.call(this, credential);
-    let result: Undef<any[]>;
+    let result: Undef<any[]>,
+        queryString = '';
     try {
         const { table: TableName, id, query, partitionKey, limit = 0 } = data;
-        if (cacheKey) {
-            cacheKey += TableName;
-        }
+        queryString = TableName;
         if (partitionKey && id) {
-            if (cacheKey) {
-                cacheKey += partitionKey + id;
-                if (CACHE_DB[cacheKey]) {
-                    return CACHE_DB[cacheKey];
-                }
+            queryString += partitionKey + id;
+            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+            if (result) {
+                return result;
             }
             const output = await client.get({ TableName, Key: { [partitionKey]: id } }).promise();
             if (output.Item) {
@@ -184,11 +182,10 @@ export async function executeQuery(this: InstanceHost, credential: AWSDatabaseCr
             }
         }
         else if (typeof query === 'object' && query !== null) {
-            if (cacheKey) {
-                cacheKey += JSON.stringify(query).replace(/\s+/g, '') + limit;
-                if (CACHE_DB[cacheKey]) {
-                    return CACHE_DB[cacheKey];
-                }
+            queryString += JSON.stringify(query) + limit;
+            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+            if (result) {
+                return result;
             }
             query.TableName = TableName;
             if (limit > 0) {
@@ -204,9 +201,7 @@ export async function executeQuery(this: InstanceHost, credential: AWSDatabaseCr
         this.writeFail(['Unable to execute database query', data.service], err);
     }
     if (result) {
-        if (cacheKey) {
-            CACHE_DB[cacheKey] = result;
-        }
+        this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);
         return result;
     }
     return [];

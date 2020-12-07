@@ -619,7 +619,7 @@ Basic text replacement can be achieved using any of these cloud based document d
 ```
 
 ```javascript
-// Required: Attribute "table" is used for caching results
+// NOTE: Attribute "table" is required
 
 interface CloudDatabase {
     table: string;
@@ -747,6 +747,22 @@ interface CloudDatabase {
 ```
 
 Some queries use an optional parameters array (params) or configuration object (options) which is sent with the query when applicable. If you require this advanced usage then further instructions can be found in the database provider documentation.
+
+When in development mode you can save read units by setting a timeout value for the DB cache.
+
+```javascript
+// squared.settings.json
+
+"cloud": {
+  "cache": {
+    "aws": 0, // No cache per reload
+    "azure": 60, // 1 minute
+    "gcloud": 86400 // 1 day
+  }
+}
+```
+
+Results are cached using the supplied credentials and queries will individually be cleared when the amount of time has expired.
 
 ### Options: Development / Production
 

@@ -1,10 +1,9 @@
 import type * as storage from '@azure/storage-blob';
 import type * as db from '@azure/cosmos';
 
+type ICloud = functions.ICloud;
 type CloudDatabase = functions.squared.CloudDatabase;
 type InstanceHost = functions.internal.Cloud.InstanceHost;
-
-const CACHE_DB: ObjectMap<any[]> = {};
 
 export interface AzureStorageCredential {
     accountName?: string;
@@ -107,27 +106,30 @@ export async function deleteObjects(this: InstanceHost, credential: AzureStorage
     }
 }
 
-export async function executeQuery(this: InstanceHost, credential: AzureDatabaseCredential, data: AzureDatabaseQuery, cacheKey?: string) {
+export async function executeQuery(this: ICloud, credential: AzureDatabaseCredential, data: AzureDatabaseQuery, cacheKey?: string) {
     const client = createDatabaseClient.call(this, credential);
-    let result: Undef<any[]>;
+    let result: Undef<any[]>,
+        queryString = '';
     try {
         const { name, table, id, query, storedProcedureId, params, partitionKey = '', limit = 0 } = data;
         const container = client.database(name!).container(table);
-        if (cacheKey) {
-            cacheKey += name! + table + partitionKey;
-        }
+        queryString = name! + table + partitionKey + (data.options ? JSON.stringify(data.options) : '');
         if (storedProcedureId && params) {
+            queryString += storedProcedureId + JSON.stringify(params);
+            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+            if (result) {
+                return result;
+            }
             const item = await container.scripts.storedProcedure(storedProcedureId).execute(partitionKey, params, data.options);
             if (item.statusCode === 200) {
                 result = Array.isArray(item.resource) ? item.resource : [item.resource];
             }
         }
         else if (id) {
-            if (cacheKey) {
-                cacheKey += id;
-                if (CACHE_DB[cacheKey]) {
-                    return CACHE_DB[cacheKey];
-                }
+            queryString += id;
+            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+            if (result) {
+                return result;
             }
             const item = await container.item(id.toString(), partitionKey).read(data.options);
             if (item.statusCode === 200) {
@@ -135,11 +137,10 @@ export async function executeQuery(this: InstanceHost, credential: AzureDatabase
             }
         }
         else if (typeof query === 'string') {
-            if (cacheKey) {
-                cacheKey += query.replace(/\s+/g, '') + limit;
-                if (CACHE_DB[cacheKey]) {
-                    return CACHE_DB[cacheKey];
-                }
+            queryString += query + limit;
+            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+            if (result) {
+                return result;
             }
             if (limit > 0) {
                 (data.options ||= {}).maxItemCount = limit;
@@ -151,9 +152,7 @@ export async function executeQuery(this: InstanceHost, credential: AzureDatabase
         this.writeFail(['Unable to execute database query', data.service], err);
     }
     if (result) {
-        if (cacheKey) {
-            CACHE_DB[cacheKey] = result;
-        }
+        this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);
         return result;
     }
     return [];

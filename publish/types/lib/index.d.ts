@@ -11,7 +11,7 @@ declare namespace functions {
     type ExternalCategory = "html" | "css" | "js";
     type CloudFeatures = "storage" | "database";
     type CloudFunctions = "upload" | "download";
-    type FileManagerWriteImageCallback = (data: internal.FileData, output: string, options?: internal.Image.UsingOptions, error?: Null<Error>) => void;
+    type FileManagerWriteImageCallback = (output: string, data: internal.FileData, options?: internal.Image.UsingOptions, error?: Null<Error>) => void;
     type FileManagerPerformAsyncTaskCallback = (parent?: ExternalAsset) => void;
     type FileManagerCompleteAsyncTaskCallback = (value?: unknown, parent?: ExternalAsset) => void;
     type CompressTryImageCallback = (result: string) => void;
@@ -142,17 +142,6 @@ declare namespace functions {
     }
 
     namespace internal {
-        namespace Serve {
-            interface Routing {
-                [key: string]: Route[];
-            }
-
-            interface Route {
-                mount?: string;
-                path?: string;
-            }
-        }
-
         namespace Image {
             interface UsingOptions {
                 command?: string;
@@ -217,6 +206,14 @@ declare namespace functions {
         namespace Cloud {
             type InstanceHost = ICloud | IFileManager;
 
+            interface CacheTimeout {
+                aws?: number;
+                azure?: number;
+                gcloud?: number;
+                ibm?: number;
+                oci?: number;
+            }
+
             interface FunctionData {
                 admin?: squared.CloudStorageAdmin;
                 bucket?: string;
@@ -243,7 +240,7 @@ declare namespace functions {
                 createDatabaseClient?<T>(this: InstanceHost, credential: unknown): T;
                 createBucket?(this: InstanceHost, credential: unknown, bucket: string, publicRead?: boolean, service?: string, sdk?: string): Promise<boolean>;
                 deleteObjects?(this: InstanceHost, credential: unknown, bucket: string, service?: string, sdk?: string): Promise<void>;
-                executeQuery?(this: InstanceHost, credential: unknown, data: squared.CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
+                executeQuery?(this: ICloud, credential: unknown, data: squared.CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
             }
 
             type ServiceHost<T> = (this: InstanceHost, credential: unknown, service?: string, sdk?: string) => T;
@@ -285,6 +282,11 @@ declare namespace functions {
             hintBgColor?: typeof BackgroundColor;
             messageColor?: typeof ForegroundColor;
             messageBgColor?: typeof BackgroundColor;
+        }
+
+        interface Route {
+            mount?: string;
+            path?: string;
         }
     }
 
@@ -352,7 +354,7 @@ declare namespace functions {
         opacity(): void;
         quality(): void;
         rotate(initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback, parent?: ExternalAsset): void;
-        write(data: internal.FileData, output: string, options?: internal.Image.UsingOptions): void;
+        write(output: string, data: internal.FileData, options?: internal.Image.UsingOptions): void;
         finalize(output: string, callback: (result: string) => void): void;
         constructor(instance: T, fileUri: string, command?: string, finalAs?: string);
     }
@@ -360,17 +362,20 @@ declare namespace functions {
     interface ICloud extends IModule {
         settings: ExtendedSettings.CloudModule;
         database: squared.CloudDatabase[];
+        cacheExpires: number;
         setObjectKeys(assets: ExternalAsset[]): void;
         createBucket(service: string, credential: unknown, bucket: string, publicRead?: boolean): Promise<boolean>;
         deleteObjects(service: string, credential: unknown, bucket: string): Promise<void>;
-        downloadObject(service: string, credential: PlainObject, bucket: string, download: squared.CloudStorageDownload, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string): Promise<void>;
+        downloadObject(service: string, credential: unknown, bucket: string, download: squared.CloudStorageDownload, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string): Promise<void>;
         getStorage(action: CloudFunctions, data: Undef<squared.CloudStorage[]>): Undef<squared.CloudStorage>;
         hasStorage(action: CloudFunctions, storage: squared.CloudStorage): squared.CloudStorageUpload | false;
-        getDatabaseRows(database: squared.CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
+        getDatabaseRows(data: squared.CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
+        getDatabaseResult(service: string, credential: unknown, queryString: string, cacheKey?: string): Undef<any[]>;
+        setDatabaseResult(service: string, credential: unknown, queryString: string, result: any[], cacheKey?: string): void;
         hasCredential(feature: CloudFeatures, data: squared.CloudService): boolean;
         getCredential(data: squared.CloudService): PlainObject;
-        getUploadHandler(service: string, credential: PlainObject): internal.Cloud.UploadCallback;
-        getDownloadHandler(service: string, credential: PlainObject): internal.Cloud.DownloadCallback;
+        getUploadHandler(service: string, credential: unknown): internal.Cloud.UploadCallback;
+        getDownloadHandler(service: string, credential: unknown): internal.Cloud.DownloadCallback;
     }
 
     interface CloudConstructor extends ModuleConstructor {
@@ -512,7 +517,7 @@ declare namespace functions {
         cors?: CorsOptions;
         env?: string;
         port?: StringMap;
-        routing?: internal.Serve.Routing;
+        routing?: ExtendedSettings.RoutingModule;
         request_post_limit?: string;
         logger?: ExtendedSettings.LoggerModule;
         watch?: ExtendedSettings.WatchModule;
@@ -524,6 +529,10 @@ declare namespace functions {
     }
 
     namespace ExtendedSettings {
+        interface RoutingModule {
+            [key: string]: internal.Route[];
+        }
+
         interface LoggerModule {
             unknown?: boolean;
             system?: boolean;
@@ -548,6 +557,7 @@ declare namespace functions {
         }
 
         interface CloudModule {
+            cache?: Partial<internal.Cloud.CacheTimeout>;
             aws?: ObjectMap<StringMap>;
             azure?: ObjectMap<StringMap>;
             gcloud?: ObjectMap<StringMap>;

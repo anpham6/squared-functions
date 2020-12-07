@@ -4,10 +4,9 @@ import type { Configuration, ServerScope } from '@cloudant/cloudant';
 
 import { createBucket as createBucket_s3, deleteObjects as deleteObjects_s3 } from '../aws';
 
+type ICloud = functions.ICloud;
 type CloudDatabase = functions.squared.CloudDatabase;
 type InstanceHost = functions.internal.Cloud.InstanceHost;
-
-const CACHE_DB: ObjectMap<any[]> = {};
 
 export interface IBMStorageCredential extends ConfigurationOptions {
     endpoint?: string;
@@ -54,31 +53,28 @@ export async function deleteObjects(this: InstanceHost, credential: IBMStorageCr
     return deleteObjects_s3.call(this, credential as PlainObject, bucket, service, 'ibm-cos-sdk/clients/s3');
 }
 
-export async function executeQuery(this: InstanceHost, credential: IBMDatabaseCredential, data: IBMDatabaseQuery, cacheKey?: string) {
+export async function executeQuery(this: ICloud, credential: IBMDatabaseCredential, data: IBMDatabaseQuery, cacheKey?: string) {
     const client = createDatabaseClient.call(this, credential);
-    let result: Undef<any[]>;
+    let result: Undef<any[]>,
+        queryString = '';
     try {
         const { table, id, query, partitionKey = '', limit = 0 } = data;
         const scope = client.db.use(table);
-        if (cacheKey) {
-            cacheKey += table;
-        }
+        queryString = table + partitionKey;
         if (id) {
-            if (cacheKey) {
-                cacheKey += partitionKey + id;
-                if (CACHE_DB[cacheKey]) {
-                    return CACHE_DB[cacheKey];
-                }
+            queryString += id;
+            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+            if (result) {
+                return result;
             }
             const item = await scope.get((partitionKey ? partitionKey + ':' : '') + id);
             result = [item];
         }
         else if (typeof query === 'object' && query !== null) {
-            if (cacheKey) {
-                cacheKey += JSON.stringify(query).replace(/\s+/g, '') + limit;
-                if (CACHE_DB[cacheKey]) {
-                    return CACHE_DB[cacheKey];
-                }
+            queryString += JSON.stringify(query) + limit;
+            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+            if (result) {
+                return result;
             }
             if (limit > 0) {
                 query.limit = limit;
@@ -95,9 +91,7 @@ export async function executeQuery(this: InstanceHost, credential: IBMDatabaseCr
         this.writeFail(['Unable to execute database query', data.service], err);
     }
     if (result) {
-        if (cacheKey) {
-            CACHE_DB[cacheKey] = result;
-        }
+        this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);
         return result;
     }
     return [];

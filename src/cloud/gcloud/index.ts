@@ -5,10 +5,9 @@ import type * as gcf from '@google-cloud/firestore';
 
 import path = require('path');
 
+type ICloud = functions.ICloud;
 type CloudDatabase = functions.squared.CloudDatabase;
 type InstanceHost = functions.internal.Cloud.InstanceHost;
-
-const CACHE_DB: ObjectMap<any[]> = {};
 
 export interface GCloudStorageCredential extends GoogleAuthOptions {
     location?: string;
@@ -88,34 +87,27 @@ export async function deleteObjects(this: InstanceHost, credential: GCloudStorag
     }
 }
 
-export async function executeQuery(this: InstanceHost, credential: GCloudDatabaseCredential, data: GCloudDatabaseQuery, cacheKey?: string) {
+export async function executeQuery(this: ICloud, credential: GCloudDatabaseCredential, data: GCloudDatabaseQuery, cacheKey?: string) {
     const client = createDatabaseClient.call(this, credential);
-    let result: Undef<any[]>;
+    let result: Undef<any[]>,
+        queryString = '';
     try {
         const { table, id, query, orderBy, limit = 0 } = data;
-        if (cacheKey) {
-            cacheKey += table;
-        }
+        queryString = table;
         if (id) {
-            if (cacheKey) {
-                cacheKey += id;
-                if (CACHE_DB[cacheKey]) {
-                    return CACHE_DB[cacheKey];
-                }
+            queryString += id;
+            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+            if (result) {
+                return result;
             }
             const item = await client.collection(table).doc(id).get();
             result = [item.data()];
         }
         else if (Array.isArray(query)) {
-            if (cacheKey) {
-                cacheKey += JSON.stringify(query).replace(/\s+/g, '');
-                if (orderBy) {
-                    cacheKey += JSON.stringify(orderBy).replace(/\s+/g, '');
-                }
-                cacheKey += limit;
-                if (CACHE_DB[cacheKey]) {
-                    return CACHE_DB[cacheKey];
-                }
+            queryString += JSON.stringify(query) + (orderBy ? JSON.stringify(orderBy) : '') + limit;
+            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+            if (result) {
+                return result;
             }
             let collection = client.collection(table) as gcf.Query<gcf.DocumentData>;
             for (const where of query) {
@@ -140,9 +132,7 @@ export async function executeQuery(this: InstanceHost, credential: GCloudDatabas
         this.writeFail(['Unable to execute database query', data.service], err);
     }
     if (result) {
-        if (cacheKey) {
-            CACHE_DB[cacheKey] = result;
-        }
+        this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);
         return result;
     }
     return [];

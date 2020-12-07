@@ -1187,7 +1187,7 @@ class FileManager extends Module implements IFileManager {
             }
         }
     }
-    finalizeImage(data: FileData, output: string, options: UsingOptions = {}, error?: Null<Error>) {
+    finalizeImage(output: string, data: FileData, options: UsingOptions = {}, error?: Null<Error>) {
         if (error || !output) {
             this.writeFail(['Unable to finalize image', path.basename(output || '')], error);
             this.completeAsyncTask();

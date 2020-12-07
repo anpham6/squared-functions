@@ -96,7 +96,7 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
                                     proxy.opacity();
                                 }
                                 proxy.rotate(this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this), file);
-                                proxy.write(data, output, options);
+                                proxy.write(output, data, options);
                             })
                             .catch(err => {
                                 this.completeAsyncTask();
@@ -126,7 +126,7 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
             }
         }
         else {
-            this.finalizeImage(data, data.fileUri, options);
+            this.finalizeImage(data.fileUri, data, options);
         }
     }
 
@@ -288,7 +288,7 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
             }
         }
     }
-    write(data: FileData, output: string, options?: UsingOptions) {
+    write(output: string, data: FileData, options?: UsingOptions) {
         this.instance.write(output, err => {
             if (!err) {
                 this.finalize(output, (result: string) => {
@@ -297,7 +297,7 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
                             this.writeTimeElapsed('jimp', path.basename(result), options.time);
                         }
                         if (options.callback) {
-                            options.callback(data, result, options, err);
+                            options.callback(result, data, options, err);
                         }
                     }
                 });

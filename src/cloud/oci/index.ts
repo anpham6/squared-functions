@@ -3,10 +3,9 @@ import type { Connection, ConnectionAttributes } from 'oracledb';
 
 import { createBucket as createBucket_s3, deleteObjects as deleteObjects_s3 } from '../aws';
 
+type ICloud = functions.ICloud;
 type CloudDatabase = functions.squared.CloudDatabase;
 type InstanceHost = functions.internal.Cloud.InstanceHost;
-
-const CACHE_DB: ObjectMap<any[]> = {};
 
 export interface OCIStorageCredential extends ConfigurationOptions {
     namespace?: string;
@@ -53,20 +52,18 @@ export async function deleteObjects(this: InstanceHost, credential: OCIStorageCr
     return deleteObjects_s3.call(this, credential, bucket, service);
 }
 
-export async function executeQuery(this: InstanceHost, credential: OCIDatabaseCredential, data: OCIDatabaseQuery, cacheKey?: string) {
+export async function executeQuery(this: ICloud, credential: OCIDatabaseCredential, data: OCIDatabaseQuery, cacheKey?: string) {
     const connection = await createDatabaseClient.call(this, credential);
-    let result: Undef<any[]>;
+    let result: Undef<any[]>,
+        queryString = '';
     try {
         const { table, id, query, limit = 0 } = data;
-        if (cacheKey) {
-            cacheKey += table;
-        }
+        queryString = table;
         if (id) {
-            if (cacheKey) {
-                cacheKey += id;
-                if (CACHE_DB[cacheKey]) {
-                    return CACHE_DB[cacheKey];
-                }
+            queryString += id;
+            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+            if (result) {
+                return result;
             }
             const collection = await connection.getSodaDatabase().openCollection(table);
             if (collection) {
@@ -77,15 +74,13 @@ export async function executeQuery(this: InstanceHost, credential: OCIDatabaseCr
             }
         }
         else if (query && !Array.isArray(query)) {
-            const keyId = typeof query === 'object' ? JSON.stringify(query) : query;
             const maxRows = Math.max(limit, 0);
-            if (cacheKey) {
-                cacheKey += keyId.replace(/\s+/g, '') + maxRows;
-                if (CACHE_DB[cacheKey]) {
-                    return CACHE_DB[cacheKey];
-                }
-            }
             if (typeof query === 'object') {
+                queryString += JSON.stringify(query) + maxRows;
+                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+                if (result) {
+                    return result;
+                }
                 const collection = await connection.getSodaDatabase().openCollection(data.table);
                 if (collection) {
                     let operation = collection.find().filter(query);
@@ -96,6 +91,11 @@ export async function executeQuery(this: InstanceHost, credential: OCIDatabaseCr
                 }
             }
             else {
+                queryString += JSON.stringify(query) + (data.params ? JSON.stringify(data.params) : '') + (data.options ? JSON.stringify(data.options) : '') + maxRows;
+                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+                if (result) {
+                    return result;
+                }
                 result = (await connection.execute(query, data.params || [], { ...data.options, outFormat: 4002, maxRows })).rows;
             }
         }
@@ -104,9 +104,7 @@ export async function executeQuery(this: InstanceHost, credential: OCIDatabaseCr
         this.writeFail(['Unable to execute database query', data.service], err);
     }
     if (result) {
-        if (cacheKey) {
-            CACHE_DB[cacheKey] = result;
-        }
+        this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);
         return result;
     }
     return [];

@@ -22,10 +22,13 @@ type UploadHost = functions.internal.Cloud.UploadHost;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 type DownloadCallback = functions.internal.Cloud.DownloadCallback;
+type CacheTimeout = functions.internal.Cloud.CacheTimeout;
 
 const CLOUD_SERVICE: ObjectMap<ServiceClient> = {};
 const CLOUD_UPLOAD: ObjectMap<UploadHost> = {};
 const CLOUD_DOWNLOAD: ObjectMap<DownloadHost> = {};
+const CLOUD_USERCACHE: ObjectMap<ObjectMap<[number, any[]]>> = {};
+const CLOUD_DBCACHE: ObjectMap<ObjectMap<any[]>> = {};
 
 function setUploadFilename(this: ICloud, upload: CloudStorageUpload, filename: string) {
     filename = filename.replace(/^\.*[\\/]+/, '');
@@ -46,11 +49,16 @@ function hasSameBucket(provider: CloudStorage, other: CloudStorage) {
 const assignFilename = (value: string) => uuid.v4() + (path.extname(value) || '');
 
 class Cloud extends Module implements functions.ICloud {
+    public cacheExpires = 10 * 60 * 1000;
+
+    private _cache: CacheTimeout = {};
+
     constructor(
         public settings: CloudModule = {},
         public database: CloudDatabase[] = [])
     {
         super();
+        Object.assign(this._cache, settings.cache);
     }
 
     setObjectKeys(assets: ExternalAsset[]) {
@@ -149,14 +157,47 @@ class Cloud extends Module implements functions.ICloud {
             });
         });
     }
-    getDatabaseRows(database: CloudDatabase, cacheKey?: string): Promise<PlainObject[]> {
-        if (this.hasCredential('database', database)) {
-            const host = CLOUD_SERVICE[database.service];
+    getDatabaseRows(data: CloudDatabase, cacheKey?: string): Promise<PlainObject[]> {
+        if (this.hasCredential('database', data)) {
+            const credential = this.getCredential(data);
+            const host = CLOUD_SERVICE[data.service];
             if (host.executeQuery) {
-                return host.executeQuery.call(this, this.getCredential(database), database, cacheKey);
+                return host.executeQuery.call(this, credential, data, cacheKey);
             }
         }
         return Promise.resolve([]);
+    }
+    getDatabaseResult(service: string, credential: PlainObject, queryString: string, cacheKey?: string) {
+        const userKey = service + JSON.stringify(credential);
+        const timeout = this._cache[service];
+        if (timeout > 0) {
+            const userCache = CLOUD_USERCACHE[userKey];
+            if (userCache && userCache[queryString]) {
+                const [expires, result] = userCache[queryString];
+                if (Date.now() < expires) {
+                    return result;
+                }
+                delete userCache[queryString];
+            }
+        }
+        else if (cacheKey) {
+            const dbCache = CLOUD_DBCACHE[userKey];
+            if (dbCache) {
+                return dbCache[cacheKey + queryString];
+            }
+        }
+    }
+    setDatabaseResult(service: string, credential: PlainObject, queryString: string, result: any[], cacheKey?: string) {
+        const userKey = service + JSON.stringify(credential);
+        const timeout = this._cache[service];
+        if (timeout > 0) {
+            (CLOUD_USERCACHE[userKey] ||= {})[queryString] = [Date.now() + timeout * 1000, result];
+        }
+        else if (cacheKey) {
+            cacheKey += queryString;
+            (CLOUD_DBCACHE[userKey] ||= {})[cacheKey] = result;
+            setTimeout(() => delete CLOUD_DBCACHE[userKey][cacheKey!], this.cacheExpires);
+        }
     }
     getCredential(data: CloudService): PlainObject {
         return typeof data.credential === 'string' ? { ...this.settings[data.service] && this.settings[data.service][data.credential] } : { ...data.credential };
