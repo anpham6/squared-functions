@@ -618,16 +618,6 @@ Basic text replacement can be achieved using any of these cloud based document d
          https://www.oracle.com/autonomous-database/autonomous-json-database (Paid - 1TB)
 ```
 
-The entire contents of the outer element (p.card) will be erased with "value" and to simplify parsing and performance it is recommended you do not include nested elements with the same tag name in your template mockup.
-
-```xml
-<p class="card">
-    1
-    <p>2</p> <!-- <div>2</div> -->
-    3
-</p>
-```
-
 ```javascript
 // Required: Attribute "table" is used for caching results
 

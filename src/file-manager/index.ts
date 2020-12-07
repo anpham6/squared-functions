@@ -735,13 +735,61 @@ class FileManager extends Module implements IFileManager {
                     if (current === source) {
                         const tagName = /\s*<([\w-]+)/.exec(outerHTML)?.[1];
                         if (tagName) {
-                            content &&= minifySpace(content);
-                            outerHTML = minifySpace(outerHTML);
-                            const innerHTML = new RegExp(`(\\s*)<${tagName}[\\s\\S]*?<\\/${tagName}>\\n*`, 'g');
-                            while (match = innerHTML.exec(html)) {
-                                if (outerHTML === minifySpace(match[0]) || content && content === minifySpace(findClosingTag(match[0])[2])) {
-                                    source = source.replace(match[0], (replaceWith ? match[1] : '') + replaceWith);
-                                    break;
+                            const openTag: number[] = [];
+                            let index = 0;
+                            while ((index = html.indexOf('<' + tagName, index)) !== -1) {
+                                openTag.push(index++);
+                            }
+                            const open = openTag.length;
+                            if (open) {
+                                const tag = '</' + tagName + '>';
+                                const closeTag: number[] = [];
+                                index = 0;
+                                while ((index = html.indexOf(tag, index)) !== -1) {
+                                    index += tag.length;
+                                    closeTag.push(index);
+                                }
+                                const close = closeTag.length;
+                                if (close) {
+                                    content &&= minifySpace(content);
+                                    outerHTML = minifySpace(outerHTML);
+                                    for (let i = 0; i < open; ++i) {
+                                        let j = 0,
+                                            valid: Undef<boolean>;
+                                        if (i === close - 1 && open === close) {
+                                            j = i;
+                                            valid = true;
+                                        }
+                                        else {
+                                            found: {
+                                                const k = openTag[i];
+                                                let start = i + 1;
+                                                for ( ; j < close; ++j) {
+                                                    const l = closeTag[j];
+                                                    if (l > k) {
+                                                        for (let m = start; m < open; ++m) {
+                                                            const n = openTag[m];
+                                                            if (n < l) {
+                                                                ++start;
+                                                                break;
+                                                            }
+                                                            else if (n > l) {
+                                                                valid = true;
+                                                                break found;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        if (valid) {
+                                            const outerText = html.substring(openTag[i], closeTag[j]);
+                                            if (outerHTML === minifySpace(outerText) || content && content === minifySpace(findClosingTag(outerText)[2])) {
+                                                source = source.replace(replaceWith ? outerText : new RegExp('\\s*' + escapeRegexp(outerText) + '\\n*'), replaceWith);
+                                                break;
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
