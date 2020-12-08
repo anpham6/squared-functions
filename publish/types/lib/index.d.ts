@@ -475,7 +475,7 @@ declare namespace functions {
         readonly minor: number;
         readonly patch: number;
         supported(major: number, minor: number, patch?: number): boolean;
-        joinPosix(...paths: string[]): string;
+        joinPosix(...paths: Undef<string>[]): string;
         getTempDir(): string;
         formatMessage(type: internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options?: internal.LogMessageOptions): void;
         formatFail(type: internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown): void;

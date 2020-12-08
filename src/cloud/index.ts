@@ -75,7 +75,7 @@ class Cloud extends Module implements functions.ICloud {
                             upload.pathname = Cloud.toPosix(upload.pathname).replace(/^\/+/, '') + '/';
                         }
                         else if (data.admin?.preservePath && item.pathname) {
-                            upload.pathname = Cloud.toPosix(this.joinPosix(item.moveTo || '', item.pathname)) + '/';
+                            upload.pathname = Cloud.toPosix(this.joinPosix(item.moveTo, item.pathname)) + '/';
                         }
                     }
                 }

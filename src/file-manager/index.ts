@@ -206,7 +206,7 @@ function getRootDirectory(location: string, asset: string): [string[], string[]]
 const fromSameOrigin = (value: string, other: string) => new URL(value).origin === new URL(other).origin;
 const escapePosix = (value: string) => value.replace(/[\\/]/g, '[\\\\/]');
 const isObject = (value: unknown): value is PlainObject => typeof value === 'object' && value !== null;
-const getRelativePath = (file: ExternalAsset, filename = file.filename) => Node.joinPosix(file.moveTo || '', file.pathname, filename);
+const getRelativePath = (file: ExternalAsset, filename = file.filename) => Node.joinPosix(file.moveTo, file.pathname, filename);
 
 class FileManager extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {

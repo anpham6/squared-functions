@@ -73,10 +73,11 @@ const Module = class implements functions.IModule {
     getTempDir() {
         return process.cwd() + path.sep + 'temp' + path.sep;
     }
-    joinPosix(...paths: string[]) {
+    joinPosix(...paths: Undef<string>[]) {
+        paths = paths.filter(value => value && value.trim());
         let result = '';
         for (let i = 0; i < paths.length; ++i) {
-            const trailing = (paths[i] || '').trim().replace(/\\+/g, '/');
+            const trailing = paths[i]!.replace(/\\+/g, '/');
             if (i === 0) {
                 result = trailing;
             }

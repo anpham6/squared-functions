@@ -1,6 +1,6 @@
 ### squared-functions 0.9
 
-These are some of the available options when creating archives or copying files with squared 2.1.
+These are some of the available options when creating archives or copying files with squared 2.2.
 
 ```javascript
 squared.settings.outputArchiveFormat = 'tar'; // Format: zip | tar | gz/tgz (default: zip)
