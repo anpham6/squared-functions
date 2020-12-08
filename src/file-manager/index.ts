@@ -903,9 +903,6 @@ class FileManager extends Module implements IFileManager {
                                 item.inlineContent = id;
                                 item.watch = false;
                                 item.outerHTML = replaceWith;
-                                if (item.fileUri) {
-                                    this.filesToRemove.add(item.fileUri);
-                                }
                                 continue;
                             }
                         }
@@ -1540,8 +1537,18 @@ class FileManager extends Module implements IFileManager {
         this.performFinalize();
     }
     async finalize() {
+        const emptyDir = new Set<string>();
         const compressMap = new WeakSet<ExternalAsset>();
         let tasks: Promise<unknown>[] = [];
+        const parseDirectory = (value: string) => {
+            let dir = this.baseDirectory;
+            for (const seg of path.dirname(value).substring(this.baseDirectory.length + 1).split(/[\\/]/)) {
+                if (seg) {
+                    dir += path.sep + seg;
+                    emptyDir.add(dir);
+                }
+            }
+        };
         for (const [file, output] of this.filesToCompare) {
             const fileUri = file.fileUri!;
             let minFile = fileUri,
@@ -1562,48 +1569,41 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (this.Chrome) {
-            const inlineCssMap: StringMap = {};
+            const inlineMap: StringMap = {};
             const base64Map: StringMap = {};
             const htmlFiles = this.getHtmlPages();
             if (htmlFiles.length) {
                 for (const item of this.assets) {
                     if (item.inlineContent && item.inlineContent.startsWith('<!--')) {
-                        const setContent = (value: string) => {
-                            inlineCssMap[item.inlineContent!] = value.trim();
-                            item.invalid = true;
-                        };
-                        if (item.sourceUTF8 || item.buffer) {
-                            setContent(this.getUTF8String(item));
-                            tasks.push(Promise.resolve());
-                        }
-                        else {
-                            tasks.push(fs.readFile(item.fileUri!, 'utf8').then(data => setContent(data)));
-                        }
+                        inlineMap[item.inlineContent] = this.getUTF8String(item).trim();
+                        const fileUri = item.fileUri!;
+                        parseDirectory(fileUri);
+                        this.filesToRemove.add(fileUri);
+                        item.invalid = true;
                     }
                 }
-                if (tasks.length) {
-                    await Promise.all(tasks).then(() => {
-                        for (const item of htmlFiles) {
-                            let content = this.getUTF8String(item);
-                            if (content) {
-                                for (const id in inlineCssMap) {
-                                    const value = inlineCssMap[id]!;
-                                    content = content.replace(new RegExp((value.includes(' ') ? '[ \t]*' : '') + id), value);
-                                }
-                                item.sourceUTF8 = content;
+                if (Object.keys(inlineMap).length) {
+                    for (const item of htmlFiles) {
+                        let content = this.getUTF8String(item);
+                        if (content) {
+                            for (const id in inlineMap) {
+                                const value = inlineMap[id]!;
+                                content = content.replace(new RegExp((value.includes(' ') ? '[ \t]*' : '') + id), value);
                             }
+                            item.sourceUTF8 = content;
                         }
-                    })
-                    .catch(err => this.writeFail(['Inline UTF-8', 'finalize'], err));
-                    tasks = [];
+                    }
                 }
             }
             for (const item of this.assets) {
                 if (item.inlineBase64 && !item.invalid) {
-                    const mimeType = mime.lookup(item.fileUri!) || item.mimeType!;
+                    const fileUri = item.fileUri!;
+                    const mimeType = mime.lookup(fileUri) || item.mimeType!;
                     tasks.push(
-                        fs.readFile(item.fileUri!).then((data: Buffer) => {
-                            base64Map[item.inlineBase64!] = `data:${mimeType};base64,${data.toString('base64')}`;
+                        fs.readFile(fileUri).then((data: Buffer) => {
+                            base64Map[item.inlineBase64!] = `data:${mimeType};base64,${data.toString('base64').trim()}`;
+                            parseDirectory(fileUri);
+                            this.filesToRemove.add(fileUri);
                             item.invalid = true;
                         })
                     );
@@ -1615,7 +1615,7 @@ class FileManager extends Module implements IFileManager {
             }
             const replaced = this.assets.filter(item => item.originalName && !item.invalid);
             const productionRelease = this.Chrome.productionRelease;
-            if (replaced.length || Object.keys(base64Map) || productionRelease) {
+            if (replaced.length || Object.keys(base64Map).length || productionRelease) {
                 const replaceContent = (file: ExternalAsset, value: string) => {
                     for (const id in base64Map) {
                         value = value.replace(new RegExp(id, 'g'), base64Map[id]!);
@@ -2107,7 +2107,7 @@ class FileManager extends Module implements IFileManager {
                 await Promise.all(tasks).catch(err => this.writeFail(['Upload HTML to cloud storage', 'finalize'], err));
                 tasks = [];
             }
-            const emptyDir = new Set<string>();
+
             for (const [item, data] of localStorage) {
                 for (const group of getFiles(item, data)) {
                     if (group.length) {
@@ -2115,11 +2115,7 @@ class FileManager extends Module implements IFileManager {
                             ...group.map(value => {
                                 return fs.unlink(value)
                                     .then(() => {
-                                        let dir = this.baseDirectory;
-                                        for (const seg of path.dirname(value).substring(this.baseDirectory.length + 1).split(/[\\/]/)) {
-                                            dir += path.sep + seg;
-                                            emptyDir.add(dir);
-                                        }
+                                        parseDirectory(value);
                                         this.delete(value);
                                     })
                                     .catch(() => this.delete(value));
@@ -2131,13 +2127,6 @@ class FileManager extends Module implements IFileManager {
             if (tasks.length) {
                 await Promise.all(tasks).catch(err => this.writeFail(['Delete cloud temp files', 'finalize'], err));
                 tasks = [];
-                for (const value of Array.from(emptyDir).reverse()) {
-                    try {
-                        fs.rmdirSync(value);
-                    }
-                    catch {
-                    }
-                }
             }
             const downloadMap: ObjectMap<Set<string>> = {};
             for (const item of this.assets) {
@@ -2224,6 +2213,13 @@ class FileManager extends Module implements IFileManager {
         }
         if (this.Watch) {
             this.Watch.start(this.assets);
+        }
+        for (const value of Array.from(emptyDir).reverse()) {
+            try {
+                fs.rmdirSync(value);
+            }
+            catch {
+            }
         }
     }
 }

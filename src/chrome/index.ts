@@ -64,20 +64,17 @@ class Chrome extends Module implements functions.IChrome {
         return this.findPlugin(settings, value);
     }
     loadOptions(value: ConfigOrTranspiler | string): Undef<ConfigOrTranspiler> {
-        if (typeof value === 'string') {
-            if (this.settings.eval_function) {
-                const transpiler = this.loadTranspiler(value);
-                if (transpiler) {
-                    return transpiler;
-                }
+        if (typeof value === 'string' && this.settings.eval_function) {
+            const transpiler = this.loadTranspiler(value);
+            if (transpiler) {
+                return transpiler;
             }
         }
         return this.loadConfig(value);
     }
     loadConfig(value: Undef<StandardMap | string>): Undef<StandardMap> {
         if (typeof value ==='string') {
-            value = value.trim();
-            if (validLocalPath(value)) {
+            if (validLocalPath(value = value.trim())) {
                 try {
                     return JSON.parse(fs.readFileSync(path.resolve(value), 'utf8').trim()) as StandardMap;
                 }
@@ -99,8 +96,7 @@ class Chrome extends Module implements functions.IChrome {
         }
     }
     loadTranspiler(value: string): Null<FunctionType<string>> {
-        value = value.trim();
-        if (validLocalPath(value)) {
+        if (validLocalPath(value = value.trim())) {
             try {
                 value = fs.readFileSync(path.resolve(value), 'utf8').trim();
             }

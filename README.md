@@ -485,7 +485,7 @@ Other service providers can be integrated similarly except for credential verifi
       "credential": "main", // OR: Load host configuration from settings at instantiation
       "upload": {
         "active": false, // Rewrites "src" to cloud storage location (optional)
-        "localStorage": true, // Remove current file from archive or local disk (optional)
+        "localStorage": false, // Remove current file from archive or local disk (optional)
         "filename": "picture1.webp", // Choose a different bucket filename (optional)
         "all": false, // Include transforms (optional)
         "overwrite": false // Always use current filename (optional)
@@ -525,7 +525,7 @@ Other service providers can be integrated similarly except for credential verifi
         "preservePath": false // Use current pathname as file prefix
       },
       "upload": {
-        "active": true, // Implicity "publicRead: true" except when explicitly "publicRead: false"
+        "active": false, // Implicity "publicRead: true" except when explicitly "publicRead: false"
         "publicRead": false // User with "admin" privileges (optional: Not supported Azure and OCI)
       }
     },
@@ -763,6 +763,22 @@ When in development mode you can save read units by setting a timeout value for 
 ```
 
 Results are cached using the supplied credentials and queries will individually be cleared when the amount of time has expired.
+
+Reusing configuration templates is possible using URL query parameters. Output values cannot be modified with the {{param}} syntax.
+
+```javascript
+// http://localhost:3000/index.html?table=demo&id=1
+
+{
+  "service": "azure",
+  "credential": "db-main",
+  "name": "squared",
+  "table": "{{table}}", // Params should always be quoted
+  "partitionKey": "Pictures",
+  "query": "SELECT * FROM c WHERE c.id = '{{id}}'",
+  "value": "<b>${title}</b>: ${description}" // Not parsed
+}
+```
 
 ### Options: Development / Production
 
