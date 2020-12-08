@@ -802,78 +802,75 @@ class FileManager extends Module implements IFileManager {
                 };
                 const cloud = this.Cloud;
                 if (cloud && cloud.database) {
+                    const items = cloud.database.filter(item => item.element?.outerHTML);
                     const cacheKey = uuid.v4();
-                    for (const item of cloud.database) {
-                        const outerHTML = item.element?.outerHTML;
-                        if (outerHTML) {
-                            const result = await cloud.getDatabaseRows(item, cacheKey);
-                            if (result.length) {
-                                const template = item.value;
-                                let replaceWith = '';
-                                if (typeof template === 'string') {
-                                    const [opening, closing] = findClosingTag(outerHTML);
-                                    if (opening && closing) {
-                                        let output = '';
-                                        for (const row of result) {
-                                            REGEXP_DBCOLUMN.lastIndex = 0;
-                                            let value = template;
-                                            while (match = REGEXP_DBCOLUMN.exec(template)) {
-                                                value = value.replace(match[0], getObjectValue(row, match[1]));
-                                            }
-                                            output += value;
+                    (await Promise.all(items.map(item => cloud.getDatabaseRows(item, cacheKey).catch(() => [])))).forEach((result, index) => {
+                        if (result.length) {
+                            const item = items[index];
+                            const outerHTML = item.element!.outerHTML!;
+                            const template = item.value;
+                            let replaceWith = '';
+                            if (typeof template === 'string') {
+                                const [opening, closing] = findClosingTag(outerHTML);
+                                if (opening && closing) {
+                                    let output = '';
+                                    for (const row of result) {
+                                        REGEXP_DBCOLUMN.lastIndex = 0;
+                                        let value = template;
+                                        while (match = REGEXP_DBCOLUMN.exec(template)) {
+                                            value = value.replace(match[0], getObjectValue(row, match[1]));
                                         }
-                                        replaceWith = opening + output + closing;
+                                        output += value;
                                     }
+                                    replaceWith = opening + output + closing;
                                 }
-                                else {
-                                    replaceWith = outerHTML;
-                                    for (const attr in template) {
-                                        let columns = template[attr]!;
-                                        if (typeof columns === 'string') {
-                                            columns = [columns];
-                                        }
-                                        for (const row of result) {
-                                            let value = '',
-                                                joinString = ' ';
-                                            for (const col of columns) {
-                                                if (col[0] === ':') {
-                                                    const join = /^:join\((.*)\)$/.exec(col);
-                                                    if (join) {
-                                                        joinString = join[1];
-                                                    }
-                                                    continue;
+                            }
+                            else {
+                                replaceWith = outerHTML;
+                                for (const attr in template) {
+                                    let columns = template[attr]!;
+                                    if (typeof columns === 'string') {
+                                        columns = [columns];
+                                    }
+                                    for (const row of result) {
+                                        let value = '',
+                                            joinString = ' ';
+                                        for (const col of columns) {
+                                            if (col[0] === ':') {
+                                                const join = /^:join\((.*)\)$/.exec(col);
+                                                if (join) {
+                                                    joinString = join[1];
                                                 }
-                                                value += (value ? joinString : '') + getObjectValue(row, col, joinString);
+                                                continue;
                                             }
-                                            if (value) {
-                                                const replacement = ' ' + formatAttr(attr, value);
-                                                match = new RegExp(`\\s*${attr}="(?:[^"]|(?<=\\\\)")*"`).exec(replaceWith);
-                                                replaceWith = match ? replaceWith.replace(match[0], replacement) : replaceWith.replace(/^(\s*<[\w-]+)(\s*)/, (...capture) => capture[1] + replacement + (capture[2] ? ' ' : ''));
-                                                break;
-                                            }
+                                            value += (value ? joinString : '') + getObjectValue(row, col, joinString);
+                                        }
+                                        if (value) {
+                                            const replacement = ' ' + formatAttr(attr, value);
+                                            match = new RegExp(`\\s*${attr}="(?:[^"]|(?<=\\\\)")*"`).exec(replaceWith);
+                                            replaceWith = match ? replaceWith.replace(match[0], replacement) : replaceWith.replace(/^(\s*<[\w-]+)(\s*)/, (...capture) => capture[1] + replacement + (capture[2] ? ' ' : ''));
+                                            break;
                                         }
                                     }
                                 }
-                                if (replaceWith && replaceWith !== outerHTML) {
-                                    current = source;
-                                    replaceTry(outerHTML, replaceWith);
-                                    replaceMinify(outerHTML, replaceWith);
-                                    if (current !== source) {
-                                        for (const asset of this.assets) {
-                                            if (asset.outerHTML === outerHTML) {
-                                                asset.outerHTML = replaceWith;
-                                                break;
-                                            }
+                            }
+                            if (replaceWith && replaceWith !== outerHTML) {
+                                current = source;
+                                replaceTry(outerHTML, replaceWith);
+                                replaceMinify(outerHTML, replaceWith);
+                                if (current !== source) {
+                                    for (const asset of this.assets) {
+                                        if (asset.outerHTML === outerHTML) {
+                                            asset.outerHTML = replaceWith;
+                                            break;
                                         }
                                     }
                                 }
                             }
                         }
-                    }
-                    html = source;
+                    });
                 }
                 const baseUri = file.uri!;
-                html = source;
                 for (const item of this.assets) {
                     if (item.invalid && !item.exclude) {
                         continue;
@@ -929,6 +926,9 @@ class FileManager extends Module implements IFileManager {
                                 source = source.replace(new RegExp(`\\s*${escapeRegexp(formatTag(outerHTML))}\\n*`), '');
                                 replaceMinify(outerHTML, '', content);
                             }
+                            else {
+                                html = source;
+                            }
                             continue;
                         }
                         if (Object.keys(attributes).length || output) {
@@ -965,6 +965,7 @@ class FileManager extends Module implements IFileManager {
                     }
                     found: {
                         const { uri, outerHTML } = item;
+                        current = source;
                         if (outerHTML) {
                             item.mimeType ||= mime.lookup(uri).toString();
                             const segments = [uri];
@@ -996,7 +997,6 @@ class FileManager extends Module implements IFileManager {
                             const innerContent = outerHTML.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/\w+>)?\s*$/, '');
                             const replaced = replaceUri(innerContent, segments, value);
                             if (replaced) {
-                                current = source;
                                 source = source.replace(innerContent, replaced);
                                 if (current === source) {
                                     source = source.replace(new RegExp(escapeRegexp(innerContent).replace(/\s+/g, '\\s+')), replaced);
@@ -1010,9 +1010,8 @@ class FileManager extends Module implements IFileManager {
                                 const directory = new RegExp(`(["'\\s,=])(` + (ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + escapePosix(relativePath) + ')', 'g');
                                 while (match = directory.exec(html)) {
                                     if (uri === Node.resolvePath(match[2], baseUri)) {
-                                        const result = source.replace(match[0], match[1] + value);
-                                        if (result !== source) {
-                                            source = result;
+                                        source = source.replace(match[0], match[1] + value);
+                                        if (current !== source) {
                                             html = source;
                                             break found;
                                         }
