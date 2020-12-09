@@ -1,5 +1,8 @@
 /// <reference path="type.d.ts" />
 
+import type * as squared from './squared';
+import type * as chrome from './chrome';
+
 import type { WriteStream } from 'fs';
 import type { Response } from 'express';
 import type { CorsOptions } from 'cors';
@@ -16,130 +19,6 @@ declare namespace functions {
     type FileManagerCompleteAsyncTaskCallback = (value?: unknown, parent?: ExternalAsset) => void;
     type CompressTryFileMethod = (fileUri: string, data: squared.CompressFormat, initalize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback) => void;
     type CompressTryImageCallback = (success?: boolean) => void;
-
-    namespace squared {
-        interface LocationUri {
-            pathname: string;
-            filename: string;
-        }
-
-        interface FileAsset extends LocationUri {
-            content?: string;
-            uri?: string;
-            mimeType?: string;
-            base64?: string;
-            commands?: string[];
-            compress?: CompressFormat[];
-            cloudStorage?: CloudStorage[];
-            watch?: boolean | WatchInterval;
-            tasks?: string[];
-        }
-
-        interface CompressFormat {
-            format: string;
-            level?: number;
-            condition?: string;
-        }
-
-        interface CloudService extends ObjectMap<unknown> {
-            service: string;
-            credential: string | PlainObject;
-        }
-
-        interface CloudDatabase<T = string | PlainObject | any[]> extends CloudService {
-            table: string;
-            value: string | ObjectMap<string | string[]>;
-            name?: string;
-            id?: string;
-            query?: T;
-            limit?: number;
-            params?: unknown[];
-            options?: PlainObject;
-            element?: {
-                outerHTML?: string;
-            };
-        }
-
-        interface CloudStorage extends CloudService {
-            bucket?: string;
-            admin?: CloudStorageAdmin;
-            upload?: CloudStorageUpload;
-            download?: CloudStorageDownload;
-        }
-
-        interface CloudStorageAdmin {
-            publicRead?: boolean;
-            emptyBucket?: boolean;
-            preservePath?: boolean;
-        }
-
-        interface CloudStorageAction extends Partial<LocationUri> {
-            active?: boolean;
-            overwrite?: boolean;
-        }
-
-        interface CloudStorageUpload extends CloudStorageAction {
-            localStorage?: boolean;
-            endpoint?: string;
-            all?: boolean;
-            publicRead?: boolean;
-        }
-
-        interface CloudStorageDownload extends CloudStorageAction {
-            versionId?: string;
-            deleteObject?: string;
-        }
-
-        interface WatchInterval {
-            interval?: number;
-            expires?: string;
-        }
-
-        interface ResponseData {
-            success: boolean;
-            data?: unknown;
-            zipname?: string;
-            bytes?: number;
-            files?: string[];
-            error?: ResponseError;
-        }
-
-        interface ResponseError {
-            message: string;
-            hint?: string;
-        }
-    }
-
-    namespace chrome {
-        type UnusedStyles = string[];
-
-        interface ChromeAsset {
-            rootDir?: string;
-            moveTo?: string;
-            format?: string;
-            preserve?: boolean;
-            exclude?: boolean;
-            baseUrl?: string;
-            bundleId?: number;
-            bundleIndex?: number;
-            bundleRoot?: string;
-            outerHTML?: string;
-            trailingContent?: FormattableContent[];
-            inlineContent?: string;
-            attributes?: ObjectMap<Undef<Null<string>>>;
-        }
-
-        interface FormattableContent {
-            value: string;
-            preserve?: boolean;
-        }
-
-        interface TranspileMap {
-            html: ObjectMap<StringMap>;
-            js: ObjectMap<StringMap>;
-            css: ObjectMap<StringMap>;
-        }
-    }
 
     namespace internal {
         namespace Image {
@@ -508,7 +387,7 @@ declare namespace functions {
     }
 
     interface Settings {
-        version?: string;
+        apiVersion?: string;
         disk_read?: BoolString;
         disk_write?: BoolString;
         unc_read?: BoolString;

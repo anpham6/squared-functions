@@ -1,9 +1,9 @@
+import type { CloudDatabase } from '../../types/lib/squared';
 import type { ConfigurationOptions, SharedIniFileCredentials } from 'aws-sdk/lib/core';
 import type { ServiceConfigurationOptions } from 'aws-sdk/lib/service';
 import type * as aws from 'aws-sdk';
 
 type ICloud = functions.ICloud;
-type CloudDatabase = functions.squared.CloudDatabase;
 type InstanceHost = functions.internal.Cloud.InstanceHost;
 
 export interface AWSStorageCredential extends ConfigurationOptions {
@@ -13,7 +13,7 @@ export interface AWSStorageCredential extends ConfigurationOptions {
 
 export interface AWSDatabaseCredential extends AWSStorageCredential, ServiceConfigurationOptions {}
 
-export interface AWSDatabaseQuery extends functions.squared.CloudDatabase<aws.DynamoDB.QueryInput> {
+export interface AWSDatabaseQuery extends CloudDatabase<aws.DynamoDB.QueryInput> {
     partitionKey?: string;
 }
 

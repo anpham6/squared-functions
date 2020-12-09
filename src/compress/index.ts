@@ -1,3 +1,5 @@
+import type { CompressFormat } from '../types/lib/squared';
+
 import path = require('path');
 import fs = require('fs');
 import zlib = require('zlib');
@@ -9,8 +11,6 @@ type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTask
 type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
 type CompressTryImageCallback = functions.CompressTryImageCallback;
 type CompressTryFileMethod = functions.CompressTryFileMethod;
-
-type CompressFormat = functions.squared.CompressFormat;
 
 function parseSizeRange(value: string): [number, number] {
     const match = /\(\s*(\d+)\s*,\s*(\d+|\*)\s*\)/.exec(value);

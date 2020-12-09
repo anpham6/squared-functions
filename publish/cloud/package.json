@@ -17,6 +17,6 @@
   "dependencies": {
     "@squared-functions/module": "^0.9.4",
     "@squared-functions/types": "^0.9.4",
-    "uuid": "^8.3.1"
+    "uuid": "^8.3.2"
   }
 }

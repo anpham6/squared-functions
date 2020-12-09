@@ -1,10 +1,10 @@
+import type { CloudDatabase } from '../../types/lib/squared';
 import type { ConfigurationOptions } from 'aws-sdk/lib/core';
 import type { Connection, ConnectionAttributes } from 'oracledb';
 
 import { createBucket as createBucket_s3, deleteObjects as deleteObjects_s3 } from '../aws';
 
 type ICloud = functions.ICloud;
-type CloudDatabase = functions.squared.CloudDatabase;
 type InstanceHost = functions.internal.Cloud.InstanceHost;
 
 const OUT_FORMAT_OBJECT = 4002;
@@ -16,7 +16,7 @@ export interface OCIStorageCredential extends ConfigurationOptions {
 
 export interface OCIDatabaseCredential extends ConnectionAttributes {}
 
-export interface OCIDatabaseQuery extends functions.squared.CloudDatabase<PlainObject | string> {}
+export interface OCIDatabaseQuery extends CloudDatabase<PlainObject | string> {}
 
 export function validateStorage(credential: OCIStorageCredential) {
     return !!(credential.accessKeyId && credential.secretAccessKey || (credential.region && credential.namespace || credential.endpoint));

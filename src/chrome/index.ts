@@ -1,3 +1,5 @@
+import type { TranspileMap } from '../types/lib/chrome';
+
 import path = require('path');
 import fs = require('fs-extra');
 
@@ -5,8 +7,6 @@ import Module from '../module';
 
 type ExternalCategory = functions.ExternalCategory;
 type RequestBody = functions.RequestBody;
-
-type TranspileMap = functions.chrome.TranspileMap;
 
 type ChromeModule = functions.ExtendedSettings.ChromeModule;
 

@@ -1,8 +1,8 @@
+import type { CloudDatabase } from '../../types/lib/squared';
 import type * as storage from '@azure/storage-blob';
 import type * as db from '@azure/cosmos';
 
 type ICloud = functions.ICloud;
-type CloudDatabase = functions.squared.CloudDatabase;
 type InstanceHost = functions.internal.Cloud.InstanceHost;
 
 export interface AzureStorageCredential {
@@ -14,7 +14,7 @@ export interface AzureStorageCredential {
 
 export interface AzureDatabaseCredential extends db.CosmosClientOptions {}
 
-export interface AzureDatabaseQuery extends functions.squared.CloudDatabase<string> {
+export interface AzureDatabaseQuery extends CloudDatabase<string> {
     partitionKey?: string;
     storedProcedureId?: string;
 }

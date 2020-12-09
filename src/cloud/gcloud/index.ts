@@ -1,3 +1,4 @@
+import type { CloudDatabase, CloudService } from '../../types/lib/squared';
 import type { GoogleAuthOptions } from 'google-auth-library';
 import type { Acl } from '@google-cloud/storage/build/src/acl';
 import type * as gcs from '@google-cloud/storage';
@@ -6,7 +7,6 @@ import type * as gcf from '@google-cloud/firestore';
 import path = require('path');
 
 type ICloud = functions.ICloud;
-type CloudDatabase = functions.squared.CloudDatabase;
 type InstanceHost = functions.internal.Cloud.InstanceHost;
 
 export interface GCloudStorageCredential extends GoogleAuthOptions {
@@ -16,9 +16,9 @@ export interface GCloudStorageCredential extends GoogleAuthOptions {
 
 export interface GCloudDatabaseCredential extends GoogleAuthOptions {}
 
-export interface GCloudCloudBucket extends functions.squared.CloudService {}
+export interface GCloudCloudBucket extends CloudService {}
 
-export interface GCloudDatabaseQuery extends functions.squared.CloudDatabase<[string, string, unknown][]> {
+export interface GCloudDatabaseQuery extends CloudDatabase<[string, string, unknown][]> {
     orderBy?: [string, string][];
 }
 

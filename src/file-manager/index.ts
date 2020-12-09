@@ -1,3 +1,4 @@
+import type { CloudService, CloudStorageUpload, ResponseData } from '../types/lib/squared';
 import type { Response } from 'express';
 
 import child_process = require('child_process');
@@ -25,10 +26,6 @@ type ImageConstructor = functions.ImageConstructor;
 type Settings = functions.Settings;
 type RequestBody = functions.RequestBody;
 type ExternalAsset = functions.ExternalAsset;
-
-type ResponseData = functions.squared.ResponseData;
-type CloudService = functions.squared.CloudService;
-type CloudStorageUpload = functions.squared.CloudStorageUpload;
 
 type CompressModule = functions.ExtendedSettings.CompressModule;
 type CloudModule = functions.ExtendedSettings.CloudModule;

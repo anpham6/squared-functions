@@ -1,3 +1,5 @@
+import type { CloudDatabase, CloudService, CloudStorage, CloudStorageAction, CloudStorageDownload, CloudStorageUpload } from '../types/lib/squared';
+
 import path = require('path');
 import uuid = require('uuid');
 
@@ -7,13 +9,6 @@ type ICloud = functions.ICloud;
 type ExternalAsset = functions.ExternalAsset;
 type CloudFeatures = functions.CloudFeatures;
 type CloudFunctions = functions.CloudFunctions;
-
-type CloudService = functions.squared.CloudService;
-type CloudStorage = functions.squared.CloudStorage;
-type CloudDatabase = functions.squared.CloudDatabase;
-type CloudStorageAction = functions.squared.CloudStorageAction;
-type CloudStorageUpload = functions.squared.CloudStorageUpload;
-type CloudStorageDownload = functions.squared.CloudStorageDownload;
 
 type CloudModule = functions.ExtendedSettings.CloudModule;
 
