@@ -26,7 +26,7 @@ export function validateDatabase(credential: IBMDatabaseCredential, data: CloudD
     return !!((credential.account && credential.password || credential.url) && data.table);
 }
 
-export function setStorageCredential(this: InstanceHost, credential: IBMStorageCredential) {
+export function setStorageCredential(credential: IBMStorageCredential) {
     credential.endpoint ||= `https://s3.${credential.region!}.cloud-object-storage.appdomain.cloud`;
     credential.region ||= /([^.]+)\.cloud-object-storage\.appdomain\.cloud$/.exec(credential.endpoint)?.[1];
     credential.ibmAuthEndpoint = 'https://iam.cloud.ibm.com/identity/token';
@@ -49,7 +49,7 @@ export async function createBucket(this: InstanceHost, credential: IBMStorageCre
 }
 
 export async function deleteObjects(this: InstanceHost, credential: IBMStorageCredential, bucket: string, service = 'ibm') {
-    setStorageCredential.call(this, credential);
+    setStorageCredential(credential);
     return deleteObjects_s3.call(this, credential as PlainObject, bucket, service, 'ibm-cos-sdk/clients/s3');
 }
 

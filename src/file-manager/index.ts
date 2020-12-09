@@ -270,7 +270,7 @@ class FileManager extends Module implements IFileManager {
         }
         catch (err) {
             if (res) {
-                res.json({ success: false, error: { hint: `DIRECTORY: ${dirname}`, message: err.toString() } } as ResponseData);
+                res.json({ success: false, error: { hint: 'DIRECTORY: ' + dirname, message: err.toString() } } as ResponseData);
             }
             return false;
         }
@@ -491,20 +491,18 @@ class FileManager extends Module implements IFileManager {
     }
     async appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex = 0) {
         const mimeType = file.mimeType;
-        if (mimeType) {
-            if (mimeType.endsWith('text/css')) {
-                const unusedStyles = this.Chrome?.unusedStyles;
-                if (!file.preserve && unusedStyles) {
-                    const result = this.removeCss(content, unusedStyles);
-                    if (result) {
-                        content = result;
-                    }
+        if (mimeType && mimeType.endsWith('text/css')) {
+            const unusedStyles = this.Chrome?.unusedStyles;
+            if (!file.preserve && unusedStyles) {
+                const result = this.removeCss(content, unusedStyles);
+                if (result) {
+                    content = result;
                 }
-                if (mimeType[0] === '@') {
-                    const result = this.transformCss(file, content);
-                    if (result) {
-                        content = result;
-                    }
+            }
+            if (mimeType[0] === '@') {
+                const result = this.transformCss(file, content);
+                if (result) {
+                    content = result;
                 }
             }
         }
@@ -521,26 +519,23 @@ class FileManager extends Module implements IFileManager {
         return '';
     }
     async getTrailingContent(file: ExternalAsset) {
-        const trailingContent = file.trailingContent;
         let output = '';
-        if (trailingContent) {
+        if (file.trailingContent) {
             const mimeType = file.mimeType;
-            for (const item of trailingContent) {
+            for (const item of file.trailingContent) {
                 let value = item.value;
-                if (mimeType) {
-                    if (mimeType.endsWith('text/css')) {
-                        const unusedStyles = this.Chrome?.unusedStyles;
-                        if (!item.preserve && unusedStyles) {
-                            const result = this.removeCss(value, unusedStyles);
-                            if (result) {
-                                value = result;
-                            }
+                if (mimeType && mimeType.endsWith('text/css')) {
+                    const unusedStyles = this.Chrome?.unusedStyles;
+                    if (!item.preserve && unusedStyles) {
+                        const result = this.removeCss(value, unusedStyles);
+                        if (result) {
+                            value = result;
                         }
-                        if (mimeType[0] === '@') {
-                            const result = this.transformCss(file, value);
-                            if (result) {
-                                value = result;
-                            }
+                    }
+                    if (mimeType[0] === '@') {
+                        const result = this.transformCss(file, value);
+                        if (result) {
+                            value = result;
                         }
                     }
                 }
@@ -722,7 +717,7 @@ class FileManager extends Module implements IFileManager {
                     source = html,
                     current = '',
                     match: Null<RegExpExecArray>;
-                const minifySpace = (value: string) => value.replace(/(\s+|\/)/g, '');
+                const minifySpace = (value: string) => value.replace(/\s+/g, '');
                 const getOuterHTML = (css: boolean, value: string) => css ? `<link rel="stylesheet" href="${value}" />` : `<script src="${value}"></script>`;
                 const formatTag = (outerHTML: string) => outerHTML.replace(/"\s*>$/, '" />');
                 const formatAttr = (key: string, value?: Null<string>) => value !== undefined ? key + (value !== null ? `="${value}"` : '') : '';
@@ -1001,7 +996,7 @@ class FileManager extends Module implements IFileManager {
                                 }
                             }
                             if (relativePath) {
-                                const directory = new RegExp(`(["'\\s,=])(` + (ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + escapePosix(relativePath) + ')', 'g');
+                                const directory = new RegExp(`(["'\\s,=])(${(ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + escapePosix(relativePath)})`, 'g');
                                 while (match = directory.exec(html)) {
                                     if (uri === Node.resolvePath(match[2], baseUri)) {
                                         source = source.replace(match[0], match[1] + value);
@@ -1569,39 +1564,35 @@ class FileManager extends Module implements IFileManager {
             const inlineMap: StringMap = {};
             const base64Map: StringMap = {};
             const htmlFiles = this.getHtmlPages();
+            const removeFile = (item: ExternalAsset) => {
+                const fileUri = item.fileUri!;
+                parseDirectory(fileUri);
+                this.filesToRemove.add(fileUri);
+                item.invalid = true;
+            };
             if (htmlFiles.length) {
                 for (const item of this.assets) {
                     if (item.inlineContent && item.inlineContent.startsWith('<!--')) {
                         inlineMap[item.inlineContent] = this.getUTF8String(item).trim();
-                        const fileUri = item.fileUri!;
-                        parseDirectory(fileUri);
-                        this.filesToRemove.add(fileUri);
-                        item.invalid = true;
+                        removeFile(item);
                     }
                 }
                 if (Object.keys(inlineMap).length) {
                     for (const item of htmlFiles) {
                         let content = this.getUTF8String(item);
-                        if (content) {
-                            for (const id in inlineMap) {
-                                const value = inlineMap[id]!;
-                                content = content.replace(new RegExp((value.includes(' ') ? '[ \t]*' : '') + id), value);
-                            }
-                            item.sourceUTF8 = content;
+                        for (const id in inlineMap) {
+                            content = content.replace(id, inlineMap[id]!);
                         }
+                        item.sourceUTF8 = content;
                     }
                 }
             }
             for (const item of this.assets) {
                 if (item.inlineBase64 && !item.invalid) {
-                    const fileUri = item.fileUri!;
-                    const mimeType = mime.lookup(fileUri) || item.mimeType!;
                     tasks.push(
-                        fs.readFile(fileUri).then((data: Buffer) => {
-                            base64Map[item.inlineBase64!] = `data:${mimeType};base64,${data.toString('base64').trim()}`;
-                            parseDirectory(fileUri);
-                            this.filesToRemove.add(fileUri);
-                            item.invalid = true;
+                        fs.readFile(item.fileUri!).then((data: Buffer) => {
+                            base64Map[item.inlineBase64!] = `data:${item.mimeType!};base64,${data.toString('base64').trim()}`;
+                            removeFile(item);
                         })
                     );
                 }
@@ -1621,7 +1612,7 @@ class FileManager extends Module implements IFileManager {
                         value = value.replace(new RegExp(escapePosix(getRelativePath(asset, asset.originalName)), 'g'), asset.relativePath!);
                     }
                     if (productionRelease) {
-                        value = value.replace(new RegExp(`(\\.\\./)*${this.Chrome!.serverRoot}`, 'g'), '');
+                        value = value.replace(new RegExp('(\\.\\./)*' + this.Chrome!.serverRoot, 'g'), '');
                     }
                     file.sourceUTF8 = value;
                 };
@@ -1806,7 +1797,7 @@ class FileManager extends Module implements IFileManager {
                                                             callback();
                                                         })
                                                         .catch(err_w => {
-                                                            this.writeFail(['Unable to replace original files', `gulp: ${task}`], err_w);
+                                                            this.writeFail(['Unable to replace original files', 'gulp: ' + task], err_w);
                                                             callback();
                                                         });
                                                 }
@@ -1815,18 +1806,18 @@ class FileManager extends Module implements IFileManager {
                                                 }
                                             });
                                         })
-                                        .catch(error => this.writeFail(['Unable to delete original files', `gulp: ${task}`], error));
+                                        .catch(error => this.writeFail(['Unable to delete original files', 'gulp: ' + task], error));
                                 }
                                 else {
-                                    this.writeFail(['Unknown', `gulp: ${task}`], err);
+                                    this.writeFail(['Unknown', 'gulp: ' + task], err);
                                     callback();
                                 }
                             });
                         })
-                        .catch(err => this.writeFail(['Unable to copy original files', `gulp: ${task}`], err));
+                        .catch(err => this.writeFail(['Unable to copy original files', 'gulp: ' + task], err));
                 }
                 catch (err) {
-                    this.writeFail(['Unknown', `gulp:${task}`], err);
+                    this.writeFail(['Unknown', 'gulp: ' + task], err);
                     callback();
                 }
             };
@@ -2104,7 +2095,6 @@ class FileManager extends Module implements IFileManager {
                 await Promise.all(tasks).catch(err => this.writeFail(['Upload HTML to cloud storage', 'finalize'], err));
                 tasks = [];
             }
-
             for (const [item, data] of localStorage) {
                 for (const group of getFiles(item, data)) {
                     if (group.length) {

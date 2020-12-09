@@ -165,7 +165,7 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
                             this.instance = this.instance[name]();
                         }
                         catch (err) {
-                            this.writeFail(['Method not supported', `jimp:${name}`], err);
+                            this.writeFail(['Method not supported', 'jimp: ' + name], err);
                         }
                         break;
                 }

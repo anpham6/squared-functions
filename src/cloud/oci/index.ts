@@ -19,14 +19,14 @@ export interface OCIDatabaseCredential extends ConnectionAttributes {}
 export interface OCIDatabaseQuery extends CloudDatabase<PlainObject | string> {}
 
 export function validateStorage(credential: OCIStorageCredential) {
-    return !!(credential.accessKeyId && credential.secretAccessKey || (credential.region && credential.namespace || credential.endpoint));
+    return !!(credential.accessKeyId && credential.secretAccessKey && (credential.region && credential.namespace || credential.endpoint));
 }
 
 export function validateDatabase(credential: OCIDatabaseCredential, data: CloudDatabase) {
     return !!(credential.user && credential.password && (credential.connectString || credential.connectionString) && data.table);
 }
 
-export function setStorageCredential(this: InstanceHost, credential: OCIStorageCredential) {
+export function setStorageCredential(credential: OCIStorageCredential) {
     credential.endpoint ||= `https://${credential.namespace!}.compat.objectstorage.${credential.region!}.oraclecloud.com`;
     credential.region ||= /([^.]+)\.oraclecloud\.com$/.exec(credential.endpoint)?.[1];
     credential.s3ForcePathStyle = true;
@@ -50,7 +50,7 @@ export async function createBucket(this: InstanceHost, credential: OCIStorageCre
 }
 
 export async function deleteObjects(this: InstanceHost, credential: OCIStorageCredential, bucket: string, service = 'oci') {
-    setStorageCredential.call(this, credential);
+    setStorageCredential(credential);
     return deleteObjects_s3.call(this, credential, bucket, service);
 }
 
@@ -93,7 +93,7 @@ export async function executeQuery(this: ICloud, credential: OCIDatabaseCredenti
                 }
             }
             else {
-                queryString += JSON.stringify(query) + (data.params ? JSON.stringify(data.params) : '') + (data.options ? JSON.stringify(data.options) : '') + maxRows;
+                queryString += query + (data.params ? JSON.stringify(data.params) : '') + (data.options ? JSON.stringify(data.options) : '') + maxRows;
                 result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
                 if (result) {
                     return result;

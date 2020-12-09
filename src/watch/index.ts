@@ -128,7 +128,7 @@ const Watch = new class extends Module implements functions.IWatch {
                                         else if (input.expires) {
                                             map.delete(output);
                                             if (map.size === 0) {
-                                                this.formatMessage(this.logType.WATCH, 'WATCH', ['Expired', `since ${formatDate(start)}`], uri, { titleColor: 'grey' });
+                                                this.formatMessage(this.logType.WATCH, 'WATCH', ['Expired', 'since ' + formatDate(start)], uri, { titleColor: 'grey' });
                                                 clearInterval(timeout);
                                             }
                                         }

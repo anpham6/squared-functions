@@ -77,8 +77,8 @@ class Cloud extends Module implements functions.ICloud {
                 storage.push(item);
             }
         }
-        const length = storage.length;
         const filenameMap: ObjectMap<number> = {};
+        const length = storage.length;
         for (let i = length - 1; i > 0; --i) {
             const current = storage[i];
             for (const data of current.cloudStorage!) {
@@ -98,9 +98,7 @@ class Cloud extends Module implements functions.ICloud {
                                         const leadingFolder = leading.pathname || '';
                                         const renameTrailing = (value: string) => {
                                             const location = trailingFolder + value;
-                                            if (!filenameMap[location]) {
-                                                filenameMap[location] = 1;
-                                            }
+                                            filenameMap[location] ||= 1;
                                             const index = value.indexOf('.');
                                             trailing.filename = value.substring(0, index !== -1 ? index : Infinity) + `_${filenameMap[location]++}` + (index !== -1 ? value.substring(index) : '');
                                         };
@@ -128,7 +126,7 @@ class Cloud extends Module implements functions.ICloud {
         }
     }
     createBucket(service: string, credential: PlainObject, bucket: string, publicRead?: boolean): Promise<boolean> {
-        const createHandler = (CLOUD_SERVICE[service] ||= require(`../cloud/${service}`) as ServiceClient).createBucket?.bind(this);
+        const createHandler = (CLOUD_SERVICE[service] ||= require('../cloud/' + service) as ServiceClient).createBucket?.bind(this);
         if (createHandler) {
             return createHandler.call(this, credential, bucket, publicRead);
         }
@@ -136,7 +134,7 @@ class Cloud extends Module implements functions.ICloud {
         return Promise.resolve(false);
     }
     deleteObjects(service: string, credential: PlainObject, bucket: string): Promise<void> {
-        const deleteHandler = (CLOUD_SERVICE[service] ||= require(`../cloud/${service}`) as ServiceClient).deleteObjects?.bind(this);
+        const deleteHandler = (CLOUD_SERVICE[service] ||= require('../cloud/' + service) as ServiceClient).deleteObjects?.bind(this);
         if (deleteHandler) {
             return deleteHandler.call(this, credential, bucket, service);
         }
@@ -154,10 +152,9 @@ class Cloud extends Module implements functions.ICloud {
     }
     getDatabaseRows(data: CloudDatabase, cacheKey?: string): Promise<PlainObject[]> {
         if (this.hasCredential('database', data)) {
-            const credential = this.getCredential(data);
             const host = CLOUD_SERVICE[data.service];
             if (host.executeQuery) {
-                return host.executeQuery.call(this, credential, data, cacheKey);
+                return host.executeQuery.call(this, this.getCredential(data), data, cacheKey);
             }
         }
         return Promise.resolve([]);
@@ -223,9 +220,8 @@ class Cloud extends Module implements functions.ICloud {
         return result && this.hasCredential('storage', storage) ? result : false;
     }
     hasCredential(feature: CloudFeatures, data: CloudService) {
-        const service = data.service;
         try {
-            const client = CLOUD_SERVICE[service] ||= require(`../cloud/${service}`) as ServiceClient;
+            const client = CLOUD_SERVICE[data.service] ||= require('../cloud/' + data.service) as ServiceClient;
             const credential = this.getCredential(data);
             switch (feature) {
                 case 'storage':
@@ -235,7 +231,7 @@ class Cloud extends Module implements functions.ICloud {
             }
         }
         catch (err) {
-            this.writeFail(['Cloud provider not found', service], err);
+            this.writeFail(['Cloud provider not found', data.service], err);
         }
         return false;
     }

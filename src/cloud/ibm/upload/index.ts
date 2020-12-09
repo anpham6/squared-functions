@@ -6,7 +6,7 @@ type InstanceHost = functions.internal.Cloud.InstanceHost;
 type UploadHost = functions.internal.Cloud.UploadHost;
 
 function upload(this: InstanceHost, credential: IBMStorageCredential, service = 'ibm') {
-    setStorageCredential.call(this, credential);
+    setStorageCredential(credential);
     return (require('../../aws/upload') as UploadHost).call(this, credential, service, 'ibm-cos-sdk/clients/s3');
 }
 

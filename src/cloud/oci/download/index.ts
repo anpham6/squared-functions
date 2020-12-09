@@ -7,7 +7,7 @@ type DownloadHost = functions.internal.Cloud.DownloadHost;
 type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
 function download(this: InstanceHost, credential: OCIStorageCredential, service = 'oci'): DownloadCallback {
-    setStorageCredential.call(this, credential);
+    setStorageCredential(credential);
     return (require('../../aws/download') as DownloadHost).call(this, credential, service);
 }
 

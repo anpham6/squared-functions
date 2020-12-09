@@ -133,12 +133,12 @@ class Chrome extends Module implements functions.IChrome {
                                 }
                             }
                             catch (err) {
-                                this.writeFail(['Install required?', `npm i ${plugin}`], err);
+                                this.writeFail(['Install required?', 'npm i ' + plugin], err);
                             }
                         }
                         else {
                             try {
-                                this._packageMap[plugin] ||= require(`./packages/${plugin}`).default;
+                                this._packageMap[plugin] ||= require('./packages/' + plugin).default;
                                 const result: Undef<string> = await this._packageMap[plugin].call(this, value, options, output, input);
                                 if (result) {
                                     value = result;
