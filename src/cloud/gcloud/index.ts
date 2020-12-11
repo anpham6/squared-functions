@@ -111,13 +111,13 @@ export async function executeQuery(this: ICloud, credential: GCloudDatabaseCrede
             }
             let collection = client.collection(table) as gcf.Query<gcf.DocumentData>;
             for (const where of query) {
-                if (query.length === 3) {
+                if (where.length === 3) {
                     collection = collection.where(where[0], where[1] as gcf.WhereFilterOp, where[2] as any);
                 }
             }
             if (orderBy) {
                 for (const order of orderBy) {
-                    if (query.length) {
+                    if (order.length) {
                         collection = collection.orderBy(order[0], order[1] === 'desc' || order[1] === 'asc' ? order[1] : undefined);
                     }
                 }

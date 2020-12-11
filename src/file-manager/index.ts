@@ -717,7 +717,7 @@ class FileManager extends Module implements IFileManager {
                     source = html,
                     current = '',
                     match: Null<RegExpExecArray>;
-                const minifySpace = (value: string) => value.replace(/\s+/g, '');
+                const minifySpace = (value: string) => value.replace(/[\s/]+/g, '');
                 const getOuterHTML = (css: boolean, value: string) => css ? `<link rel="stylesheet" href="${value}" />` : `<script src="${value}"></script>`;
                 const formatTag = (outerHTML: string) => outerHTML.replace(/"\s*>$/, '" />');
                 const formatAttr = (key: string, value?: Null<string>) => value !== undefined ? key + (value !== null ? `="${value}"` : '') : '';
@@ -859,6 +859,17 @@ class FileManager extends Module implements IFileManager {
                                     }
                                 }
                             }
+                        }
+                        else {
+                            const { service, table, id, query } = items[index];
+                            let queryString = '';
+                            if (id) {
+                                queryString = 'id: ' + id;
+                            }
+                            else if (query) {
+                                queryString = typeof query !== 'string' ? JSON.stringify(query) : query;
+                            }
+                            this.formatMessage(this.logType.CLOUD_DATABASE, service, ['Query had no results', 'table: ' + table], queryString, { titleColor: 'yellow' });
                         }
                     });
                 }
