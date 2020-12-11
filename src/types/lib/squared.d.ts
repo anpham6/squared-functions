@@ -21,6 +21,8 @@ export interface CompressFormat {
     format: string;
     level?: number;
     condition?: string;
+    plugin?: string;
+    options?: PlainObject;
 }
 
 export interface CloudService extends ObjectMap<unknown> {

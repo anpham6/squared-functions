@@ -1199,10 +1199,10 @@ class FileManager extends Module implements IFileManager {
             this.completeAsyncTask();
         }
         else {
-            const { file, fileUri } = data;
-            const { command = '', compress } = options;
+            const file = data.file;
             let parent: Undef<ExternalAsset>;
-            if (fileUri !== output) {
+            if (data.fileUri !== output) {
+                const command = options.command || '';
                 if (command.includes('%')) {
                     if (this.filesToCompare.has(file)) {
                         this.filesToCompare.get(file)!.push(output);
@@ -1218,18 +1218,7 @@ class FileManager extends Module implements IFileManager {
                     parent = file;
                 }
             }
-            if (compress) {
-                try {
-                    Compress.tryImage(output, () => this.completeAsyncTask(output, parent));
-                }
-                catch (err) {
-                    this.writeFail(['Unable to compress image', path.basename(output)], err);
-                    this.completeAsyncTask(output, parent);
-                }
-            }
-            else {
-                this.completeAsyncTask(output, parent);
-            }
+            this.completeAsyncTask(output, parent);
         }
     }
     async finalizeAsset(data: FileData, parent?: ExternalAsset) {
@@ -1252,14 +1241,10 @@ class FileManager extends Module implements IFileManager {
                 }
                 file.mimeType = mimeType;
                 if (valid && file.commands) {
-                    let compress = Compress.hasImageService() ? Compress.findFormat(file.compress, 'png') : undefined;
-                    if (compress && !Compress.withinSizeRange(fileUri, compress.condition)) {
-                        compress = undefined;
-                    }
                     const callback = this.finalizeImage.bind(this);
                     for (const command of file.commands) {
                         if (Compress.withinSizeRange(fileUri, command)) {
-                            this.Image.using.call(this, data, { command, compress, callback });
+                            this.Image.using.call(this, data, { command, callback });
                         }
                     }
                 }
@@ -1672,27 +1657,23 @@ class FileManager extends Module implements IFileManager {
             await Promise.all(tasks).catch(err => this.writeFail(['Delete temp files', 'finalize'], err));
             tasks = [];
         }
-        if (this.Compress && Compress.hasImageService()) {
+        if (this.Compress) {
             for (const item of this.assets) {
-                if (!item.invalid) {
-                    const image = Compress.findFormat(item.compress, 'png') || Compress.findFormat(item.compress, 'jpeg');
-                    if (image) {
-                        const fileUri = item.fileUri!;
-                        switch (mime.lookup(fileUri)) {
-                            case 'image/png':
-                            case 'image/jpeg':
-                                if (Compress.withinSizeRange(fileUri, image.condition)) {
-                                    tasks.push(new Promise(resolve => {
-                                        try {
-                                            Compress.tryImage(fileUri, resolve);
-                                        }
-                                        catch (err) {
-                                            this.writeFail(['Unable to compress image', path.basename(fileUri)], err);
-                                            resolve(false);
-                                        }
-                                    }));
-                                break;
-                            }
+                if (item.compress && !item.invalid) {
+                    const fileUri = item.fileUri!;
+                    const mimeType = mime.lookup(fileUri) || item.mimeType;
+                    if (mimeType && mimeType.startsWith('image/')) {
+                        const image = Compress.findFormat(item.compress, mimeType.split('/')[1]);
+                        if (image && Compress.withinSizeRange(fileUri, image.condition)) {
+                            tasks.push(new Promise(resolve => {
+                                try {
+                                    Compress.tryImage(fileUri, image, resolve);
+                                }
+                                catch (err) {
+                                    this.writeFail(['Unable to compress image', path.basename(fileUri)], err);
+                                    resolve(false);
+                                }
+                            }));
                         }
                     }
                 }

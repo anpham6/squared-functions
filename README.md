@@ -68,7 +68,41 @@ Placing an @ symbol (png@) after the format will remove the original file from t
 webp(50000,*)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,135,215,315#FFFFFF}|0.5||100[photo][75]|!opaque!greyscale
 ```
 
-[TinyPNG](https://tinypng.com/developers) is used for compression and supports only PNG and JPEG.
+[TinyPNG](https://tinypng.com/developers) is used for image compression and supports PNG and JPEG. The first 500 images are free every month with a developer API key.
+
+```javascript
+{
+  "selector": ".card:nth-of-type(1) img",
+  "type": "image",
+  "compress": [
+    {
+      "format": "png", // OR: jpeg
+      "plugin": "tinify" // optional (already pre-installed)
+    }
+  ]
+}
+```
+
+Other formats can be compressed similarly using imagemin. Manual installation is required (plugin only) and can be configured using the options attribute.
+
+```javascript
+{
+  "selector": ".card:nth-of-type(1) img",
+  "type": "image",
+  "compress": [
+    {
+      "format": "png",
+      "plugin": "imagemin-pngquant", // npm install imagemin-pngquant
+      "options": {
+        "quality": [
+          0.6,
+          0.8
+        ]
+      }
+    }
+  ]
+}
+```
 
 ### Gulp
 

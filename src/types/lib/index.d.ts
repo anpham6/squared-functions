@@ -25,7 +25,6 @@ declare namespace functions {
             interface UsingOptions {
                 command?: string;
                 output?: string;
-                compress?: squared.CompressFormat;
                 time?: number;
                 callback?: FileManagerFinalizeImageMethod;
             }
@@ -196,7 +195,7 @@ declare namespace functions {
         hasImageService(): boolean;
         withinSizeRange(fileUri: string, value: Undef<string>): boolean;
         tryFile: CompressTryFileMethod;
-        tryImage(fileUri: string, callback: CompressTryImageCallback): void;
+        tryImage(fileUri: string, data: squared.CompressFormat, callback: CompressTryImageCallback): void;
     }
 
     interface IImage extends IModule {

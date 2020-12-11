@@ -177,7 +177,7 @@ const Module = class implements functions.IModule {
         }
         this.writeMessage(title.padEnd(6), value, message, options);
     }
-    writeMessage(title: string, value: string, message: unknown = '', options: LogMessageOptions = {}) {
+    writeMessage(title: string, value: string, message?: unknown, options: LogMessageOptions = {}) {
         const { titleColor = 'green', titleBgColor = 'bgBlack', valueColor, valueBgColor, messageColor, messageBgColor } = options;
         if (valueColor) {
             value = chalk[valueColor](value);
@@ -194,7 +194,7 @@ const Module = class implements functions.IModule {
             }
             message = ' ' + chalk.blackBright('(') + message + chalk.blackBright(')');
         }
-        console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase()) + chalk.blackBright(':') + ' ' + value + message);
+        console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase()) + chalk.blackBright(':') + ' ' + value + (message || ''));
     }
     get logType() {
         return LOG_TYPE;

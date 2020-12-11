@@ -118,40 +118,61 @@ const Compress = new class extends Module implements functions.ICompress {
             }
         }
     }
-    tryImage(fileUri: string, callback: CompressTryImageCallback) {
-        const failed = (err: Error) => this.writeFail(['Unable to compress image', path.basename(fileUri)], err);
+    tryImage(fileUri: string, data: CompressFormat, callback: CompressTryImageCallback) {
         const ext = path.extname(fileUri).substring(1);
-        this.formatMessage(this.logType.COMPRESS, ext, 'Compressing image...', fileUri, { titleColor: 'magenta' });
+        this.formatMessage(this.logType.COMPRESS, ext, ['Compressing image...', data.plugin || ''], fileUri, { titleColor: 'magenta' });
         const time = Date.now();
-        fs.readFile(fileUri, (err, buffer) => {
-            if (!err) {
-                tinify.fromBuffer(buffer).toBuffer((err_r, data) => {
-                    if (data && !err_r) {
-                        fs.writeFile(fileUri, data, err_w => {
-                            if (!err_w) {
-                                callback(true);
-                                this.writeTimeElapsed(ext, path.basename(fileUri), time);
+        const writeFail = (err: Null<Error>) => this.writeFail(['Unable to compress image', path.basename(fileUri)], err);
+        const writeFile = (result: Buffer | Uint8Array) => {
+            fs.writeFile(fileUri, result, err => {
+                if (!err) {
+                    callback(true);
+                    this.writeTimeElapsed(ext, path.basename(fileUri), time);
+                }
+                else {
+                    writeFail(err);
+                    callback(false);
+                }
+            });
+        };
+        const tinifyService = Compress.hasImageService() && (!data.plugin || data.plugin === 'tinify') && (data.format === 'png' || data.format === 'jpeg');
+        if (tinifyService || data.plugin) {
+            fs.readFile(fileUri, async (err, buffer) => {
+                if (!err) {
+                    if (tinifyService) {
+                        tinify.fromBuffer(buffer).toBuffer((error, result) => {
+                            if (result && !error) {
+                                writeFile(result);
                             }
                             else {
-                                failed(err_w);
+                                if (error) {
+                                    writeFail(error);
+                                    this.validate(this.tinifyApiKey);
+                                }
                                 callback(false);
                             }
                         });
+                        return;
                     }
-                    else {
-                        if (err_r) {
-                            failed(err_r);
-                            this.validate(this.tinifyApiKey);
+                    else if (data.plugin) {
+                        try {
+                            const plugin = require(data.plugin);
+                            writeFile(await plugin(data.options)(buffer));
+                            return;
                         }
-                        callback(false);
+                        catch (error) {
+                            err = error;
+                        }
                     }
-                });
-            }
-            else {
-                failed(err);
+                }
+                writeFail(err);
                 callback(false);
-            }
-        });
+            });
+        }
+        else {
+            writeFail(null);
+            callback(false);
+        }
     }
 }();
 
