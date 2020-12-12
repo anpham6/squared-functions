@@ -3,7 +3,8 @@ const context = require('postcss');
 type SourceMapInput = functions.internal.Chrome.SourceMapInput;
 
 export default async function (value: string, options: PlainObject, output: Undef<PlainObject>, input: SourceMapInput) {
-    const { map: sourceMap, fileUri } = input;
+    const { map: sourceMap, file } = input;
+    const fileUri = file.fileUri!;
     let includeSources = true;
     if (options.map || sourceMap && (options.map = {})) {
         const map = options.map as StandardMap;

@@ -14,19 +14,17 @@ declare namespace functions {
     type ExternalCategory = "html" | "css" | "js";
     type CloudFeatures = "storage" | "database";
     type CloudFunctions = "upload" | "download";
-    type FileManagerFinalizeImageMethod = (output: string, data: internal.FileData, options?: internal.Image.UsingOptions, error?: Null<Error>) => void;
-    type FileManagerPerformAsyncTaskCallback = (parent?: ExternalAsset) => void;
+    type FileManagerFinalizeImageMethod = (result: internal.Image.OutputData, error?: Null<Error>) => void;
+    type FileManagerPerformAsyncTaskCallback = VoidFunction;
     type FileManagerCompleteAsyncTaskCallback = (value?: unknown, parent?: ExternalAsset) => void;
-    type CompressTryFileMethod = (fileUri: string, data: squared.CompressFormat, initalize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback) => void;
+    type CompressTryFileMethod = (fileUri: string, data: squared.CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback) => void;
     type CompressTryImageCallback = (success?: boolean) => void;
 
     namespace internal {
         namespace Image {
-            interface UsingOptions {
-                command?: string;
-                output?: string;
-                time?: number;
-                callback?: FileManagerFinalizeImageMethod;
+            interface OutputData extends FileData {
+                output: string;
+                command: string;
             }
 
             interface RotateData {
@@ -53,7 +51,6 @@ declare namespace functions {
         namespace Chrome {
             interface SourceMapInput {
                 file: ExternalAsset;
-                fileUri: string;
                 sourcesContent: Null<string>;
                 sourceMap: Map<string, SourceMapOutput>;
                 map?: SourceMap;
@@ -130,7 +127,7 @@ declare namespace functions {
 
         interface FileData {
             file: ExternalAsset;
-            fileUri: string;
+            mimeType?: string | false;
         }
 
         interface FileOutput {
@@ -209,7 +206,7 @@ declare namespace functions {
 
     interface ImageConstructor extends ModuleConstructor {
         resolveMime(this: IFileManager, data: internal.FileData): Promise<boolean>;
-        using(this: IFileManager, data: internal.FileData, options?: internal.Image.UsingOptions): void;
+        using(this: IFileManager, data: internal.FileData, command: string, callback?: FileManagerFinalizeImageMethod): void;
         new(): IImage;
     }
 
@@ -217,7 +214,6 @@ declare namespace functions {
 
     class ImageProxy<T> {
         instance: T;
-        fileUri: string
         command: string
         resizeData?: internal.Image.ResizeData;
         cropData?: internal.Image.CropData;
@@ -230,10 +226,10 @@ declare namespace functions {
         crop(): void;
         opacity(): void;
         quality(): void;
-        rotate(initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback, parent?: ExternalAsset): void;
-        write(output: string, data: internal.FileData, options?: internal.Image.UsingOptions): void;
+        rotate(initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback): void;
+        write(output: string, startTime?: number, callback?: FileManagerFinalizeImageMethod): void;
         finalize(output: string, callback: (result: string) => void): void;
-        constructor(instance: T, fileUri: string, command?: string, finalAs?: string);
+        constructor(instance: T, data: internal.FileData, command: string, finalAs?: string);
     }
 
     interface ICloud extends IModule {
@@ -310,7 +306,7 @@ declare namespace functions {
         add(value: string): void;
         delete(value: string): void;
         has(value: Undef<string>): boolean;
-        replace(file: ExternalAsset, replaceWith: string): void;
+        replace(file: ExternalAsset, replaceWith: string, mimeType?: string): void;
         performAsyncTask: FileManagerPerformAsyncTaskCallback;
         removeAsyncTask(): void;
         completeAsyncTask: FileManagerCompleteAsyncTaskCallback;
@@ -324,12 +320,12 @@ declare namespace functions {
         appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex?: number): Promise<string>;
         getTrailingContent(file: ExternalAsset): Promise<string>;
         getBundleContent(fileUri: string): Undef<string>;
-        createSourceMap(file: ExternalAsset, fileUri: string, sourcesContent: string): internal.Chrome.SourceMapInput;
-        writeSourceMap(outputData: [string, Map<string, internal.Chrome.SourceMapOutput>], file: ExternalAsset, fileUri: string, sourceContent?: string, modified?: boolean): void;
+        createSourceMap(file: ExternalAsset, sourcesContent: string): internal.Chrome.SourceMapInput;
+        writeSourceMap(outputData: [string, Map<string, internal.Chrome.SourceMapOutput>], file: ExternalAsset, sourceContent?: string, modified?: boolean): void;
         removeCss(source: string, styles: string[]): Undef<string>;
         transformCss(file: ExternalAsset, content: string): Undef<string>;
         transformSource(data: internal.FileData, module?: IChrome): Promise<void>;
-        queueImage(data: internal.FileData, ouputType: string, saveAs: string, command?: string): string;
+        queueImage(data: internal.FileData, ouputType: string, saveAs: string, command?: string): Undef<string>;
         compressFile(file: ExternalAsset): Promise<unknown>;
         finalizeImage: FileManagerFinalizeImageMethod;
         finalizeAsset(data: internal.FileData, parent?: ExternalAsset): Promise<void>;

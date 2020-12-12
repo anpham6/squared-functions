@@ -2,24 +2,22 @@ import path = require('path');
 import fs = require('fs');
 import child_process = require('child_process');
 import jimp = require('jimp');
-import mime = require('mime-types');
 import uuid = require('uuid');
 
 import Image from '../index';
 
 type IFileManager = functions.IFileManager;
-type ExternalAsset = functions.ExternalAsset;
 type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTaskCallback;
 type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
+type FileManagerFinalizeImageMethod = functions.FileManagerFinalizeImageMethod;
 
 type FileData = functions.internal.FileData;
-type UsingOptions = functions.internal.Image.UsingOptions;
 type ResizeData = functions.internal.Image.ResizeData;
 type CropData = functions.internal.Image.CropData;
 type RotateData = functions.internal.Image.RotateData;
 type QualityData = functions.internal.Image.QualityData;
 
-const getBuffer = (data: FileData) => (data.file.buffer as unknown) as string || data.fileUri;
+const getBuffer = (data: FileData) => (data.file.buffer as unknown) as string || data.file.fileUri!;
 
 class Jimp extends Image implements functions.ImageProxy<jimp> {
     public static async resolveMime(this: IFileManager, data: FileData) {
@@ -31,102 +29,85 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
             case jimp.MIME_BMP:
             case jimp.MIME_GIF:
             case jimp.MIME_TIFF: {
-                const { file, fileUri } = data;
+                const fileUri = data.file.fileUri!;
                 const output = Image.renameExt(fileUri, mimeType.split('/')[1]);
                 fs.renameSync(fileUri, output);
-                this.replace(file, output);
-                data.fileUri = output;
-                file.mimeType = mimeType;
+                this.replace(data.file, output, mimeType);
                 return true;
             }
         }
         return false;
     }
 
-    public static async using(this: IFileManager, data: FileData, options: UsingOptions) {
-        const command = options.command?.trim();
-        if (command) {
-            const { file, fileUri } = data;
-            const mimeType = file.mimeType || mime.lookup(fileUri);
-            let jimpType: Undef<string>,
-                tempFile: Undef<string>,
-                saveAs: Undef<string>,
-                finalAs: Undef<string>;
-            const resumeThread = () => {
-                if (command.startsWith('png')) {
-                    jimpType = jimp.MIME_PNG;
-                    saveAs = 'png';
-                }
-                else if (command.startsWith('jpeg')) {
-                    jimpType = jimp.MIME_JPEG;
-                    saveAs = 'jpg';
-                }
-                else if (command.startsWith('bmp')) {
-                    jimpType = jimp.MIME_BMP;
-                    saveAs = 'bmp';
-                }
-                else if (command.startsWith('webp')) {
-                    if (mimeType === jimp.MIME_JPEG) {
-                        jimpType = jimp.MIME_JPEG;
-                        saveAs = 'jpg';
-                    }
-                    else {
-                        jimpType = jimp.MIME_PNG;
-                        saveAs = 'png';
-                    }
-                    finalAs = 'webp';
-                }
-                if (jimpType && saveAs) {
-                    const output = this.queueImage(data, jimpType, saveAs, command);
-                    if (output) {
-                        this.performAsyncTask();
-                        this.formatMessage(this.logType.IMAGE, 'jimp', ['Transforming image...', path.basename(fileUri)], command, { titleColor: 'magenta' });
-                        options.time = Date.now();
-                        jimp.read(tempFile || getBuffer(data))
-                            .then(img => {
-                                delete file.buffer;
-                                const proxy = new Jimp(img, fileUri, command, finalAs);
-                                proxy.method();
-                                proxy.resize();
-                                proxy.crop();
-                                if (jimpType === jimp.MIME_JPEG && !finalAs) {
-                                    proxy.quality();
-                                }
-                                else {
-                                    proxy.opacity();
-                                }
-                                proxy.rotate(this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this), file);
-                                proxy.write(output, data, options);
-                            })
-                            .catch(err => {
-                                this.completeAsyncTask();
-                                this.writeFail(['Unable to read image buffer', path.basename(fileUri)], err);
-                            });
-                    }
-                }
-            };
-            if (mimeType === 'image/webp') {
-                try {
-                    tempFile = this.getTempDir() + uuid.v4() + '.bmp';
-                    child_process.execFile(require('dwebp-bin'), [fileUri, '-mt', '-bmp', '-o', tempFile], null, err => {
-                        if (err) {
-                            tempFile = '';
-                        }
-                        resumeThread();
-                    });
-                }
-                catch (err) {
-                    this.writeFail(['Install WebP?', 'npm i dwebp-bin'], err);
-                    tempFile = '';
-                    resumeThread();
-                }
+    public static using(this: IFileManager, data: FileData, command: string, callback?: FileManagerFinalizeImageMethod) {
+        const file = data.file;
+        const fileUri = file.fileUri!;
+        const mimeType = data.mimeType || file.mimeType;
+        let jimpType: Undef<string>,
+            tempFile: Undef<string>,
+            saveAs: Undef<string>,
+            finalAs: Undef<string>;
+        command = command.trim();
+        if (mimeType === 'image/webp') {
+            try {
+                tempFile = this.getTempDir() + uuid.v4() + '.bmp';
+                child_process.execFileSync(require('dwebp-bin'), [fileUri, '-mt', '-bmp', '-o', tempFile]);
             }
-            else {
-                resumeThread();
+            catch (err) {
+                this.writeFail(['Install WebP?', 'npm i dwebp-bin'], err);
+                return;
             }
         }
-        else {
-            this.finalizeImage(data.fileUri, data, options);
+        if (command.startsWith('png')) {
+            jimpType = jimp.MIME_PNG;
+            saveAs = 'png';
+        }
+        else if (command.startsWith('jpeg')) {
+            jimpType = jimp.MIME_JPEG;
+            saveAs = 'jpg';
+        }
+        else if (command.startsWith('bmp')) {
+            jimpType = jimp.MIME_BMP;
+            saveAs = 'bmp';
+        }
+        else if (command.startsWith('webp')) {
+            if (mimeType === jimp.MIME_JPEG) {
+                jimpType = jimp.MIME_JPEG;
+                saveAs = 'jpg';
+            }
+            else {
+                jimpType = jimp.MIME_PNG;
+                saveAs = 'png';
+            }
+            finalAs = 'webp';
+        }
+        if (jimpType && saveAs) {
+            const output = this.queueImage(data, jimpType, saveAs, command);
+            if (output) {
+                this.performAsyncTask();
+                this.formatMessage(this.logType.IMAGE, 'jimp', ['Transforming image...', path.basename(fileUri)], command, { titleColor: 'magenta' });
+                const startTime = Date.now();
+                jimp.read(tempFile || getBuffer(data))
+                    .then(img => {
+                        delete file.buffer;
+                        const proxy = new Jimp(img, data, command, finalAs);
+                        proxy.method();
+                        proxy.resize();
+                        proxy.crop();
+                        if (jimpType === jimp.MIME_JPEG && !finalAs) {
+                            proxy.quality();
+                        }
+                        else {
+                            proxy.opacity();
+                        }
+                        proxy.rotate(this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                        proxy.write(output, startTime, callback);
+                    })
+                    .catch(err => {
+                        this.completeAsyncTask();
+                        this.writeFail(['Unable to read image buffer', path.basename(fileUri)], err);
+                    });
+            }
         }
     }
 
@@ -138,16 +119,14 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
     public opacityValue = NaN;
     public errorHandler?: (err: Error) => void;
 
-    constructor(public instance: jimp, public fileUri: string, public command = '', public finalAs?: string) {
+    constructor(public instance: jimp, public data: FileData, public command: string, public finalAs?: string) {
         super();
-        if (command) {
-            this.resizeData = this.parseResize(command);
-            this.cropData = this.parseCrop(command);
-            this.rotateData = this.parseRotation(command);
-            this.qualityData = this.parseQuality(command);
-            this.opacityValue = this.parseOpacity(command);
-            this.methodData = this.parseMethod(command);
-        }
+        this.resizeData = this.parseResize(command);
+        this.cropData = this.parseCrop(command);
+        this.rotateData = this.parseRotation(command);
+        this.qualityData = this.parseQuality(command);
+        this.opacityValue = this.parseOpacity(command);
+        this.methodData = this.parseMethod(command);
     }
 
     method() {
@@ -250,19 +229,20 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
             }
         }
     }
-    rotate(initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback, parent?: ExternalAsset) {
+    rotate(initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback) {
         const rotateData = this.rotateData;
         if (rotateData) {
             const { values, color } = rotateData;
             if (!isNaN(color)) {
                 this.instance = this.instance.background(color);
             }
-            const fileUri = this.fileUri;
+            const file = this.data.file;
+            const fileUri = file.fileUri!;
             const deg = values[0];
             for (let i = 1, length = values.length; i < length; ++i) {
                 const value = values[i];
                 if (initialize) {
-                    initialize(parent);
+                    initialize();
                 }
                 const img = this.instance.clone().rotate(value);
                 const index = fileUri.lastIndexOf('.');
@@ -271,7 +251,7 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
                     if (!err) {
                         this.finalize(output, (result: string) => {
                             if (callback) {
-                                callback(result, parent);
+                                callback(result, file);
                             }
                         });
                     }
@@ -288,17 +268,15 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
             }
         }
     }
-    write(output: string, data: FileData, options?: UsingOptions) {
+    write(output: string, startTime?: number, callback?: FileManagerFinalizeImageMethod) {
         this.instance.write(output, err => {
             if (!err) {
                 this.finalize(output, (result: string) => {
-                    if (options) {
-                        if (options.time) {
-                            this.writeTimeElapsed('jimp', path.basename(result), options.time);
-                        }
-                        if (options.callback) {
-                            options.callback(result, data, options, err);
-                        }
+                    if (startTime) {
+                        this.writeTimeElapsed('jimp', path.basename(result), startTime);
+                    }
+                    if (callback) {
+                        callback({ ...this.data, output: result, command: this.command }, err);
                     }
                 });
             }

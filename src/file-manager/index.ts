@@ -34,7 +34,7 @@ type ChromeModule = functions.ExtendedSettings.ChromeModule;
 
 type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
-type UsingOptions = functions.internal.Image.UsingOptions;
+type OutputData = functions.internal.Image.OutputData;
 type SourceMap = functions.internal.Chrome.SourceMap;
 type SourceMapInput = functions.internal.Chrome.SourceMapInput;
 type SourceMapOutput = functions.internal.Chrome.SourceMapOutput;
@@ -372,7 +372,7 @@ class FileManager extends Module implements IFileManager {
     has(value: Undef<string>) {
         return value ? this.files.has(this.removeCwd(value)) : false;
     }
-    replace(file: ExternalAsset, replaceWith: string) {
+    replace(file: ExternalAsset, replaceWith: string, mimeType?: string) {
         const fileUri = file.fileUri;
         if (fileUri) {
             if (replaceWith.includes('__copy__') && path.extname(fileUri) === path.extname(replaceWith)) {
@@ -388,7 +388,7 @@ class FileManager extends Module implements IFileManager {
                 file.filename = path.basename(replaceWith);
                 file.fileUri = this.setFileUri(file).fileUri;
                 file.relativePath = getRelativePath(file);
-                file.mimeType = mime.lookup(replaceWith) || file.mimeType;
+                file.mimeType = mimeType || mime.lookup(replaceWith) || file.mimeType;
                 this.filesToRemove.add(fileUri);
                 this.add(replaceWith);
             }
@@ -651,10 +651,9 @@ class FileManager extends Module implements IFileManager {
             return output;
         }
     }
-    createSourceMap(file: ExternalAsset, fileUri: string, sourcesContent: string) {
+    createSourceMap(file: ExternalAsset, sourcesContent: string) {
         return Object.create({
             file,
-            fileUri,
             sourcesContent,
             sourceMap: new Map<string, SourceMapOutput>(),
             "nextMap": function(this: SourceMapInput, name: string, map: SourceMap | string, value: string, includeContent = true) {
@@ -675,7 +674,8 @@ class FileManager extends Module implements IFileManager {
             }
         }) as SourceMapInput;
     }
-    writeSourceMap(outputData: [string, Map<string, SourceMapOutput>], file: ExternalAsset, fileUri: string, sourcesContent = '', modified?: boolean) {
+    writeSourceMap(outputData: [string, Map<string, SourceMapOutput>], file: ExternalAsset, sourcesContent = '', modified?: boolean) {
+        const fileUri = file.fileUri!;
         const items = Array.from(outputData[1]);
         const excludeSources = items.some(data => data[1].sourcesContent === null);
         const [name, data] = items.pop()!;
@@ -709,8 +709,8 @@ class FileManager extends Module implements IFileManager {
         }
     }
     async transformSource(data: FileData, module = this.Chrome) {
-        const { file, fileUri } = data;
-        const { format, mimeType } = file;
+        const file = data.file;
+        const { format, mimeType, fileUri } = file;
         switch (mimeType) {
             case '@text/html': {
                 let html = this.getUTF8String(file, fileUri),
@@ -1040,7 +1040,7 @@ class FileManager extends Module implements IFileManager {
                 }
                 source = removeFileCommands(this.transformCss(file, source) || source);
                 if (format && module) {
-                    const result = await module.transform('html', format, source, this.createSourceMap(file, fileUri, source));
+                    const result = await module.transform('html', format, source, this.createSourceMap(file, source));
                     if (result) {
                         file.sourceUTF8 = result[0];
                         break;
@@ -1052,7 +1052,7 @@ class FileManager extends Module implements IFileManager {
             case 'text/html':
                 if (format && module) {
                     const source = this.getUTF8String(file, fileUri);
-                    const result = await module.transform('html', format, source, this.createSourceMap(file, fileUri, source));
+                    const result = await module.transform('html', format, source, this.createSourceMap(file, source));
                     if (result) {
                         file.sourceUTF8 = result[0];
                     }
@@ -1063,7 +1063,7 @@ class FileManager extends Module implements IFileManager {
                 const unusedStyles = file.preserve !== true && module?.unusedStyles;
                 const transform = mimeType[0] === '@';
                 const trailing = await this.getTrailingContent(file);
-                const bundle = this.getBundleContent(fileUri);
+                const bundle = this.getBundleContent(fileUri!);
                 if (!unusedStyles && !transform && !trailing && !bundle && !format) {
                     break;
                 }
@@ -1091,10 +1091,10 @@ class FileManager extends Module implements IFileManager {
                     source += bundle;
                 }
                 if (format && module) {
-                    const result = await module.transform('css', format, source, this.createSourceMap(file, fileUri, source));
+                    const result = await module.transform('css', format, source, this.createSourceMap(file, source));
                     if (result) {
                         if (result[1].size) {
-                            this.writeSourceMap(result, file, fileUri, source, modified);
+                            this.writeSourceMap(result, file, source, modified);
                         }
                         source = result[0];
                     }
@@ -1104,7 +1104,7 @@ class FileManager extends Module implements IFileManager {
             }
             case 'text/javascript': {
                 const trailing = await this.getTrailingContent(file);
-                const bundle = this.getBundleContent(fileUri);
+                const bundle = this.getBundleContent(fileUri!);
                 if (!trailing && !bundle && !format) {
                     break;
                 }
@@ -1118,10 +1118,10 @@ class FileManager extends Module implements IFileManager {
                     source += bundle;
                 }
                 if (format && module) {
-                    const result = await module.transform('js', format, source, this.createSourceMap(file, fileUri, source));
+                    const result = await module.transform('js', format, source, this.createSourceMap(file, source));
                     if (result) {
                         if (result[1].size) {
-                            this.writeSourceMap(result, file, fileUri, source, modified);
+                            this.writeSourceMap(result, file, source, modified);
                         }
                         source = result[0];
                     }
@@ -1132,7 +1132,7 @@ class FileManager extends Module implements IFileManager {
         }
     }
     queueImage(data: FileData, outputType: string, saveAs: string, command = '') {
-        const fileUri = data.fileUri;
+        const fileUri = data.file.fileUri!;
         let output: Undef<string>;
         if (data.file.mimeType === outputType) {
             if (!command.includes('@') || this.filesQueued.has(fileUri)) {
@@ -1146,7 +1146,7 @@ class FileManager extends Module implements IFileManager {
                 }
                 catch (err) {
                     this.writeFail(['Unable to copy file', path.basename(fileUri)], err);
-                    return '';
+                    return;
                 }
             }
         }
@@ -1193,16 +1193,15 @@ class FileManager extends Module implements IFileManager {
             }
         }
     }
-    finalizeImage(output: string, data: FileData, options: UsingOptions = {}, error?: Null<Error>) {
+    finalizeImage(result: OutputData, error?: Null<Error>) {
+        const { file, output, command } = result;
         if (error || !output) {
-            this.writeFail(['Unable to finalize image', path.basename(output || '')], error);
+            this.writeFail(['Unable to finalize image', path.basename(output)], error);
             this.completeAsyncTask();
         }
         else {
-            const file = data.file;
             let parent: Undef<ExternalAsset>;
-            if (data.fileUri !== output) {
-                const command = options.command || '';
+            if (file.fileUri !== output) {
                 if (command.includes('%')) {
                     if (this.filesToCompare.has(file)) {
                         this.filesToCompare.get(file)!.push(output);
@@ -1222,12 +1221,13 @@ class FileManager extends Module implements IFileManager {
         }
     }
     async finalizeAsset(data: FileData, parent?: ExternalAsset) {
-        const { file, fileUri } = data;
+        const file = data.file;
+        const fileUri = file.fileUri!;
         if (this.Image) {
             const mimeType = file.mimeType || mime.lookup(fileUri);
             if (mimeType && mimeType.startsWith('image/')) {
                 let valid = true;
-                if (mimeType === 'image/unknown') {
+                if (file.mimeType === 'image/unknown') {
                     try {
                         valid = await this.Image.resolveMime.call(this, data);
                     }
@@ -1239,12 +1239,14 @@ class FileManager extends Module implements IFileManager {
                         file.invalid = true;
                     }
                 }
-                file.mimeType = mimeType;
+                else {
+                    data.mimeType = mimeType;
+                }
                 if (valid && file.commands) {
                     const callback = this.finalizeImage.bind(this);
                     for (const command of file.commands) {
                         if (Compress.withinSizeRange(fileUri, command)) {
-                            this.Image.using.call(this, data, { command, callback });
+                            this.Image.using.call(this, data, command, callback);
                         }
                     }
                 }
@@ -1265,7 +1267,7 @@ class FileManager extends Module implements IFileManager {
             this.completeAsyncTask('');
         }
         else {
-            this.completeAsyncTask(data.fileUri, parent);
+            this.completeAsyncTask(data.file.fileUri, parent);
         }
     }
     processAssets(emptyDirectory?: boolean) {
@@ -1285,7 +1287,7 @@ class FileManager extends Module implements IFileManager {
             }
             else if (!content) {
                 if (completed.includes(fileUri)) {
-                    this.finalizeAsset({ file, fileUri });
+                    this.finalizeAsset({ file });
                     return true;
                 }
                 const queue = processing[fileUri];
@@ -1374,7 +1376,7 @@ class FileManager extends Module implements IFileManager {
                     }
                 }
                 if (bundleMain || !file.invalid) {
-                    this.finalizeAsset({ file: bundleMain || file, fileUri });
+                    this.finalizeAsset({ file: bundleMain || file });
                 }
                 else {
                     this.completeAsyncTask();
@@ -1385,13 +1387,13 @@ class FileManager extends Module implements IFileManager {
                 completed.push(fileUri);
                 for (const item of processing[fileUri]) {
                     if (!item.invalid) {
-                        this.finalizeAsset({ file: item, fileUri });
+                        this.finalizeAsset({ file: item });
                     }
                 }
                 delete processing[fileUri];
             }
             else {
-                this.finalizeAsset({ file, fileUri });
+                this.finalizeAsset({ file });
             }
         };
         const errorRequest = (file: ExternalAsset, fileUri: string, err: Error | string, stream?: fs.WriteStream) => {
@@ -1463,7 +1465,7 @@ class FileManager extends Module implements IFileManager {
                 this.performAsyncTask();
                 fs.writeFile(fileUri, file.base64, 'base64', err => {
                     if (!err) {
-                        this.finalizeAsset({ file, fileUri });
+                        this.finalizeAsset({ file });
                     }
                     else {
                         file.invalid = true;
