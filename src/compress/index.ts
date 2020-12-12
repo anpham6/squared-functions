@@ -23,16 +23,6 @@ const Compress = new class extends Module implements functions.ICompress {
     public tinifyApiKey = '';
     public compressorProxy: ObjectMap<CompressTryFileMethod> = {};
 
-    validate(value: Undef<string>) {
-        if (value) {
-            tinify.key = value;
-            tinify.validate(err => {
-                if (!err) {
-                    this.tinifyApiKey = value;
-                }
-            });
-        }
-    }
     registerCompressor(format: string, callback: CompressTryFileMethod) {
         this.compressorProxy[format] = callback;
     }
@@ -56,9 +46,6 @@ const Compress = new class extends Module implements functions.ICompress {
     }
     findFormat(compress: Undef<CompressFormat[]>, format: string) {
         return compress && compress.find(item => item.format === format);
-    }
-    hasImageService() {
-        return this.tinifyApiKey !== '';
     }
     withinSizeRange(fileUri: string, value: Undef<string>) {
         if (value) {
@@ -135,23 +122,40 @@ const Compress = new class extends Module implements functions.ICompress {
                 }
             });
         };
-        const tinifyService = Compress.hasImageService() && (!data.plugin || data.plugin === 'tinify') && (data.format === 'png' || data.format === 'jpeg');
-        if (tinifyService || data.plugin) {
+        const loadBuffer = (buffer: Buffer) => {
+            tinify.fromBuffer(buffer).toBuffer((err, result) => {
+                if (result && !err) {
+                    writeFile(result);
+                }
+                else {
+                    if (err) {
+                        writeFail(err);
+                    }
+                    callback(false);
+                    delete tinify['_key'];
+                }
+            });
+        };
+        const tinifyApiKey = (!data.plugin || data.plugin === 'tinify') && (data.format === 'png' || data.format === 'jpeg') ? data.options?.apiKey as string || this.tinifyApiKey : '';
+        if (tinifyApiKey || data.plugin) {
             fs.readFile(fileUri, async (err, buffer) => {
                 if (!err) {
-                    if (tinifyService) {
-                        tinify.fromBuffer(buffer).toBuffer((error, result) => {
-                            if (result && !error) {
-                                writeFile(result);
-                            }
-                            else {
-                                if (error) {
-                                    writeFail(error);
-                                    this.validate(this.tinifyApiKey);
+                    if (tinifyApiKey) {
+                        if (tinify['_key'] !== tinifyApiKey) {
+                            tinify.key = tinifyApiKey;
+                            tinify.validate(error => {
+                                if (!error) {
+                                    loadBuffer(buffer);
                                 }
-                                callback(false);
-                            }
-                        });
+                                else {
+                                    writeFail(error);
+                                    callback(false);
+                                }
+                            });
+                        }
+                        else {
+                            loadBuffer(buffer);
+                        }
                         return;
                     }
                     else if (data.plugin) {

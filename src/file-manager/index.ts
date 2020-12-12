@@ -232,7 +232,9 @@ class FileManager extends Module implements IFileManager {
             if (!isNaN(brotli)) {
                 Compress.brotliQuality = brotli;
             }
-            Compress.validate(tinypng_api_key);
+            if (tinypng_api_key) {
+                Compress.tinifyApiKey = tinypng_api_key;
+            }
         }
         super.loadSettings(value as PlainObject);
     }

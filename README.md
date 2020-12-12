@@ -68,16 +68,27 @@ Placing an @ symbol (png@) after the format will remove the original file from t
 webp(50000,*)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,135,215,315#FFFFFF}|0.5||100[photo][75]|!opaque!greyscale
 ```
 
-[TinyPNG](https://tinypng.com/developers) is used for image compression and supports PNG and JPEG. The first 500 images are free every month with a developer API key.
+[Tinify](https://tinypng.com/developers) is used for image compression and supports PNG and JPEG. The first 500 images are free every month with a developer API key.
 
 ```javascript
+// squared.settings.json
+{
+  "compress": {
+    "tinify_api_key": "**********" // default api key
+  }
+}
+
+// HTML configuration (json/yaml)
 {
   "selector": ".card:nth-of-type(1) img",
   "type": "image",
   "compress": [
     {
       "format": "png", // OR: jpeg
-      "plugin": "tinify" // optional (already pre-installed)
+      "plugin": "tinify", // optional (pre-installed)
+      "options": {
+        "apiKey": "**********" // optional (overrides settings)
+      }
     }
   ]
 }
@@ -167,7 +178,6 @@ gulp.task('minify', () => {
     .pipe(uglify())
     .pipe(gulp.dest('./'));
 });
-
 ```
 
 Renaming files with Gulp is not recommended. It is better to use the "saveAs" or "filename" attributes when the asset is part of the HTML page.
@@ -183,7 +193,7 @@ Bundling options are available with these HTML tag names.
 Files with the same path and filename will automatically create a bundle assuming there are no conflicts in call ordering.
 
 ```javascript
-// JSON/YAML configuration is recommended
+// HTML configuration (json/yaml) is recommended
 
 {
   "selector": "head > script:nth-of-type(2), head > script:nth-of-type(3)",

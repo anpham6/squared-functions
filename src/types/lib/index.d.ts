@@ -189,7 +189,6 @@ declare namespace functions {
         createWriteStreamAsGzip(source: string, fileUri: string, level?: number): WriteStream;
         createWriteStreamAsBrotli(source: string, fileUri: string, quality?: number, mimeType?: string): WriteStream;
         findFormat(compress: Undef<squared.CompressFormat[]>, format: string): Undef<squared.CompressFormat>;
-        hasImageService(): boolean;
         withinSizeRange(fileUri: string, value: Undef<string>): boolean;
         tryFile: CompressTryFileMethod;
         tryImage(fileUri: string, data: squared.CompressFormat, callback: CompressTryImageCallback): void;
