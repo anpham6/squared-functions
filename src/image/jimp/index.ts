@@ -43,71 +43,87 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
         const file = data.file;
         const fileUri = file.fileUri!;
         const mimeType = data.mimeType || file.mimeType;
-        let jimpType: Undef<string>,
-            tempFile: Undef<string>,
-            saveAs: Undef<string>,
-            finalAs: Undef<string>;
-        command = command.trim();
-        if (mimeType === 'image/webp') {
-            try {
-                tempFile = this.getTempDir() + uuid.v4() + '.bmp';
-                child_process.execFileSync(require('dwebp-bin'), [fileUri, '-mt', '-bmp', '-o', tempFile]);
-            }
-            catch (err) {
-                this.writeFail(['Install WebP?', 'npm i dwebp-bin'], err);
-                return;
-            }
-        }
-        if (command.startsWith('png')) {
-            jimpType = jimp.MIME_PNG;
-            saveAs = 'png';
-        }
-        else if (command.startsWith('jpeg')) {
-            jimpType = jimp.MIME_JPEG;
-            saveAs = 'jpg';
-        }
-        else if (command.startsWith('bmp')) {
-            jimpType = jimp.MIME_BMP;
-            saveAs = 'bmp';
-        }
-        else if (command.startsWith('webp')) {
-            if (mimeType === jimp.MIME_JPEG) {
-                jimpType = jimp.MIME_JPEG;
-                saveAs = 'jpg';
-            }
-            else {
+        const transformImage = (tempFile?: string) => {
+            command = command.trim();
+            let jimpType: Undef<string>,
+                saveAs: Undef<string>,
+                finalAs: Undef<string>;
+            if (command.startsWith('png')) {
                 jimpType = jimp.MIME_PNG;
                 saveAs = 'png';
             }
-            finalAs = 'webp';
-        }
-        if (jimpType && saveAs) {
-            const output = this.queueImage(data, jimpType, saveAs, command);
-            if (output) {
-                this.performAsyncTask();
-                this.formatMessage(this.logType.IMAGE, 'jimp', ['Transforming image...', path.basename(fileUri)], command, { titleColor: 'magenta' });
-                const startTime = Date.now();
-                jimp.read(tempFile || getBuffer(data))
-                    .then(img => {
-                        delete file.buffer;
-                        const proxy = new Jimp(img, data, command, finalAs);
-                        proxy.method();
-                        proxy.resize();
-                        proxy.crop();
-                        if (jimpType === jimp.MIME_JPEG && !finalAs) {
-                            proxy.quality();
-                        }
-                        else {
-                            proxy.opacity();
-                        }
-                        proxy.rotate(this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
-                        proxy.write(output, startTime, callback);
-                    })
-                    .catch(err => {
-                        this.completeAsyncTask();
-                        this.writeFail(['Unable to read image buffer', path.basename(fileUri)], err);
-                    });
+            else if (command.startsWith('jpeg')) {
+                jimpType = jimp.MIME_JPEG;
+                saveAs = 'jpg';
             }
+            else if (command.startsWith('bmp')) {
+                jimpType = jimp.MIME_BMP;
+                saveAs = 'bmp';
+            }
+            else if (command.startsWith('webp')) {
+                if (mimeType === jimp.MIME_JPEG) {
+                    jimpType = jimp.MIME_JPEG;
+                    saveAs = 'jpg';
+                }
+                else {
+                    jimpType = jimp.MIME_PNG;
+                    saveAs = 'png';
+                }
+                finalAs = 'webp';
+            }
+            if (jimpType && saveAs) {
+                const output = this.queueImage(data, jimpType, saveAs, command);
+                if (output) {
+                    this.formatMessage(this.logType.IMAGE, 'jimp', ['Transforming image...', path.basename(fileUri)], command, { titleColor: 'magenta' });
+                    const startTime = Date.now();
+                    jimp.read(tempFile || getBuffer(data))
+                        .then(img => {
+                            if (command.includes('@')) {
+                                delete file.buffer;
+                            }
+                            const proxy = new Jimp(img, data, command, finalAs);
+                            proxy.method();
+                            proxy.resize();
+                            proxy.crop();
+                            if (jimpType === jimp.MIME_JPEG && !finalAs) {
+                                proxy.quality();
+                            }
+                            else {
+                                proxy.opacity();
+                            }
+                            proxy.rotate(this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                            proxy.write(output, startTime, callback);
+                        })
+                        .catch(err => {
+                            this.completeAsyncTask();
+                            this.writeFail(['Unable to read image buffer', path.basename(fileUri)], err);
+                        });
+                    return;
+                }
+            }
+            this.completeAsyncTask();
+        };
+        this.performAsyncTask();
+        if (mimeType === 'image/webp') {
+            try {
+                const tempFile = this.getTempDir() + uuid.v4() + '.bmp';
+                child_process.execFile(require('dwebp-bin'), [fileUri, '-mt', '-bmp', '-o', tempFile], null, err => {
+                    if (!err) {
+                        transformImage(tempFile);
+                    }
+                    else {
+                        this.writeFail(['Unable to convert image buffer', path.basename(fileUri)], err);
+                        this.completeAsyncTask();
+                    }
+                });
+            }
+            catch (err) {
+                this.writeFail(['Install WebP?', 'npm i dwebp-bin'], err);
+                this.completeAsyncTask();
+            }
+        }
+        else {
+            transformImage();
         }
     }
 
@@ -130,9 +146,8 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
     }
 
     method() {
-        const methodData = this.methodData;
-        if (methodData) {
-            for (const name of methodData) {
+        if (this.methodData) {
+            for (const name of this.methodData) {
                 switch (name) {
                     case 'dither565':
                     case 'greyscale':
@@ -169,26 +184,25 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
         }
     }
     resize() {
-        const resizeData = this.resizeData;
-        if (resizeData) {
-            const { width, height, color, algorithm, align } = resizeData;
+        if (this.resizeData) {
+            const { width, height, color, algorithm, align, mode } = this.resizeData;
             if (!isNaN(color)) {
                 this.instance = this.instance.background(color);
             }
-            let mode: string = jimp.RESIZE_NEAREST_NEIGHBOR,
+            let resizeMode: string = jimp.RESIZE_NEAREST_NEIGHBOR,
                 flags = 0;
             switch (algorithm) {
                 case 'bilinear':
-                    mode = jimp.RESIZE_BILINEAR;
+                    resizeMode = jimp.RESIZE_BILINEAR;
                     break;
                 case 'bicubic':
-                    mode = jimp.RESIZE_BICUBIC;
+                    resizeMode = jimp.RESIZE_BICUBIC;
                     break;
                 case 'hermite':
-                    mode = jimp.RESIZE_HERMITE;
+                    resizeMode = jimp.RESIZE_HERMITE;
                     break;
                 case 'bezier':
-                    mode = jimp.RESIZE_BEZIER;
+                    resizeMode = jimp.RESIZE_BEZIER;
                     break;
             }
             switch (align[0]) {
@@ -213,7 +227,7 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
                     flags |= jimp.VERTICAL_ALIGN_BOTTOM;
                     break;
             }
-            switch (resizeData.mode) {
+            switch (mode) {
                 case 'contain':
                     this.instance = this.instance.contain(width, height, flags);
                     break;
@@ -224,15 +238,14 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
                     this.instance = this.instance.scaleToFit(width, height);
                     break;
                 default:
-                    this.instance = this.instance.resize(width === Infinity ? jimp.AUTO : width, height === Infinity ? jimp.AUTO : height, mode);
+                    this.instance = this.instance.resize(width === Infinity ? jimp.AUTO : width, height === Infinity ? jimp.AUTO : height, resizeMode);
                     break;
             }
         }
     }
     rotate(initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback) {
-        const rotateData = this.rotateData;
-        if (rotateData) {
-            const { values, color } = rotateData;
+        if (this.rotateData) {
+            const { values, color } = this.rotateData;
             if (!isNaN(color)) {
                 this.instance = this.instance.background(color);
             }
@@ -289,9 +302,8 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
         if (this.finalAs === 'webp') {
             const webp = Image.renameExt(output, 'webp');
             const args = [output, '-mt', '-m', '6'];
-            const qualityData = this.qualityData;
-            if (qualityData) {
-                const { value, preset, nearLossless } = qualityData;
+            if (this.qualityData) {
+                const { value, preset, nearLossless } = this.qualityData;
                 if (preset) {
                     args.push('-preset', preset);
                 }
