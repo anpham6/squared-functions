@@ -1770,12 +1770,12 @@ class FileManager extends Module implements IFileManager {
             });
             const resumeThread = (item: GulpTask, callback: (value?: unknown) => void) => {
                 const { task, origDir, data } = item;
-                const tempDir = this.getTempDir() + uuid.v4();
+                const tempDir = this.getTempDir(true);
                 try {
                     fs.mkdirpSync(tempDir);
                     Promise.all(data.items.map(uri => fs.copyFile(uri, path.join(tempDir, path.basename(uri)))))
                         .then(() => {
-                            this.formatMessage(this.logType.CHROME, 'gulp', ['Executing task...', task], data.gulpfile, { titleColor: 'magenta' });
+                            this.formatMessage(this.logType.PROCESS, 'gulp', ['Executing task...', task], data.gulpfile);
                             const time = Date.now();
                             child_process.exec(`gulp ${task} --gulpfile "${data.gulpfile}" --cwd "${tempDir}"`, { cwd: process.cwd() }, err => {
                                 if (!err) {

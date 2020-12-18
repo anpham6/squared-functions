@@ -17,7 +17,6 @@
   "dependencies": {
     "@squared-functions/module": "^0.9.7",
     "@squared-functions/types": "^0.9.7",
-    "jimp": "^0.16.1",
-    "uuid": "^8.3.2"
+    "jimp": "^0.16.1"
   }
 }

@@ -81,7 +81,7 @@ function upload(this: InstanceHost, credential: GCloudStorageCredential, service
             const destUri = fileUri + path.extname(Key[i]);
             let srcUri = i === 0 ? fileUri : Body[i] as string;
             if (i === 0 || destUri !== srcUri) {
-                srcUri = this.getTempDir() + uuid.v4() + path.sep + path.normalize(Key[i]);
+                srcUri = this.getTempDir(true) + path.normalize(Key[i]);
                 try {
                     fs.mkdirpSync(path.dirname(srcUri));
                 }

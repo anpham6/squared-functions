@@ -1,5 +1,6 @@
 import path = require('path');
 import fs = require('fs');
+import uuid = require('uuid');
 import chalk = require('chalk');
 
 type Settings = functions.Settings;
@@ -12,14 +13,13 @@ let SETTINGS: LoggerModule = {};
 export enum LOG_TYPE {
     UNKNOWN = 0,
     SYSTEM = 1,
-    CHROME = 2,
-    COMPRESS = 4,
-    IMAGE = 8,
-    NODE = 16,
-    WATCH = 32,
-    CLOUD_STORAGE = 64,
-    CLOUD_DATABASE = 128,
-    TIME_ELAPSED = 256
+    NODE = 2,
+    PROCESS = 4,
+    COMPRESS = 8,
+    WATCH = 16,
+    CLOUD_STORAGE = 32,
+    CLOUD_DATABASE = 64,
+    TIME_ELAPSED = 128
 }
 
 const Module = class implements functions.IModule {
@@ -50,6 +50,7 @@ const Module = class implements functions.IModule {
     public major: number;
     public minor: number;
     public patch: number;
+    public tempDir = 'temp';
 
     constructor() {
         [this.major, this.minor, this.patch] = process.version.substring(1).split('.').map(value => +value);
@@ -70,8 +71,8 @@ const Module = class implements functions.IModule {
         }
         return true;
     }
-    getTempDir() {
-        return process.cwd() + path.sep + 'temp' + path.sep;
+    getTempDir(subDir?: boolean, filename = '') {
+        return process.cwd() + path.sep + this.tempDir + path.sep + (subDir ? uuid.v4() + path.sep : '') + (filename.startsWith('.') ? uuid.v4() : '') + filename;
     }
     joinPosix(...paths: Undef<string>[]) {
         paths = paths.filter(value => value && value.trim());
@@ -89,7 +90,6 @@ const Module = class implements functions.IModule {
         return result;
     }
     writeTimeElapsed(title: string, value: string, time: number, options: LogMessageOptions = {}) {
-        options.hintColor ||= 'magenta';
         this.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Completed', (Date.now() - time) / 1000 + 's'], value, options);
     }
     writeFail(value: LogValue, message?: unknown) {
@@ -107,23 +107,22 @@ const Module = class implements functions.IModule {
                     return;
                 }
                 break;
-            case LOG_TYPE.CHROME:
-                if (SETTINGS.chrome === false) {
+            case LOG_TYPE.PROCESS:
+                if (SETTINGS.process === false) {
                     return;
                 }
-                break;
-            case LOG_TYPE.COMPRESS:
-                if (SETTINGS.compress === false) {
-                    return;
-                }
-                break;
-            case LOG_TYPE.IMAGE:
-                if (SETTINGS.image === false) {
-                    return;
-                }
+                options.titleColor ||= 'magenta';
                 break;
             case LOG_TYPE.NODE:
                 if (SETTINGS.node === false) {
+                    return;
+                }
+                options.titleColor ||= 'black';
+                options.titleBgColor ||= 'bgWhite';
+                options.hintColor ||= 'yellow';
+                break;
+            case LOG_TYPE.COMPRESS:
+                if (SETTINGS.compress === false) {
                     return;
                 }
                 break;
@@ -146,6 +145,7 @@ const Module = class implements functions.IModule {
                 if (SETTINGS.time_elapsed === false) {
                     return;
                 }
+                options.hintColor ||= 'magenta';
                 break;
             default:
                 if (SETTINGS.unknown === false) {

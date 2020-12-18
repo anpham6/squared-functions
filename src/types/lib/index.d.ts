@@ -138,14 +138,13 @@ declare namespace functions {
         enum LOG_TYPE {
             UNKNOWN = 0,
             SYSTEM = 1,
-            CHROME = 2,
-            COMPRESS = 4,
-            IMAGE = 8,
-            NODE = 16,
-            WATCH = 32,
-            CLOUD_STORAGE = 64,
-            CLOUD_DATABASE = 128,
-            TIME_ELAPSED = 256
+            NODE = 2,
+            PROCESS = 4,
+            COMPRESS = 8,
+            WATCH = 16,
+            CLOUD_STORAGE = 32,
+            CLOUD_DATABASE = 64,
+            TIME_ELAPSED = 128
         }
 
         interface LogMessageOptions {
@@ -344,12 +343,13 @@ declare namespace functions {
 
     interface IModule {
         logType: typeof internal.LOG_TYPE;
+        tempDir: string;
         readonly major: number;
         readonly minor: number;
         readonly patch: number;
         supported(major: number, minor: number, patch?: number): boolean;
         joinPosix(...paths: Undef<string>[]): string;
-        getTempDir(): string;
+        getTempDir(subDir?: boolean, filename?: string): string;
         formatMessage(type: internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options?: internal.LogMessageOptions): void;
         formatFail(type: internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown): void;
         writeFail(value: string | [string, string], message?: unknown): void;
@@ -408,10 +408,9 @@ declare namespace functions {
         interface LoggerModule {
             unknown?: boolean;
             system?: boolean;
-            chrome?: boolean;
-            compress?: boolean;
-            image?: boolean;
             node?: boolean;
+            process?: boolean;
+            compress?: boolean;
             watch?: boolean;
             cloud_storage?: boolean;
             cloud_database?: boolean;

@@ -16,6 +16,7 @@
   "homepage": "https://github.com/anpham6/squared-functions#readme",
   "dependencies": {
     "@squared-functions/types": "^0.9.7",
+    "uuid": "^8.3.2",
     "chalk": "^4.1.0"
   }
 }

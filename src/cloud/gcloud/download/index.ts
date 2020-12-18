@@ -2,9 +2,7 @@ import type { GCloudStorageCredential } from '../index';
 
 import { createStorageClient } from '../index';
 
-import path = require('path');
 import fs = require('fs-extra');
-import uuid = require('uuid');
 
 type InstanceHost = functions.internal.Cloud.InstanceHost;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
@@ -17,7 +15,7 @@ function download(this: InstanceHost, credential: GCloudStorageCredential, servi
         const { bucket: Bucket, download: Download } = data;
         if (Bucket && Download && Download.filename) {
             try {
-                let tempDir = this.getTempDir() + uuid.v4() + path.sep;
+                let tempDir = this.getTempDir(true);
                 try {
                     fs.mkdirpSync(tempDir);
                 }

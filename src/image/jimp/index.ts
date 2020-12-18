@@ -2,7 +2,6 @@ import path = require('path');
 import fs = require('fs');
 import child_process = require('child_process');
 import jimp = require('jimp');
-import uuid = require('uuid');
 
 import Image from '../index';
 
@@ -74,7 +73,7 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
             if (jimpType && saveAs) {
                 const output = this.queueImage(data, jimpType, saveAs, command);
                 if (output) {
-                    this.formatMessage(this.logType.IMAGE, 'jimp', ['Transforming image...', path.basename(fileUri)], command, { titleColor: 'magenta' });
+                    this.formatMessage(this.logType.PROCESS, 'jimp', ['Transforming image...', path.basename(fileUri)], command);
                     const startTime = Date.now();
                     jimp.read(tempFile || getBuffer(data))
                         .then(img => {
@@ -106,7 +105,7 @@ class Jimp extends Image implements functions.ImageProxy<jimp> {
         this.performAsyncTask();
         if (mimeType === 'image/webp') {
             try {
-                const tempFile = this.getTempDir() + uuid.v4() + '.bmp';
+                const tempFile = this.getTempDir(false, '.bmp');
                 child_process.execFile(require('dwebp-bin'), [fileUri, '-mt', '-bmp', '-o', tempFile], null, err => {
                     if (!err) {
                         transformImage(tempFile);

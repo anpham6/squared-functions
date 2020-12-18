@@ -120,7 +120,7 @@ class Chrome extends Module implements functions.IChrome {
                         this.writeFail('Unable to load configuration', plugin);
                     }
                     else {
-                        this.formatMessage(this.logType.CHROME, type, ['Transforming source...', plugin], name, { titleColor: 'magenta', hintColor: 'cyan' });
+                        this.formatMessage(this.logType.PROCESS, type, ['Transforming source...', plugin], name, { hintColor: 'cyan' });
                         const time = Date.now();
                         const success = () => this.writeTimeElapsed(type, plugin + ': ' + name, time);
                         if (typeof options === 'function') {
