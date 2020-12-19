@@ -1,6 +1,6 @@
 {
   "name": "squared-functions",
-  "version": "0.9.7",
+  "version": "0.9.8",
   "description": "Parent folder for @squared-functions packages.",
   "scripts": {
     "dev": "npm run build && copyfiles -a ./publish/**/* -u 1 ../squared/node_modules/@squared-functions",
@@ -43,9 +43,9 @@
     "@types/uuid": "^8.3.0",
     "@typescript-eslint/eslint-plugin": "^4.10.0",
     "@typescript-eslint/parser": "^4.10.0",
-    "aws-sdk": "^2.813.0",
+    "aws-sdk": "^2.814.0",
     "copyfiles": "^2.4.1",
-    "eslint": "^7.15.0",
+    "eslint": "^7.16.0",
     "ibm-cos-sdk": "^1.9.0",
     "jimp": "^0.16.1",
     "rimraf": "^3.0.2",
