@@ -5,11 +5,10 @@ import type { AWSStorageCredential } from '../index';
 import { createStorageClient } from '../index';
 
 type InstanceHost = functions.internal.Cloud.InstanceHost;
-type DownloadHost = functions.internal.Cloud.DownloadHost;
 type DownloadData = functions.internal.Cloud.DownloadData;
 type DownloadCallback = functions.internal.Cloud.DownloadCallback;
 
-function download(this: InstanceHost, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3'): DownloadCallback {
+export default function download(this: InstanceHost, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3'): DownloadCallback {
     const s3 = createStorageClient.call(this, credential, service, sdk);
     return async (data: DownloadData, success: (value: Null<Buffer>) => void) => {
         const { bucket: Bucket, download: Download } = data;
@@ -58,5 +57,3 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports.default = download;
     Object.defineProperty(module.exports, '__esModule', { value: true });
 }
-
-export default download as DownloadHost;

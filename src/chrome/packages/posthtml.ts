@@ -15,7 +15,7 @@ function loadPlugins(plugins: [string, Undef<PlainObject>][]) {
     return result;
 }
 
-export default async function (value: string, options: PlainObject, output: Undef<PlainObject>) {
+export default async function transform(value: string, options: PlainObject, output: Undef<PlainObject>) {
     if (Array.isArray(options.plugins)) {
         const plugins = loadPlugins(options.plugins);
         if (plugins.length) {
@@ -25,4 +25,10 @@ export default async function (value: string, options: PlainObject, output: Unde
             }
         }
     }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = transform;
+    module.exports.default = transform;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }

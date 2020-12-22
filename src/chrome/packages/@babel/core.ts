@@ -2,7 +2,7 @@ const context = require('@babel/core');
 
 type SourceMapInput = functions.internal.Chrome.SourceMapInput;
 
-export default async function (value: string, options: PlainObject, output: Undef<PlainObject>, input: SourceMapInput) {
+export default async function transform(value: string, options: PlainObject, output: Undef<PlainObject>, input: SourceMapInput) {
     const sourceMap = input.map;
     if (options.sourceMaps === true || sourceMap) {
         options.sourceMaps = true;
@@ -15,4 +15,10 @@ export default async function (value: string, options: PlainObject, output: Unde
         }
         return result.code;
     }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = transform;
+    module.exports.default = transform;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }

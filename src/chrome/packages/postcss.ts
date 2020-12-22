@@ -2,7 +2,7 @@ const context = require('postcss');
 
 type SourceMapInput = functions.internal.Chrome.SourceMapInput;
 
-export default async function (value: string, options: PlainObject, output: Undef<PlainObject>, input: SourceMapInput) {
+export default async function transform(value: string, options: PlainObject, output: Undef<PlainObject>, input: SourceMapInput) {
     const { map: sourceMap, file } = input;
     const fileUri = file.fileUri!;
     let includeSources = true;
@@ -20,4 +20,10 @@ export default async function (value: string, options: PlainObject, output: Unde
         }
         return result.css;
     }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = transform;
+    module.exports.default = transform;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }

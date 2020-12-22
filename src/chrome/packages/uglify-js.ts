@@ -2,7 +2,7 @@ const context = require('uglify-js');
 
 type SourceMapInput = functions.internal.Chrome.SourceMapInput;
 
-export default async function (value: string, options: StandardMap, output: Undef<PlainObject>, input: SourceMapInput) {
+export default async function transform(value: string, options: StandardMap, output: Undef<PlainObject>, input: SourceMapInput) {
     let includeSources = true;
     if (options.sourceMap && typeof options.sourceMap === 'object' || input.map && (options.sourceMap = {})) {
         const sourceMap = options.sourceMap;
@@ -20,4 +20,10 @@ export default async function (value: string, options: StandardMap, output: Unde
         }
         return result.code;
     }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = transform;
+    module.exports.default = transform;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }

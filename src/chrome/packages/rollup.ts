@@ -21,7 +21,7 @@ function loadPlugins(plugins: RollupPlugins) {
     return result;
 }
 
-export default async function (value: string, options: rollup.RollupOptions, output: Undef<rollup.OutputOptions>, input: SourceMapInput) {
+export default async function transform(value: string, options: rollup.RollupOptions, output: Undef<rollup.OutputOptions>, input: SourceMapInput) {
     if (!output) {
         output = options.output as rollup.OutputOptions || { format: 'es' };
     }
@@ -64,4 +64,10 @@ export default async function (value: string, options: rollup.RollupOptions, out
         }
         return result;
     }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = transform;
+    module.exports.default = transform;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }

@@ -1,6 +1,6 @@
 const context = require('prettier');
 
-export default async function (value: string, options: PlainObject) {
+export default async function transform(value: string, options: PlainObject) {
     switch (options.parser) {
         case 'babel':
         case 'babel-flow':
@@ -40,4 +40,10 @@ export default async function (value: string, options: PlainObject) {
             return;
     }
     return context.format(value, options);
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = transform;
+    module.exports.default = transform;
+    Object.defineProperty(module.exports, '__esModule', { value: true });
 }

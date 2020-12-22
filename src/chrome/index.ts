@@ -15,6 +15,8 @@ type SourceMapOutput = functions.internal.Chrome.SourceMapOutput;
 type PluginConfig = functions.internal.Chrome.PluginConfig;
 type ConfigOrTranspiler = functions.internal.Chrome.ConfigOrTranspiler;
 
+type Transpiler = FunctionType<Undef<string>>;
+
 const validLocalPath = (value: string) => /^\.?\.[\\/]/.test(value);
 
 class Chrome extends Module implements functions.IChrome {
@@ -22,7 +24,7 @@ class Chrome extends Module implements functions.IChrome {
     public unusedStyles?: string[];
     public transpileMap?: TranspileMap;
 
-    private _packageMap: ObjectMap<FunctionType<Undef<string>>> = {};
+    private _packageMap: ObjectMap<Transpiler> = {};
 
     constructor (body: RequestBody, public settings: ChromeModule = {}, public productionRelease = false) {
         super();
@@ -138,8 +140,12 @@ class Chrome extends Module implements functions.IChrome {
                         }
                         else {
                             try {
-                                this._packageMap[plugin] ||= require('./packages/' + plugin).default;
-                                const result: Undef<string> = await this._packageMap[plugin].call(this, value, options, output, input);
+                                let transformer: Undef<Transpiler> = this._packageMap[plugin];
+                                if (!transformer) {
+                                    const filepath = path.join(__dirname, '/packages/' + plugin + '.js');
+                                    transformer = require(fs.existsSync(filepath) ? filepath : plugin);
+                                }
+                                const result: Undef<string> = await transformer!.call(this, value, options, output, input);
                                 if (result) {
                                     value = result;
                                     valid = true;

@@ -6,13 +6,12 @@ import uuid = require('uuid');
 import { createBucket, createStorageClient } from '../index';
 
 type InstanceHost = functions.internal.Cloud.InstanceHost;
-type UploadHost = functions.internal.Cloud.UploadHost;
 type UploadData = functions.internal.Cloud.UploadData;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-function upload(this: InstanceHost, credential: AzureStorageCredential, service = 'azure'): UploadCallback {
+export default function upload(this: InstanceHost, credential: AzureStorageCredential, service = 'azure'): UploadCallback {
     const blobServiceClient = createStorageClient.call(this, credential);
     return async (data: UploadData, success: (value: string) => void) => {
         const bucket = data.bucket ||= data.bucketGroup || uuid.v4();
@@ -110,5 +109,3 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports.default = upload;
     Object.defineProperty(module.exports, '__esModule', { value: true });
 }
-
-export default upload as UploadHost;

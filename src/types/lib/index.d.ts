@@ -418,7 +418,7 @@ declare namespace functions {
         }
 
         interface ImageModule {
-            proxy?: string;
+            command?: string;
         }
 
         interface CompressModule {
