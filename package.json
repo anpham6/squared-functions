@@ -1,6 +1,6 @@
 {
   "name": "squared-functions",
-  "version": "0.9.8",
+  "version": "0.9.9",
   "description": "Parent folder for @squared-functions packages.",
   "scripts": {
     "dev": "npm run build && copyfiles -a ./publish/**/* -u 1 ../squared/node_modules/@squared-functions",
@@ -15,12 +15,9 @@
   },
   "keywords": [
     "squared",
-    "express",
-    "aws",
-    "azure",
-    "gcloud",
-    "ibm",
-    "oci"
+    "compression",
+    "documentdb",
+    "storage"
   ],
   "author": "An Pham <anpham6@gmail.com>",
   "license": "MIT",

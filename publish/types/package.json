@@ -1,6 +1,6 @@
 {
   "name": "@squared-functions/types",
-  "version": "0.9.8",
+  "version": "0.9.9",
   "description": "Type definitions for squared-functions",
   "types": "lib/index.d.ts",
   "repository": {
@@ -15,8 +15,5 @@
   "homepage": "https://github.com/anpham6/squared-functions#readme",
   "dependencies": {
     "typescript": "^4.1.3"
-  },
-  "bugs": {
-    "url": "https://github.com/anpham6/squared-functions/issues"
   }
 }

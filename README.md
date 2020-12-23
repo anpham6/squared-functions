@@ -1,6 +1,6 @@
 ### squared-functions 0.9
 
-These are some of the available options when creating archives or copying files with squared 2.2.
+These are the available options when creating archives or copying files. Examples use squared 2.2 although the concepts can be used similarly with any NodeJS application.
 
 ```javascript
 squared.settings.outputArchiveFormat = 'tar'; // Format: zip | tar | gz/tgz (default: zip)
@@ -60,7 +60,7 @@ npm install dwebp-bin && npm install cwebp-bin
 @ - replace  
 % - smaller
 
-Placing an @ symbol (png@) after the format will remove the original file from the package. Using the % symbol (png%) instead will choose the smaller of the two files. You can also use these commands with the setting "convertImages" in the Android framework as a string with the "+" chain format.
+Placing an @ symbol (png@) after the format will remove the original file from the package. Using the % symbol (png%) instead will choose the smaller of the two files. You can also use these commands with the setting "convertImages" in the Android framework.
 
 ```javascript
 // Multiple transformations per asset use the "::" as the separator when using "data-chrome-commands"
@@ -295,10 +295,10 @@ You can also define your own optimizations in squared.settings.json:
 
 These particular plugins can be configured using a plain object literal. Manual installation is required when using any of these packages [<b>npm run install-chrome</b>]. Transpiling with Babel is also configurable with a .babelrc file in the base folder for any presets and additional settings. Other non-builtin minifiers can similarly be applied and chained by defining a custom string-based synchronous function.
 
-Custom plugins can be installed from NPM. Examples can be found in the node_modules folder.
+Custom plugins can be installed from NPM or copied into your local workspace. Examples can be found in the "chrome/packages" folder.
 
 ```xml
-node_modules: @squared-functions/chrome/packages
+{workspace}/node_modules/@squared-functions/chrome/packages
 ```
 
 * Function object
