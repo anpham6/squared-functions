@@ -3,11 +3,9 @@
 These are the available options when creating archives or copying files. Examples use squared 2.2 although the concepts can be used similarly with any NodeJS application.
 
 ```javascript
-squared.settings.outputArchiveFormat = 'tar'; // Format: zip | tar | gz/tgz (default: zip)
-
 squared.saveAs('archive1', { // OR: archive1.gz
-    format: 'gz',
-    assets: [
+    format: 'zip', // optional (zip | tar | gz/tgz)
+    assets: [ // optional
         {
             pathname: 'app/src/main/res/drawable',
             filename: 'ic_launcher_background.xml',
@@ -41,7 +39,7 @@ NOTE: WebP support requires manual NPM installation of the binaries.
 * dwebp - r
 * cwebp - w
 
-npm install dwebp-bin && npm install cwebp-bin
+npm i dwebp-bin && npm i cwebp-bin
 
 ```javascript
 // All commands are optional except "format". Outer groupings and inner brackets are required.
@@ -103,7 +101,7 @@ Other formats can be compressed similarly using imagemin. Manual installation is
   "compress": [
     {
       "format": "png",
-      "plugin": "imagemin-pngquant", // npm install imagemin-pngquant
+      "plugin": "imagemin-pngquant", // npm i imagemin-pngquant
       "options": {
         "quality": [
           0.6,
@@ -119,7 +117,7 @@ Other formats can be compressed similarly using imagemin. Manual installation is
 
 Tasks can be performed with Gulp to take advantage of their pre-built plugin repository. Gulp is the final stage preceding archiving or copying after file content has been downloaded and transformed.
 
-* [npm install -g gulp-cli && npm install gulp](https://gulpjs.com/docs/en/getting-started/quick-start)
+* [npm i -g gulp-cli && npm i gulp](https://gulpjs.com/docs/en/getting-started/quick-start)
 
 ```javascript
 // squared.settings.json
@@ -490,23 +488,23 @@ Manual installation of the SDK is required including an account with at least on
 
 ```xml
 * Amazon
-  - npm install aws-sdk
+  - npm i aws-sdk
   - AWS: https://aws.amazon.com/free (5GB - 12 months)
 
 * Microsoft
-  - npm install @azure/storage-blob
+  - npm i @azure/storage-blob
   - Azure: https://azure.microsoft.com/en-us/free (5GB - 12 months)
 
 * Google
-  - npm install @google-cloud/storage
+  - npm i @google-cloud/storage
   - GCloud: https://cloud.google.com/free (5GB - US)
 
 * IBM
-  - npm install ibm-cos-sdk
+  - npm i ibm-cos-sdk
   - IBM: https://www.ibm.com/cloud/free (25GB)
 
 * Oracle
-  - npm install aws-sdk
+  - npm i aws-sdk
   - OCI: https://www.oracle.com/cloud/free (10GB)
   - Uses S3 compatibility API
   - Cannot create new public buckets
@@ -648,23 +646,23 @@ Basic text replacement can be achieved using any of these cloud based document d
 
 ```xml
 * Amazon DynamoDB
-  - npm install aws-sdk
+  - npm i aws-sdk
   - AWS: https://aws.amazon.com/dynamodb (25GB + 25 RCU/WCU)
 
 * Microsoft Cosmos DB
-  - npm install @azure/cosmos
+  - npm i @azure/cosmos
   - Azure: https://azure.microsoft.com/en-us/services/cosmos-db (5GB + 400RU/s)
 
 * Google Firestore
-  - npm install @google-cloud/firestore
+  - npm i @google-cloud/firestore
   - GCloud: https://cloud.google.com/firestore (1GB + 50K/20K r/w@day)
 
 * IBM Cloudant
-  - npm install @cloudant/cloudant
+  - npm i @cloudant/cloudant
   - IBM: https://www.ibm.com/cloud/cloudant (1GB + 20/10 r/w@sec)
 
 * Oracle Autonomous DB
-  - npm install oracledb
+  - npm i oracledb
   - OCI: https://www.oracle.com/autonomous-database (20GB)
          https://www.oracle.com/autonomous-database/autonomous-json-database (Paid - 1TB)
 ```

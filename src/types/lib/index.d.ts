@@ -210,7 +210,7 @@ declare namespace functions {
 
     const Image: ImageConstructor;
 
-    class ImageProxy<T> {
+    class ImageCommand<T> {
         instance: T;
         command: string
         resizeData?: internal.Image.ResizeData;

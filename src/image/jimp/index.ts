@@ -18,7 +18,7 @@ type QualityData = functions.internal.Image.QualityData;
 
 const getBuffer = (data: FileData) => (data.file.buffer as unknown) as string || data.file.fileUri!;
 
-class Jimp extends Image implements functions.ImageProxy<jimp> {
+class Jimp extends Image implements functions.ImageCommand<jimp> {
     public static async resolveMime(this: IFileManager, data: FileData) {
         const img = await jimp.read(getBuffer(data));
         const mimeType = img.getMIME();
