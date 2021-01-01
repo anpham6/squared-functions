@@ -114,6 +114,7 @@ class Chrome extends Module implements functions.IChrome {
         if (data) {
             let valid: Undef<boolean>;
             const formatters = format.split('+');
+            const writeFail = this.writeFail.bind(this);
             for (let i = 0, length = formatters.length; i < length; ++i) {
                 const name = formatters[i].trim();
                 const [plugin, options, output] = this.findTranspiler(data, name, type);
@@ -127,7 +128,7 @@ class Chrome extends Module implements functions.IChrome {
                         const success = () => this.writeTimeElapsed(type, plugin + ': ' + name, time);
                         if (typeof options === 'function') {
                             try {
-                                const result = options(require(plugin), value, output, input);
+                                const result = options(require(plugin), value, output, input, writeFail);
                                 if (result && typeof result === 'string') {
                                     value = result;
                                     valid = true;
@@ -145,7 +146,7 @@ class Chrome extends Module implements functions.IChrome {
                                     const filepath = path.join(__dirname, '/packages/' + plugin + '.js');
                                     transformer = require(fs.existsSync(filepath) ? filepath : plugin);
                                 }
-                                const result: Undef<string> = await transformer!.call(this, value, options, output, input);
+                                const result: Undef<string> = await transformer!.call(this, value, options, output, input, writeFail);
                                 if (result) {
                                     value = result;
                                     valid = true;

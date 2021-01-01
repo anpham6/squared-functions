@@ -14,6 +14,7 @@ declare namespace functions {
     type ExternalCategory = "html" | "css" | "js";
     type CloudFeatures = "storage" | "database";
     type CloudFunctions = "upload" | "download";
+    type ModuleWriteFailMethod = (value: string | [string, string], message?: unknown) => void;
     type FileManagerFinalizeImageMethod = (result: internal.Image.OutputData, error?: Null<Error>) => void;
     type FileManagerPerformAsyncTaskCallback = VoidFunction;
     type FileManagerCompleteAsyncTaskCallback = (value?: unknown, parent?: ExternalAsset) => void;
@@ -352,7 +353,7 @@ declare namespace functions {
         getTempDir(subDir?: boolean, filename?: string): string;
         formatMessage(type: internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options?: internal.LogMessageOptions): void;
         formatFail(type: internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown): void;
-        writeFail(value: string | [string, string], message?: unknown): void;
+        writeFail: ModuleWriteFailMethod;
         writeTimeElapsed(title: string, value: string, time: number, options?: internal.LogMessageOptions): void;
         writeMessage(title: string, value: string, message?: unknown, options?: internal.LogMessageOptions): void;
     }

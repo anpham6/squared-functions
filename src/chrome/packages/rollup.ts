@@ -3,10 +3,11 @@ import fs = require('fs-extra');
 import uuid = require('uuid');
 import rollup = require('rollup');
 
+type ModuleWriteFailMethod = functions.ModuleWriteFailMethod;
 type SourceMapInput = functions.internal.Chrome.SourceMapInput;
 type RollupPlugins = [string, Undef<PlainObject>][];
 
-function loadPlugins(plugins: RollupPlugins) {
+function loadPlugins(plugins: RollupPlugins, writeFail: ModuleWriteFailMethod) {
     const result: rollup.OutputPlugin[] = [];
     for (const plugin of plugins.map(item => typeof item === 'string' ? [item] : Array.isArray(item) && item.length ? item : null)) {
         if (plugin) {
@@ -14,14 +15,14 @@ function loadPlugins(plugins: RollupPlugins) {
                 result.push(require(plugin[0])(plugin[1]));
             }
             catch (err) {
-                console.log(`rollup: Install required? [npm i ${plugin[0]}]` + err);
+                writeFail([`Install required? [npm i ${plugin[0]}]`, 'rollup'], err);
             }
         }
     }
     return result;
 }
 
-export default async function transform(value: string, options: rollup.RollupOptions, output: Undef<rollup.OutputOptions>, input: SourceMapInput) {
+export default async function transform(value: string, options: rollup.RollupOptions, output: Undef<rollup.OutputOptions>, input: SourceMapInput, writeFail: ModuleWriteFailMethod) {
     if (!output) {
         output = options.output as rollup.OutputOptions || { format: 'es' };
     }
@@ -34,7 +35,7 @@ export default async function transform(value: string, options: rollup.RollupOpt
         includeSources = true;
     options.input = inputFile;
     if (Array.isArray(options.plugins)) {
-        options.plugins = loadPlugins((options.plugins as unknown) as RollupPlugins);
+        options.plugins = loadPlugins((options.plugins as unknown) as RollupPlugins, writeFail);
     }
     const bundle = await rollup.rollup(options);
     if (!output.sourcemap && input.sourceMap) {
@@ -44,7 +45,7 @@ export default async function transform(value: string, options: rollup.RollupOpt
         includeSources = false;
     }
     if (Array.isArray(output.plugins)) {
-        output.plugins = loadPlugins((options.plugins as unknown) as RollupPlugins);
+        output.plugins = loadPlugins((options.plugins as unknown) as RollupPlugins, writeFail);
     }
     delete output.manualChunks;
     delete output.chunkFileNames;
