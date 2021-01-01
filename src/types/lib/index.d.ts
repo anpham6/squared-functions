@@ -112,7 +112,7 @@ declare namespace functions {
                 validateStorage?(credential: PlainObject, data?: squared.CloudService): boolean;
                 validateDatabase?(credential: PlainObject, data?: squared.CloudService): boolean;
                 createStorageClient?<T>(this: InstanceHost, credential: unknown, service?: string): T;
-                createDatabaseClient?<T>(this: InstanceHost, credential: unknown): T;
+                createDatabaseClient?<T>(this: InstanceHost, credential: unknown, data?: squared.CloudService): T;
                 createBucket?(this: InstanceHost, credential: unknown, bucket: string, publicRead?: boolean, service?: string, sdk?: string): Promise<boolean>;
                 deleteObjects?(this: InstanceHost, credential: unknown, bucket: string, service?: string, sdk?: string): Promise<void>;
                 executeQuery?(this: ICloud, credential: unknown, data: squared.CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;

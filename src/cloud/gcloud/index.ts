@@ -3,6 +3,7 @@ import type { GoogleAuthOptions } from 'google-auth-library';
 import type { Acl } from '@google-cloud/storage/build/src/acl';
 import type * as gcs from '@google-cloud/storage';
 import type * as gcf from '@google-cloud/firestore';
+import type * as gcb from '@google-cloud/bigquery';
 
 import path = require('path');
 
@@ -26,8 +27,8 @@ export function validateStorage(credential: GCloudStorageCredential) {
     return !!(credential.keyFile || credential.keyFilename);
 }
 
-export function validateDatabase(credential: GCloudDatabaseCredential, data: CloudDatabase) {
-    return validateStorage(credential) && !!data.table;
+export function validateDatabase(credential: GCloudDatabaseCredential, data: GCloudDatabaseQuery) {
+    return validateStorage(credential) && (!!data.table || typeof data.query === 'string');
 }
 
 export function createStorageClient(this: InstanceHost, credential: GCloudStorageCredential) {
@@ -41,10 +42,14 @@ export function createStorageClient(this: InstanceHost, credential: GCloudStorag
     }
 }
 
-export function createDatabaseClient(this: InstanceHost, credential: GCloudDatabaseCredential) {
+export function createDatabaseClient(this: InstanceHost, credential: GCloudDatabaseCredential, data?: GCloudDatabaseQuery) {
     try {
-        const Firestore = require('@google-cloud/firestore');
         credential.projectId = getProjectId(credential);
+        if (data && typeof data.query === 'string') {
+            const { BigQuery } = require('@google-cloud/bigquery');
+            return new BigQuery(credential) as gcb.BigQuery;
+        }
+        const Firestore = require('@google-cloud/firestore');
         return new Firestore(credential) as gcf.Firestore;
     }
     catch (err) {
@@ -88,44 +93,56 @@ export async function deleteObjects(this: InstanceHost, credential: GCloudStorag
 }
 
 export async function executeQuery(this: ICloud, credential: GCloudDatabaseCredential, data: GCloudDatabaseQuery, cacheKey?: string) {
-    const client = createDatabaseClient.call(this, credential);
+    const client = createDatabaseClient.call(this, credential, data);
     let result: Undef<any[]>,
         queryString = '';
     try {
         const { table, id, query, orderBy, limit = 0 } = data;
-        queryString = table;
-        if (id) {
-            queryString += id;
-            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-            if (result) {
-                return result;
+        if (typeof query === 'string') {
+            queryString = query + (data.params ? JSON.stringify(data.params) : '') + (data.options ? JSON.stringify(data.options) : '') + limit;
+            const options: gcb.Query = { ...data.options, query };
+            options.params ||= data.params;
+            if (limit > 0) {
+                options.maxResults = limit;
             }
-            const item = await client.collection(table).doc(id).get();
-            result = [item.data()];
+            const [job] = await (client as gcb.BigQuery).createQueryJob(options);
+            [result] = await job.getQueryResults();
         }
-        else if (Array.isArray(query)) {
-            queryString += JSON.stringify(query) + (orderBy ? JSON.stringify(orderBy) : '') + limit;
-            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-            if (result) {
-                return result;
-            }
-            let collection = client.collection(table) as gcf.Query<gcf.DocumentData>;
-            for (const where of query) {
-                if (where.length === 3) {
-                    collection = collection.where(where[0], where[1] as gcf.WhereFilterOp, where[2] as any);
+        else {
+            queryString = table;
+            if (id) {
+                queryString += id;
+                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+                if (result) {
+                    return result;
                 }
+                const item = await (client as gcf.Firestore).collection(table).doc(id).get();
+                result = [item.data()];
             }
-            if (orderBy) {
-                for (const order of orderBy) {
-                    if (order.length) {
-                        collection = collection.orderBy(order[0], order[1] === 'desc' || order[1] === 'asc' ? order[1] : undefined);
+            else if (Array.isArray(query)) {
+                queryString += JSON.stringify(query) + (orderBy ? JSON.stringify(orderBy) : '') + limit;
+                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+                if (result) {
+                    return result;
+                }
+                let collection = (client as gcf.Firestore).collection(table) as gcf.Query<gcf.DocumentData>;
+                for (const where of query) {
+                    if (where.length === 3) {
+                        collection = collection.where(where[0], where[1] as gcf.WhereFilterOp, where[2] as any);
                     }
                 }
+                if (orderBy) {
+                    for (const order of orderBy) {
+                        if (order.length) {
+                            collection = collection.orderBy(order[0], order[1] === 'desc' || order[1] === 'asc' ? order[1] : undefined);
+                        }
+                    }
+                }
+                if (limit > 0) {
+                    collection = collection.limit(limit);
+                }
+                result = (await collection.get()).docs.map(item => item.data());
             }
-            if (limit > 0) {
-                collection = collection.limit(limit);
-            }
-            result = (await collection.get()).docs.map(item => item.data());
         }
     }
     catch (err) {

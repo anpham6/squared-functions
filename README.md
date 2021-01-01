@@ -653,9 +653,11 @@ Basic text replacement can be achieved using any of these cloud based document d
   - npm i @azure/cosmos
   - Azure: https://azure.microsoft.com/en-us/services/cosmos-db (5GB + 400RU/s)
 
-* Google Firestore
+* Google Firestore / BigQuery
   - npm i @google-cloud/firestore
+  - npm i @google-cloud/bigquery
   - GCloud: https://cloud.google.com/firestore (1GB + 50K/20K r/w@day)
+            https://cloud.google.com/bigquery (10GB + 1TB queries/month)
 
 * IBM Cloudant
   - npm i @cloudant/cloudant
@@ -668,7 +670,7 @@ Basic text replacement can be achieved using any of these cloud based document d
 ```
 
 ```javascript
-// NOTE: Attribute "table" is required
+// NOTE: Attribute "table" is required except when using BigQuery
 
 interface CloudDatabase {
     table: string;
@@ -735,6 +737,21 @@ interface CloudDatabase {
     "query": [["group", "==", "Firestore"], ["id", "==", "1"]], // where
     "orderBy": [["title", "asc"]], // optional
     "value": "<b>${title}</b>: ${description}"
+  }
+}
+
+// BigQuery
+{
+  "selector": ".card:nth-of-type(1) p",
+  "type": "text",
+  "cloudDatabase": {
+    "service": "gcloud",
+    "credential": {
+      "keyFilename": "./gcloud.json"
+    },
+    "query": "SELECT name, count FROM `demo.names_2014` WHERE gender = 'M' ORDER BY count DESC LIMIT 10",
+    "limit": 5 // optional
+    "value": "<b>${name}</b>: ${count}"
   }
 }
 
