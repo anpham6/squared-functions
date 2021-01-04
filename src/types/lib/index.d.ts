@@ -5,7 +5,6 @@ import type * as chrome from './chrome';
 
 import type { WriteStream } from 'fs';
 import type { Response } from 'express';
-import type { CorsOptions } from 'cors';
 import type { BackgroundColor, ForegroundColor } from 'chalk';
 
 type BoolString = boolean | string;
@@ -157,11 +156,6 @@ declare namespace functions {
             hintBgColor?: typeof BackgroundColor;
             messageColor?: typeof ForegroundColor;
             messageBgColor?: typeof BackgroundColor;
-        }
-
-        interface Route {
-            mount?: string;
-            path?: string;
         }
     }
 
@@ -387,11 +381,6 @@ declare namespace functions {
         disk_write?: BoolString;
         unc_read?: BoolString;
         unc_write?: BoolString;
-        cors?: CorsOptions;
-        env?: string;
-        port?: StringMap;
-        routing?: ExtendedSettings.RoutingModule;
-        request_post_limit?: string;
         logger?: ExtendedSettings.LoggerModule;
         watch?: ExtendedSettings.WatchModule;
         image?: ExtendedSettings.ImageModule;
@@ -402,10 +391,6 @@ declare namespace functions {
     }
 
     namespace ExtendedSettings {
-        interface RoutingModule {
-            [key: string]: internal.Route[];
-        }
-
         interface LoggerModule {
             unknown?: boolean;
             system?: boolean;
