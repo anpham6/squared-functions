@@ -322,7 +322,7 @@ class Jimp extends Image implements functions.ImageCommand<jimp> {
                 else if (webp !== output) {
                     fs.unlink(output, error => {
                         if (error) {
-                            this.writeFail(['Unable to delete temp image', output], error);
+                            this.writeFail(['Unable to delete temporary image', output], error);
                         }
                         callback(webp);
                     });

@@ -66,7 +66,7 @@ Placing an @ symbol (png@) after the format will remove the original file from t
 webp(50000,*)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,135,215,315#FFFFFF}|0.5||100[photo][75]|!opaque!greyscale
 ```
 
-[Tinify](https://tinypng.com/developers) is used for image compression and supports PNG and JPEG. The first 500 images are free every month with a developer API key.
+[Tinify](https://tinypng.com/developers) is used for image compression and supports PNG and JPEG. The first 500 images are free each month with a developer API key.
 
 ```javascript
 // squared.settings.json

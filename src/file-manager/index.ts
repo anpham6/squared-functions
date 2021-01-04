@@ -1658,7 +1658,7 @@ class FileManager extends Module implements IFileManager {
             );
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Delete temp files', 'finalize'], err));
+            await Promise.all(tasks).catch(err => this.writeFail(['Delete temporary files', 'finalize'], err));
             tasks = [];
         }
         if (this.Compress) {
@@ -2108,7 +2108,7 @@ class FileManager extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail(['Delete cloud temp files', 'finalize'], err));
+                await Promise.all(tasks).catch(err => this.writeFail(['Delete cloud temporary files', 'finalize'], err));
                 tasks = [];
             }
             const downloadMap: ObjectMap<Set<string>> = {};

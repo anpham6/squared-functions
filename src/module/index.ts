@@ -47,10 +47,14 @@ const Module = class implements functions.IModule {
         return (index !== -1 ?value.substring(0, index) : value) + '.' + ext;
     }
 
+    public static isLocalPath(value: string) {
+        return /^\.?\.[\\/]/.test(value);
+    }
+
     public major: number;
     public minor: number;
     public patch: number;
-    public tempDir = 'temp';
+    public tempDir = 'tmp';
 
     constructor() {
         [this.major, this.minor, this.patch] = process.version.substring(1).split('.').map(value => +value);
@@ -70,6 +74,18 @@ const Module = class implements functions.IModule {
             return true;
         }
         return true;
+    }
+    parseFunction(value: string): Null<FunctionType<string>> {
+        if (Module.isLocalPath(value = value.trim())) {
+            try {
+                value = fs.readFileSync(path.resolve(value), 'utf8').trim();
+            }
+            catch (err) {
+                this.writeFail(['Could not load function', value], err);
+                return null;
+            }
+        }
+        return value.startsWith('function') ? eval(`(${value})`) as FunctionType<string> : null;
     }
     getTempDir(subDir?: boolean, filename = '') {
         return process.cwd() + path.sep + this.tempDir + path.sep + (subDir ? uuid.v4() + path.sep : '') + (filename.startsWith('.') ? uuid.v4() : '') + filename;

@@ -17,8 +17,6 @@ type ConfigOrTranspiler = functions.internal.Chrome.ConfigOrTranspiler;
 
 type Transpiler = FunctionType<Undef<string>>;
 
-const validLocalPath = (value: string) => /^\.?\.[\\/]/.test(value);
-
 class Chrome extends Module implements functions.IChrome {
     public serverRoot = '__serverroot__';
     public unusedStyles?: string[];
@@ -67,7 +65,7 @@ class Chrome extends Module implements functions.IChrome {
     }
     loadOptions(value: ConfigOrTranspiler | string): Undef<ConfigOrTranspiler> {
         if (typeof value === 'string' && this.settings.eval_function) {
-            const transpiler = this.loadTranspiler(value);
+            const transpiler = this.parseFunction(value);
             if (transpiler) {
                 return transpiler;
             }
@@ -76,7 +74,7 @@ class Chrome extends Module implements functions.IChrome {
     }
     loadConfig(value: Undef<StandardMap | string>): Undef<StandardMap> {
         if (typeof value ==='string') {
-            if (validLocalPath(value = value.trim())) {
+            if (Module.isLocalPath(value = value.trim())) {
                 try {
                     return JSON.parse(fs.readFileSync(path.resolve(value), 'utf8').trim()) as StandardMap;
                 }
@@ -96,18 +94,6 @@ class Chrome extends Module implements functions.IChrome {
                 this.writeFail(['Could not parse config', 'JSON invalid'], err);
             }
         }
-    }
-    loadTranspiler(value: string): Null<FunctionType<string>> {
-        if (validLocalPath(value = value.trim())) {
-            try {
-                value = fs.readFileSync(path.resolve(value), 'utf8').trim();
-            }
-            catch (err) {
-                this.writeFail(['Could not load function', value], err);
-                return null;
-            }
-        }
-        return value.startsWith('function') ? eval(`(${value})`) as FunctionType<string> : null;
     }
     async transform(type: ExternalCategory, format: string, value: string, input: SourceMapInput): Promise<Void<[string, Map<string, SourceMapOutput>]>> {
         const data = this.settings[type];

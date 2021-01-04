@@ -26,7 +26,7 @@ export default async function transform(value: string, options: rollup.RollupOpt
     if (!output) {
         output = options.output as rollup.OutputOptions || { format: 'es' };
     }
-    const rollupDir = path.join(process.cwd(), 'temp' + path.sep + 'rollup');
+    const rollupDir = path.join(process.cwd(), 'tmp' + path.sep + 'rollup');
     const inputFile = rollupDir + path.sep + uuid.v4();
     fs.mkdirpSync(rollupDir);
     fs.writeFileSync(inputFile, value);

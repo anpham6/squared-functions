@@ -260,7 +260,6 @@ declare namespace functions {
         findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory): internal.Chrome.PluginConfig;
         loadOptions(value: internal.Chrome.ConfigOrTranspiler | string): Undef<internal.Chrome.ConfigOrTranspiler>;
         loadConfig(value: string): Undef<StandardMap | string>;
-        loadTranspiler(value: string): Null<FunctionType<string>>;
         transform(type: ExternalCategory, format: string, value: string, input: internal.Chrome.SourceMapInput): Promise<Void<[string, Map<string, internal.Chrome.SourceMapOutput>]>>;
     }
 
@@ -331,6 +330,7 @@ declare namespace functions {
         loadSettings(value: Settings, ignorePermissions?: boolean): void;
         moduleNode(): INode;
         moduleCompress(): ICompress;
+        moduleChrome(): IChrome;
         new(dirname: string, body: RequestBody, postFinalize?: FunctionType<void>): IFileManager;
     }
 
@@ -343,6 +343,7 @@ declare namespace functions {
         readonly minor: number;
         readonly patch: number;
         supported(major: number, minor: number, patch?: number): boolean;
+        parseFunction(value: string): Null<FunctionType<string>>;
         joinPosix(...paths: Undef<string>[]): string;
         getTempDir(subDir?: boolean, filename?: string): string;
         formatMessage(type: internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options?: internal.LogMessageOptions): void;
@@ -357,6 +358,7 @@ declare namespace functions {
         getFileSize(fileUri: string): number;
         toPosix(value: string, filename?: string): string;
         renameExt(value: string, ext: string): string;
+        isLocalPath(value: string): string;
         new(): IModule;
     }
 
