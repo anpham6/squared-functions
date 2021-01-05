@@ -47,9 +47,10 @@ npm i dwebp-bin && npm i cwebp-bin
 + <format>
 
 - @|%
+- ~size(n)(w|x) // chrome only
 - ( minSize(n,0) , maxSize(n,*) )
 - ( width(n|auto) x height(n|auto) [bilinear|bicubic|hermite|bezier]? ^(cover|contain|scale)?[left|center|right|top|middle|bottom]? #background-color? )
-- ( left(+|-n) , top(+|-n) | cropWidth(n) x cropHeight(n) ) // "+" reserved for chaining
+- ( left(+|-n) , top(+|-n) | cropWidth(n) x cropHeight(n) )
 - { ...rotate(n) #background-color? }
 - | opacity(0.0-1.0) OR jpeg_webp_quality(0-100)[photo|picture|drawing|icon|text]?[0-100]?| // cwebp: -preset -near_lossless
 - !method // no arguments (e.g. jimp: dither565|greyscale|invert|normalize|opaque|sepia)
@@ -61,9 +62,12 @@ npm i dwebp-bin && npm i cwebp-bin
 Placing an @ symbol (png@) after the format will remove the original file from the package. Using the % symbol (png%) instead will choose the smaller of the two files. You can also use these commands with the setting "convertImages" in the Android framework.
 
 ```javascript
-// Multiple transformations per asset use the "::" as the separator when using "data-chrome-commands"
+// Multiple transformations use the "::" as the separator with "data-chrome-commands"
 
 webp(50000,*)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,135,215,315#FFFFFF}|0.5||100[photo][75]|!opaque!greyscale
+
+webp~800w(800x600) // chrome srcset attribute
+webp~2x(1024x768)
 ```
 
 [Tinify](https://tinypng.com/developers) is used for image compression and supports PNG and JPEG. The first 500 images are free each month with a developer API key.

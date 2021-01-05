@@ -174,7 +174,7 @@ const Compress = new class extends Module implements functions.ICompress {
             });
         }
         else {
-            writeFail(null);
+            writeFail(new Error('Compressor not found'));
             callback(false);
         }
     }

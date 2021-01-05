@@ -455,6 +455,7 @@ declare namespace functions {
         inlineCloud?: string;
         inlineCssCloud?: string;
         inlineCssMap?: StringMap;
+        srcSet?: string[];
         etag?: string;
         invalid?: boolean;
     }

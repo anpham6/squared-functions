@@ -53,6 +53,7 @@ interface GulpTask {
 
 const REGEXP_INDEXOBJECT = /([^[.\s]+)((?:\s*\[[^\]]+\]\s*)+)?\s*\.?\s*/g;
 const REGEXP_INDEXARRAY = /\[\s*(["'])?(.+?)\1\s*\]/g;
+const REGEXP_TAGSTART = /^(\s*<\s*[\w-]+)(\s*)/;
 const REGEXP_TAGTEXT = /^\s*<([\w-]+)[^>]*>[\S\s]*?<\/\1>\s*$/;
 const REGEXP_TRAILINGCONTENT = /(\s*)<(script|style)[^>]*>([\s\S]*?)<\/\2>\n*/g;
 const REGEXP_DBCOLUMN = /\$\{\s*(\w+)\s*\}/g;
@@ -61,6 +62,7 @@ const REGEXP_FILEEXCLUDECLOSED = /\s*<(script|link).+?data-chrome-file="exclude"
 const REGEXP_SCRIPTTEMPLATE = /\s*<script.+?data-chrome-template="([^"]|(?<=\\)")*"[\s\S]*?<\/script>\n*/g;
 const REGEXP_CHROMEATTRIBUTE = /\s+data-(use|chrome-[\w-]+)="([^"]|(?<=\\)")*"/g;
 const REGEXP_CSSURL = /url\(\s*([^)]+)\s*\)/g;
+const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
 
 function removeFileCommands(value: string) {
     return value
@@ -730,62 +732,57 @@ class FileManager extends Module implements IFileManager {
                     }
                 };
                 const replaceMinify = (outerHTML: string, replaceWith: string, content?: string) => {
-                    if (current === source) {
-                        const tagName = /\s*<([\w-]+)/.exec(outerHTML)?.[1];
-                        if (tagName) {
-                            const openTag: number[] = [];
-                            let index = 0;
-                            while ((index = html.indexOf('<' + tagName, index)) !== -1) {
-                                openTag.push(index++);
+                    if (current === source && (match = /<(\s*[\w-]+)/.exec(outerHTML))) {
+                        const openTag: number[] = [];
+                        let index = 0;
+                        while ((index = html.indexOf(match[0], index)) !== -1) {
+                            openTag.push(index++);
+                        }
+                        const open = openTag.length;
+                        if (open) {
+                            const closeTag: number[] = [];
+                            const tag = new RegExp(`</\\s*${match[1].trim()}\\s*>`, 'ig');
+                            while (match = tag.exec(html)) {
+                                closeTag.push(match.index + match[0].length);
                             }
-                            const open = openTag.length;
-                            if (open) {
-                                const tag = '</' + tagName + '>';
-                                const closeTag: number[] = [];
-                                index = 0;
-                                while ((index = html.indexOf(tag, index)) !== -1) {
-                                    index += tag.length;
-                                    closeTag.push(index);
-                                }
-                                const close = closeTag.length;
-                                if (close) {
-                                    content &&= minifySpace(content);
-                                    outerHTML = minifySpace(outerHTML);
-                                    for (let i = 0; i < open; ++i) {
-                                        let j = 0,
-                                            valid: Undef<boolean>;
-                                        if (i === close - 1 && open === close) {
-                                            j = i;
-                                            valid = true;
-                                        }
-                                        else {
-                                            found: {
-                                                const k = openTag[i];
-                                                let start = i + 1;
-                                                for ( ; j < close; ++j) {
-                                                    const l = closeTag[j];
-                                                    if (l > k) {
-                                                        for (let m = start; m < open; ++m) {
-                                                            const n = openTag[m];
-                                                            if (n < l) {
-                                                                ++start;
-                                                                break;
-                                                            }
-                                                            else if (n > l) {
-                                                                valid = true;
-                                                                break found;
-                                                            }
+                            const close = closeTag.length;
+                            if (close) {
+                                content &&= minifySpace(content);
+                                outerHTML = minifySpace(outerHTML);
+                                for (let i = 0; i < open; ++i) {
+                                    let j = 0,
+                                        valid: Undef<boolean>;
+                                    if (i === close - 1 && open === close) {
+                                        j = i;
+                                        valid = true;
+                                    }
+                                    else {
+                                        found: {
+                                            const k = openTag[i];
+                                            let start = i + 1;
+                                            for ( ; j < close; ++j) {
+                                                const l = closeTag[j];
+                                                if (l > k) {
+                                                    for (let m = start; m < open; ++m) {
+                                                        const n = openTag[m];
+                                                        if (n < l) {
+                                                            ++start;
+                                                            break;
+                                                        }
+                                                        else if (n > l) {
+                                                            valid = true;
+                                                            break found;
                                                         }
                                                     }
                                                 }
                                             }
                                         }
-                                        if (valid) {
-                                            const outerText = html.substring(openTag[i], closeTag[j]);
-                                            if (outerHTML === minifySpace(outerText) || content && content === minifySpace(findClosingTag(outerText)[2])) {
-                                                source = source.replace(replaceWith ? outerText : new RegExp('\\s*' + escapeRegexp(outerText) + '\\n*'), replaceWith);
-                                                break;
-                                            }
+                                    }
+                                    if (valid) {
+                                        const outerText = html.substring(openTag[i], closeTag[j]);
+                                        if (outerHTML === minifySpace(outerText) || content && content === minifySpace(findClosingTag(outerText)[2])) {
+                                            source = source.replace(replaceWith ? outerText : new RegExp('\\s*' + escapeRegexp(outerText) + '\\n*'), replaceWith);
+                                            break;
                                         }
                                     }
                                 }
@@ -937,15 +934,11 @@ class FileManager extends Module implements IFileManager {
                             output ||= outerHTML;
                             for (const key in attributes) {
                                 const value = attributes[key];
-                                match = new RegExp(`(\\s*)${key}(?:="([^"]|(?<=\\\\)")*"|\b)`).exec(output);
-                                if (match) {
+                                if (match = new RegExp(`(\\s*)${key}(?:="([^"]|(?<=\\\\)")*"|\b)`).exec(output)) {
                                     output = output.replace(match[0], value !== undefined ? (match[1] ? ' ' : '') + formatAttr(key, value) : '');
                                 }
-                                else if (value !== undefined) {
-                                    match = /^(\s*<[\w-]+)(\s*)/.exec(output);
-                                    if (match) {
-                                        output = output.replace(match[0], match[1] + ' ' + formatAttr(key, value) + (match[2] ? ' ' : ''));
-                                    }
+                                else if (value !== undefined && (match = REGEXP_TAGSTART.exec(output))) {
+                                    output = output.replace(match[0], match[1] + ' ' + formatAttr(key, value) + (match[2] ? ' ' : ''));
                                 }
                             }
                             if (output !== outerHTML) {
@@ -996,7 +989,7 @@ class FileManager extends Module implements IFileManager {
                                 item.inlineBase64 = value;
                                 item.watch = false;
                             }
-                            const innerContent = outerHTML.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/\w+>)?\s*$/, '');
+                            const innerContent = outerHTML.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/[\s\w]+>)?\s*$/, '');
                             const replaced = replaceUri(innerContent, segments, value);
                             if (replaced) {
                                 source = source.replace(innerContent, replaced);
@@ -1004,6 +997,7 @@ class FileManager extends Module implements IFileManager {
                                     source = source.replace(new RegExp(escapeRegexp(innerContent).replace(/\s+/g, '\\s+')), replaced);
                                 }
                                 if (current !== source) {
+                                    item.outerHTML = outerHTML.replace(innerContent, replaced);
                                     html = source;
                                     break found;
                                 }
@@ -1012,8 +1006,10 @@ class FileManager extends Module implements IFileManager {
                                 const directory = new RegExp(`(["'\\s,=])(${(ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + escapePosix(relativePath)})`, 'g');
                                 while (match = directory.exec(html)) {
                                     if (uri === Node.resolvePath(match[2], baseUri)) {
-                                        source = source.replace(match[0], match[1] + value);
+                                        const src = match[1] + value;
+                                        source = source.replace(match[0], src);
                                         if (current !== source) {
+                                            item.outerHTML = outerHTML.replace(match[0], src);
                                             html = source;
                                             break found;
                                         }
@@ -1134,10 +1130,15 @@ class FileManager extends Module implements IFileManager {
         }
     }
     queueImage(data: FileData, outputType: string, saveAs: string, command = '') {
-        const fileUri = data.file.fileUri!;
+        const file = data.file;
+        const fileUri = file.fileUri!;
         let output: Undef<string>;
-        if (data.file.mimeType === outputType) {
-            if (!command.includes('@') || this.filesQueued.has(fileUri)) {
+        if (file.mimeType === outputType) {
+            const match = REGEXP_SRCSETSIZE.exec(command);
+            if (match) {
+                output = Module.renameExt(fileUri, match[1] + match[2].toLowerCase() + '.' + saveAs);
+            }
+            else if (!command.includes('@') || this.filesQueued.has(fileUri)) {
                 let i = 1;
                 do {
                     output = Module.renameExt(fileUri, '__copy__.' + (i > 1 ? `(${i}).` : '') + saveAs);
@@ -1196,7 +1197,8 @@ class FileManager extends Module implements IFileManager {
         }
     }
     finalizeImage(result: OutputData, error?: Null<Error>) {
-        const { file, output, command } = result;
+        const { file, command } = result;
+        let output = result.output;
         if (error || !output) {
             this.writeFail(['Unable to finalize image', path.basename(output)], error);
             this.completeAsyncTask();
@@ -1204,18 +1206,25 @@ class FileManager extends Module implements IFileManager {
         else {
             let parent: Undef<ExternalAsset>;
             if (file.fileUri !== output) {
-                if (command.includes('%')) {
+                const match = this.Chrome && file.outerHTML && REGEXP_SRCSETSIZE.exec(command);
+                if (match) {
+                    (file.srcSet ||= []).push(Module.toPosix(this.removeCwd(output)), match[1] + match[2].toLowerCase());
+                    parent = file;
+                }
+                else if (command.includes('%')) {
                     if (this.filesToCompare.has(file)) {
                         this.filesToCompare.get(file)!.push(output);
                     }
                     else {
                         this.filesToCompare.set(file, [output]);
                     }
+                    output = '';
+                }
+                else if (command.includes('@')) {
+                    this.replace(file, output);
+                    output = '';
                 }
                 else {
-                    if (command.includes('@')) {
-                        this.replace(file, output);
-                    }
                     parent = file;
                 }
             }
@@ -1269,7 +1278,7 @@ class FileManager extends Module implements IFileManager {
             this.completeAsyncTask('');
         }
         else {
-            this.completeAsyncTask(data.file.fileUri, parent);
+            this.completeAsyncTask(fileUri, parent);
         }
     }
     processAssets(emptyDirectory?: boolean) {
@@ -1602,30 +1611,74 @@ class FileManager extends Module implements IFileManager {
                 tasks = [];
             }
             const replaced = this.assets.filter(item => item.originalName && !item.invalid);
+            const srcSet = this.assets.filter(item => item.srcSet);
             const productionRelease = this.Chrome.productionRelease;
-            if (replaced.length || Object.keys(base64Map).length || productionRelease) {
-                const replaceContent = (file: ExternalAsset, value: string) => {
+            if (replaced.length || srcSet.length || Object.keys(base64Map).length || productionRelease) {
+                const outerContent: { item: ExternalAsset; outerHTML: string }[] = [];
+                const replaceContent = (file: ExternalAsset, source: string, content: boolean) => {
+                    if (content) {
+                        let current = source;
+                        for (const { item, outerHTML } of outerContent) {
+                            source = source.replace(item.outerHTML!, outerHTML);
+                            if (current !== source) {
+                                item.outerHTML = outerHTML;
+                                current = source;
+                            }
+                        }
+                    }
                     for (const id in base64Map) {
-                        value = value.replace(new RegExp(id, 'g'), base64Map[id]!);
+                        source = source.replace(new RegExp(id, 'g'), base64Map[id]!);
                     }
                     for (const asset of replaced) {
-                        value = value.replace(new RegExp(escapePosix(getRelativePath(asset, asset.originalName)), 'g'), asset.relativePath!);
+                        source = source.replace(new RegExp(escapePosix(getRelativePath(asset, asset.originalName)), 'g'), asset.relativePath!);
                     }
                     if (productionRelease) {
-                        value = value.replace(new RegExp('(\\.\\./)*' + this.Chrome!.serverRoot, 'g'), '');
+                        source = source.replace(new RegExp('(\\.\\./)*' + this.Chrome!.serverRoot, 'g'), '');
                     }
-                    file.sourceUTF8 = value;
+                    file.sourceUTF8 = source;
                 };
+                for (const item of srcSet) {
+                    const images = item.srcSet;
+                    if (images) {
+                        let outerHTML = item.outerHTML!,
+                            value = 'srcset="',
+                            start = true,
+                            match = /(\s*)srcset="([^"]|(?<=\\)")"/i.exec(outerHTML);
+                        if (match) {
+                            value = match[2].trim();
+                            start = false;
+                        }
+                        const length = images.length;
+                        let i = 0;
+                        while (i < length) {
+                            value += (!start ? ', ' : '') + images[i++] + ' ' + images[i++];
+                            start = false;
+                        }
+                        value += '"';
+                        if (match) {
+                            outerHTML = outerHTML.replace(match[0], (match[1] ? ' ' : '') + value);
+                        }
+                        else if (match = REGEXP_TAGSTART.exec(outerHTML)) {
+                            outerHTML = outerHTML.replace(match[0], match[1] + ' ' + value + (match[2] ? ' ' : ''));
+                        }
+                        else {
+                            continue;
+                        }
+                        outerContent.push({ item, outerHTML });
+                    }
+                }
                 for (const item of this.assets) {
                     if (!item.invalid) {
+                        let content = false;
                         switch (item.mimeType) {
                             case '@text/html':
+                                content = true;
                             case '@text/css':
                                 if (item.sourceUTF8 || item.buffer) {
-                                    replaceContent(item, this.getUTF8String(item));
+                                    replaceContent(item, this.getUTF8String(item), content);
                                 }
                                 else {
-                                    tasks.push(fs.readFile(item.fileUri!, 'utf8').then(data => replaceContent(item, data)));
+                                    tasks.push(fs.readFile(item.fileUri!, 'utf8').then(data => replaceContent(item, data, content)));
                                 }
                                 break;
                         }

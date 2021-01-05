@@ -3,7 +3,7 @@
   "version": "0.9.9",
   "description": "Parent folder for @squared-functions packages.",
   "scripts": {
-    "dev": "npm run build && copyfiles -a ./publish/**/* -u 1 ../squared/node_modules/@squared-functions",
+    "dev": "npm run build && copyfiles -a ./publish/**/* -u 1 ../squared/node_modules/@squared-functions && copyfiles -a ./publish/**/* -u 1 ../squared-express/node_modules/@squared-functions",
     "prod": "rimraf build/* && eslint ./src/**/*.ts && npm run build",
     "build": "tsc && rollup --silent -c rollup.config.js && rollup --silent -c ./src/cloud/rollup.config.js && rollup --silent -c ./src/chrome/rollup.config.js && copyfiles -a ./src/types/lib/* -u 1 ./publish",
     "dev-publish": "npm publish --dry-run && cd publish && cd types && npm publish --dry-run && cd ../chrome && npm publish --dry-run && cd ../cloud && npm publish --dry-run && cd ../compress && npm publish --dry-run && cd ../image && npm publish --dry-run && cd ../watch && npm publish --dry-run && cd ../module && npm publish --dry-run && cd ../node && npm publish --dry-run && cd ../file-manager && npm publish --dry-run",
