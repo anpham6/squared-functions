@@ -1,3 +1,5 @@
+import type { ResponseData } from '../types/lib/squared';
+
 import Module from '../module';
 
 const Node = new class extends Module implements functions.INode {
@@ -38,6 +40,15 @@ const Node = new class extends Module implements functions.INode {
     }
     isDirectoryUNC(value: string) {
         return /^\\\\([\w.-]+)\\([\w-]+\$|[\w-]+\$\\.+|[\w-]+\\.*)$/.test(value);
+    }
+    getResponseError(hint: string, message: Error | string) {
+        return {
+            success: false,
+            error: {
+                hint,
+                message: message.toString()
+            }
+        } as ResponseData;
     }
     resolvePath(value: string, href: string) {
         if (href.startsWith('http')) {

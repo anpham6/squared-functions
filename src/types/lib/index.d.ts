@@ -171,6 +171,7 @@ declare namespace functions {
         isFileURI(value: string): boolean;
         isFileUNC(value: string): boolean;
         isDirectoryUNC(value: string): boolean;
+        getResponseError(hint: string, message: Error | string): squared.ResponseData;
         resolvePath(value: string, href: string): string;
     }
 
@@ -263,17 +264,17 @@ declare namespace functions {
         transform(type: ExternalCategory, format: string, value: string, input: internal.Chrome.SourceMapInput): Promise<Void<[string, Map<string, internal.Chrome.SourceMapOutput>]>>;
     }
 
-    interface IWatch extends IModule {
-        interval: number;
-        whenModified?: (assets: ExternalAsset[]) => void;
-        start(assets: ExternalAsset[]): void;
-    }
-
     interface ChromeConstructor extends ModuleConstructor {
         new(body: RequestBody, settings?: ExtendedSettings.ChromeModule, productionRelease?: boolean): IChrome;
     }
 
     const Chrome: ChromeConstructor;
+
+    interface IWatch extends IModule {
+        interval: number;
+        whenModified?: (assets: ExternalAsset[]) => void;
+        start(assets: ExternalAsset[]): void;
+    }
 
     interface IFileManager extends IModule {
         delayed: number;

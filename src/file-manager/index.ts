@@ -1,4 +1,4 @@
-import type { CloudService, CloudStorageUpload, ResponseData } from '../types/lib/squared';
+import type { CloudService, CloudStorageUpload } from '../types/lib/squared';
 import type { Response } from 'express';
 
 import child_process = require('child_process');
@@ -253,14 +253,14 @@ class FileManager extends Module implements IFileManager {
         if (Node.isDirectoryUNC(dirname)) {
             if (!Node.hasUNCWrite()) {
                 if (res) {
-                    res.json({ success: false, error: { hint: 'OPTION: --unc-write', message: 'Writing to UNC shares is not enabled.' } } as ResponseData);
+                    res.json(Node.getResponseError('OPTION: --unc-write', 'Writing to UNC shares is not enabled.'));
                 }
                 return false;
             }
         }
         else if (!Node.hasDiskWrite()) {
             if (res) {
-                res.json({ success: false, error: { hint: 'OPTION: --disk-write', message: 'Writing to disk is not enabled.' } } as ResponseData);
+                res.json(Node.getResponseError('OPTION: --disk-write', 'Writing to disk is not enabled.'));
             }
             return false;
         }
@@ -274,7 +274,7 @@ class FileManager extends Module implements IFileManager {
         }
         catch (err) {
             if (res) {
-                res.json({ success: false, error: { hint: 'DIRECTORY: ' + dirname, message: err.toString() } } as ResponseData);
+                res.json(Node.getResponseError('DIRECTORY: ' + dirname, err));
             }
             return false;
         }
