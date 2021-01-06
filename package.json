@@ -15,9 +15,10 @@
   },
   "keywords": [
     "squared",
-    "compression",
+    "squared-express",
+    "image",
     "documentdb",
-    "storage"
+    "cloud storage"
   ],
   "author": "An Pham <anpham6@gmail.com>",
   "license": "MIT",

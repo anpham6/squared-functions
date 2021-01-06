@@ -364,19 +364,6 @@ declare namespace functions {
 
     const Module: ModuleConstructor;
 
-    interface Arguments {
-        accessAll?: boolean;
-        accessDisk?: boolean;
-        accessUnc?: boolean;
-        diskRead?: boolean;
-        diskWrite?: boolean;
-        uncRead?: boolean;
-        uncWrite?: boolean;
-        env?: string;
-        port?: number;
-        cors?: string;
-    }
-
     interface Settings {
         apiVersion?: string;
         disk_read?: BoolString;

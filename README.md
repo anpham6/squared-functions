@@ -1,29 +1,8 @@
-### squared-functions 0.9
+## squared-functions 0.9
 
 These are the available options when creating archives or copying files. Examples use squared 2.2 although the concepts can be used similarly with any NodeJS application.
 
-```javascript
-squared.saveAs('archive1', { // OR: archive1.gz
-    format: 'zip', // optional (zip | tar | gz/tgz)
-    assets: [ // optional
-        {
-            pathname: 'app/src/main/res/drawable',
-            filename: 'ic_launcher_background.xml',
-            uri: 'http://localhost:3000/common/images/ic_launcher_background.xml',
-            compress: [{ format: 'gz', level: 9 }, { format: 'br' }]
-        }
-    ],
-
-    // All attributes are optional (case-sensitive except extension)
-    exclusions: {
-        glob: ['**/*.zip'],
-        pathname: ['app/build', 'app/libs'],
-        filename: ['ic_launcher_foreground.xml'],
-        extension: ['iml', 'pro'],
-        pattern: ['output', /grad.+?\./i, '\\.git']
-    }
-});
-```
+### Image
 
 Image conversion can be achieved using the "commands" array property in a FileAsset object. The supported formats are:
 
