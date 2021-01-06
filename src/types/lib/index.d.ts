@@ -281,6 +281,12 @@ declare namespace functions {
         start(assets: ExternalAsset[]): void;
     }
 
+    interface WatchConstructor extends ModuleConstructor {
+        new(interval?: number): IWatch;
+    }
+
+    const Watch: WatchConstructor;
+
     interface IFileManager extends IModule {
         delayed: number;
         cleared: boolean;

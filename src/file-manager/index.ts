@@ -10,10 +10,13 @@ import mime = require('mime-types');
 import escapeRegexp = require('escape-string-regexp');
 
 import Module from '../module';
-import Node from '../node';
-import Compress from '../compress';
+import Document from '../document';
+import Image from '../image';
 import Cloud from '../cloud';
 import Watch from '../watch';
+
+import Node from '../node';
+import Compress from '../compress';
 
 type IFileManager = functions.IFileManager;
 type IDocument = functions.IDocument;
@@ -177,25 +180,29 @@ class FileManager extends Module implements IFileManager {
 
     install(name: string, ...args: unknown[]) {
         switch (name) {
-            case 'image':
-                this.Image = args[0] as ImageConstructor;
+            case 'image': {
+                const ImageClass = args[0] as ImageConstructor;
+                if (ImageClass.prototype instanceof Image) {
+                    this.Image = ImageClass;
+                }
                 break;
+            }
             case 'document': {
-                const Document = args[0] as DocumentConstructor;
-                const document = new Document(this.body, args[1] as DocumentModule, ...args.slice(2));
-                Document.init.call(this, document);
-                this.Document.push([document, args as DocumentInstallArgs]);
+                const DocumentClass = args[0] as DocumentConstructor;
+                if (DocumentClass.prototype instanceof Document) {
+                    const document = new DocumentClass(this.body, args[1] as DocumentModule, ...args.slice(2));
+                    DocumentClass.init.call(this, document);
+                    this.Document.push([document, args as DocumentInstallArgs]);
+                }
                 break;
             }
             case 'cloud':
                 this.Cloud = new Cloud(args[0] as CloudModule, this.body.database);
                 break;
-            case 'watch':
-                this.Watch = Watch;
-                if (typeof args[0] === 'number' && args[0] > 0) {
-                    Watch.interval = args[0];
-                }
-                Watch.whenModified = (assets: ExternalAsset[]) => {
+            case 'watch': {
+                const interval = args[0];
+                const watch = new Watch(typeof interval === 'number' && interval > 0 ? interval : undefined);
+                watch.whenModified = (assets: ExternalAsset[]) => {
                     const manager = new FileManager(this.baseDirectory, { ...this.body, assets });
                     for (const item of this.Document) {
                         manager.install('document', ...item[1]);
@@ -211,7 +218,9 @@ class FileManager extends Module implements IFileManager {
                     }
                     manager.processAssets();
                 };
+                this.Watch = watch;
                 break;
+            }
             case 'compress':
                 this.Compress = args[0] as CompressModule;
                 break;

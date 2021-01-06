@@ -1,6 +1,6 @@
-import type { IWatch } from '../types/lib';
+import type { WatchConstructor } from '../types/lib';
 
-declare const Watch: IWatch;
+declare const Watch: WatchConstructor;
 
 export = Watch;
 export as namespace Watch;
