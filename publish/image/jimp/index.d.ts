@@ -1,6 +1,6 @@
 import type { ImageConstructor } from '../../types/lib';
 
-declare const ImageJimp: ImageConstructor;
+declare const JimpImage: ImageConstructor;
 
-export = ImageJimp;
-export as namespace ImageJimp;
+export = JimpImage;
+export as namespace JimpImage;

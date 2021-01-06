@@ -1,12 +1,23 @@
 export default [
     {
-        input: './build/chrome/index.js',
+        input: './build/document/index.js',
         treeshake: false,
         output: {
-            file: './publish/chrome/index.js',
+            file: './publish/document/index.js',
             format: 'cjs',
             strict: false,
-            banner: `/* @squared-functions/chrome ${require('./publish/chrome/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
+            banner: `/* @squared-functions/document ${require('./publish/document/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
+        },
+        plugins: []
+    },
+    {
+        input: './build/document/chrome/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/document/chrome/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/document/chrome ${require('./publish/document/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
         },
         plugins: []
     },

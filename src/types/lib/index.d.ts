@@ -13,6 +13,7 @@ declare namespace functions {
     type ExternalCategory = "html" | "css" | "js";
     type CloudFeatures = "storage" | "database";
     type CloudFunctions = "upload" | "download";
+    type DocumentInstallArgs = [DocumentConstructor, ...unknown[]];
     type ModuleWriteFailMethod = (value: string | [string, string], message?: unknown) => void;
     type FileManagerFinalizeImageMethod = (result: internal.Image.OutputData, error?: Null<Error>) => void;
     type FileManagerPerformAsyncTaskCallback = VoidFunction;
@@ -48,7 +49,7 @@ declare namespace functions {
             }
         }
 
-        namespace Chrome {
+        namespace Document {
             interface SourceMapInput {
                 file: ExternalAsset;
                 sourcesContent: Null<string>;
@@ -252,24 +253,27 @@ declare namespace functions {
 
     const Cloud: CloudConstructor;
 
-    interface IChrome extends IModule {
-        settings: ExtendedSettings.ChromeModule;
+    interface IDocument extends IModule {
+        settings: ExtendedSettings.DocumentModule;
         serverRoot: string;
-        productionRelease: boolean;
-        unusedStyles?: string[];
-        transpileMap?: chrome.TranspileMap;
-        findPlugin(settings: Undef<ObjectMap<StandardMap>>, name: string): internal.Chrome.PluginConfig;
-        findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory): internal.Chrome.PluginConfig;
-        loadOptions(value: internal.Chrome.ConfigOrTranspiler | string): Undef<internal.Chrome.ConfigOrTranspiler>;
+        documentName: string;
+        templateMap?: StandardMap;
+        findPlugin(settings: Undef<ObjectMap<StandardMap>>, name: string): internal.Document.PluginConfig;
+        findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory): internal.Document.PluginConfig;
+        loadOptions(value: internal.Document.ConfigOrTranspiler | string): Undef<internal.Document.ConfigOrTranspiler>;
         loadConfig(value: string): Undef<StandardMap | string>;
-        transform(type: ExternalCategory, format: string, value: string, input: internal.Chrome.SourceMapInput): Promise<Void<[string, Map<string, internal.Chrome.SourceMapOutput>]>>;
+        transform(type: ExternalCategory, format: string, value: string, input: internal.Document.SourceMapInput): Promise<Void<[string, Map<string, internal.Document.SourceMapOutput>]>>;
     }
 
-    interface ChromeConstructor extends ModuleConstructor {
-        new(body: RequestBody, settings?: ExtendedSettings.ChromeModule, productionRelease?: boolean): IChrome;
+    interface DocumentConstructor extends ModuleConstructor {
+        init(this: IFileManager, document: IDocument): boolean;
+        using(this: IFileManager, document: IDocument, file: ExternalAsset): Promise<void>;
+        finalize(this: IFileManager, document: IDocument): void;
+        formatContent(this: IFileManager, document: IDocument, file: ExternalAsset, content: string): string;
+        new(body: RequestBody, settings?: ExtendedSettings.DocumentModule, ...args: unknown[]): IDocument;
     }
 
-    const Chrome: ChromeConstructor;
+    const Document: DocumentConstructor;
 
     interface IWatch extends IModule {
         interval: number;
@@ -280,7 +284,7 @@ declare namespace functions {
     interface IFileManager extends IModule {
         delayed: number;
         cleared: boolean;
-        Chrome: Null<IChrome>;
+        Document: [IDocument, DocumentInstallArgs][];
         Cloud: Null<ICloud>;
         Watch: Null<IWatch>;
         Image: Null<ImageConstructor>;
@@ -313,12 +317,9 @@ declare namespace functions {
         getUTF8String(file: ExternalAsset, fileUri?: string): string;
         appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex?: number): Promise<string>;
         getTrailingContent(file: ExternalAsset): Promise<string>;
-        getBundleContent(fileUri: string): Undef<string>;
-        createSourceMap(file: ExternalAsset, sourcesContent: string): internal.Chrome.SourceMapInput;
-        writeSourceMap(outputData: [string, Map<string, internal.Chrome.SourceMapOutput>], file: ExternalAsset, sourceContent?: string, modified?: boolean): void;
-        removeCss(source: string, styles: string[]): Undef<string>;
-        transformCss(file: ExternalAsset, content: string): Undef<string>;
-        transformSource(data: internal.FileData, module?: IChrome): Promise<void>;
+        joinAllContent(fileUri: string): Undef<string>;
+        createSourceMap(file: ExternalAsset, sourcesContent: string): internal.Document.SourceMapInput;
+        writeSourceMap(outputData: [string, Map<string, internal.Document.SourceMapOutput>], file: ExternalAsset, sourceContent?: string, modified?: boolean): void;
         queueImage(data: internal.FileData, ouputType: string, saveAs: string, command?: string): Undef<string>;
         compressFile(file: ExternalAsset): Promise<unknown>;
         finalizeImage: FileManagerFinalizeImageMethod;
@@ -332,8 +333,7 @@ declare namespace functions {
         loadSettings(value: Settings, ignorePermissions?: boolean): void;
         moduleNode(): INode;
         moduleCompress(): ICompress;
-        moduleChrome(): IChrome;
-        new(dirname: string, body: RequestBody, postFinalize?: FunctionType<void>): IFileManager;
+        new(baseDirectory: string, body: RequestBody, postFinalize?: FunctionType<void>): IFileManager;
     }
 
     const FileManager: FileManagerConstructor;
@@ -361,6 +361,7 @@ declare namespace functions {
         toPosix(value: string, filename?: string): string;
         renameExt(value: string, ext: string): string;
         isLocalPath(value: string): string;
+        fromSameOrigin(value: string, other: string): boolean;
         new(): IModule;
     }
 
@@ -378,7 +379,6 @@ declare namespace functions {
         compress?: ExtendedSettings.CompressModule;
         cloud?: ExtendedSettings.CloudModule;
         gulp?: ExtendedSettings.GulpModule;
-        chrome?: ExtendedSettings.ChromeModule;
     }
 
     namespace ExtendedSettings {
@@ -415,9 +415,9 @@ declare namespace functions {
 
         interface GulpModule extends StringMap {}
 
-        interface ChromeModule extends Partial<chrome.TranspileMap> {
+        interface DocumentModule extends StandardMap {
             eval_function?: boolean;
-            eval_text_template?: boolean;
+            eval_template?: boolean;
         }
 
         interface WatchModule {
@@ -428,7 +428,7 @@ declare namespace functions {
     interface RequestBody extends PlainObject {
         assets: ExternalAsset[];
         unusedStyles?: chrome.UnusedStyles;
-        transpileMap?: chrome.TranspileMap;
+        templateMap?: StandardMap;
         database?: squared.CloudDatabase[];
     }
 

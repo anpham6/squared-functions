@@ -1,7 +1,7 @@
 {
-  "name": "@squared-functions/chrome",
-  "version": "0.9.11",
-  "description": "Chrome functions for squared-functions",
+  "name": "@squared-functions/document",
+  "version": "0.10.0",
+  "description": "Document functions for squared-functions",
   "main": "index.js",
   "types": "index.d.ts",
   "repository": {
@@ -15,8 +15,11 @@
   "license": "MIT",
   "homepage": "https://github.com/anpham6/squared-functions#readme",
   "dependencies": {
-    "@squared-functions/module": "^0.9.11",
-    "@squared-functions/types": "^0.9.11",
-    "fs-extra": "^9.0.1"
+    "@squared-functions/module": "^0.10.0",
+    "@squared-functions/types": "^0.10.0",
+    "escape-string-regexp": "4.0.0",
+    "fs-extra": "^9.0.1",
+    "mime-types": "^2.1.27",
+    "uuid": "^8.3.2"
   }
 }

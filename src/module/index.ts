@@ -51,6 +51,10 @@ const Module = class implements functions.IModule {
         return /^\.?\.[\\/]/.test(value);
     }
 
+    public static fromSameOrigin(value: string, other: string) {
+        return new URL(value).origin === new URL(other).origin;
+    }
+
     public major: number;
     public minor: number;
     public patch: number;

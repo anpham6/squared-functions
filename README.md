@@ -364,7 +364,7 @@ function (context, value, output /* optional: "@babel/core-output" */) {
 The same concept can be used inline anywhere using a &lt;script&gt; tag with the type attribute set to "text/template". The script template will be completely removed from the final output.
 
 ```javascript
-// "es5-example" is a custom name (chrome -> eval_text_template: true)
+// "es5-example" is a custom name (chrome -> eval_template: true)
 
 <script type="text/template" data-chrome-template="js::@babel/core::es5-example">
 function (context, value, output /* optional */, input /* optional */) {

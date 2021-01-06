@@ -1,6 +1,6 @@
 const context = require('@babel/core');
 
-type SourceMapInput = functions.internal.Chrome.SourceMapInput;
+type SourceMapInput = functions.internal.Document.SourceMapInput;
 
 export default async function transform(value: string, options: PlainObject, output: Undef<PlainObject>, input: SourceMapInput) {
     const sourceMap = input.map;

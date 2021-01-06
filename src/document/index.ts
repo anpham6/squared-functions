@@ -1,33 +1,39 @@
-import type { TranspileMap } from '../types/lib/chrome';
-
 import path = require('path');
 import fs = require('fs-extra');
 
 import Module from '../module';
 
+type IFileManager = functions.IFileManager;
+type IDocument = functions.IDocument;
+
 type ExternalCategory = functions.ExternalCategory;
 type RequestBody = functions.RequestBody;
+type ExternalAsset = functions.ExternalAsset;
 
-type ChromeModule = functions.ExtendedSettings.ChromeModule;
+type DocumentModule = functions.ExtendedSettings.DocumentModule;
 
-type SourceMapInput = functions.internal.Chrome.SourceMapInput;
-type SourceMapOutput = functions.internal.Chrome.SourceMapOutput;
-type PluginConfig = functions.internal.Chrome.PluginConfig;
-type ConfigOrTranspiler = functions.internal.Chrome.ConfigOrTranspiler;
+type SourceMapInput = functions.internal.Document.SourceMapInput;
+type SourceMapOutput = functions.internal.Document.SourceMapOutput;
+type PluginConfig = functions.internal.Document.PluginConfig;
+type ConfigOrTranspiler = functions.internal.Document.ConfigOrTranspiler;
 
 type Transpiler = FunctionType<Undef<string>>;
 
-class Chrome extends Module implements functions.IChrome {
+abstract class Document extends Module implements IDocument {
+    public static init(this: IFileManager) {}
+    public static async using(this: IFileManager, document: IDocument, file: ExternalAsset) {}
+    public static async finalize(this: IFileManager, document: IDocument) {}
+    public static async formatContent(this: IFileManager, document: IDocument, file: ExternalAsset, content: string) { return content; }
+
     public serverRoot = '__serverroot__';
-    public unusedStyles?: string[];
-    public transpileMap?: TranspileMap;
+    public documentName = '';
+    public templateMap?: StandardMap;
 
     private _packageMap: ObjectMap<Transpiler> = {};
 
-    constructor (body: RequestBody, public settings: ChromeModule = {}, public productionRelease = false) {
+    constructor (body: RequestBody, public settings: DocumentModule = {}) {
         super();
-        this.unusedStyles = body.unusedStyles;
-        this.transpileMap = body.transpileMap;
+        this.templateMap = body.templateMap;
     }
 
     findPlugin(settings: Undef<ObjectMap<StandardMap>>, value: string): PluginConfig {
@@ -48,8 +54,8 @@ class Chrome extends Module implements functions.IChrome {
         return [];
     }
     findTranspiler(settings: Undef<ObjectMap<StandardMap>>, value: string, category: ExternalCategory): PluginConfig {
-        if (this.transpileMap && this.settings.eval_text_template) {
-            const data = this.transpileMap[category];
+        if (this.templateMap && this.settings.eval_template) {
+            const data = this.templateMap[category];
             for (const name in data) {
                 const item = data[name][value];
                 if (item) {
@@ -157,9 +163,9 @@ class Chrome extends Module implements functions.IChrome {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = Chrome;
-    module.exports.default = Chrome;
+    module.exports = Document;
+    module.exports.default = Document;
     Object.defineProperty(module.exports, '__esModule', { value: true });
 }
 
-export default Chrome;
+export default Document;

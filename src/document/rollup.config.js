@@ -1,99 +1,99 @@
 export default [
     {
-        input: './build/chrome/packages/@babel/core.js',
+        input: './build/document/packages/@babel/core.js',
         treeshake: false,
         output: {
-            file: './publish/chrome/packages/@babel/core.js',
+            file: './publish/document/packages/@babel/core.js',
             format: 'cjs',
             strict: false
         },
         plugins: []
     },
     {
-        input: './build/chrome/packages/clean-css.js',
+        input: './build/document/packages/clean-css.js',
         treeshake: false,
         output: {
-            file: './publish/chrome/packages/clean-css.js',
+            file: './publish/document/packages/clean-css.js',
             format: 'cjs',
             strict: false
         },
         plugins: []
     },
     {
-        input: './build/chrome/packages/html-minifier-terser.js',
+        input: './build/document/packages/html-minifier-terser.js',
         treeshake: false,
         output: {
-            file: './publish/chrome/packages/html-minifier-terser.js',
+            file: './publish/document/packages/html-minifier-terser.js',
             format: 'cjs',
             strict: false
         },
         plugins: []
     },
     {
-        input: './build/chrome/packages/html-minifier.js',
+        input: './build/document/packages/html-minifier.js',
         treeshake: false,
         output: {
-            file: './publish/chrome/packages/html-minifier.js',
+            file: './publish/document/packages/html-minifier.js',
             format: 'cjs',
             strict: false
         },
         plugins: []
     },
     {
-        input: './build/chrome/packages/posthtml.js',
+        input: './build/document/packages/posthtml.js',
         treeshake: false,
         output: {
-            file: './publish/chrome/packages/posthtml.js',
+            file: './publish/document/packages/posthtml.js',
             format: 'cjs',
             strict: false
         },
         plugins: []
     },
     {
-        input: './build/chrome/packages/postcss.js',
+        input: './build/document/packages/postcss.js',
         treeshake: false,
         output: {
-            file: './publish/chrome/packages/postcss.js',
+            file: './publish/document/packages/postcss.js',
             format: 'cjs',
             strict: false
         },
         plugins: []
     },
     {
-        input: './build/chrome/packages/prettier.js',
+        input: './build/document/packages/prettier.js',
         treeshake: false,
         output: {
-            file: './publish/chrome/packages/prettier.js',
+            file: './publish/document/packages/prettier.js',
             format: 'cjs',
             strict: false
         },
         plugins: []
     },
     {
-        input: './build/chrome/packages/rollup.js',
+        input: './build/document/packages/rollup.js',
         treeshake: false,
         output: {
-            file: './publish/chrome/packages/rollup.js',
+            file: './publish/document/packages/rollup.js',
             format: 'cjs',
             strict: false
         },
         plugins: []
     },
     {
-        input: './build/chrome/packages/terser.js',
+        input: './build/document/packages/terser.js',
         treeshake: false,
         output: {
-            file: './publish/chrome/packages/terser.js',
+            file: './publish/document/packages/terser.js',
             format: 'cjs',
             strict: false
         },
         plugins: []
     },
     {
-        input: './build/chrome/packages/uglify-js.js',
+        input: './build/document/packages/uglify-js.js',
         treeshake: false,
         output: {
-            file: './publish/chrome/packages/uglify-js.js',
+            file: './publish/document/packages/uglify-js.js',
             format: 'cjs',
             strict: false
         },
