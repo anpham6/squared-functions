@@ -171,6 +171,7 @@ declare namespace functions {
         isFileURI(value: string): boolean;
         isFileUNC(value: string): boolean;
         isDirectoryUNC(value: string): boolean;
+        isUUID(value: string): boolean;
         getResponseError(hint: string, message: Error | string): squared.ResponseData;
         resolvePath(value: string, href: string): string;
     }

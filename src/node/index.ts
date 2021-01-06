@@ -41,6 +41,9 @@ const Node = new class extends Module implements functions.INode {
     isDirectoryUNC(value: string) {
         return /^\\\\([\w.-]+)\\([\w-]+\$|[\w-]+\$\\.+|[\w-]+\\.*)$/.test(value);
     }
+    isUUID(value: string) {
+        return /[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}/.test(value);
+    }
     getResponseError(hint: string, message: Error | string) {
         return {
             success: false,

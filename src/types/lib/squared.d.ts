@@ -83,6 +83,7 @@ export interface ResponseData {
     success: boolean;
     data?: unknown;
     zipname?: string;
+    downloadKey?: string;
     bytes?: number;
     files?: string[];
     error?: ResponseError;
