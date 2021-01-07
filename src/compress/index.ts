@@ -23,7 +23,7 @@ const Compress = new class extends Module implements functions.ICompress {
     public tinifyApiKey = '';
     public compressorProxy: ObjectMap<CompressTryFileMethod> = {};
 
-    registerCompressor(format: string, callback: CompressTryFileMethod) {
+    register(format: string, callback: CompressTryFileMethod) {
         this.compressorProxy[format] = callback;
     }
     createWriteStreamAsGzip(source: string, fileUri: string, level?: number) {

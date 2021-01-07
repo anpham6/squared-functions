@@ -593,26 +593,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                         }
                     }
                 }
-                source = removeFileCommands(transformCss.call(this, file, source) || source);
-                if (format) {
-                    const result = await document.transform('html', format, source, this.createSourceMap(file, source));
-                    if (result) {
-                        file.sourceUTF8 = result[0];
-                        break;
-                    }
-                }
-                file.sourceUTF8 = source;
+                file.sourceUTF8 = removeFileCommands(transformCss.call(this, file, source) || source);
                 break;
             }
-            case 'text/html':
-                if (format) {
-                    const source = this.getUTF8String(file, fileUri);
-                    const result = await document.transform('html', format, source, this.createSourceMap(file, source));
-                    if (result) {
-                        file.sourceUTF8 = result[0];
-                    }
-                }
-                break;
             case 'text/css':
             case '@text/css': {
                 const unusedStyles = file.preserve !== true && document?.unusedStyles;
@@ -648,9 +631,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 if (format) {
                     const result = await document.transform('css', format, source, this.createSourceMap(file, source));
                     if (result) {
-                        if (result[1].size) {
-                            this.writeSourceMap(result, file, source, modified);
-                        }
+                        this.writeSourceMap(result, file, source, modified);
                         source = result[0];
                     }
                 }
@@ -675,9 +656,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 if (format) {
                     const result = await document.transform('js', format, source, this.createSourceMap(file, source));
                     if (result) {
-                        if (result[1].size) {
-                            this.writeSourceMap(result, file, source, modified);
-                        }
+                        this.writeSourceMap(result, file, source, modified);
                         source = result[0];
                     }
                 }
@@ -731,12 +710,36 @@ class ChromeDocument extends Document implements IChromeDocument {
         const replaced = this.assets.filter(item => item.originalName && !item.invalid);
         const srcSet = this.assets.filter(item => item.srcSet);
         const productionRelease = document.productionRelease;
-        if (replaced.length || srcSet.length || Object.keys(base64Map).length || productionRelease) {
-            const outerContent: { item: ExternalAsset; outerHTML: string }[] = [];
-            const replaceContent = (file: ExternalAsset, source: string, content: boolean) => {
+        async function replaceContent(file: ExternalAsset, source: string, content?: boolean, formatting?: boolean) {
+            if (file.mimeType![0] === '@') {
                 if (content) {
                     let current = source;
-                    for (const { item, outerHTML } of outerContent) {
+                    for (const item of srcSet) {
+                        let outerHTML = item.outerHTML!,
+                            value = 'srcset="',
+                            start = true,
+                            match = /(\s*)srcset="([^"]|(?<=\\)")"/i.exec(outerHTML);
+                        if (match) {
+                            value = match[2].trim();
+                            start = false;
+                        }
+                        const images = item.srcSet!;
+                        const length = images.length;
+                        let i = 0;
+                        while (i < length) {
+                            value += (!start ? ', ' : '') + images[i++] + ' ' + images[i++];
+                            start = false;
+                        }
+                        value += '"';
+                        if (match) {
+                            outerHTML = outerHTML.replace(match[0], (match[1] ? ' ' : '') + value);
+                        }
+                        else if (match = REGEXP_TAGSTART.exec(outerHTML)) {
+                            outerHTML = outerHTML.replace(match[0], match[1] + ' ' + value + (match[2] ? ' ' : ''));
+                        }
+                        else {
+                            continue;
+                        }
                         source = source.replace(item.outerHTML!, outerHTML);
                         if (current !== source) {
                             item.outerHTML = outerHTML;
@@ -753,50 +756,39 @@ class ChromeDocument extends Document implements IChromeDocument {
                 if (productionRelease) {
                     source = source.replace(new RegExp('(\\.\\./)*' + document.serverRoot, 'g'), '');
                 }
-                file.sourceUTF8 = source;
-            };
-            for (const item of srcSet) {
-                const images = item.srcSet;
-                if (images) {
-                    let outerHTML = item.outerHTML!,
-                        value = 'srcset="',
-                        start = true,
-                        match = /(\s*)srcset="([^"]|(?<=\\)")"/i.exec(outerHTML);
-                    if (match) {
-                        value = match[2].trim();
-                        start = false;
-                    }
-                    const length = images.length;
-                    let i = 0;
-                    while (i < length) {
-                        value += (!start ? ', ' : '') + images[i++] + ' ' + images[i++];
-                        start = false;
-                    }
-                    value += '"';
-                    if (match) {
-                        outerHTML = outerHTML.replace(match[0], (match[1] ? ' ' : '') + value);
-                    }
-                    else if (match = REGEXP_TAGSTART.exec(outerHTML)) {
-                        outerHTML = outerHTML.replace(match[0], match[1] + ' ' + value + (match[2] ? ' ' : ''));
-                    }
-                    else {
-                        continue;
-                    }
-                    outerContent.push({ item, outerHTML });
+            }
+            if (formatting) {
+                const result = await document.transform('html', file.format!, source);
+                if (result) {
+                    source = result[0];
                 }
             }
+            file.sourceUTF8 = source;
+        }
+        if (productionRelease || replaced.length || srcSet.length || Object.keys(base64Map).length || this.assets.find(item => item.format && item.mimeType?.endsWith('text/html'))) {
             for (const item of this.assets) {
                 if (!item.invalid) {
-                    let content = false;
+                    let content: Undef<boolean>,
+                        formatting: Undef<boolean>;
                     switch (item.mimeType) {
+                        case 'text/html':
+                            if (item.format) {
+                                formatting = true;
+                            }
+                            else {
+                                break;
+                            }
                         case '@text/html':
+                            if (item.format) {
+                                formatting = true;
+                            }
                             content = true;
                         case '@text/css':
                             if (item.sourceUTF8 || item.buffer) {
-                                replaceContent(item, this.getUTF8String(item), content);
+                                tasks.push(replaceContent(item, this.getUTF8String(item), content, formatting));
                             }
                             else {
-                                tasks.push(fs.readFile(item.fileUri!, 'utf8').then(data => replaceContent(item, data, content)));
+                                tasks.push(fs.readFile(item.fileUri!, 'utf8').then(data => replaceContent(item, data, content, formatting)));
                             }
                             break;
                     }
@@ -828,7 +820,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     public documentName = 'chrome';
     public unusedStyles?: string[];
 
-    constructor (body: RequestBody, settings?: DocumentModule, public productionRelease = false) {
+    constructor(body: RequestBody, settings?: DocumentModule, public productionRelease = false) {
         super(body, settings);
         this.unusedStyles = body.unusedStyles;
     }

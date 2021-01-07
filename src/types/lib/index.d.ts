@@ -10,10 +10,8 @@ import type { BackgroundColor, ForegroundColor } from 'chalk';
 type BoolString = boolean | string;
 
 declare namespace functions {
-    type ExternalCategory = "html" | "css" | "js";
     type CloudFeatures = "storage" | "database";
     type CloudFunctions = "upload" | "download";
-    type DocumentInstallArgs = [DocumentConstructor, ...unknown[]];
     type ModuleWriteFailMethod = (value: string | [string, string], message?: unknown) => void;
     type FileManagerFinalizeImageMethod = (result: internal.Image.OutputData, error?: Null<Error>) => void;
     type FileManagerPerformAsyncTaskCallback = VoidFunction;
@@ -50,6 +48,12 @@ declare namespace functions {
         }
 
         namespace Document {
+            interface InstallData {
+                document: IDocument;
+                instance: DocumentConstructor;
+                params: unknown[];
+            }
+
             interface SourceMapInput {
                 file: ExternalAsset;
                 sourcesContent: Null<string>;
@@ -75,8 +79,9 @@ declare namespace functions {
                 sourcesContent?: Null<string>[];
             }
 
-            type ConfigOrTranspiler = StandardMap | FunctionType<string>;
-            type PluginConfig = [string, Undef<ConfigOrTranspiler>, Undef<StandardMap>] | [];
+            type Transformer = FunctionType<Undef<string>>;
+            type ConfigOrTransformer = StandardMap | Transformer;
+            type PluginConfig = [string, Undef<ConfigOrTransformer>, Undef<StandardMap>] | [];
         }
 
         namespace Cloud {
@@ -191,7 +196,7 @@ declare namespace functions {
         brotliQuality: number;
         tinifyApiKey: string;
         compressorProxy: ObjectMap<CompressTryFileMethod>;
-        registerCompressor(format: string, callback: CompressTryFileMethod): void;
+        register(format: string, callback: CompressTryFileMethod): void;
         createWriteStreamAsGzip(source: string, fileUri: string, level?: number): WriteStream;
         createWriteStreamAsBrotli(source: string, fileUri: string, quality?: number, mimeType?: string): WriteStream;
         findFormat(compress: Undef<squared.CompressFormat[]>, format: string): Undef<squared.CompressFormat>;
@@ -268,11 +273,10 @@ declare namespace functions {
         serverRoot: string;
         documentName: string;
         templateMap?: StandardMap;
-        findPlugin(settings: Undef<ObjectMap<StandardMap>>, name: string): internal.Document.PluginConfig;
-        findTranspiler(settings: Undef<ObjectMap<StandardMap>>, name: string, category: ExternalCategory): internal.Document.PluginConfig;
-        loadOptions(value: internal.Document.ConfigOrTranspiler | string): Undef<internal.Document.ConfigOrTranspiler>;
+        findPluginData(type: string, name: string, settings: ObjectMap<StandardMap>): internal.Document.PluginConfig;
+        loadOptions(value: internal.Document.ConfigOrTransformer | string): Undef<internal.Document.ConfigOrTransformer>;
         loadConfig(value: string): Undef<StandardMap | string>;
-        transform(type: ExternalCategory, format: string, value: string, input: internal.Document.SourceMapInput): Promise<Void<[string, Map<string, internal.Document.SourceMapOutput>]>>;
+        transform(type: string, format: string, value: string, input?: internal.Document.SourceMapInput): Promise<Void<[string, Undef<Map<string, internal.Document.SourceMapOutput>>]>>;
     }
 
     interface DocumentConstructor extends ModuleConstructor {
@@ -300,7 +304,7 @@ declare namespace functions {
     interface IFileManager extends IModule {
         delayed: number;
         cleared: boolean;
-        Document: [IDocument, DocumentInstallArgs][];
+        Document: internal.Document.InstallData[];
         Cloud: Null<ICloud>;
         Watch: Null<IWatch>;
         Image: Null<ImageConstructor>;
@@ -336,7 +340,7 @@ declare namespace functions {
         getTrailingContent(file: ExternalAsset): Promise<string>;
         joinAllContent(fileUri: string): Undef<string>;
         createSourceMap(file: ExternalAsset, sourcesContent: string): internal.Document.SourceMapInput;
-        writeSourceMap(outputData: [string, Map<string, internal.Document.SourceMapOutput>], file: ExternalAsset, sourceContent?: string, modified?: boolean): void;
+        writeSourceMap(outputData: [string, Undef<Map<string, internal.Document.SourceMapOutput>>], file: ExternalAsset, sourceContent?: string, modified?: boolean): void;
         queueImage(data: internal.FileData, ouputType: string, saveAs: string, command?: string): Undef<string>;
         compressFile(file: ExternalAsset): Promise<unknown>;
         finalizeImage: FileManagerFinalizeImageMethod;

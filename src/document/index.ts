@@ -6,7 +6,6 @@ import Module from '../module';
 type IFileManager = functions.IFileManager;
 type IDocument = functions.IDocument;
 
-type ExternalCategory = functions.ExternalCategory;
 type RequestBody = functions.RequestBody;
 type ExternalAsset = functions.ExternalAsset;
 
@@ -15,9 +14,8 @@ type DocumentModule = functions.ExtendedSettings.DocumentModule;
 type SourceMapInput = functions.internal.Document.SourceMapInput;
 type SourceMapOutput = functions.internal.Document.SourceMapOutput;
 type PluginConfig = functions.internal.Document.PluginConfig;
-type ConfigOrTranspiler = functions.internal.Document.ConfigOrTranspiler;
-
-type Transpiler = FunctionType<Undef<string>>;
+type Transformer = functions.internal.Document.Transformer;
+type ConfigOrTransformer = functions.internal.Document.ConfigOrTransformer;
 
 abstract class Document extends Module implements IDocument {
     public static init(this: IFileManager) {}
@@ -29,51 +27,46 @@ abstract class Document extends Module implements IDocument {
     public documentName = '';
     public templateMap?: StandardMap;
 
-    private _packageMap: ObjectMap<Transpiler> = {};
+    private _packageMap: ObjectMap<Transformer> = {};
 
-    constructor (body: RequestBody, public settings: DocumentModule = {}) {
+    constructor(body: RequestBody, public settings: DocumentModule = {}) {
         super();
         this.templateMap = body.templateMap;
     }
 
-    findPlugin(settings: Undef<ObjectMap<StandardMap>>, value: string): PluginConfig {
-        if (settings) {
-            for (const plugin in settings) {
-                const data = settings[plugin];
-                for (const name in data) {
-                    if (name === value) {
-                        const options = this.loadOptions(data[name]);
-                        const config = this.loadConfig(data[name + '-output']);
-                        if (options || config) {
-                            return [plugin, options, config];
-                        }
+    findPluginData(type: string, value: string, settings: ObjectMap<StandardMap>): PluginConfig {
+        if (this.templateMap && this.settings.eval_template) {
+            const data = this.templateMap[type];
+            for (const plugin in data) {
+                const item = data[plugin][value];
+                if (item) {
+                    const options = this.loadOptions(item);
+                    if (options) {
+                        return [plugin, options, this.loadConfig(data[plugin][value + '-output'])];
+                    }
+                    break;
+                }
+            }
+        }
+        for (const plugin in settings) {
+            const data = settings[plugin];
+            for (const name in data) {
+                if (name === value) {
+                    const options = this.loadOptions(data[name]);
+                    const config = this.loadConfig(data[name + '-output']);
+                    if (options || config) {
+                        return [plugin, options, config];
                     }
                 }
             }
         }
         return [];
     }
-    findTranspiler(settings: Undef<ObjectMap<StandardMap>>, value: string, category: ExternalCategory): PluginConfig {
-        if (this.templateMap && this.settings.eval_template) {
-            const data = this.templateMap[category];
-            for (const name in data) {
-                const item = data[name][value];
-                if (item) {
-                    const result = this.loadOptions(item);
-                    if (result) {
-                        return [name, result, this.loadConfig(data[name][value + '-output'])];
-                    }
-                    break;
-                }
-            }
-        }
-        return this.findPlugin(settings, value);
-    }
-    loadOptions(value: ConfigOrTranspiler | string): Undef<ConfigOrTranspiler> {
+    loadOptions(value: ConfigOrTransformer | string): Undef<ConfigOrTransformer> {
         if (typeof value === 'string' && this.settings.eval_function) {
-            const transpiler = this.parseFunction(value);
-            if (transpiler) {
-                return transpiler;
+            const transformer = this.parseFunction(value);
+            if (transformer) {
+                return transformer;
             }
         }
         return this.loadConfig(value);
@@ -101,15 +94,13 @@ abstract class Document extends Module implements IDocument {
             }
         }
     }
-    async transform(type: ExternalCategory, format: string, value: string, input: SourceMapInput): Promise<Void<[string, Map<string, SourceMapOutput>]>> {
-        const data = this.settings[type];
-        if (data) {
-            let valid: Undef<boolean>;
-            const formatters = format.split('+');
+    async transform(type: string, format: string, value: string, input?: SourceMapInput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>> {
+        const settings = this.settings[type];
+        if (settings) {
             const writeFail = this.writeFail.bind(this);
-            for (let i = 0, length = formatters.length; i < length; ++i) {
-                const name = formatters[i].trim();
-                const [plugin, options, output] = this.findTranspiler(data, name, type);
+            let valid: Undef<boolean>;
+            for (let name of format.split('+')) {
+                const [plugin, options, output] = this.findPluginData(type, name = name.trim(), settings);
                 if (plugin) {
                     if (!options) {
                         this.writeFail('Unable to load configuration', plugin);
@@ -133,12 +124,12 @@ abstract class Document extends Module implements IDocument {
                         }
                         else {
                             try {
-                                let transformer: Undef<Transpiler> = this._packageMap[plugin];
+                                let transformer = this._packageMap[plugin];
                                 if (!transformer) {
-                                    const filepath = path.join(__dirname, '/packages/' + plugin + '.js');
+                                    const filepath = path.join(__dirname, 'packages', plugin + '.js');
                                     transformer = require(fs.existsSync(filepath) ? filepath : plugin);
                                 }
-                                const result: Undef<string> = await transformer!.call(this, value, options, output, input, writeFail);
+                                const result = await transformer.call(this, value, options, output, input, writeFail);
                                 if (result) {
                                     value = result;
                                     valid = true;
@@ -156,7 +147,7 @@ abstract class Document extends Module implements IDocument {
                 }
             }
             if (valid) {
-                return [value, input.sourceMap];
+                return [value, input && input.sourceMap];
             }
         }
     }

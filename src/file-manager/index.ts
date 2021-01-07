@@ -18,7 +18,6 @@ import Node from '../node';
 import Compress from '../compress';
 
 type IFileManager = functions.IFileManager;
-type IDocument = functions.IDocument;
 type ICloud = functions.ICloud;
 type ICompress = functions.ICompress;
 type IWatch = functions.IWatch;
@@ -29,7 +28,6 @@ type ImageConstructor = functions.ImageConstructor;
 type Settings = functions.Settings;
 type RequestBody = functions.RequestBody;
 type ExternalAsset = functions.ExternalAsset;
-type DocumentInstallArgs = functions.DocumentInstallArgs;
 
 type CloudModule = functions.ExtendedSettings.CloudModule;
 type GulpModule = functions.ExtendedSettings.GulpModule;
@@ -39,6 +37,7 @@ type AssetData = functions.internal.AssetData;
 type FileData = functions.internal.FileData;
 type FileOutput = functions.internal.FileOutput;
 type OutputData = functions.internal.Image.OutputData;
+type DocumentInstallData = functions.internal.Document.InstallData;
 type SourceMap = functions.internal.Document.SourceMap;
 type SourceMapInput = functions.internal.Document.SourceMapInput;
 type SourceMapOutput = functions.internal.Document.SourceMapOutput;
@@ -145,7 +144,7 @@ class FileManager extends Module implements IFileManager {
     public delayed = 0;
     public cleared = false;
     public Image: Null<ImageConstructor> = null;
-    public Document: [IDocument, DocumentInstallArgs][] = [];
+    public Document: DocumentInstallData[] = [];
     public Cloud: Null<ICloud> = null;
     public Watch: Null<IWatch> = null;
     public Compress: Null<ICompress> = null;
@@ -184,7 +183,7 @@ class FileManager extends Module implements IFileManager {
                 if (DocumentClass.prototype instanceof Document) {
                     const document = new DocumentClass(this.body, args[1] as DocumentModule, ...args.slice(2));
                     DocumentClass.init.call(this, document);
-                    this.Document.push([document, args as DocumentInstallArgs]);
+                    this.Document.push({ document, instance: DocumentClass, params: args.slice(1) });
                 }
                 break;
             }
@@ -196,8 +195,8 @@ class FileManager extends Module implements IFileManager {
                 const watch = new Watch(typeof interval === 'number' && interval > 0 ? interval : undefined);
                 watch.whenModified = (assets: ExternalAsset[]) => {
                     const manager = new FileManager(this.baseDirectory, { ...this.body, assets });
-                    for (const item of this.Document) {
-                        manager.install('document', ...item[1]);
+                    for (const { instance, params } of this.Document) {
+                        manager.install('document', instance, ...params);
                     }
                     if (this.Cloud) {
                         manager.install('cloud', this.Cloud.settings);
@@ -359,8 +358,8 @@ class FileManager extends Module implements IFileManager {
         return file.sourceUTF8 || '';
     }
     async appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex = 0) {
-        for (const [document, item] of this.Document) {
-            content = await item[0].formatContent.call(this, document, file, content);
+        for (const { document, instance } of this.Document) {
+            content = await instance.formatContent.call(this, document, file, content);
         }
         const trailing = await this.getTrailingContent(file);
         if (trailing) {
@@ -379,8 +378,8 @@ class FileManager extends Module implements IFileManager {
         if (file.trailingContent) {
             for (const content of file.trailingContent) {
                 let value = content.value;
-                for (const [document, item] of this.Document) {
-                    value = await item[0].formatContent.call(this, document, file, value);
+                for (const { document, instance } of this.Document) {
+                    value = await instance.formatContent.call(this, document, file, value);
                 }
                 output += '\n' + value;
             }
@@ -417,9 +416,13 @@ class FileManager extends Module implements IFileManager {
             }
         }) as SourceMapInput;
     }
-    writeSourceMap(outputData: [string, Map<string, SourceMapOutput>], file: ExternalAsset, sourcesContent = '', modified?: boolean) {
+    writeSourceMap(outputData: [string, Undef<Map<string, SourceMapOutput>>], file: ExternalAsset, sourcesContent = '', modified?: boolean) {
+        const sourceMap = outputData[1];
+        if (!sourceMap || sourceMap.size === 0) {
+            return;
+        }
         const fileUri = file.fileUri!;
-        const items = Array.from(outputData[1]);
+        const items = Array.from(sourceMap);
         const excludeSources = items.some(data => data[1].sourcesContent === null);
         const [name, data] = items.pop()!;
         const filename = path.basename(fileUri);
@@ -585,8 +588,8 @@ class FileManager extends Module implements IFileManager {
                 }
             }
         }
-        for (const [document, item] of this.Document) {
-            await item[0].using.call(this, document, file);
+        for (const { document, instance } of this.Document) {
+            await instance.using.call(this, document, file);
         }
         if (file.invalid) {
             if (!file.bundleId) {
@@ -891,8 +894,8 @@ class FileManager extends Module implements IFileManager {
                 this.replace(file, minFile);
             }
         }
-        for (const [document, item] of this.Document) {
-            await item[0].finalize.call(this, document);
+        for (const { document, instance } of this.Document) {
+            await instance.finalize.call(this, document);
         }
         for (const item of this.assets) {
             if (item.sourceUTF8 && !item.invalid) {
