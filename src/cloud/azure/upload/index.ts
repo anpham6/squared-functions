@@ -1,3 +1,4 @@
+import type { internal } from '../../../types/lib';
 import type { AzureStorageCredential } from '../index';
 
 import path = require('path');
@@ -5,9 +6,9 @@ import uuid = require('uuid');
 
 import { createBucket, createStorageClient } from '../index';
 
-type InstanceHost = functions.internal.Cloud.InstanceHost;
-type UploadData = functions.internal.Cloud.UploadData;
-type UploadCallback = functions.internal.Cloud.UploadCallback;
+type InstanceHost = internal.Cloud.InstanceHost;
+type UploadData = internal.Cloud.UploadData;
+type UploadCallback = internal.Cloud.UploadCallback;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 

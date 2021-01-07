@@ -1,8 +1,8 @@
+import type { ExternalAsset, IWatch } from '../types/lib';
+
 import Module from '../module';
 
 import request = require('request');
-
-type ExternalAsset = functions.ExternalAsset;
 
 interface FileWatch {
     uri: string;
@@ -18,7 +18,7 @@ const TIMER_MAP: ObjectMap<[NodeJS.Timeout, number]> = {};
 const getInterval = (file: ExternalAsset) => Math.max(typeof file.watch === 'object' && file.watch.interval || 0, 0);
 const formatDate = (value: number) => new Date(value).toLocaleString().replace(/\/20\d+, /, '@').replace(/:\d+ (AM|PM)$/, (...match) => match[1]);
 
-class Watch extends Module implements functions.IWatch {
+class Watch extends Module implements IWatch {
     public whenModified?: (assets: ExternalAsset[]) => void;
 
     constructor(public interval = 200) {

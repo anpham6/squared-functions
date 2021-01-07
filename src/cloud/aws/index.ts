@@ -1,10 +1,10 @@
+import type { ICloud, internal } from '../../types/lib';
 import type { CloudDatabase } from '../../types/lib/squared';
 import type { ConfigurationOptions, SharedIniFileCredentials } from 'aws-sdk/lib/core';
 import type { ServiceConfigurationOptions } from 'aws-sdk/lib/service';
 import type * as aws from 'aws-sdk';
 
-type ICloud = functions.ICloud;
-type InstanceHost = functions.internal.Cloud.InstanceHost;
+type InstanceHost = internal.Cloud.InstanceHost;
 
 export interface AWSStorageCredential extends ConfigurationOptions {
     fromPath?: string;

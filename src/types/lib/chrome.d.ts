@@ -4,7 +4,6 @@ export type UnusedStyles = string[];
 
 export interface ChromeAsset {
     rootDir?: string;
-    moveTo?: string;
     format?: string;
     preserve?: boolean;
     exclude?: boolean;

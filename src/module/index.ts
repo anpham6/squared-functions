@@ -1,11 +1,14 @@
+import type { ExtendedSettings, IModule, Settings, internal } from '../types/lib';
+
 import path = require('path');
 import fs = require('fs');
 import uuid = require('uuid');
 import chalk = require('chalk');
 
-type Settings = functions.Settings;
-type LoggerModule = functions.ExtendedSettings.LoggerModule;
-type LogMessageOptions = functions.internal.LogMessageOptions;
+type LoggerModule = ExtendedSettings.LoggerModule;
+
+type LogMessageOptions = internal.LogMessageOptions;
+
 type LogValue = string | [string, string];
 
 let SETTINGS: LoggerModule = {};
@@ -22,7 +25,7 @@ export enum LOG_TYPE {
     TIME_ELAPSED = 128
 }
 
-const Module = class implements functions.IModule {
+const Module = class implements IModule {
     public static loadSettings(value: Settings) {
         if (value.logger) {
             SETTINGS = value.logger;

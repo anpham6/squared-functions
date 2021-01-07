@@ -1,4 +1,6 @@
+import type { CloudFeatures, CloudFunctions, ExtendedSettings, ExternalAsset, ICloud, IFileManager, internal } from '../types/lib';
 import type { CloudDatabase, CloudService, CloudStorage, CloudStorageAction, CloudStorageDownload, CloudStorageUpload } from '../types/lib/squared';
+import type { IChromeDocument } from '../document/chrome';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -8,22 +10,15 @@ import uuid = require('uuid');
 
 import Module from '../module';
 
-type IFileManager = functions.IFileManager;
-type ICloud = functions.ICloud;
+type CloudModule = ExtendedSettings.CloudModule;
 
-type ExternalAsset = functions.ExternalAsset;
-type CloudFeatures = functions.CloudFeatures;
-type CloudFunctions = functions.CloudFunctions;
-
-type CloudModule = functions.ExtendedSettings.CloudModule;
-
-type ServiceClient = functions.internal.Cloud.ServiceClient;
-type UploadHost = functions.internal.Cloud.UploadHost;
-type UploadCallback = functions.internal.Cloud.UploadCallback;
-type DownloadHost = functions.internal.Cloud.DownloadHost;
-type DownloadCallback = functions.internal.Cloud.DownloadCallback;
-type FinalizeResult = functions.internal.Cloud.FinalizeResult;
-type CacheTimeout = functions.internal.Cloud.CacheTimeout;
+type ServiceClient = internal.Cloud.ServiceClient;
+type UploadHost = internal.Cloud.UploadHost;
+type UploadCallback = internal.Cloud.UploadCallback;
+type DownloadHost = internal.Cloud.DownloadHost;
+type DownloadCallback = internal.Cloud.DownloadCallback;
+type FinalizeResult = internal.Cloud.FinalizeResult;
+type CacheTimeout = internal.Cloud.CacheTimeout;
 
 const CLOUD_SERVICE: ObjectMap<ServiceClient> = {};
 const CLOUD_UPLOAD: ObjectMap<UploadHost> = {};
@@ -49,7 +44,7 @@ function hasSameBucket(provider: CloudStorage, other: CloudStorage) {
 
 const assignFilename = (value: string) => uuid.v4() + (path.extname(value) || '');
 
-class Cloud extends Module implements functions.ICloud {
+class Cloud extends Module implements ICloud {
     public static async finalize(this: IFileManager, cloud: ICloud) {
         let tasks: Promise<unknown>[] = [];
         const deleted: string[] = [];
@@ -58,8 +53,8 @@ class Cloud extends Module implements functions.ICloud {
         const cloudCssMap: ObjectMap<ExternalAsset> = {};
         const localStorage = new Map<ExternalAsset, CloudStorageUpload>();
         const bucketGroup = uuid.v4();
-        const htmlFiles = this.getHtmlPages();
-        const cssFiles: ExternalAsset[] = [];
+        const chromeDocument = this.Document.find(item => item.document.documentName === 'chrome')?.document as Undef<IChromeDocument>;
+        const { htmlFiles = [], cssFiles = [] } = chromeDocument || {} as IChromeDocument;
         const rawFiles: ExternalAsset[] = [];
         const compressFormat = new Set(['.map', '.gz', '.br']);
         let endpoint: Undef<string>,
@@ -209,9 +204,7 @@ class Cloud extends Module implements functions.ICloud {
                     }
                     switch (item.mimeType) {
                         case '@text/html':
-                            break;
                         case '@text/css':
-                            cssFiles.push(item);
                             break;
                         default:
                             if (item.compress) {

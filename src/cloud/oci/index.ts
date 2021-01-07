@@ -1,11 +1,11 @@
+import type { ICloud, internal } from '../../types/lib';
 import type { CloudDatabase } from '../../types/lib/squared';
 import type { ConfigurationOptions } from 'aws-sdk/lib/core';
 import type { Connection, ConnectionAttributes } from 'oracledb';
 
 import { createBucket as createBucket_s3, deleteObjects as deleteObjects_s3 } from '../aws';
 
-type ICloud = functions.ICloud;
-type InstanceHost = functions.internal.Cloud.InstanceHost;
+type InstanceHost = internal.Cloud.InstanceHost;
 
 const OUT_FORMAT_OBJECT = 4002;
 

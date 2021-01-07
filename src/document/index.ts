@@ -1,26 +1,22 @@
+import type { ExtendedSettings, ExternalAsset, IDocument, IFileManager, RequestBody, internal } from '../types/lib';
+
 import path = require('path');
 import fs = require('fs-extra');
 
 import Module from '../module';
 
-type IFileManager = functions.IFileManager;
-type IDocument = functions.IDocument;
+type DocumentModule = ExtendedSettings.DocumentModule;
 
-type RequestBody = functions.RequestBody;
-type ExternalAsset = functions.ExternalAsset;
-
-type DocumentModule = functions.ExtendedSettings.DocumentModule;
-
-type SourceMapInput = functions.internal.Document.SourceMapInput;
-type SourceMapOutput = functions.internal.Document.SourceMapOutput;
-type PluginConfig = functions.internal.Document.PluginConfig;
-type Transformer = functions.internal.Document.Transformer;
-type ConfigOrTransformer = functions.internal.Document.ConfigOrTransformer;
+type SourceMapInput = internal.Document.SourceMapInput;
+type SourceMapOutput = internal.Document.SourceMapOutput;
+type PluginConfig = internal.Document.PluginConfig;
+type Transformer = internal.Document.Transformer;
+type ConfigOrTransformer = internal.Document.ConfigOrTransformer;
 
 abstract class Document extends Module implements IDocument {
-    public static init(this: IFileManager) {}
+    public static init(this: IFileManager, document: IDocument) {}
     public static async using(this: IFileManager, document: IDocument, file: ExternalAsset) {}
-    public static async finalize(this: IFileManager, document: IDocument) {}
+    public static async finalize(this: IFileManager, document: IDocument, assets: ExternalAsset[]) {}
     public static async formatContent(this: IFileManager, document: IDocument, file: ExternalAsset, content: string) { return content; }
 
     public serverRoot = '__serverroot__';

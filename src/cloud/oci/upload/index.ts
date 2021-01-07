@@ -1,9 +1,10 @@
+import type { internal } from '../../../types/lib';
 import type { OCIStorageCredential } from '../index';
 
 import { setStorageCredential } from '../index';
 
-type InstanceHost = functions.internal.Cloud.InstanceHost;
-type UploadHost = functions.internal.Cloud.UploadHost;
+type InstanceHost = internal.Cloud.InstanceHost;
+type UploadHost = internal.Cloud.UploadHost;
 
 export default function upload(this: InstanceHost, credential: OCIStorageCredential, service = 'oci') {
     setStorageCredential(credential);

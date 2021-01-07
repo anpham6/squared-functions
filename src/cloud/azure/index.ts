@@ -1,9 +1,9 @@
+import type { ICloud, internal } from '../../types/lib';
 import type { CloudDatabase } from '../../types/lib/squared';
 import type * as storage from '@azure/storage-blob';
 import type * as db from '@azure/cosmos';
 
-type ICloud = functions.ICloud;
-type InstanceHost = functions.internal.Cloud.InstanceHost;
+type InstanceHost = internal.Cloud.InstanceHost;
 
 export interface AzureStorageCredential {
     accountName?: string;

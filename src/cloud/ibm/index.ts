@@ -1,3 +1,4 @@
+import type { ICloud, internal } from '../../types/lib';
 import type { CloudDatabase } from '../../types/lib/squared';
 import type { ConfigurationOptions } from 'ibm-cos-sdk/lib/config';
 import type { MangoQuery } from 'nano';
@@ -5,8 +6,7 @@ import type { Configuration, ServerScope } from '@cloudant/cloudant';
 
 import { createBucket as createBucket_s3, deleteObjects as deleteObjects_s3 } from '../aws';
 
-type ICloud = functions.ICloud;
-type InstanceHost = functions.internal.Cloud.InstanceHost;
+type InstanceHost = internal.Cloud.InstanceHost;
 
 export interface IBMStorageCredential extends ConfigurationOptions {
     endpoint?: string;

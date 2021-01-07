@@ -1,3 +1,4 @@
+import type { DocumentConstructor, ExtendedSettings, ExternalAsset, ICloud, ICompress, IFileManager, IWatch, ImageConstructor, RequestBody, Settings, internal } from '../types/lib';
 import type { CloudService } from '../types/lib/squared';
 import type { Response } from 'express';
 
@@ -17,30 +18,18 @@ import Watch from '../watch';
 import Node from '../node';
 import Compress from '../compress';
 
-type IFileManager = functions.IFileManager;
-type ICloud = functions.ICloud;
-type ICompress = functions.ICompress;
-type IWatch = functions.IWatch;
+type CloudModule = ExtendedSettings.CloudModule;
+type GulpModule = ExtendedSettings.GulpModule;
+type DocumentModule = ExtendedSettings.DocumentModule;
 
-type DocumentConstructor = functions.DocumentConstructor;
-type ImageConstructor = functions.ImageConstructor;
-
-type Settings = functions.Settings;
-type RequestBody = functions.RequestBody;
-type ExternalAsset = functions.ExternalAsset;
-
-type CloudModule = functions.ExtendedSettings.CloudModule;
-type GulpModule = functions.ExtendedSettings.GulpModule;
-type DocumentModule = functions.ExtendedSettings.DocumentModule;
-
-type AssetData = functions.internal.AssetData;
-type FileData = functions.internal.FileData;
-type FileOutput = functions.internal.FileOutput;
-type OutputData = functions.internal.Image.OutputData;
-type DocumentInstallData = functions.internal.Document.InstallData;
-type SourceMap = functions.internal.Document.SourceMap;
-type SourceMapInput = functions.internal.Document.SourceMapInput;
-type SourceMapOutput = functions.internal.Document.SourceMapOutput;
+type AssetData = internal.AssetData;
+type FileData = internal.FileData;
+type FileOutput = internal.FileOutput;
+type OutputData = internal.Image.OutputData;
+type DocumentInstallData = internal.Document.InstallData;
+type SourceMap = internal.Document.SourceMap;
+type SourceMapInput = internal.Document.SourceMapInput;
+type SourceMapOutput = internal.Document.SourceMapOutput;
 
 interface GulpData {
     gulpfile: string;
@@ -52,20 +41,6 @@ interface GulpTask {
     origDir: string;
     data: GulpData;
 }
-
-const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
-
-function getRootDirectory(location: string, asset: string): [string[], string[]] {
-    const locationDir = location.split(/[\\/]/);
-    const assetDir = asset.split(/[\\/]/);
-    while (locationDir.length && assetDir.length && locationDir[0] === assetDir[0]) {
-        locationDir.shift();
-        assetDir.shift();
-    }
-    return [locationDir.filter(value => value), assetDir];
-}
-
-const getRelativePath = (file: ExternalAsset, filename = file.filename) => Node.joinPosix(file.moveTo, file.pathname, filename);
 
 class FileManager extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {
@@ -150,13 +125,13 @@ class FileManager extends Module implements IFileManager {
     public Compress: Null<ICompress> = null;
     public Gulp: Null<GulpModule> = null;
     public readonly assets: ExternalAsset[];
+    public readonly documentAssets: ExternalAsset[];
     public readonly files = new Set<string>();
     public readonly filesQueued = new Set<string>();
     public readonly filesToRemove = new Set<string>();
     public readonly filesToCompare = new Map<ExternalAsset, string[]>();
     public readonly contentToAppend = new Map<string, string[]>();
     public readonly postFinalize: FunctionType<void>;
-    public readonly baseAsset?: ExternalAsset;
 
     constructor(
         public readonly baseDirectory: string,
@@ -165,8 +140,8 @@ class FileManager extends Module implements IFileManager {
     {
         super();
         this.assets = this.body.assets;
+        this.documentAssets = this.assets.filter(item => item.document);
         this.postFinalize = postFinalize.bind(this);
-        this.baseAsset = this.assets.find(item => item.baseUrl);
     }
 
     install(name: string, ...args: unknown[]) {
@@ -249,7 +224,7 @@ class FileManager extends Module implements IFileManager {
                 file.originalName ||= file.filename;
                 file.filename = path.basename(replaceWith);
                 file.fileUri = this.setFileUri(file).fileUri;
-                file.relativePath = getRelativePath(file);
+                file.relativePath = this.getRelativePath(file);
                 file.mimeType = mimeType || mime.lookup(replaceWith) || file.mimeType;
                 this.filesToRemove.add(fileUri);
                 this.add(replaceWith);
@@ -282,8 +257,11 @@ class FileManager extends Module implements IFileManager {
         const pathname = path.join(this.baseDirectory, file.moveTo || '', file.pathname);
         const fileUri = path.join(pathname, file.filename);
         file.fileUri = fileUri;
-        file.relativePath = getRelativePath(file);
+        file.relativePath = this.getRelativePath(file);
         return { pathname, fileUri };
+    }
+    getRelativePath(file: ExternalAsset, filename = file.filename) {
+        return Node.joinPosix(file.moveTo, file.pathname, filename);
     }
     assignFilename(data: AssetData) {
         const filename = data.filename;
@@ -294,52 +272,8 @@ class FileManager extends Module implements IFileManager {
     findAsset(uri: string, fromElement?: boolean) {
         return this.assets.find(item => item.uri === uri && (fromElement && item.outerHTML || !fromElement && !item.outerHTML) && !item.invalid);
     }
-    findRelativePath(file: ExternalAsset, location: string, partial?: boolean) {
-        const origin = file.uri!;
-        let asset: Undef<ExternalAsset>;
-        if (partial) {
-            location = Node.resolvePath(location, origin);
-            if (location) {
-                asset = this.findAsset(location);
-            }
-        }
-        else {
-            asset = this.findAsset(location);
-        }
-        if (asset) {
-            const baseDir = (file.rootDir || '') + file.pathname;
-            if (Module.fromSameOrigin(origin, asset.uri!)) {
-                const rootDir = asset.rootDir;
-                if (asset.moveTo) {
-                    if (file.moveTo === asset.moveTo) {
-                        return this.joinPosix(asset.pathname, asset.filename);
-                    }
-                }
-                else if (rootDir) {
-                    if (baseDir === rootDir + asset.pathname) {
-                        return asset.filename;
-                    }
-                    else if (baseDir === rootDir) {
-                        return this.joinPosix(asset.pathname, asset.filename);
-                    }
-                }
-                else {
-                    const [originDir, uriDir] = getRootDirectory(new URL(origin).pathname, new URL(asset.uri!).pathname);
-                    return '../'.repeat(originDir.length - 1) + uriDir.join('/');
-                }
-            }
-            const baseAsset = this.baseAsset;
-            if (baseAsset && Module.fromSameOrigin(origin, baseAsset.uri!)) {
-                const [originDir] = getRootDirectory(this.joinPosix(baseDir, file.filename), new URL(baseAsset.uri!).pathname);
-                return '../'.repeat(originDir.length - 1) + asset.relativePath;
-            }
-        }
-    }
     removeCwd(value: Undef<string>) {
         return value ? value.substring(this.baseDirectory.length + 1) : '';
-    }
-    getHtmlPages() {
-        return this.assets.filter(item => item.mimeType === '@text/html');
     }
     getUTF8String(file: ExternalAsset, fileUri?: string) {
         if (!file.sourceUTF8) {
@@ -358,8 +292,12 @@ class FileManager extends Module implements IFileManager {
         return file.sourceUTF8 || '';
     }
     async appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex = 0) {
-        for (const { document, instance } of this.Document) {
-            content = await instance.formatContent.call(this, document, file, content);
+        if (file.document) {
+            for (const { document, instance } of this.Document) {
+                if (file.document.includes(document.documentName)) {
+                    content = await instance.formatContent.call(this, document, file, content);
+                }
+            }
         }
         const trailing = await this.getTrailingContent(file);
         if (trailing) {
@@ -378,12 +316,15 @@ class FileManager extends Module implements IFileManager {
         if (file.trailingContent) {
             for (const content of file.trailingContent) {
                 let value = content.value;
-                for (const { document, instance } of this.Document) {
-                    value = await instance.formatContent.call(this, document, file, value);
+                if (file.document) {
+                    for (const { document, instance } of this.Document) {
+                        if (file.document.includes(document.documentName)) {
+                            value = await instance.formatContent.call(this, document, file, value);
+                        }
+                    }
                 }
                 output += '\n' + value;
             }
-            delete file.trailingContent;
         }
         return output;
     }
@@ -458,32 +399,37 @@ class FileManager extends Module implements IFileManager {
         const file = data.file;
         const fileUri = file.fileUri!;
         let output: Undef<string>;
-        if (file.mimeType === outputType) {
-            const match = REGEXP_SRCSETSIZE.exec(command);
-            if (match) {
-                output = Module.renameExt(fileUri, match[1] + match[2].toLowerCase() + '.' + saveAs);
-            }
-            else if (!command.includes('@') || this.filesQueued.has(fileUri)) {
-                let i = 1;
-                do {
-                    output = Module.renameExt(fileUri, '__copy__.' + (i > 1 ? `(${i}).` : '') + saveAs);
-                }
-                while (this.filesQueued.has(output) && ++i);
-                try {
-                    fs.copyFileSync(fileUri, output);
-                }
-                catch (err) {
-                    this.writeFail(['Unable to copy file', path.basename(fileUri)], err);
-                    return;
+        if (file.document) {
+            for (const { document } of this.Document) {
+                if (file.document.includes(document.documentName) && document.queueImage && (output = document.queueImage(data, outputType, saveAs, command))) {
+                    break;
                 }
             }
         }
-        else {
-            let i = 1;
-            do {
-                output = Module.renameExt(fileUri, (i > 1 ? `(${i}).` : '') + saveAs);
+        if (!output) {
+            if (file.mimeType === outputType) {
+                if (!command.includes('@') || this.filesQueued.has(fileUri)) {
+                    let i = 1;
+                    do {
+                        output = Module.renameExt(fileUri, '__copy__.' + (i > 1 ? `(${i}).` : '') + saveAs);
+                    }
+                    while (this.filesQueued.has(output) && ++i);
+                    try {
+                        fs.copyFileSync(fileUri, output);
+                    }
+                    catch (err) {
+                        this.writeFail(['Unable to copy file', path.basename(fileUri)], err);
+                        return;
+                    }
+                }
             }
-            while (this.filesQueued.has(output) && ++i);
+            else {
+                let i = 1;
+                do {
+                    output = Module.renameExt(fileUri, (i > 1 ? `(${i}).` : '') + saveAs);
+                }
+                while (this.filesQueued.has(output) && ++i);
+            }
         }
         this.filesQueued.add(output ||= fileUri);
         return output;
@@ -521,22 +467,27 @@ class FileManager extends Module implements IFileManager {
             }
         }
     }
-    finalizeImage(result: OutputData, error?: Null<Error>) {
-        const { file, command } = result;
-        let output = result.output;
-        if (error || !output) {
-            this.writeFail(['Unable to finalize image', path.basename(output)], error);
-            this.completeAsyncTask();
-        }
-        else {
-            let parent: Undef<ExternalAsset>;
-            if (file.fileUri !== output) {
-                const match = file.outerHTML && REGEXP_SRCSETSIZE.exec(command);
-                if (match) {
-                    (file.srcSet ||= []).push(Module.toPosix(this.removeCwd(output)), match[1] + match[2].toLowerCase());
+    finalizeImage(data: OutputData, error?: Null<Error>) {
+        const { file, command } = data;
+        let output = data.output,
+            parent: Undef<ExternalAsset>;
+        if (file.document) {
+            data.baseDirectory = this.baseDirectory;
+            for (const { document } of this.Document) {
+                if (file.document.includes(document.documentName) && document.finalizeImage && document.finalizeImage(data, error)) {
+                    if (error || !output) {
+                        this.completeAsyncTask();
+                        return;
+                    }
                     parent = file;
+                    break;
                 }
-                else if (command.includes('%')) {
+            }
+        }
+        if (!error && output) {
+            const original = file.fileUri === output;
+            if (!parent && !original) {
+                if (command.includes('%')) {
                     if (this.filesToCompare.has(file)) {
                         this.filesToCompare.get(file)!.push(output);
                     }
@@ -553,7 +504,11 @@ class FileManager extends Module implements IFileManager {
                     parent = file;
                 }
             }
-            this.completeAsyncTask(output, parent);
+            this.completeAsyncTask(output, !original ? parent : undefined);
+        }
+        else {
+            this.writeFail(['Unable to finalize image', path.basename(output)], error);
+            this.completeAsyncTask();
         }
     }
     async finalizeAsset(data: FileData, parent?: ExternalAsset) {
@@ -588,8 +543,12 @@ class FileManager extends Module implements IFileManager {
                 }
             }
         }
-        for (const { document, instance } of this.Document) {
-            await instance.using.call(this, document, file);
+        if (file.document) {
+            for (const { document, instance } of this.Document) {
+                if (file.document.includes(document.documentName)) {
+                    await instance.using.call(this, document, file);
+                }
+            }
         }
         if (file.invalid) {
             if (!file.bundleId) {
@@ -894,8 +853,13 @@ class FileManager extends Module implements IFileManager {
                 this.replace(file, minFile);
             }
         }
-        for (const { document, instance } of this.Document) {
-            await instance.finalize.call(this, document);
+        if (this.documentAssets.length) {
+            for (const { document, instance } of this.Document) {
+                const assets = this.documentAssets.filter(item => item.document!.includes(document.documentName));
+                if (assets.length) {
+                    await instance.finalize.call(this, document, assets);
+                }
+            }
         }
         for (const item of this.assets) {
             if (item.sourceUTF8 && !item.invalid) {

@@ -1,3 +1,5 @@
+import type { FileManagerCompleteAsyncTaskCallback, FileManagerFinalizeImageMethod, FileManagerPerformAsyncTaskCallback, IFileManager, ImageCommand, internal } from '../../types/lib';
+
 import path = require('path');
 import fs = require('fs');
 import child_process = require('child_process');
@@ -5,20 +7,15 @@ import jimp = require('jimp');
 
 import Image from '../index';
 
-type IFileManager = functions.IFileManager;
-type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTaskCallback;
-type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
-type FileManagerFinalizeImageMethod = functions.FileManagerFinalizeImageMethod;
-
-type FileData = functions.internal.FileData;
-type ResizeData = functions.internal.Image.ResizeData;
-type CropData = functions.internal.Image.CropData;
-type RotateData = functions.internal.Image.RotateData;
-type QualityData = functions.internal.Image.QualityData;
+type FileData = internal.FileData;
+type ResizeData = internal.Image.ResizeData;
+type CropData = internal.Image.CropData;
+type RotateData = internal.Image.RotateData;
+type QualityData = internal.Image.QualityData;
 
 const getBuffer = (data: FileData) => (data.file.buffer as unknown) as string || data.file.fileUri!;
 
-class Jimp extends Image implements functions.ImageCommand<jimp> {
+class Jimp extends Image implements ImageCommand<jimp> {
     public static async resolveMime(this: IFileManager, data: FileData) {
         const img = await jimp.read(getBuffer(data));
         const mimeType = img.getMIME();

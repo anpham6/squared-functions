@@ -1,9 +1,11 @@
+import type { IImage, internal } from '../types/lib';
+
 import Module from '../module';
 
-type ResizeData = functions.internal.Image.ResizeData;
-type CropData = functions.internal.Image.CropData;
-type RotateData = functions.internal.Image.RotateData;
-type QualityData = functions.internal.Image.QualityData;
+type ResizeData = internal.Image.ResizeData;
+type CropData = internal.Image.CropData;
+type RotateData = internal.Image.RotateData;
+type QualityData = internal.Image.QualityData;
 
 const REGEXP_RESIZE = /\(\s*(\d+|auto)\s*x\s*(\d+|auto)(?:\s*\[\s*(bilinear|bicubic|hermite|bezier)\s*\])?(?:\s*\^\s*(contain|cover|scale)(?:\s*\[\s*(left|center|right)?(?:\s*\|?\s*(top|middle|bottom))?\s*\])?)?(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\)/;
 const REGEXP_CROP = /\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*\|\s*(\d+)\s*x\s*(\d+)\s*\)/;
@@ -14,7 +16,7 @@ const REGEXP_METHOD = /!\s*([A-Za-z$][\w$]*)/g;
 
 const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : NaN;
 
-abstract class Image extends Module implements functions.IImage {
+abstract class Image extends Module implements IImage {
     parseCrop(value: string) {
         const match = REGEXP_CROP.exec(value);
         if (match) {

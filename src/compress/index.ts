@@ -1,3 +1,4 @@
+import type { CompressTryFileMethod, CompressTryImageCallback, FileManagerCompleteAsyncTaskCallback, FileManagerPerformAsyncTaskCallback, ICompress } from '../types/lib';
 import type { CompressFormat } from '../types/lib/squared';
 
 import path = require('path');
@@ -7,17 +8,12 @@ import tinify = require('tinify');
 
 import Module from '../module';
 
-type FileManagerPerformAsyncTaskCallback = functions.FileManagerPerformAsyncTaskCallback;
-type FileManagerCompleteAsyncTaskCallback = functions.FileManagerCompleteAsyncTaskCallback;
-type CompressTryImageCallback = functions.CompressTryImageCallback;
-type CompressTryFileMethod = functions.CompressTryFileMethod;
-
 function parseSizeRange(value: string): [number, number] {
     const match = /\(\s*(\d+)\s*,\s*(\d+|\*)\s*\)/.exec(value);
     return match ? [+match[1], match[2] === '*' ? Infinity : +match[2]] : [0, Infinity];
 }
 
-const Compress = new class extends Module implements functions.ICompress {
+const Compress = new class extends Module implements ICompress {
     public gzipLevel = 9;
     public brotliQuality = 11;
     public tinifyApiKey = '';

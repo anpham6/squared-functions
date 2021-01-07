@@ -6,12 +6,14 @@ export interface LocationUri {
 }
 
 export interface FileAsset extends LocationUri {
+    moveTo?: string;
     content?: string;
     uri?: string;
     mimeType?: string;
     base64?: string;
     commands?: string[];
     compress?: CompressFormat[];
+    document?: string[];
     cloudStorage?: CloudStorage[];
     watch?: boolean | WatchInterval;
     tasks?: string[];

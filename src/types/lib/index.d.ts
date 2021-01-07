@@ -13,7 +13,8 @@ declare namespace functions {
     type CloudFeatures = "storage" | "database";
     type CloudFunctions = "upload" | "download";
     type ModuleWriteFailMethod = (value: string | [string, string], message?: unknown) => void;
-    type FileManagerFinalizeImageMethod = (result: internal.Image.OutputData, error?: Null<Error>) => void;
+    type FileManagerQueueImageMethod = (data: internal.FileData, ouputType: string, saveAs: string, command?: string) => Undef<string>;
+    type FileManagerFinalizeImageMethod<T = void> = (data: internal.Image.OutputData, error?: Null<Error>) => T;
     type FileManagerPerformAsyncTaskCallback = VoidFunction;
     type FileManagerCompleteAsyncTaskCallback = (value?: unknown, parent?: ExternalAsset) => void;
     type CompressTryFileMethod = (fileUri: string, data: squared.CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback) => void;
@@ -24,6 +25,7 @@ declare namespace functions {
             interface OutputData extends FileData {
                 output: string;
                 command: string;
+                baseDirectory?: string;
             }
 
             interface RotateData {
@@ -277,12 +279,14 @@ declare namespace functions {
         loadOptions(value: internal.Document.ConfigOrTransformer | string): Undef<internal.Document.ConfigOrTransformer>;
         loadConfig(value: string): Undef<StandardMap | string>;
         transform(type: string, format: string, value: string, input?: internal.Document.SourceMapInput): Promise<Void<[string, Undef<Map<string, internal.Document.SourceMapOutput>>]>>;
+        queueImage?: FileManagerQueueImageMethod;
+        finalizeImage?: FileManagerFinalizeImageMethod<boolean>;
     }
 
     interface DocumentConstructor extends ModuleConstructor {
         init(this: IFileManager, document: IDocument): boolean;
         using(this: IFileManager, document: IDocument, file: ExternalAsset): Promise<void>;
-        finalize(this: IFileManager, document: IDocument): void;
+        finalize(this: IFileManager, document: IDocument, assets: ExternalAsset[]): void;
         formatContent(this: IFileManager, document: IDocument, file: ExternalAsset, content: string): string;
         new(body: RequestBody, settings?: ExtendedSettings.DocumentModule, ...args: unknown[]): IDocument;
     }
@@ -317,9 +321,9 @@ declare namespace functions {
         readonly filesToCompare: Map<ExternalAsset, string[]>;
         readonly contentToAppend: Map<string, string[]>;
         readonly assets: ExternalAsset[];
+        readonly documentAssets: ExternalAsset[];
         readonly postFinalize: FunctionType<void>;
         readonly baseDirectory: string;
-        readonly baseAsset?: ExternalAsset;
         install(name: string, ...args: unknown[]): void;
         add(value: string): void;
         delete(value: string): void;
@@ -330,10 +334,9 @@ declare namespace functions {
         completeAsyncTask: FileManagerCompleteAsyncTaskCallback;
         performFinalize(): void;
         setFileUri(file: ExternalAsset): internal.FileOutput;
+        getRelativePath(file: ExternalAsset, filename?: string): string;
         assignFilename(data: internal.AssetData): Undef<string>;
         findAsset(uri: string, fromElement?: boolean): Undef<ExternalAsset>;
-        findRelativePath(file: ExternalAsset, location: string, partial?: boolean): Undef<string>;
-        getHtmlPages(): ExternalAsset[];
         removeCwd(value: Undef<string>): string;
         getUTF8String(file: ExternalAsset, fileUri?: string): string;
         appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex?: number): Promise<string>;
@@ -341,8 +344,8 @@ declare namespace functions {
         joinAllContent(fileUri: string): Undef<string>;
         createSourceMap(file: ExternalAsset, sourcesContent: string): internal.Document.SourceMapInput;
         writeSourceMap(outputData: [string, Undef<Map<string, internal.Document.SourceMapOutput>>], file: ExternalAsset, sourceContent?: string, modified?: boolean): void;
-        queueImage(data: internal.FileData, ouputType: string, saveAs: string, command?: string): Undef<string>;
         compressFile(file: ExternalAsset): Promise<unknown>;
+        queueImage: FileManagerQueueImageMethod;
         finalizeImage: FileManagerFinalizeImageMethod;
         finalizeAsset(data: internal.FileData, parent?: ExternalAsset): Promise<void>;
         processAssets(watch?: boolean): void;

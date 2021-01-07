@@ -1,8 +1,9 @@
+import type { INode } from '../types/lib';
 import type { ResponseData } from '../types/lib/squared';
 
 import Module from '../module';
 
-const Node = new class extends Module implements functions.INode {
+const Node = new class extends Module implements INode {
     private _disk_read = false;
     private _disk_write = false;
     private _unc_read = false;
