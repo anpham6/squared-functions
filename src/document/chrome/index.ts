@@ -1,4 +1,5 @@
-import type { DocumentConstructor, ExtendedSettings, ExternalAsset, IDocument, IFileManager, RequestBody, internal } from '../../types/lib';
+import type { CloudAsset, DocumentConstructor, ExtendedSettings, IDocument, IFileManager, RequestBody, internal } from '../../types/lib';
+import type { ChromeAsset } from '../../types/lib/chrome';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -9,12 +10,19 @@ import uuid = require('uuid');
 import Node from '../../node';
 import Document from '../../document';
 
+interface ExternalAsset extends CloudAsset, ChromeAsset {
+    srcSet?: string[];
+    inlineBase64?: string;
+    inlineCssMap?: StringMap;
+}
+
 export interface IChromeDocument extends IDocument {
     productionRelease: boolean;
     htmlFiles: ExternalAsset[];
     cssFiles: ExternalAsset[];
+    baseDirectory: string;
+    baseUrl?: string;
     unusedStyles?: string[];
-    baseAsset?: ExternalAsset;
 }
 
 export interface ChromeDocumentConstructor extends DocumentConstructor {
@@ -202,7 +210,7 @@ function getRootDirectory(location: string, asset: string): [string[], string[]]
     return [locationDir.filter(value => value), assetDir];
 }
 
-function findRelativePath(this: IFileManager, file: ExternalAsset, location: string, baseAsset?: ExternalAsset, partial?: boolean) {
+function findRelativePath(this: IFileManager, file: ExternalAsset, location: string, baseDirectory?: string, partial?: boolean) {
     const origin = file.uri!;
     let asset: Undef<ExternalAsset>;
     if (partial) {
@@ -236,14 +244,14 @@ function findRelativePath(this: IFileManager, file: ExternalAsset, location: str
                 return '../'.repeat(originDir.length - 1) + uriDir.join('/');
             }
         }
-        if (baseAsset && Document.fromSameOrigin(origin, baseAsset.uri!)) {
-            const [originDir] = getRootDirectory(this.joinPosix(baseDir, file.filename), new URL(baseAsset.uri!).pathname);
+        if (baseDirectory && Document.fromSameOrigin(origin, baseDirectory)) {
+            const [originDir] = getRootDirectory(this.joinPosix(baseDir, file.filename), new URL(baseDirectory).pathname);
             return '../'.repeat(originDir.length - 1) + asset.relativePath;
         }
     }
 }
 
-function transformCss(this: IFileManager, file: ExternalAsset, content: string, baseAsset?: ExternalAsset) {
+function transformCss(this: IFileManager, document: IChromeDocument, file: ExternalAsset, content: string) {
     const getCloudUUID = (item: Undef<ExternalAsset>, url: string) => {
         if (item && this.Cloud?.getStorage('upload', item.cloudStorage)) {
             if (!item.inlineCssCloud) {
@@ -255,9 +263,9 @@ function transformCss(this: IFileManager, file: ExternalAsset, content: string, 
     };
     const cssUri = file.uri!;
     let output: Undef<string>;
-    for (const item of this.assets) {
+    for (const item of this.assets as ExternalAsset[]) {
         if (item.base64 && item.uri && Document.fromSameOrigin(cssUri, item.uri) && !item.outerHTML && !item.invalid) {
-            const url = findRelativePath.call(this, file, item.uri, baseAsset);
+            const url = findRelativePath.call(this, file, item.uri, document.baseDirectory);
             if (url) {
                 const replaced = replaceUri(output || content, [item.base64.replace(/\+/g, '\\+')], getCloudUUID(item, url), false, true);
                 if (replaced) {
@@ -273,19 +281,19 @@ function transformCss(this: IFileManager, file: ExternalAsset, content: string, 
         content = output;
     }
     REGEXP_CSSURL.lastIndex = 0;
-    const baseUri = baseAsset?.uri;
     let match: Null<RegExpExecArray>;
     while (match = REGEXP_CSSURL.exec(content)) {
         const url = match[1].replace(/^["']\s*/, '').replace(/\s*["']$/, '');
         if (!Node.isFileURI(url) || Document.fromSameOrigin(cssUri, url)) {
-            let location = findRelativePath.call(this, file, url, baseAsset, true);
+            const baseDirectory = document.baseDirectory;
+            let location = findRelativePath.call(this, file, url, baseDirectory, true);
             if (location) {
                 const uri = Node.resolvePath(url, cssUri);
                 output = (output || content).replace(match[0], `url(${getCloudUUID(uri ? this.findAsset(uri) : undefined, location)})`);
             }
-            else if (baseUri && (location = Node.resolvePath(url, baseUri))) {
+            else if (baseDirectory && (location = Node.resolvePath(url, baseDirectory))) {
                 const asset = this.findAsset(location);
-                if (asset && (location = findRelativePath.call(this, file, location, baseAsset))) {
+                if (asset && (location = findRelativePath.call(this, file, location, baseDirectory))) {
                     output = (output || content).replace(match[0], `url(${getCloudUUID(asset, location)})`);
                 }
             }
@@ -294,7 +302,7 @@ function transformCss(this: IFileManager, file: ExternalAsset, content: string, 
             const asset = this.findAsset(url);
             if (asset) {
                 const pathname = file.pathname;
-                const count = pathname && pathname !== '/' && !file.baseUrl ? pathname.split(/[\\/]/).length : 0;
+                const count = pathname && pathname !== '/' && file.uri !== document.baseUrl ? pathname.split(/[\\/]/).length : 0;
                 output = (output || content).replace(match[0], `url(${getCloudUUID(asset, (count ? '../'.repeat(count) : '') + asset.relativePath)})`);
             }
         }
@@ -307,21 +315,21 @@ const isObject = (value: unknown): value is PlainObject => typeof value === 'obj
 
 class ChromeDocument extends Document implements IChromeDocument {
     public static init(this: IFileManager, document: IChromeDocument) {
-        const baseAsset = this.assets.find(item => item.baseUrl);
-        document.baseAsset = baseAsset;
-        this.assets.sort((a, b) => {
+        const assets = this.assets as ExternalAsset[];
+        const baseUrl = document.baseUrl;
+        assets.sort((a, b) => {
             if (a.bundleId && a.bundleId === b.bundleId) {
                 return a.bundleIndex! - b.bundleIndex!;
             }
-            if (a === baseAsset) {
+            if (a.uri === baseUrl) {
                 return 1;
             }
-            if (b === baseAsset) {
+            if (b.uri === baseUrl) {
                 return -1;
             }
             return 0;
         });
-        for (const item of this.assets) {
+        for (const item of assets) {
             switch (item.mimeType) {
                 case '@text/html':
                     document.htmlFiles.push(item);
@@ -335,7 +343,7 @@ class ChromeDocument extends Document implements IChromeDocument {
 
     public static async using(this: IFileManager, document: IChromeDocument, file: ExternalAsset) {
         const { format, mimeType, fileUri } = file;
-        const baseAsset = document.baseAsset;
+        const baseDirectory = document.baseDirectory;
         switch (mimeType) {
             case '@text/html': {
                 let html = this.getUTF8String(file, fileUri),
@@ -471,7 +479,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 replaceTry(outerHTML, replaceWith);
                                 replaceMinify(outerHTML, replaceWith);
                                 if (current !== source) {
-                                    for (const asset of this.assets) {
+                                    for (const asset of this.assets as ExternalAsset[]) {
                                         if (asset.outerHTML === outerHTML) {
                                             asset.outerHTML = replaceWith;
                                             break;
@@ -494,14 +502,14 @@ class ChromeDocument extends Document implements IChromeDocument {
                     });
                 }
                 const baseUri = file.uri!;
-                for (const item of this.assets) {
-                    if (item.invalid && !item.exclude) {
+                for (const item of this.assets as ExternalAsset[]) {
+                    if (item.invalid && item.bundleIndex === undefined) {
                         continue;
                     }
                     const { outerHTML, trailingContent } = item;
                     if (trailingContent) {
                         REGEXP_TRAILINGCONTENT.lastIndex = 0;
-                        const content = trailingContent.map(innerHTML => minifySpace(innerHTML.value));
+                        const content = trailingContent.map(value => minifySpace(value));
                         while (match = REGEXP_TRAILINGCONTENT.exec(html)) {
                             if (content.includes(minifySpace(match[3]))) {
                                 source = source.replace(match[0], '');
@@ -540,7 +548,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             }
                             output = getOuterHTML(/^\s*<link\b/.test(outerHTML) || !!item.mimeType?.endsWith('/css'), value);
                         }
-                        else if (item.exclude || bundleIndex !== undefined) {
+                        else if (bundleIndex !== undefined) {
                             source = source.replace(new RegExp(`\\s*${escapeRegexp(outerHTML)}\\n*`), '');
                             if (current === source) {
                                 source = source.replace(new RegExp(`\\s*${escapeRegexp(formatTag(outerHTML))}\\n*`), '');
@@ -574,8 +582,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         }
                     }
                 }
-                const baseUrl = baseAsset?.baseUrl;
-                for (const item of this.assets) {
+                for (const item of this.assets as ExternalAsset[]) {
                     if (item === file || item.content || item.bundleIndex !== undefined || item.inlineContent || !item.uri || item.invalid) {
                         continue;
                     }
@@ -588,8 +595,8 @@ class ChromeDocument extends Document implements IChromeDocument {
                             let value = item.relativePath!,
                                 relativePath: Undef<string>,
                                 ascending: Undef<boolean>;
-                            if (baseUrl) {
-                                relativePath = uri.replace(baseUrl, '');
+                            if (baseDirectory) {
+                                relativePath = uri.replace(baseDirectory, '');
                                 if (relativePath === uri) {
                                     relativePath = '';
                                 }
@@ -657,7 +664,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         }
                     }
                 }
-                file.sourceUTF8 = removeFileCommands(transformCss.call(this, file, source, baseAsset) || source);
+                file.sourceUTF8 = removeFileCommands(transformCss.call(this, document, file, source) || source);
                 break;
             }
             case 'text/css':
@@ -679,7 +686,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                 }
                 if (transform) {
-                    const result = transformCss.call(this, file, source, baseAsset);
+                    const result = transformCss.call(this, document, file, source);
                     if (result) {
                         source = result;
                         modified = true;
@@ -871,7 +878,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     content = result;
                 }
             }
-            const result = transformCss.call(this, file, content, document.baseAsset);
+            const result = transformCss.call(this, document, file, content);
             if (result) {
                 content = result;
             }
@@ -882,11 +889,18 @@ class ChromeDocument extends Document implements IChromeDocument {
     public documentName = 'chrome';
     public htmlFiles: ExternalAsset[] = [];
     public cssFiles: ExternalAsset[] = [];
+    public baseDirectory = '';
     public unusedStyles?: string[];
-    public baseAsset?: ExternalAsset;
+    public baseUrl?: string;
 
     constructor(body: RequestBody, settings?: DocumentModule, public productionRelease = false) {
         super(body, settings);
+        const baseUrl = body.baseUrl;
+        if (baseUrl) {
+            const { origin, pathname } = new URL(baseUrl);
+            this.baseDirectory = origin + pathname.substring(0, pathname.lastIndexOf('/') + 1);
+            this.baseUrl = baseUrl;
+        }
         this.unusedStyles = body.unusedStyles;
     }
 
@@ -899,9 +913,9 @@ class ChromeDocument extends Document implements IChromeDocument {
     finalizeImage(data: OutputData, error?: Null<Error>) {
         const { file, output, command, baseDirectory } = data;
         if (!error && output) {
-            const match = file.outerHTML && REGEXP_SRCSETSIZE.exec(command);
+            const match = (file as ExternalAsset).outerHTML && REGEXP_SRCSETSIZE.exec(command);
             if (match) {
-                (file.srcSet ||= []).push(Document.toPosix(baseDirectory ? output.substring(baseDirectory.length + 1) : output), match[1] + match[2].toLowerCase());
+                ((file as ExternalAsset).srcSet ||= []).push(Document.toPosix(baseDirectory ? output.substring(baseDirectory.length + 1) : output), match[1] + match[2].toLowerCase());
                 return true;
             }
         }

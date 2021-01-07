@@ -63,15 +63,23 @@ class Watch extends Module implements IWatch {
                 if (watch && uri) {
                     if (item.originalName) {
                         item.filename = item.originalName;
+                        delete item.originalName;
                     }
-                    delete item.invalid;
-                    delete item.transforms;
-                    delete item.buffer;
-                    delete item.sourceUTF8;
-                    delete item.originalName;
-                    delete item.inlineCssMap;
-                    delete item.inlineCloud;
-                    delete item.inlineCssCloud;
+                    for (const attr in item) {
+                        switch (attr) {
+                            case 'buffer':
+                            case 'sourceUTF8':
+                            case 'transforms':
+                            case 'invalid':
+                                delete item[attr];
+                                break;
+                            default:
+                                if (attr.startsWith('inline')) {
+                                    delete item[attr];
+                                }
+                                break;
+                        }
+                    }
                     const start = Date.now();
                     const interval = getInterval(item) || watchInterval || this.interval;
                     let expires = 0;

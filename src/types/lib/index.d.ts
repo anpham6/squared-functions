@@ -336,7 +336,7 @@ declare namespace functions {
         setFileUri(file: ExternalAsset): internal.FileOutput;
         getRelativePath(file: ExternalAsset, filename?: string): string;
         assignFilename(data: internal.AssetData): Undef<string>;
-        findAsset(uri: string, fromElement?: boolean): Undef<ExternalAsset>;
+        findAsset(uri: string): Undef<ExternalAsset>;
         removeCwd(value: Undef<string>): string;
         getUTF8String(file: ExternalAsset, fileUri?: string): string;
         appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex?: number): Promise<string>;
@@ -451,26 +451,27 @@ declare namespace functions {
 
     interface RequestBody extends PlainObject {
         assets: ExternalAsset[];
+        baseUrl?: string;
         unusedStyles?: chrome.UnusedStyles;
         templateMap?: StandardMap;
         database?: squared.CloudDatabase[];
     }
 
-    interface ExternalAsset extends squared.FileAsset, chrome.ChromeAsset {
+    interface ExternalAsset extends squared.FileAsset, squared.BundleAction {
         fileUri?: string;
         buffer?: Buffer;
         sourceUTF8?: string;
-        cloudUri?: string;
         relativePath?: string;
         originalName?: string;
         transforms?: string[];
-        inlineBase64?: string;
-        inlineCloud?: string;
-        inlineCssCloud?: string;
-        inlineCssMap?: StringMap;
-        srcSet?: string[];
         etag?: string;
         invalid?: boolean;
+    }
+
+    interface CloudAsset extends ExternalAsset {
+        cloudUri?: string;
+        inlineCloud?: string;
+        inlineCssCloud?: string;
     }
 }
 

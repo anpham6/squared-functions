@@ -1,4 +1,4 @@
-import type { CloudFeatures, CloudFunctions, ExtendedSettings, ExternalAsset, ICloud, IFileManager, internal } from '../types/lib';
+import type { CloudAsset, CloudFeatures, CloudFunctions, ExtendedSettings, ICloud, IFileManager, internal } from '../types/lib';
 import type { CloudDatabase, CloudService, CloudStorage, CloudStorageAction, CloudStorageDownload, CloudStorageUpload } from '../types/lib/squared';
 import type { IChromeDocument } from '../document/chrome';
 
@@ -48,18 +48,18 @@ class Cloud extends Module implements ICloud {
     public static async finalize(this: IFileManager, cloud: ICloud) {
         let tasks: Promise<unknown>[] = [];
         const deleted: string[] = [];
-        const compressed = new WeakSet<ExternalAsset>();
-        const cloudMap: ObjectMap<ExternalAsset> = {};
-        const cloudCssMap: ObjectMap<ExternalAsset> = {};
-        const localStorage = new Map<ExternalAsset, CloudStorageUpload>();
+        const compressed = new WeakSet<CloudAsset>();
+        const cloudMap: ObjectMap<CloudAsset> = {};
+        const cloudCssMap: ObjectMap<CloudAsset> = {};
+        const localStorage = new Map<CloudAsset, CloudStorageUpload>();
         const bucketGroup = uuid.v4();
         const chromeDocument = this.Document.find(item => item.document.documentName === 'chrome')?.document as Undef<IChromeDocument>;
         const { htmlFiles = [], cssFiles = [] } = chromeDocument || {} as IChromeDocument;
-        const rawFiles: ExternalAsset[] = [];
+        const rawFiles: CloudAsset[] = [];
         const compressFormat = new Set(['.map', '.gz', '.br']);
         let endpoint: Undef<string>,
             modifiedHtml: Undef<boolean>,
-            modifiedCss: Undef<Set<ExternalAsset>>;
+            modifiedCss: Undef<Set<CloudAsset>>;
         if (this.Compress) {
             for (const format in this.Compress.compressorProxy) {
                 compressFormat.add('.' + format);
@@ -72,7 +72,7 @@ class Cloud extends Module implements ICloud {
                 endpoint = Module.toPosix(upload.endpoint) + '/';
             }
         }
-        const getFiles = (item: ExternalAsset, data: CloudStorageUpload) => {
+        const getFiles = (item: CloudAsset, data: CloudStorageUpload) => {
             const files = [item.fileUri!];
             const transforms: string[] = [];
             if (item.transforms && data.all) {
@@ -88,7 +88,7 @@ class Cloud extends Module implements ICloud {
             }
             return [files, transforms];
         };
-        const uploadFiles = (item: ExternalAsset, mimeType = item.mimeType) => {
+        const uploadFiles = (item: CloudAsset, mimeType = item.mimeType) => {
             const cloudMain = cloud.getStorage('upload', item.cloudStorage);
             for (const storage of item.cloudStorage!) {
                 if (cloud.hasStorage('upload', storage)) {
@@ -191,7 +191,7 @@ class Cloud extends Module implements ICloud {
             }
         };
         const bucketMap: ObjectMap<Map<string, PlainObject>> = {};
-        for (const item of this.assets) {
+        for (const item of this.assets as CloudAsset[]) {
             if (item.cloudStorage) {
                 if (item.fileUri) {
                     if (item.inlineCloud) {
@@ -405,8 +405,8 @@ class Cloud extends Module implements ICloud {
         Object.assign(this._cache, settings.cache);
     }
 
-    setObjectKeys(assets: ExternalAsset[]) {
-        const storage: ExternalAsset[] = [];
+    setObjectKeys(assets: CloudAsset[]) {
+        const storage: CloudAsset[] = [];
         for (const item of assets) {
             if (item.cloudStorage) {
                 for (const data of item.cloudStorage) {

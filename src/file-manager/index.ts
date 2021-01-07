@@ -269,8 +269,8 @@ class FileManager extends Module implements IFileManager {
             return filename.startsWith('__assign__') ? data.filename = uuid.v4() + filename.substring(10) : filename;
         }
     }
-    findAsset(uri: string, fromElement?: boolean) {
-        return this.assets.find(item => item.uri === uri && (fromElement && item.outerHTML || !fromElement && !item.outerHTML) && !item.invalid);
+    findAsset(uri: string) {
+        return this.assets.find(item => item.uri === uri && !item.invalid);
     }
     removeCwd(value: Undef<string>) {
         return value ? value.substring(this.baseDirectory.length + 1) : '';
@@ -314,8 +314,7 @@ class FileManager extends Module implements IFileManager {
     async getTrailingContent(file: ExternalAsset) {
         let output = '';
         if (file.trailingContent) {
-            for (const content of file.trailingContent) {
-                let value = content.value;
+            for (let value of file.trailingContent) {
                 if (file.document) {
                     for (const { document, instance } of this.Document) {
                         if (file.document.includes(document.documentName)) {
@@ -605,20 +604,17 @@ class FileManager extends Module implements IFileManager {
                         if (content) {
                             file.sourceUTF8 = content;
                         }
-                        file.invalid = false;
                         bundleMain = file;
                     }
                     else {
                         content = await this.getTrailingContent(file);
                         if (content) {
                             file.sourceUTF8 = content;
-                            file.invalid = false;
                             bundleMain = file;
                         }
                         else {
                             delete file.sourceUTF8;
-                            file.bundleIndex = NaN;
-                            file.exclude = true;
+                            file.bundleIndex = Infinity;
                             file.invalid = true;
                             cloudStorage = file.cloudStorage;
                         }
@@ -637,7 +633,6 @@ class FileManager extends Module implements IFileManager {
                             }
                             if (value) {
                                 next.sourceUTF8 = await this.appendContent(next, fileUri, value) || value;
-                                next.invalid = false;
                                 next.cloudStorage = cloudStorage;
                                 bundleMain = queue;
                             }
@@ -715,7 +710,7 @@ class FileManager extends Module implements IFileManager {
             delete processing[fileUri];
         };
         for (const file of this.assets) {
-            if (file.exclude) {
+            if (!file.pathname && !file.filename) {
                 file.invalid = true;
                 continue;
             }

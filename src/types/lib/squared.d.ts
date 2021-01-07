@@ -1,22 +1,41 @@
 /// <reference path="type.d.ts" />
 
+interface ElementScope {
+    watch?: boolean | WatchInterval;
+    tasks?: string[];
+}
+
+interface Asset extends ElementScope {
+    uri?: string;
+    mimeType?: string;
+}
+
+interface TextAsset extends Asset, LocationUri {
+    content?: string;
+}
+
+interface OutputAction {
+    moveTo?: string;
+    commands?: string[];
+    compress?: CompressFormat[];
+    document?: string[];
+    cloudStorage?: CloudStorage[];
+}
+
 export interface LocationUri {
     pathname: string;
     filename: string;
 }
 
-export interface FileAsset extends LocationUri {
-    moveTo?: string;
-    content?: string;
-    uri?: string;
-    mimeType?: string;
+export interface FileAsset extends TextAsset, OutputAction {
     base64?: string;
-    commands?: string[];
-    compress?: CompressFormat[];
-    document?: string[];
-    cloudStorage?: CloudStorage[];
-    watch?: boolean | WatchInterval;
-    tasks?: string[];
+}
+
+export interface BundleAction {
+    bundleId?: number;
+    bundleIndex?: number;
+    bundleRoot?: string;
+    trailingContent?: string[];
 }
 
 export interface CompressFormat {
