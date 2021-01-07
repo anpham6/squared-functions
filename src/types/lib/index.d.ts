@@ -119,11 +119,20 @@ declare namespace functions {
                 executeQuery?(this: ICloud, credential: unknown, data: squared.CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
             }
 
+            interface FinalizeResult {
+                deleted: string[];
+                compressed: WeakSet<ExternalAsset>;
+            }
+
             type ServiceHost<T> = (this: InstanceHost, credential: unknown, service?: string, sdk?: string) => T;
             type UploadHost = ServiceHost<UploadCallback>;
             type DownloadHost = ServiceHost<DownloadCallback>;
             type UploadCallback = (data: UploadData, success: (value: string) => void) => Promise<void>;
             type DownloadCallback = (data: DownloadData, success: (value: Null<Buffer | string>) => void) => Promise<void>;
+        }
+
+        interface AssetData {
+            filename?: string;
         }
 
         interface FileData {
@@ -248,6 +257,7 @@ declare namespace functions {
     }
 
     interface CloudConstructor extends ModuleConstructor {
+        finalize(this: IFileManager, cloud: ICloud): Promise<internal.Cloud.FinalizeResult>;
         new(settings: ExtendedSettings.CloudModule): ICloud;
     }
 
@@ -294,7 +304,7 @@ declare namespace functions {
         Cloud: Null<ICloud>;
         Watch: Null<IWatch>;
         Image: Null<ImageConstructor>;
-        Compress: Null<ExtendedSettings.CompressModule>;
+        Compress: Null<ICompress>;
         Gulp: Null<ExtendedSettings.GulpModule>;
         readonly body: RequestBody;
         readonly files: Set<string>;
@@ -316,6 +326,7 @@ declare namespace functions {
         completeAsyncTask: FileManagerCompleteAsyncTaskCallback;
         performFinalize(): void;
         setFileUri(file: ExternalAsset): internal.FileOutput;
+        assignFilename(data: internal.AssetData): Undef<string>;
         findAsset(uri: string, fromElement?: boolean): Undef<ExternalAsset>;
         findRelativePath(file: ExternalAsset, location: string, partial?: boolean): Undef<string>;
         getHtmlPages(): ExternalAsset[];

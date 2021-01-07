@@ -17,6 +17,9 @@
   "dependencies": {
     "@squared-functions/module": "^0.10.0",
     "@squared-functions/types": "^0.10.0",
+    "escape-string-regexp": "4.0.0",
+    "fs-extra": "^9.0.1",
+    "mime-types": "^2.1.27",
     "uuid": "^8.3.2"
   }
 }

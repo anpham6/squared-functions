@@ -24,7 +24,6 @@
     "@squared-functions/types": "^0.10.0",
     "@squared-functions/watch": "^0.10.0",
     "chalk": "^4.1.0",
-    "escape-string-regexp": "4.0.0",
     "fs-extra": "^9.0.1",
     "mime-types": "^2.1.27",
     "request": "^2.88.2",

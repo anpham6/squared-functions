@@ -23,8 +23,8 @@ export interface FormattableContent {
     preserve?: boolean;
 }
 
-export interface TranspileMap {
-    html: ObjectMap<StringMap>;
-    js: ObjectMap<StringMap>;
-    css: ObjectMap<StringMap>;
+export interface TemplateeMap {
+    html: ObjectMap<PlainObject>;
+    js: ObjectMap<PlainObject>;
+    css: ObjectMap<PlainObject>;
 }

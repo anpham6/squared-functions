@@ -1,11 +1,16 @@
 import type { CloudDatabase, CloudService, CloudStorage, CloudStorageAction, CloudStorageDownload, CloudStorageUpload } from '../types/lib/squared';
 
 import path = require('path');
+import fs = require('fs-extra');
+import escapeRegexp = require('escape-string-regexp');
+import mime = require('mime-types');
 import uuid = require('uuid');
 
 import Module from '../module';
 
+type IFileManager = functions.IFileManager;
 type ICloud = functions.ICloud;
+
 type ExternalAsset = functions.ExternalAsset;
 type CloudFeatures = functions.CloudFeatures;
 type CloudFunctions = functions.CloudFunctions;
@@ -17,6 +22,7 @@ type UploadHost = functions.internal.Cloud.UploadHost;
 type UploadCallback = functions.internal.Cloud.UploadCallback;
 type DownloadHost = functions.internal.Cloud.DownloadHost;
 type DownloadCallback = functions.internal.Cloud.DownloadCallback;
+type FinalizeResult = functions.internal.Cloud.FinalizeResult;
 type CacheTimeout = functions.internal.Cloud.CacheTimeout;
 
 const CLOUD_SERVICE: ObjectMap<ServiceClient> = {};
@@ -44,6 +50,356 @@ function hasSameBucket(provider: CloudStorage, other: CloudStorage) {
 const assignFilename = (value: string) => uuid.v4() + (path.extname(value) || '');
 
 class Cloud extends Module implements functions.ICloud {
+    public static async finalize(this: IFileManager, cloud: ICloud) {
+        let tasks: Promise<unknown>[] = [];
+        const deleted: string[] = [];
+        const compressed = new WeakSet<ExternalAsset>();
+        const cloudMap: ObjectMap<ExternalAsset> = {};
+        const cloudCssMap: ObjectMap<ExternalAsset> = {};
+        const localStorage = new Map<ExternalAsset, CloudStorageUpload>();
+        const bucketGroup = uuid.v4();
+        const htmlFiles = this.getHtmlPages();
+        const cssFiles: ExternalAsset[] = [];
+        const rawFiles: ExternalAsset[] = [];
+        const compressFormat = new Set(['.map', '.gz', '.br']);
+        let endpoint: Undef<string>,
+            modifiedHtml: Undef<boolean>,
+            modifiedCss: Undef<Set<ExternalAsset>>;
+        if (this.Compress) {
+            for (const format in this.Compress.compressorProxy) {
+                compressFormat.add('.' + format);
+            }
+        }
+        cloud.setObjectKeys(this.assets);
+        if (htmlFiles.length === 1) {
+            const upload = cloud.getStorage('upload', htmlFiles[0].cloudStorage)?.upload;
+            if (upload && upload.endpoint) {
+                endpoint = Module.toPosix(upload.endpoint) + '/';
+            }
+        }
+        const getFiles = (item: ExternalAsset, data: CloudStorageUpload) => {
+            const files = [item.fileUri!];
+            const transforms: string[] = [];
+            if (item.transforms && data.all) {
+                for (const value of item.transforms) {
+                    const ext = path.extname(value);
+                    if (compressFormat.has(ext) && value === files[0] + ext) {
+                        files.push(value);
+                    }
+                    else if (!item.cloudUri) {
+                        transforms.push(value);
+                    }
+                }
+            }
+            return [files, transforms];
+        };
+        const uploadFiles = (item: ExternalAsset, mimeType = item.mimeType) => {
+            const cloudMain = cloud.getStorage('upload', item.cloudStorage);
+            for (const storage of item.cloudStorage!) {
+                if (cloud.hasStorage('upload', storage)) {
+                    const upload = storage.upload!;
+                    if (storage === cloudMain && upload.localStorage === false) {
+                        localStorage.set(item, upload);
+                    }
+                    let uploadHandler: UploadCallback;
+                    try {
+                        uploadHandler = cloud.getUploadHandler(storage.service, cloud.getCredential(storage));
+                    }
+                    catch (err) {
+                        this.writeFail(['Upload function not supported', storage.service], err);
+                        continue;
+                    }
+                    tasks.push(new Promise<void>(resolve => {
+                        const uploadTasks: Promise<string>[] = [];
+                        const files = getFiles(item, upload);
+                        for (let i = 0, length = files.length; i < length; ++i) {
+                            const group = files[i];
+                            for (const fileUri of group) {
+                                if (i === 0 || this.has(fileUri)) {
+                                    const fileGroup: [Buffer | string, string][] = [];
+                                    if (i === 0) {
+                                        for (let j = 1; j < group.length; ++j) {
+                                            try {
+                                                fileGroup.push([storage.service === 'gcloud' ? group[j] : fs.readFileSync(group[j]), path.extname(group[j])]);
+                                            }
+                                            catch (err) {
+                                                this.writeFail('File not found', err);
+                                            }
+                                        }
+                                    }
+                                    uploadTasks.push(
+                                        new Promise(success => {
+                                            fs.readFile(fileUri, (err, buffer) => {
+                                                if (!err) {
+                                                    let filename: Undef<string>;
+                                                    if (i === 0) {
+                                                        if (item.cloudUri) {
+                                                            filename = path.basename(item.cloudUri);
+                                                        }
+                                                        else if (upload.filename) {
+                                                            filename = this.assignFilename(upload);
+                                                        }
+                                                        else if (upload.overwrite) {
+                                                            filename = path.basename(fileUri);
+                                                        }
+                                                    }
+                                                    uploadHandler({ buffer, upload, fileUri, fileGroup, bucket: storage.bucket, bucketGroup, filename, mimeType: mimeType || mime.lookup(fileUri) || undefined }, success);
+                                                }
+                                                else {
+                                                    success('');
+                                                }
+                                            });
+                                        })
+                                    );
+                                    if (i === 0) {
+                                        break;
+                                    }
+                                }
+                            }
+                            Promise.all(uploadTasks)
+                                .then(result => {
+                                    if (storage === cloudMain && result[0]) {
+                                        let cloudUri = result[0];
+                                        if (endpoint) {
+                                            cloudUri = cloudUri.replace(new RegExp(escapeRegexp(endpoint), 'g'), '');
+                                        }
+                                        if (item.inlineCloud) {
+                                            for (const content of htmlFiles) {
+                                                content.sourceUTF8 = this.getUTF8String(content).replace(item.inlineCloud, cloudUri);
+                                                delete cloudMap[item.inlineCloud];
+                                            }
+                                        }
+                                        else if (item.inlineCssCloud) {
+                                            const pattern = new RegExp(item.inlineCssCloud, 'g');
+                                            for (const content of htmlFiles) {
+                                                content.sourceUTF8 = this.getUTF8String(content).replace(pattern, cloudUri);
+                                            }
+                                            if (endpoint && cloudUri.indexOf('/') !== -1) {
+                                                cloudUri = result[0];
+                                            }
+                                            for (const content of cssFiles) {
+                                                if (content.inlineCssMap) {
+                                                    content.sourceUTF8 = this.getUTF8String(content).replace(pattern, cloudUri);
+                                                    modifiedCss!.add(content);
+                                                }
+                                            }
+                                            delete cloudCssMap[item.inlineCssCloud];
+                                        }
+                                        item.cloudUri = cloudUri;
+                                    }
+                                    resolve();
+                                })
+                                .catch(() => resolve());
+                        }
+                    }));
+                }
+            }
+        };
+        const bucketMap: ObjectMap<Map<string, PlainObject>> = {};
+        for (const item of this.assets) {
+            if (item.cloudStorage) {
+                if (item.fileUri) {
+                    if (item.inlineCloud) {
+                        cloudMap[item.inlineCloud] = item;
+                        modifiedHtml = true;
+                    }
+                    else if (item.inlineCssCloud) {
+                        cloudCssMap[item.inlineCssCloud] = item;
+                        modifiedCss = new Set();
+                    }
+                    switch (item.mimeType) {
+                        case '@text/html':
+                            break;
+                        case '@text/css':
+                            cssFiles.push(item);
+                            break;
+                        default:
+                            if (item.compress) {
+                                await this.compressFile(item);
+                            }
+                            compressed.add(item);
+                            rawFiles.push(item);
+                            break;
+                    }
+                }
+                for (const storage of item.cloudStorage) {
+                    if (storage.admin?.emptyBucket && cloud.hasCredential('storage', storage) && storage.bucket && !(bucketMap[storage.service] ||= new Map()).has(storage.bucket)) {
+                        bucketMap[storage.service].set(storage.bucket, cloud.getCredential(storage));
+                    }
+                }
+            }
+        }
+        for (const service in bucketMap) {
+            for (const [bucket, credential] of bucketMap[service]) {
+                tasks.push(cloud.deleteObjects(service, credential, bucket).catch(err => this.writeFail(['Cloud provider not found', service], err)));
+            }
+        }
+        if (tasks.length) {
+            await Promise.all(tasks).catch(err => this.writeFail(['Empty buckets in cloud storage', 'finalize'], err));
+            tasks = [];
+        }
+        for (const item of rawFiles) {
+            uploadFiles(item);
+        }
+        if (tasks.length) {
+            await Promise.all(tasks).catch(err => this.writeFail(['Upload raw assets to cloud storage', 'finalize'], err));
+            tasks = [];
+        }
+        if (modifiedCss) {
+            for (const id in cloudCssMap) {
+                for (const item of cssFiles) {
+                    const inlineCssMap = item.inlineCssMap;
+                    if (inlineCssMap && inlineCssMap[id]) {
+                        item.sourceUTF8 = this.getUTF8String(item).replace(new RegExp(id, 'g'), inlineCssMap[id]!);
+                        modifiedCss.add(item);
+                    }
+                }
+                localStorage.delete(cloudCssMap[id]);
+            }
+            if (modifiedCss.size) {
+                tasks.push(...Array.from(modifiedCss).map(item => fs.writeFile(item.fileUri!, item.sourceUTF8, 'utf8')));
+            }
+        }
+        if (tasks.length) {
+            await Promise.all(tasks).catch(err => this.writeFail(['Update CSS', 'finalize'], err));
+            tasks = [];
+        }
+        for (const item of cssFiles) {
+            if (item.cloudStorage) {
+                if (item.compress) {
+                    await this.compressFile(item);
+                }
+                compressed.add(item);
+                uploadFiles(item, 'text/css');
+            }
+        }
+        if (tasks.length) {
+            await Promise.all(tasks).catch(err => this.writeFail(['Upload CSS to cloud storage', 'finalize'], err));
+            tasks = [];
+        }
+        if (modifiedHtml) {
+            for (const item of htmlFiles) {
+                let sourceUTF8 = this.getUTF8String(item);
+                for (const id in cloudMap) {
+                    const file = cloudMap[id];
+                    sourceUTF8 = sourceUTF8.replace(id, file.relativePath!);
+                    localStorage.delete(file);
+                }
+                if (endpoint) {
+                    sourceUTF8 = sourceUTF8.replace(endpoint, '');
+                }
+                try {
+                    fs.writeFileSync(item.fileUri!, sourceUTF8, 'utf8');
+                }
+                catch (err) {
+                    this.writeFail(['Update HTML', 'finalize'], err);
+                }
+                if (item.compress) {
+                    await this.compressFile(item);
+                }
+                compressed.add(item);
+                if (item.cloudStorage) {
+                    uploadFiles(item, 'text/html');
+                }
+            }
+        }
+        if (tasks.length) {
+            await Promise.all(tasks).catch(err => this.writeFail(['Upload HTML to cloud storage', 'finalize'], err));
+            tasks = [];
+        }
+        for (const [item, data] of localStorage) {
+            for (const group of getFiles(item, data)) {
+                if (group.length) {
+                    tasks.push(
+                        ...group.map(value => {
+                            return fs.unlink(value)
+                                .then(() => {
+                                    deleted.push(value);
+                                    this.delete(value);
+                                })
+                                .catch(() => this.delete(value));
+                        })
+                    );
+                }
+            }
+        }
+        if (tasks.length) {
+            await Promise.all(tasks).catch(err => this.writeFail(['Delete cloud temporary files', 'finalize'], err));
+            tasks = [];
+        }
+        const downloadMap: ObjectMap<Set<string>> = {};
+        for (const item of this.assets) {
+            if (item.cloudStorage) {
+                for (const data of item.cloudStorage) {
+                    if (cloud.hasStorage('download', data)) {
+                        const { active, pathname, filename, overwrite } = data.download!;
+                        if (filename) {
+                            const fileUri = item.fileUri;
+                            let valid = false,
+                                downloadUri = pathname ? path.join(this.baseDirectory, pathname.replace(/^([A-Z]:)?[\\/]+/i, '')) : data.admin?.preservePath && fileUri ? path.join(path.dirname(fileUri), filename) : path.join(this.baseDirectory, filename);
+                            if (fs.existsSync(downloadUri)) {
+                                if (active || overwrite) {
+                                    valid = true;
+                                }
+                            }
+                            else {
+                                if (active && fileUri && path.extname(fileUri) === path.extname(downloadUri)) {
+                                    downloadUri = fileUri;
+                                }
+                                try {
+                                    fs.mkdirpSync(path.dirname(downloadUri));
+                                }
+                                catch (err) {
+                                    this.writeFail('Unable to create directory', err);
+                                    continue;
+                                }
+                                valid = true;
+                            }
+                            if (valid) {
+                                const location = data.service + data.bucket + filename;
+                                if (downloadMap[location]) {
+                                    downloadMap[location].add(downloadUri);
+                                }
+                                else {
+                                    try {
+                                        tasks.push(cloud.downloadObject(data.service, cloud.getCredential(data), data.bucket!, data.download!, (value: Null<Buffer | string>) => {
+                                            if (value) {
+                                                try {
+                                                    const items = Array.from(downloadMap[location]);
+                                                    for (let i = 0, length = items.length; i < length; ++i) {
+                                                        const destUri = items[i];
+                                                        if (typeof value === 'string') {
+                                                            fs[i === length - 1 ? 'moveSync' : 'copySync'](value, destUri, { overwrite: true });
+                                                        }
+                                                        else {
+                                                            fs.writeFileSync(destUri, value);
+                                                        }
+                                                        this.add(destUri);
+                                                    }
+                                                }
+                                                catch (err) {
+                                                    this.writeFail(['Write buffer', data.service], err);
+                                                }
+                                            }
+                                        }, bucketGroup));
+                                        downloadMap[location] = new Set<string>([downloadUri]);
+                                    }
+                                    catch (err) {
+                                        this.writeFail(['Download function not supported', data.service], err);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (tasks.length) {
+            await Promise.all(tasks).catch(err => this.writeFail(['Download from cloud storage', 'finalize'], err));
+        }
+        return { deleted, compressed } as FinalizeResult;
+    }
+
     public cacheExpires = 10 * 60 * 1000;
 
     private _cache: CacheTimeout = {};
