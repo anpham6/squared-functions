@@ -1,13 +1,13 @@
 {
   "name": "squared-functions",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Parent folder for @squared-functions packages.",
   "scripts": {
     "dev": "npm run build && copyfiles -a ./publish/**/* -u 1 ../squared/node_modules/@squared-functions && copyfiles -a ./publish/**/* -u 1 ../squared-express/node_modules/@squared-functions",
     "prod": "rimraf build/* && eslint ./src/**/*.ts && npm run build",
     "build": "tsc && rollup --silent -c rollup.config.js && rollup --silent -c ./src/cloud/rollup.config.js && rollup --silent -c ./src/document/rollup.config.js && copyfiles -a ./src/types/lib/* -u 1 ./publish",
-    "dev-publish": "npm publish --dry-run && cd publish && cd types && npm publish --dry-run && cd ../document && npm publish --dry-run && cd ../cloud && npm publish --dry-run && cd ../compress && npm publish --dry-run && cd ../image && npm publish --dry-run && cd ../watch && npm publish --dry-run && cd ../module && npm publish --dry-run && cd ../node && npm publish --dry-run && cd ../file-manager && npm publish --dry-run",
-    "prod-publish": "npm publish && cd publish && cd types && npm publish && cd ../document && npm publish && cd ../cloud && npm publish && cd ../compress && npm publish && cd ../image && npm publish && cd ../watch && npm publish && cd ../module && npm publish && cd ../node && npm publish && cd ../file-manager && npm publish"
+    "dev-publish": "npm publish --dry-run && cd publish && cd types && npm publish --dry-run && npm publish --dry-run && cd ../module && npm publish --dry-run && cd ../node && npm publish --dry-run && cd ../document && npm publish --dry-run && cd ../cloud && npm publish --dry-run && cd ../compress && npm publish --dry-run && cd ../image && npm publish --dry-run && cd ../watch && cd ../file-manager && npm publish --dry-run",
+    "prod-publish": "npm publish && cd publish && cd types && npm publish && cd ../module && npm publish && cd ../node && npm publish && cd ../document && npm publish && cd ../cloud && npm publish && cd ../compress && npm publish && cd ../image && npm publish && cd ../watch && npm publish && cd ../file-manager && npm publish"
   },
   "repository": {
     "type": "git",
@@ -29,7 +29,7 @@
     "@cloudant/cloudant": "^4.3.0",
     "@google-cloud/bigquery": "^5.5.0",
     "@google-cloud/firestore": "^4.8.1",
-    "@google-cloud/storage": "^5.7.0",
+    "@google-cloud/storage": "^5.7.1",
     "@types/body-parser": "^1.19.0",
     "@types/escape-string-regexp": "^2.0.1",
     "@types/express": "^4.17.8",
@@ -41,7 +41,7 @@
     "@types/uuid": "^8.3.0",
     "@typescript-eslint/eslint-plugin": "^4.12.0",
     "@typescript-eslint/parser": "^4.12.0",
-    "aws-sdk": "^2.823.0",
+    "aws-sdk": "^2.824.0",
     "copyfiles": "^2.4.1",
     "eslint": "^7.17.0",
     "ibm-cos-sdk": "^1.9.0",
