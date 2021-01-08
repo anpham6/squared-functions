@@ -47,8 +47,7 @@ const assignFilename = (value: string) => uuid.v4() + (path.extname(value) || ''
 class Cloud extends Module implements ICloud {
     public static async finalize(this: IFileManager, cloud: ICloud) {
         let tasks: Promise<unknown>[] = [];
-        const deleted: string[] = [];
-        const compressed = new WeakSet<CloudAsset>();
+        const compressed: CloudAsset[] = [];
         const cloudMap: ObjectMap<CloudAsset> = {};
         const cloudCssMap: ObjectMap<CloudAsset> = {};
         const localStorage = new Map<CloudAsset, CloudStorageUpload>();
@@ -209,8 +208,8 @@ class Cloud extends Module implements ICloud {
                         default:
                             if (item.compress) {
                                 await this.compressFile(item);
+                                compressed.push(item);
                             }
-                            compressed.add(item);
                             rawFiles.push(item);
                             break;
                     }
@@ -261,8 +260,8 @@ class Cloud extends Module implements ICloud {
             if (item.cloudStorage) {
                 if (item.compress) {
                     await this.compressFile(item);
+                    compressed.push(item);
                 }
-                compressed.add(item);
                 uploadFiles(item, 'text/css');
             }
         }
@@ -289,8 +288,8 @@ class Cloud extends Module implements ICloud {
                 }
                 if (item.compress) {
                     await this.compressFile(item);
+                    compressed.push(item);
                 }
-                compressed.add(item);
                 if (item.cloudStorage) {
                     uploadFiles(item, 'text/html');
                 }
@@ -303,16 +302,7 @@ class Cloud extends Module implements ICloud {
         for (const [item, data] of localStorage) {
             for (const group of getFiles(item, data)) {
                 if (group.length) {
-                    tasks.push(
-                        ...group.map(value => {
-                            return fs.unlink(value)
-                                .then(() => {
-                                    deleted.push(value);
-                                    this.delete(value);
-                                })
-                                .catch(() => this.delete(value));
-                        })
-                    );
+                    tasks.push(...group.map(value => fs.unlink(value).then(() => this.delete(value)).catch(() => this.delete(value, false))));
                 }
             }
         }
@@ -390,7 +380,7 @@ class Cloud extends Module implements ICloud {
         if (tasks.length) {
             await Promise.all(tasks).catch(err => this.writeFail(['Download from cloud storage', 'finalize'], err));
         }
-        return { deleted, compressed } as FinalizeResult;
+        return { compressed } as FinalizeResult;
     }
 
     public cacheExpires = 10 * 60 * 1000;

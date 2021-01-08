@@ -127,8 +127,7 @@ declare namespace functions {
             }
 
             interface FinalizeResult {
-                deleted: string[];
-                compressed: WeakSet<ExternalAsset>;
+                compressed: ExternalAsset[];
             }
 
             type ServiceHost<T> = (this: InstanceHost, credential: unknown, service?: string, sdk?: string) => T;
@@ -320,14 +319,15 @@ declare namespace functions {
         readonly filesToRemove: Set<string>;
         readonly filesToCompare: Map<ExternalAsset, string[]>;
         readonly contentToAppend: Map<string, string[]>;
+        readonly emptyDir: Set<string>;
         readonly assets: ExternalAsset[];
         readonly documentAssets: ExternalAsset[];
         readonly postFinalize: FunctionType<void>;
         readonly baseDirectory: string;
         install(name: string, ...args: unknown[]): void;
         add(value: string): void;
-        delete(value: string): void;
-        has(value: Undef<string>): boolean;
+        delete(value: string, emptyDir?: boolean): void;
+        has(value: Undef<string>): value is string;
         replace(file: ExternalAsset, replaceWith: string, mimeType?: string): void;
         performAsyncTask: FileManagerPerformAsyncTaskCallback;
         removeAsyncTask(): void;

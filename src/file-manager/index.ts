@@ -42,6 +42,10 @@ interface GulpTask {
     data: GulpData;
 }
 
+function isObject<T = PlainObject>(value: any): value is T {
+    return typeof value === 'object' && value !== null;
+}
+
 class FileManager extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {
         if (!ignorePermissions) {
@@ -131,6 +135,7 @@ class FileManager extends Module implements IFileManager {
     public readonly filesToRemove = new Set<string>();
     public readonly filesToCompare = new Map<ExternalAsset, string[]>();
     public readonly contentToAppend = new Map<string, string[]>();
+    public readonly emptyDir = new Set<string>();
     public readonly postFinalize: FunctionType<void>;
 
     constructor(
@@ -145,29 +150,32 @@ class FileManager extends Module implements IFileManager {
     }
 
     install(name: string, ...args: unknown[]) {
+        const param = args[0];
         switch (name) {
-            case 'image': {
-                const ImageClass = args[0] as ImageConstructor;
-                if (ImageClass.prototype instanceof Image) {
-                    this.Image = ImageClass;
+            case 'document':
+                if (isObject<DocumentConstructor>(param) && param.prototype instanceof Document) {
+                    const document = new param(this.body, args[1] as DocumentModule, ...args.slice(2));
+                    param.init.call(this, document);
+                    this.Document.push({ document, instance: param, params: args.slice(1) });
                 }
                 break;
-            }
-            case 'document': {
-                const DocumentClass = args[0] as DocumentConstructor;
-                if (DocumentClass.prototype instanceof Document) {
-                    const document = new DocumentClass(this.body, args[1] as DocumentModule, ...args.slice(2));
-                    DocumentClass.init.call(this, document);
-                    this.Document.push({ document, instance: DocumentClass, params: args.slice(1) });
+            case 'image':
+                if (isObject<ImageConstructor>(param) && param.prototype instanceof Image) {
+                    this.Image = param;
                 }
                 break;
-            }
             case 'cloud':
-                this.Cloud = new Cloud(args[0] as CloudModule, this.body.database);
+                if (isObject<CloudModule>(param)) {
+                    this.Cloud = new Cloud(param, this.body.database);
+                }
+                break;
+            case 'gulp':
+                if (isObject<GulpModule>(param)) {
+                    this.Gulp = param;
+                }
                 break;
             case 'watch': {
-                const interval = args[0];
-                const watch = new Watch(typeof interval === 'number' && interval > 0 ? interval : undefined);
+                const watch = new Watch(typeof param === 'number' && param > 0 ? param : undefined);
                 watch.whenModified = (assets: ExternalAsset[]) => {
                     const manager = new FileManager(this.baseDirectory, { ...this.body, assets });
                     for (const { instance, params } of this.Document) {
@@ -190,9 +198,6 @@ class FileManager extends Module implements IFileManager {
             case 'compress':
                 this.Compress = Compress;
                 break;
-            case 'gulp':
-                this.Gulp = args[0] as GulpModule;
-                break;
         }
     }
     add(value: string, parent?: ExternalAsset) {
@@ -203,10 +208,19 @@ class FileManager extends Module implements IFileManager {
             }
         }
     }
-    delete(value: string) {
+    delete(value: string, emptyDir = true) {
         this.files.delete(this.removeCwd(value));
+        if (emptyDir) {
+            let dir = this.baseDirectory;
+            for (const seg of path.dirname(value).substring(this.baseDirectory.length + 1).split(/[\\/]/)) {
+                if (seg) {
+                    dir += path.sep + seg;
+                    this.emptyDir.add(dir);
+                }
+            }
+        }
     }
-    has(value: Undef<string>) {
+    has(value: Undef<string>): value is string {
         return value ? this.files.has(this.removeCwd(value)) : false;
     }
     replace(file: ExternalAsset, replaceWith: string, mimeType?: string) {
@@ -371,7 +385,7 @@ class FileManager extends Module implements IFileManager {
         map.file = filename;
         if (map.sourceRoot && file.bundleRoot && !modified) {
             const bundleRoot = file.bundleRoot;
-            map.sources = this.assets.filter(item => item.bundleId === file.bundleId).sort((a, b) => a.bundleIndex! - b.bundleIndex!).map(item => item.uri!.replace(bundleRoot, ''));
+            map.sources = this.assets.filter(item => item.bundleId && item.bundleId === file.bundleId).sort((a, b) => a.bundleIndex! - b.bundleIndex!).map(item => item.uri!.replace(bundleRoot, ''));
         }
         else {
             map.sources = ['unknown'];
@@ -435,7 +449,7 @@ class FileManager extends Module implements IFileManager {
     }
     async compressFile(file: ExternalAsset) {
         const { compress, fileUri } = file;
-        if (compress && fileUri && this.has(fileUri)) {
+        if (compress && this.has(fileUri)) {
             const tasks: Promise<void>[] = [];
             for (const item of compress) {
                 let valid = false;
@@ -817,18 +831,8 @@ class FileManager extends Module implements IFileManager {
         this.performFinalize();
     }
     async finalize() {
-        const emptyDir = new Set<string>();
-        let tasks: Promise<unknown>[] = [],
-            compressMap: Undef<WeakSet<ExternalAsset>>;
-        const parseDirectory = (value: string) => {
-            let dir = this.baseDirectory;
-            for (const seg of path.dirname(value).substring(this.baseDirectory.length + 1).split(/[\\/]/)) {
-                if (seg) {
-                    dir += path.sep + seg;
-                    emptyDir.add(dir);
-                }
-            }
-        };
+        const compressMap = new WeakSet<ExternalAsset>();
+        let tasks: Promise<unknown>[] = [];
         for (const [file, output] of this.filesToCompare) {
             const fileUri = file.fileUri!;
             let minFile = fileUri,
@@ -868,10 +872,7 @@ class FileManager extends Module implements IFileManager {
         for (const value of this.filesToRemove) {
             tasks.push(
                 fs.unlink(value)
-                    .then(() => {
-                        parseDirectory(value);
-                        this.delete(value);
-                    })
+                    .then(() => this.delete(value))
                     .catch(err => {
                         if (err.code !== 'ENOENT') {
                             throw err;
@@ -1061,13 +1062,12 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (this.Cloud) {
-            const { deleted, compressed } = await Cloud.finalize.call(this, this.Cloud);
-            deleted.forEach(value => parseDirectory(value));
-            compressMap = compressed;
+            const { compressed } = await Cloud.finalize.call(this, this.Cloud);
+            compressed.forEach(item => compressMap.add(item));
         }
         if (this.Compress) {
             for (const item of this.assets) {
-                if (item.compress && (!compressMap || !compressMap.has(item)) && !item.invalid) {
+                if (item.compress && !compressMap.has(item) && !item.invalid) {
                     tasks.push(this.compressFile(item));
                 }
             }
@@ -1079,7 +1079,7 @@ class FileManager extends Module implements IFileManager {
         if (this.Watch) {
             this.Watch.start(this.assets);
         }
-        for (const value of Array.from(emptyDir).reverse()) {
+        for (const value of Array.from(this.emptyDir).reverse()) {
             try {
                 fs.rmdirSync(value);
             }
