@@ -116,6 +116,12 @@ declare namespace functions {
                 download: squared.CloudStorageDownload;
             }
 
+            interface FinalizeState {
+                bucketGroup: string;
+                localStorage: Map<CloudAsset, squared.CloudStorageUpload>;
+                compressed: CloudAsset[];
+            }
+
             interface ServiceClient {
                 validateStorage?(credential: PlainObject, data?: squared.CloudService): boolean;
                 validateDatabase?(credential: PlainObject, data?: squared.CloudService): boolean;
@@ -246,6 +252,7 @@ declare namespace functions {
     interface ICloud extends IModule {
         settings: ExtendedSettings.CloudModule;
         database: squared.CloudDatabase[];
+        compressFormat: Set<string>;
         cacheExpires: number;
         setObjectKeys(assets: ExternalAsset[]): void;
         createBucket(service: string, credential: unknown, bucket: string, publicRead?: boolean): Promise<boolean>;
@@ -264,6 +271,7 @@ declare namespace functions {
 
     interface CloudConstructor extends ModuleConstructor {
         finalize(this: IFileManager, cloud: ICloud): Promise<internal.Cloud.FinalizeResult>;
+        uploadFiles(this: IFileManager, cloud: ICloud, state: internal.Cloud.FinalizeState, file: CloudAsset, mimeType?: string, uploadDocument?: boolean): Promise<unknown>;
         new(settings: ExtendedSettings.CloudModule): ICloud;
     }
 
@@ -278,15 +286,19 @@ declare namespace functions {
         loadOptions(value: internal.Document.ConfigOrTransformer | string): Undef<internal.Document.ConfigOrTransformer>;
         loadConfig(value: string): Undef<StandardMap | string>;
         transform(type: string, format: string, value: string, input?: internal.Document.SourceMapInput): Promise<Void<[string, Undef<Map<string, internal.Document.SourceMapOutput>>]>>;
-        queueImage?: FileManagerQueueImageMethod;
-        finalizeImage?: FileManagerFinalizeImageMethod<boolean>;
+        formatContent?(manager: IFileManager, document: IDocument, file: ExternalAsset, content: string): Promise<string>;
+        imageQueue?: FileManagerQueueImageMethod;
+        imageFinalize?: FileManagerFinalizeImageMethod<boolean>;
+        cloudInit?(cloud: ICloud): void;
+        cloudFile?(manager: IFileManager, cloud: ICloud, file: CloudAsset): boolean;
+        cloudUpload?(manager: IFileManager, cloud: ICloud, file: CloudAsset, url: string, active: boolean): Promise<boolean>;
+        cloudFinalize?(manager: IFileManager, cloud: ICloud, state: internal.Cloud.FinalizeState): Promise<void>;
     }
 
     interface DocumentConstructor extends ModuleConstructor {
         init(this: IFileManager, document: IDocument): boolean;
         using(this: IFileManager, document: IDocument, file: ExternalAsset): Promise<void>;
         finalize(this: IFileManager, document: IDocument, assets: ExternalAsset[]): void;
-        formatContent(this: IFileManager, document: IDocument, file: ExternalAsset, content: string): string;
         new(body: RequestBody, settings?: ExtendedSettings.DocumentModule, ...args: unknown[]): IDocument;
     }
 

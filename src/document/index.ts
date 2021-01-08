@@ -17,7 +17,6 @@ abstract class Document extends Module implements IDocument {
     public static init(this: IFileManager, document: IDocument) {}
     public static async using(this: IFileManager, document: IDocument, file: ExternalAsset) {}
     public static async finalize(this: IFileManager, document: IDocument, assets: ExternalAsset[]) {}
-    public static async formatContent(this: IFileManager, document: IDocument, file: ExternalAsset, content: string) { return content; }
 
     public serverRoot = '__serverroot__';
     public documentName = '';

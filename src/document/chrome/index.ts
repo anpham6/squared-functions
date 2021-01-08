@@ -1,4 +1,4 @@
-import type { CloudAsset, DocumentConstructor, ExtendedSettings, IDocument, IFileManager, RequestBody, internal } from '../../types/lib';
+import type { CloudAsset, DocumentConstructor, ExtendedSettings, ICloud, IDocument, IFileManager, RequestBody, internal } from '../../types/lib';
 import type { ChromeAsset } from '../../types/lib/chrome';
 
 import path = require('path');
@@ -9,6 +9,7 @@ import uuid = require('uuid');
 
 import Node from '../../node';
 import Document from '../../document';
+import Cloud from '../../cloud';
 
 interface ExternalAsset extends CloudAsset, ChromeAsset {
     srcSet?: string[];
@@ -32,6 +33,7 @@ export interface ChromeDocumentConstructor extends DocumentConstructor {
 type DocumentModule = ExtendedSettings.DocumentModule;
 
 type FileData = internal.FileData;
+type FinalizeState = internal.Cloud.FinalizeState;
 type OutputData = internal.Image.OutputData;
 
 const REGEXP_INDEXOBJECT = /([^[.\s]+)((?:\s*\[[^\]]+\]\s*)+)?\s*\.?\s*/g;
@@ -503,7 +505,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
                 const baseUri = file.uri!;
                 for (const item of this.assets as ExternalAsset[]) {
-                    if (item.invalid && item.bundleIndex === undefined) {
+                    if (item.invalid && !item.exclude && item.bundleIndex === undefined) {
                         continue;
                     }
                     const { outerHTML, trailingContent } = item;
@@ -548,7 +550,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             }
                             output = getOuterHTML(/^\s*<link\b/.test(outerHTML) || !!item.mimeType?.endsWith('/css'), value);
                         }
-                        else if (bundleIndex !== undefined) {
+                        else if (item.exclude || bundleIndex !== undefined) {
                             source = source.replace(new RegExp(`\\s*${escapeRegexp(outerHTML)}\\n*`), '');
                             if (current === source) {
                                 source = source.replace(new RegExp(`\\s*${escapeRegexp(formatTag(outerHTML))}\\n*`), '');
@@ -869,29 +871,18 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
     }
 
-    public static async formatContent(this: IFileManager, document: IChromeDocument, file: ExternalAsset, content: string) {
-        if (file.mimeType === '@text/css') {
-            const unusedStyles = document.unusedStyles;
-            if (!file.preserve && unusedStyles) {
-                const result = removeCss(content, unusedStyles);
-                if (result) {
-                    content = result;
-                }
-            }
-            const result = transformCss.call(this, document, file, content);
-            if (result) {
-                content = result;
-            }
-        }
-        return content;
-    }
-
     public documentName = 'chrome';
     public htmlFiles: ExternalAsset[] = [];
     public cssFiles: ExternalAsset[] = [];
     public baseDirectory = '';
     public unusedStyles?: string[];
     public baseUrl?: string;
+
+    private _cloudMap!: ObjectMap<CloudAsset>;
+    private _cloudCssMap!: ObjectMap<CloudAsset>;
+    private _cloudModifiedHtml!: boolean;
+    private _cloudEndpoint!: string;
+    private _cloudModifiedCss: Undef<Set<CloudAsset>>;
 
     constructor(body: RequestBody, settings?: DocumentModule, public productionRelease = false) {
         super(body, settings);
@@ -904,13 +895,29 @@ class ChromeDocument extends Document implements IChromeDocument {
         this.unusedStyles = body.unusedStyles;
     }
 
-    queueImage(data: FileData, outputType: string, saveAs: string, command: string) {
+    async formatContent(manager: IFileManager, document: IChromeDocument, file: ExternalAsset, content: string) {
+        if (file.mimeType === '@text/css') {
+            const unusedStyles = document.unusedStyles;
+            if (!file.preserve && unusedStyles) {
+                const result = removeCss(content, unusedStyles);
+                if (result) {
+                    content = result;
+                }
+            }
+            const result = transformCss.call(manager, document, file, content);
+            if (result) {
+                content = result;
+            }
+        }
+        return content;
+    }
+    imageQueue(data: FileData, outputType: string, saveAs: string, command: string) {
         const match = REGEXP_SRCSETSIZE.exec(command);
         if (match) {
             return Document.renameExt(data.file.fileUri!, match[1] + match[2].toLowerCase() + '.' + saveAs);
         }
     }
-    finalizeImage(data: OutputData, error?: Null<Error>) {
+    imageFinalize(data: OutputData, error?: Null<Error>) {
         const { file, output, command, baseDirectory } = data;
         if (!error && output) {
             const match = (file as ExternalAsset).outerHTML && REGEXP_SRCSETSIZE.exec(command);
@@ -920,6 +927,129 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
         return false;
+    }
+    cloudInit(cloud: ICloud) {
+        this._cloudMap = {};
+        this._cloudCssMap = {};
+        this._cloudModifiedHtml = false;
+        this._cloudModifiedCss = undefined;
+        this._cloudEndpoint = '';
+        if (this.htmlFiles.length === 1) {
+            const upload = cloud.getStorage('upload', this.htmlFiles[0].cloudStorage)?.upload;
+            if (upload && upload.endpoint) {
+                this._cloudEndpoint = Document.toPosix(upload.endpoint) + '/';
+            }
+        }
+    }
+    cloudFile(manager: IFileManager, cloud: ICloud, file: ExternalAsset) {
+        if (file.inlineCloud) {
+            this._cloudMap[file.inlineCloud] = file;
+            this._cloudModifiedHtml = true;
+        }
+        else if (file.inlineCssCloud) {
+            this._cloudCssMap[file.inlineCssCloud] = file;
+            this._cloudModifiedCss = new Set();
+        }
+        return this.htmlFiles.includes(file) || this.cssFiles.includes(file);
+    }
+    async cloudUpload(manager: IFileManager, cloud: ICloud, file: ExternalAsset, url: string, active: boolean) {
+        if (active) {
+            const endpoint = this._cloudEndpoint;
+            let cloudUri = url;
+            if (endpoint) {
+                cloudUri = cloudUri.replace(new RegExp(escapeRegexp(endpoint), 'g'), '');
+            }
+            if (file.inlineCloud) {
+                for (const content of this.htmlFiles) {
+                    content.sourceUTF8 = manager.getUTF8String(content).replace(file.inlineCloud, cloudUri);
+                    delete this._cloudMap[file.inlineCloud];
+                }
+            }
+            else if (file.inlineCssCloud) {
+                const pattern = new RegExp(file.inlineCssCloud, 'g');
+                for (const content of this.htmlFiles) {
+                    content.sourceUTF8 = manager.getUTF8String(content).replace(pattern, cloudUri);
+                }
+                if (endpoint && cloudUri.indexOf('/') !== -1) {
+                    cloudUri = url;
+                }
+                for (const content of this.cssFiles) {
+                    if (content.inlineCssMap) {
+                        content.sourceUTF8 = manager.getUTF8String(content).replace(pattern, cloudUri);
+                        this._cloudModifiedCss!.add(content);
+                    }
+                }
+                delete this._cloudCssMap[file.inlineCssCloud];
+            }
+            file.cloudUri = cloudUri;
+        }
+        return false;
+    }
+    async cloudFinalize(manager: IFileManager, cloud: ICloud, state: FinalizeState) {
+        const modifiedCss = this._cloudModifiedCss;
+        let tasks: Promise<unknown>[] = [];
+        if (modifiedCss) {
+            for (const id in this._cloudCssMap) {
+                for (const item of this.cssFiles) {
+                    const inlineCssMap = item.inlineCssMap;
+                    if (inlineCssMap && inlineCssMap[id]) {
+                        item.sourceUTF8 = manager.getUTF8String(item).replace(new RegExp(id, 'g'), inlineCssMap[id]!);
+                        modifiedCss.add(item);
+                    }
+                }
+                state.localStorage.delete(this._cloudCssMap[id]);
+            }
+            if (modifiedCss.size) {
+                tasks.push(...Array.from(modifiedCss).map(item => fs.writeFile(item.fileUri!, item.sourceUTF8, 'utf8')));
+            }
+            if (tasks.length) {
+                await Promise.all(tasks).catch(err => this.writeFail(['Update CSS', 'finalize'], err));
+                tasks = [];
+            }
+        }
+        for (const item of this.cssFiles) {
+            if (item.cloudStorage) {
+                if (item.compress) {
+                    await manager.compressFile(item);
+                    state.compressed.push(item);
+                }
+                tasks.push(...Cloud.uploadFiles.call(manager, cloud, state, item, 'text/css'));
+            }
+        }
+        if (tasks.length) {
+            await Promise.all(tasks).catch(err => this.writeFail(['Upload "text/css" to cloud', 'finalize'], err));
+            tasks = [];
+        }
+        if (this._cloudModifiedHtml) {
+            const cloudMap = this._cloudMap;
+            for (const item of this.htmlFiles) {
+                let sourceUTF8 = manager.getUTF8String(item);
+                for (const id in cloudMap) {
+                    const file = cloudMap[id];
+                    sourceUTF8 = sourceUTF8.replace(id, file.relativePath!);
+                    state.localStorage.delete(file);
+                }
+                if (this._cloudEndpoint) {
+                    sourceUTF8 = sourceUTF8.replace(this._cloudEndpoint, '');
+                }
+                try {
+                    fs.writeFileSync(item.fileUri!, sourceUTF8, 'utf8');
+                }
+                catch (err) {
+                    this.writeFail(['Update HTML', 'finalize'], err);
+                }
+                if (item.cloudStorage) {
+                    if (item.compress) {
+                        await manager.compressFile(item);
+                        state.compressed.push(item);
+                    }
+                    tasks.push(...Cloud.uploadFiles.call(manager, cloud, state, item, 'text/html', true));
+                }
+            }
+            if (tasks.length) {
+                await Promise.all(tasks).catch(err => this.writeFail(['Upload "text/html" to cloud', 'finalize'], err));
+            }
+        }
     }
 }
 

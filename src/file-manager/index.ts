@@ -46,6 +46,10 @@ function isObject<T = PlainObject>(value: any): value is T {
     return typeof value === 'object' && value !== null;
 }
 
+function isFunction<T>(value: any): value is T {
+    return typeof value === 'function';
+}
+
 class FileManager extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {
         if (!ignorePermissions) {
@@ -153,14 +157,14 @@ class FileManager extends Module implements IFileManager {
         const param = args[0];
         switch (name) {
             case 'document':
-                if (isObject<DocumentConstructor>(param) && param.prototype instanceof Document) {
+                if (isFunction<DocumentConstructor>(param) && param.prototype instanceof Document) {
                     const document = new param(this.body, args[1] as DocumentModule, ...args.slice(2));
                     param.init.call(this, document);
                     this.Document.push({ document, instance: param, params: args.slice(1) });
                 }
                 break;
             case 'image':
-                if (isObject<ImageConstructor>(param) && param.prototype instanceof Image) {
+                if (isFunction<ImageConstructor>(param) && param.prototype instanceof Image) {
                     this.Image = param;
                 }
                 break;
@@ -307,9 +311,9 @@ class FileManager extends Module implements IFileManager {
     }
     async appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex = 0) {
         if (file.document) {
-            for (const { document, instance } of this.Document) {
-                if (file.document.includes(document.documentName)) {
-                    content = await instance.formatContent.call(this, document, file, content);
+            for (const { document } of this.Document) {
+                if (file.document.includes(document.documentName) && document.formatContent) {
+                    content = await document.formatContent(this, document, file, content);
                 }
             }
         }
@@ -330,9 +334,9 @@ class FileManager extends Module implements IFileManager {
         if (file.trailingContent) {
             for (let value of file.trailingContent) {
                 if (file.document) {
-                    for (const { document, instance } of this.Document) {
-                        if (file.document.includes(document.documentName)) {
-                            value = await instance.formatContent.call(this, document, file, value);
+                    for (const { document } of this.Document) {
+                        if (file.document.includes(document.documentName) && document.formatContent) {
+                            value = await document.formatContent(this, document, file, value);
                         }
                     }
                 }
@@ -414,7 +418,7 @@ class FileManager extends Module implements IFileManager {
         let output: Undef<string>;
         if (file.document) {
             for (const { document } of this.Document) {
-                if (file.document.includes(document.documentName) && document.queueImage && (output = document.queueImage(data, outputType, saveAs, command))) {
+                if (file.document.includes(document.documentName) && document.imageQueue && (output = document.imageQueue(data, outputType, saveAs, command))) {
                     break;
                 }
             }
@@ -487,7 +491,7 @@ class FileManager extends Module implements IFileManager {
         if (file.document) {
             data.baseDirectory = this.baseDirectory;
             for (const { document } of this.Document) {
-                if (file.document.includes(document.documentName) && document.finalizeImage && document.finalizeImage(data, error)) {
+                if (file.document.includes(document.documentName) && document.imageFinalize && document.imageFinalize(data, error)) {
                     if (error || !output) {
                         this.completeAsyncTask();
                         return;

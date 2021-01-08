@@ -1,10 +1,8 @@
 import type { CloudAsset, CloudFeatures, CloudFunctions, ExtendedSettings, ICloud, IFileManager, internal } from '../types/lib';
 import type { CloudDatabase, CloudService, CloudStorage, CloudStorageAction, CloudStorageDownload, CloudStorageUpload } from '../types/lib/squared';
-import type { IChromeDocument } from '../document/chrome';
 
 import path = require('path');
 import fs = require('fs-extra');
-import escapeRegexp = require('escape-string-regexp');
 import mime = require('mime-types');
 import uuid = require('uuid');
 
@@ -17,6 +15,7 @@ type UploadHost = internal.Cloud.UploadHost;
 type UploadCallback = internal.Cloud.UploadCallback;
 type DownloadHost = internal.Cloud.DownloadHost;
 type DownloadCallback = internal.Cloud.DownloadCallback;
+type FinalizeState = internal.Cloud.FinalizeState;
 type FinalizeResult = internal.Cloud.FinalizeResult;
 type CacheTimeout = internal.Cloud.CacheTimeout;
 
@@ -42,176 +41,147 @@ function hasSameBucket(provider: CloudStorage, other: CloudStorage) {
     return (provider.service && other.service || endpoint && endpoint === other.upload!.endpoint) && provider.bucket === other.bucket;
 }
 
+function getFiles(cloud: ICloud, item: CloudAsset, data: CloudStorageUpload) {
+    const files = [item.fileUri!];
+    const transforms: string[] = [];
+    if (item.transforms && data.all) {
+        for (const value of item.transforms) {
+            const ext = path.extname(value);
+            if (cloud.compressFormat.has(ext) && value === files[0] + ext) {
+                files.push(value);
+            }
+            else if (!item.cloudUri) {
+                transforms.push(value);
+            }
+        }
+    }
+    return [files, transforms];
+}
+
 const assignFilename = (value: string) => uuid.v4() + (path.extname(value) || '');
 
 class Cloud extends Module implements ICloud {
+    public static uploadFiles(this: IFileManager, cloud: ICloud, state: FinalizeState, file: CloudAsset, mimeType = file.mimeType, uploadDocument?: boolean) {
+        const tasks: Promise<unknown>[] = [];
+        const cloudMain = cloud.getStorage('upload', file.cloudStorage);
+        for (const storage of file.cloudStorage!) {
+            if (cloud.hasStorage('upload', storage)) {
+                const upload = storage.upload!;
+                if (storage === cloudMain && upload.localStorage === false) {
+                    state.localStorage.set(file, upload);
+                }
+                let uploadHandler: UploadCallback;
+                try {
+                    uploadHandler = cloud.getUploadHandler(storage.service, cloud.getCredential(storage));
+                }
+                catch (err) {
+                    this.writeFail(['Upload function not supported', storage.service], err);
+                    continue;
+                }
+                const bucket = storage.bucket;
+                const bucketGroup = state.bucketGroup;
+                tasks.push(new Promise<void>(resolve => {
+                    const uploadTasks: Promise<string>[] = [];
+                    const files = getFiles(cloud, file, upload);
+                    for (let i = 0, length = files.length; i < length; ++i) {
+                        const group = files[i];
+                        for (const fileUri of group) {
+                            if (i === 0 || this.has(fileUri)) {
+                                const fileGroup: [Buffer | string, string][] = [];
+                                if (i === 0) {
+                                    for (let j = 1; j < group.length; ++j) {
+                                        try {
+                                            fileGroup.push([storage.service === 'gcloud' ? group[j] : fs.readFileSync(group[j]), path.extname(group[j])]);
+                                        }
+                                        catch (err) {
+                                            this.writeFail('File not found', err);
+                                        }
+                                    }
+                                }
+                                uploadTasks.push(
+                                    new Promise(success => {
+                                        fs.readFile(fileUri, (err, buffer) => {
+                                            if (!err) {
+                                                let filename: Undef<string>;
+                                                if (i === 0) {
+                                                    if (file.cloudUri) {
+                                                        filename = path.basename(file.cloudUri);
+                                                    }
+                                                    else if (upload.filename) {
+                                                        filename = this.assignFilename(upload);
+                                                    }
+                                                    else if (upload.overwrite) {
+                                                        filename = path.basename(fileUri);
+                                                    }
+                                                }
+                                                uploadHandler({ buffer, upload, fileUri, fileGroup, bucket, bucketGroup, filename, mimeType: mimeType || mime.lookup(fileUri) || undefined }, success);
+                                            }
+                                            else {
+                                                success('');
+                                            }
+                                        });
+                                    })
+                                );
+                                if (i === 0) {
+                                    break;
+                                }
+                            }
+                        }
+                        Promise.all(uploadTasks)
+                            .then(async result => {
+                                if (!uploadDocument && result[0]) {
+                                    const active = storage === cloudMain;
+                                    for (const { document } of this.Document) {
+                                        if (document.cloudUpload && await document.cloudUpload(this, cloud, file, result[0], active)) {
+                                            break;
+                                        }
+                                    }
+                                }
+                                resolve();
+                            })
+                            .catch(() => resolve());
+                    }
+                }));
+            }
+        }
+        return tasks;
+    }
+
     public static async finalize(this: IFileManager, cloud: ICloud) {
-        let tasks: Promise<unknown>[] = [];
         const compressed: CloudAsset[] = [];
-        const cloudMap: ObjectMap<CloudAsset> = {};
-        const cloudCssMap: ObjectMap<CloudAsset> = {};
         const localStorage = new Map<CloudAsset, CloudStorageUpload>();
         const bucketGroup = uuid.v4();
-        const chromeDocument = this.Document.find(item => item.document.documentName === 'chrome')?.document as Undef<IChromeDocument>;
-        const { htmlFiles = [], cssFiles = [] } = chromeDocument || {} as IChromeDocument;
+        const state: FinalizeState = { bucketGroup, localStorage, compressed };
         const rawFiles: CloudAsset[] = [];
-        const compressFormat = new Set(['.map', '.gz', '.br']);
-        let endpoint: Undef<string>,
-            modifiedHtml: Undef<boolean>,
-            modifiedCss: Undef<Set<CloudAsset>>;
+        let tasks: Promise<unknown>[] = [];
         if (this.Compress) {
             for (const format in this.Compress.compressorProxy) {
-                compressFormat.add('.' + format);
+                cloud.compressFormat.add('.' + format);
             }
         }
         cloud.setObjectKeys(this.assets);
-        if (htmlFiles.length === 1) {
-            const upload = cloud.getStorage('upload', htmlFiles[0].cloudStorage)?.upload;
-            if (upload && upload.endpoint) {
-                endpoint = Module.toPosix(upload.endpoint) + '/';
+        const bucketMap: ObjectMap<Map<string, PlainObject>> = {};
+        for (const { document } of this.Document) {
+            if (document.cloudInit) {
+                document.cloudInit(cloud);
             }
         }
-        const getFiles = (item: CloudAsset, data: CloudStorageUpload) => {
-            const files = [item.fileUri!];
-            const transforms: string[] = [];
-            if (item.transforms && data.all) {
-                for (const value of item.transforms) {
-                    const ext = path.extname(value);
-                    if (compressFormat.has(ext) && value === files[0] + ext) {
-                        files.push(value);
-                    }
-                    else if (!item.cloudUri) {
-                        transforms.push(value);
-                    }
-                }
-            }
-            return [files, transforms];
-        };
-        const uploadFiles = (item: CloudAsset, mimeType = item.mimeType) => {
-            const cloudMain = cloud.getStorage('upload', item.cloudStorage);
-            for (const storage of item.cloudStorage!) {
-                if (cloud.hasStorage('upload', storage)) {
-                    const upload = storage.upload!;
-                    if (storage === cloudMain && upload.localStorage === false) {
-                        localStorage.set(item, upload);
-                    }
-                    let uploadHandler: UploadCallback;
-                    try {
-                        uploadHandler = cloud.getUploadHandler(storage.service, cloud.getCredential(storage));
-                    }
-                    catch (err) {
-                        this.writeFail(['Upload function not supported', storage.service], err);
-                        continue;
-                    }
-                    tasks.push(new Promise<void>(resolve => {
-                        const uploadTasks: Promise<string>[] = [];
-                        const files = getFiles(item, upload);
-                        for (let i = 0, length = files.length; i < length; ++i) {
-                            const group = files[i];
-                            for (const fileUri of group) {
-                                if (i === 0 || this.has(fileUri)) {
-                                    const fileGroup: [Buffer | string, string][] = [];
-                                    if (i === 0) {
-                                        for (let j = 1; j < group.length; ++j) {
-                                            try {
-                                                fileGroup.push([storage.service === 'gcloud' ? group[j] : fs.readFileSync(group[j]), path.extname(group[j])]);
-                                            }
-                                            catch (err) {
-                                                this.writeFail('File not found', err);
-                                            }
-                                        }
-                                    }
-                                    uploadTasks.push(
-                                        new Promise(success => {
-                                            fs.readFile(fileUri, (err, buffer) => {
-                                                if (!err) {
-                                                    let filename: Undef<string>;
-                                                    if (i === 0) {
-                                                        if (item.cloudUri) {
-                                                            filename = path.basename(item.cloudUri);
-                                                        }
-                                                        else if (upload.filename) {
-                                                            filename = this.assignFilename(upload);
-                                                        }
-                                                        else if (upload.overwrite) {
-                                                            filename = path.basename(fileUri);
-                                                        }
-                                                    }
-                                                    uploadHandler({ buffer, upload, fileUri, fileGroup, bucket: storage.bucket, bucketGroup, filename, mimeType: mimeType || mime.lookup(fileUri) || undefined }, success);
-                                                }
-                                                else {
-                                                    success('');
-                                                }
-                                            });
-                                        })
-                                    );
-                                    if (i === 0) {
-                                        break;
-                                    }
-                                }
-                            }
-                            Promise.all(uploadTasks)
-                                .then(result => {
-                                    if (storage === cloudMain && result[0]) {
-                                        let cloudUri = result[0];
-                                        if (endpoint) {
-                                            cloudUri = cloudUri.replace(new RegExp(escapeRegexp(endpoint), 'g'), '');
-                                        }
-                                        if (item.inlineCloud) {
-                                            for (const content of htmlFiles) {
-                                                content.sourceUTF8 = this.getUTF8String(content).replace(item.inlineCloud, cloudUri);
-                                                delete cloudMap[item.inlineCloud];
-                                            }
-                                        }
-                                        else if (item.inlineCssCloud) {
-                                            const pattern = new RegExp(item.inlineCssCloud, 'g');
-                                            for (const content of htmlFiles) {
-                                                content.sourceUTF8 = this.getUTF8String(content).replace(pattern, cloudUri);
-                                            }
-                                            if (endpoint && cloudUri.indexOf('/') !== -1) {
-                                                cloudUri = result[0];
-                                            }
-                                            for (const content of cssFiles) {
-                                                if (content.inlineCssMap) {
-                                                    content.sourceUTF8 = this.getUTF8String(content).replace(pattern, cloudUri);
-                                                    modifiedCss!.add(content);
-                                                }
-                                            }
-                                            delete cloudCssMap[item.inlineCssCloud];
-                                        }
-                                        item.cloudUri = cloudUri;
-                                    }
-                                    resolve();
-                                })
-                                .catch(() => resolve());
-                        }
-                    }));
-                }
-            }
-        };
-        const bucketMap: ObjectMap<Map<string, PlainObject>> = {};
         for (const item of this.assets as CloudAsset[]) {
             if (item.cloudStorage) {
                 if (item.fileUri) {
-                    if (item.inlineCloud) {
-                        cloudMap[item.inlineCloud] = item;
-                        modifiedHtml = true;
-                    }
-                    else if (item.inlineCssCloud) {
-                        cloudCssMap[item.inlineCssCloud] = item;
-                        modifiedCss = new Set();
-                    }
-                    switch (item.mimeType) {
-                        case '@text/html':
-                        case '@text/css':
+                    let ignore = false;
+                    for (const { document } of this.Document) {
+                        if (document.cloudFile && document.cloudFile(this, cloud, item)) {
+                            ignore = true;
                             break;
-                        default:
-                            if (item.compress) {
-                                await this.compressFile(item);
-                                compressed.push(item);
-                            }
-                            rawFiles.push(item);
-                            break;
+                        }
+                    }
+                    if (!ignore) {
+                        if (item.compress) {
+                            await this.compressFile(item);
+                            compressed.push(item);
+                        }
+                        rawFiles.push(item);
                     }
                 }
                 for (const storage of item.cloudStorage) {
@@ -230,77 +200,20 @@ class Cloud extends Module implements ICloud {
             await Promise.all(tasks).catch(err => this.writeFail(['Empty buckets in cloud storage', 'finalize'], err));
             tasks = [];
         }
-        for (const item of rawFiles) {
-            uploadFiles(item);
-        }
-        if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Upload raw assets to cloud storage', 'finalize'], err));
-            tasks = [];
-        }
-        if (modifiedCss) {
-            for (const id in cloudCssMap) {
-                for (const item of cssFiles) {
-                    const inlineCssMap = item.inlineCssMap;
-                    if (inlineCssMap && inlineCssMap[id]) {
-                        item.sourceUTF8 = this.getUTF8String(item).replace(new RegExp(id, 'g'), inlineCssMap[id]!);
-                        modifiedCss.add(item);
-                    }
-                }
-                localStorage.delete(cloudCssMap[id]);
-            }
-            if (modifiedCss.size) {
-                tasks.push(...Array.from(modifiedCss).map(item => fs.writeFile(item.fileUri!, item.sourceUTF8, 'utf8')));
+        if (rawFiles.length) {
+            rawFiles.forEach(item => tasks.push(...Cloud.uploadFiles.call(this, cloud, state, item)));
+            if (tasks.length) {
+                await Promise.all(tasks).catch(err => this.writeFail(['Upload raw assets to cloud', 'finalize'], err));
+                tasks = [];
             }
         }
-        if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Update CSS', 'finalize'], err));
-            tasks = [];
-        }
-        for (const item of cssFiles) {
-            if (item.cloudStorage) {
-                if (item.compress) {
-                    await this.compressFile(item);
-                    compressed.push(item);
-                }
-                uploadFiles(item, 'text/css');
+        for (const { document } of this.Document) {
+            if (document.cloudFinalize) {
+                await document.cloudFinalize(this, cloud, state);
             }
-        }
-        if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Upload CSS to cloud storage', 'finalize'], err));
-            tasks = [];
-        }
-        if (modifiedHtml) {
-            for (const item of htmlFiles) {
-                let sourceUTF8 = this.getUTF8String(item);
-                for (const id in cloudMap) {
-                    const file = cloudMap[id];
-                    sourceUTF8 = sourceUTF8.replace(id, file.relativePath!);
-                    localStorage.delete(file);
-                }
-                if (endpoint) {
-                    sourceUTF8 = sourceUTF8.replace(endpoint, '');
-                }
-                try {
-                    fs.writeFileSync(item.fileUri!, sourceUTF8, 'utf8');
-                }
-                catch (err) {
-                    this.writeFail(['Update HTML', 'finalize'], err);
-                }
-                if (item.compress) {
-                    await this.compressFile(item);
-                    compressed.push(item);
-                }
-                if (item.cloudStorage) {
-                    uploadFiles(item, 'text/html');
-                }
-            }
-        }
-        if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Upload HTML to cloud storage', 'finalize'], err));
-            tasks = [];
         }
         for (const [item, data] of localStorage) {
-            for (const group of getFiles(item, data)) {
+            for (const group of getFiles(cloud, item, data)) {
                 if (group.length) {
                     tasks.push(...group.map(value => fs.unlink(value).then(() => this.delete(value)).catch(() => this.delete(value, false))));
                 }
@@ -378,12 +291,13 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Download from cloud storage', 'finalize'], err));
+            await Promise.all(tasks).catch(err => this.writeFail(['Download from cloud', 'finalize'], err));
         }
         return { compressed } as FinalizeResult;
     }
 
     public cacheExpires = 10 * 60 * 1000;
+    public compressFormat = new Set(['.map', '.gz', '.br']);
 
     private _cache: CacheTimeout = {};
 
