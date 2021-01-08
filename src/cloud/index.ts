@@ -1,4 +1,4 @@
-import type { CloudAsset, CloudFeatures, CloudFunctions, ExtendedSettings, ICloud, IFileManager, internal } from '../types/lib';
+import type { CloudFeatures, CloudFunctions, ExtendedSettings, ExternalAsset, ICloud, IFileManager, internal } from '../types/lib';
 import type { CloudDatabase, CloudService, CloudStorage, CloudStorageAction, CloudStorageDownload, CloudStorageUpload } from '../types/lib/squared';
 
 import path = require('path');
@@ -41,7 +41,7 @@ function hasSameBucket(provider: CloudStorage, other: CloudStorage) {
     return (provider.service && other.service || endpoint && endpoint === other.upload!.endpoint) && provider.bucket === other.bucket;
 }
 
-function getFiles(cloud: ICloud, item: CloudAsset, data: CloudStorageUpload) {
+function getFiles(cloud: ICloud, item: ExternalAsset, data: CloudStorageUpload) {
     const files = [item.fileUri!];
     const transforms: string[] = [];
     if (item.transforms && data.all) {
@@ -61,8 +61,9 @@ function getFiles(cloud: ICloud, item: CloudAsset, data: CloudStorageUpload) {
 const assignFilename = (value: string) => uuid.v4() + (path.extname(value) || '');
 
 class Cloud extends Module implements ICloud {
-    public static uploadFiles(this: IFileManager, cloud: ICloud, state: FinalizeState, file: CloudAsset, mimeType = file.mimeType, uploadDocument?: boolean) {
-        const tasks: Promise<unknown>[] = [];
+    public static uploadAsset(this: IFileManager, state: FinalizeState, file: ExternalAsset, mimeType = file.mimeType, uploadDocument?: boolean) {
+        const { cloud, bucketGroup } = state;
+        const tasks: Promise<void>[] = [];
         const cloudMain = cloud.getStorage('upload', file.cloudStorage);
         for (const storage of file.cloudStorage!) {
             if (cloud.hasStorage('upload', storage)) {
@@ -79,19 +80,16 @@ class Cloud extends Module implements ICloud {
                     continue;
                 }
                 const bucket = storage.bucket;
-                const bucketGroup = state.bucketGroup;
                 tasks.push(new Promise<void>(resolve => {
                     const uploadTasks: Promise<string>[] = [];
-                    const files = getFiles(cloud, file, upload);
-                    for (let i = 0, length = files.length; i < length; ++i) {
-                        const group = files[i];
+                    getFiles(cloud, file, upload).forEach((group, index) => {
                         for (const fileUri of group) {
-                            if (i === 0 || this.has(fileUri)) {
+                            if (index === 0 || this.has(fileUri)) {
                                 const fileGroup: [Buffer | string, string][] = [];
-                                if (i === 0) {
-                                    for (let j = 1; j < group.length; ++j) {
+                                if (index === 0) {
+                                    for (let i = 1; i < group.length; ++i) {
                                         try {
-                                            fileGroup.push([storage.service === 'gcloud' ? group[j] : fs.readFileSync(group[j]), path.extname(group[j])]);
+                                            fileGroup.push([storage.service === 'gcloud' ? group[i] : fs.readFileSync(group[i]), path.extname(group[i])]);
                                         }
                                         catch (err) {
                                             this.writeFail('File not found', err);
@@ -103,7 +101,7 @@ class Cloud extends Module implements ICloud {
                                         fs.readFile(fileUri, (err, buffer) => {
                                             if (!err) {
                                                 let filename: Undef<string>;
-                                                if (i === 0) {
+                                                if (index === 0) {
                                                     if (file.cloudUri) {
                                                         filename = path.basename(file.cloudUri);
                                                     }
@@ -122,7 +120,7 @@ class Cloud extends Module implements ICloud {
                                         });
                                     })
                                 );
-                                if (i === 0) {
+                                if (index === 0) {
                                     break;
                                 }
                             }
@@ -132,7 +130,7 @@ class Cloud extends Module implements ICloud {
                                 if (!uploadDocument && result[0]) {
                                     const active = storage === cloudMain;
                                     for (const { document } of this.Document) {
-                                        if (document.cloudUpload && await document.cloudUpload(this, cloud, file, result[0], active)) {
+                                        if (document.cloudUpload && await document.cloudUpload(state, file, result[0], active)) {
                                             break;
                                         }
                                     }
@@ -140,7 +138,7 @@ class Cloud extends Module implements ICloud {
                                 resolve();
                             })
                             .catch(() => resolve());
-                    }
+                    });
                 }));
             }
         }
@@ -148,11 +146,13 @@ class Cloud extends Module implements ICloud {
     }
 
     public static async finalize(this: IFileManager, cloud: ICloud) {
-        const compressed: CloudAsset[] = [];
-        const localStorage = new Map<CloudAsset, CloudStorageUpload>();
+        const compressed: ExternalAsset[] = [];
+        const localStorage = new Map<ExternalAsset, CloudStorageUpload>();
         const bucketGroup = uuid.v4();
-        const state: FinalizeState = { bucketGroup, localStorage, compressed };
-        const rawFiles: CloudAsset[] = [];
+        const state: FinalizeState = { manager: this, cloud, bucketGroup, localStorage, compressed };
+        const bucketMap: ObjectMap<Map<string, PlainObject>> = {};
+        const downloadMap: ObjectMap<Set<string>> = {};
+        const rawFiles: ExternalAsset[] = [];
         let tasks: Promise<unknown>[] = [];
         if (this.Compress) {
             for (const format in this.Compress.compressorProxy) {
@@ -160,18 +160,17 @@ class Cloud extends Module implements ICloud {
             }
         }
         cloud.setObjectKeys(this.assets);
-        const bucketMap: ObjectMap<Map<string, PlainObject>> = {};
         for (const { document } of this.Document) {
             if (document.cloudInit) {
-                document.cloudInit(cloud);
+                document.cloudInit(state);
             }
         }
-        for (const item of this.assets as CloudAsset[]) {
+        for (const item of this.assets) {
             if (item.cloudStorage) {
                 if (item.fileUri) {
                     let ignore = false;
                     for (const { document } of this.Document) {
-                        if (document.cloudFile && document.cloudFile(this, cloud, item)) {
+                        if (document.cloudFile && document.cloudFile(state, item)) {
                             ignore = true;
                             break;
                         }
@@ -201,7 +200,7 @@ class Cloud extends Module implements ICloud {
             tasks = [];
         }
         if (rawFiles.length) {
-            rawFiles.forEach(item => tasks.push(...Cloud.uploadFiles.call(this, cloud, state, item)));
+            rawFiles.forEach(item => tasks.push(...Cloud.uploadAsset.call(this, state, item)));
             if (tasks.length) {
                 await Promise.all(tasks).catch(err => this.writeFail(['Upload raw assets to cloud', 'finalize'], err));
                 tasks = [];
@@ -209,7 +208,7 @@ class Cloud extends Module implements ICloud {
         }
         for (const { document } of this.Document) {
             if (document.cloudFinalize) {
-                await document.cloudFinalize(this, cloud, state);
+                await document.cloudFinalize(state);
             }
         }
         for (const [item, data] of localStorage) {
@@ -223,7 +222,6 @@ class Cloud extends Module implements ICloud {
             await Promise.all(tasks).catch(err => this.writeFail(['Delete cloud temporary files', 'finalize'], err));
             tasks = [];
         }
-        const downloadMap: ObjectMap<Set<string>> = {};
         for (const item of this.assets) {
             if (item.cloudStorage) {
                 for (const data of item.cloudStorage) {
@@ -309,8 +307,8 @@ class Cloud extends Module implements ICloud {
         Object.assign(this._cache, settings.cache);
     }
 
-    setObjectKeys(assets: CloudAsset[]) {
-        const storage: CloudAsset[] = [];
+    setObjectKeys(assets: ExternalAsset[]) {
+        const storage: ExternalAsset[] = [];
         for (const item of assets) {
             if (item.cloudStorage) {
                 for (const data of item.cloudStorage) {

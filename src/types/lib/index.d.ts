@@ -117,9 +117,11 @@ declare namespace functions {
             }
 
             interface FinalizeState {
+                manager: IFileManager;
+                cloud: ICloud;
                 bucketGroup: string;
-                localStorage: Map<CloudAsset, squared.CloudStorageUpload>;
-                compressed: CloudAsset[];
+                localStorage: Map<ExternalAsset, squared.CloudStorageUpload>;
+                compressed: ExternalAsset[];
             }
 
             interface ServiceClient {
@@ -271,7 +273,7 @@ declare namespace functions {
 
     interface CloudConstructor extends ModuleConstructor {
         finalize(this: IFileManager, cloud: ICloud): Promise<internal.Cloud.FinalizeResult>;
-        uploadFiles(this: IFileManager, cloud: ICloud, state: internal.Cloud.FinalizeState, file: CloudAsset, mimeType?: string, uploadDocument?: boolean): Promise<unknown>;
+        uploadAsset(this: IFileManager, cloud: ICloud, state: internal.Cloud.FinalizeState, file: ExternalAsset, mimeType?: string, uploadDocument?: boolean): Promise<void>;
         new(settings: ExtendedSettings.CloudModule): ICloud;
     }
 
@@ -289,10 +291,10 @@ declare namespace functions {
         formatContent?(manager: IFileManager, document: IDocument, file: ExternalAsset, content: string): Promise<string>;
         imageQueue?: FileManagerQueueImageMethod;
         imageFinalize?: FileManagerFinalizeImageMethod<boolean>;
-        cloudInit?(cloud: ICloud): void;
-        cloudFile?(manager: IFileManager, cloud: ICloud, file: CloudAsset): boolean;
-        cloudUpload?(manager: IFileManager, cloud: ICloud, file: CloudAsset, url: string, active: boolean): Promise<boolean>;
-        cloudFinalize?(manager: IFileManager, cloud: ICloud, state: internal.Cloud.FinalizeState): Promise<void>;
+        cloudInit?(state: internal.Cloud.FinalizeState): void;
+        cloudFile?(state: internal.Cloud.FinalizeState, file: ExternalAsset): boolean;
+        cloudUpload?(state: internal.Cloud.FinalizeState, file: ExternalAsset, url: string, active: boolean): Promise<boolean>;
+        cloudFinalize?(state: internal.Cloud.FinalizeState): Promise<void>;
     }
 
     interface DocumentConstructor extends ModuleConstructor {
@@ -471,6 +473,7 @@ declare namespace functions {
 
     interface ExternalAsset extends squared.FileAsset, squared.BundleAction {
         fileUri?: string;
+        cloudUri?: string;
         buffer?: Buffer;
         sourceUTF8?: string;
         relativePath?: string;
@@ -478,12 +481,6 @@ declare namespace functions {
         transforms?: string[];
         etag?: string;
         invalid?: boolean;
-    }
-
-    interface CloudAsset extends ExternalAsset {
-        cloudUri?: string;
-        inlineCloud?: string;
-        inlineCssCloud?: string;
     }
 }
 

@@ -1,4 +1,4 @@
-import type { CloudAsset, DocumentConstructor, ExtendedSettings, ICloud, IDocument, IFileManager, RequestBody, internal } from '../../types/lib';
+import type { DocumentConstructor, ExtendedSettings, ExternalAsset, IDocument, IFileManager, RequestBody, internal } from '../../types/lib';
 import type { ChromeAsset } from '../../types/lib/chrome';
 
 import path = require('path');
@@ -11,16 +11,18 @@ import Node from '../../node';
 import Document from '../../document';
 import Cloud from '../../cloud';
 
-interface ExternalAsset extends CloudAsset, ChromeAsset {
+export interface DocumentAsset extends ExternalAsset, ChromeAsset {
     srcSet?: string[];
     inlineBase64?: string;
     inlineCssMap?: StringMap;
+    inlineCloud?: string;
+    inlineCssCloud?: string;
 }
 
 export interface IChromeDocument extends IDocument {
     productionRelease: boolean;
-    htmlFiles: ExternalAsset[];
-    cssFiles: ExternalAsset[];
+    htmlFiles: DocumentAsset[];
+    cssFiles: DocumentAsset[];
     baseDirectory: string;
     baseUrl?: string;
     unusedStyles?: string[];
@@ -212,9 +214,9 @@ function getRootDirectory(location: string, asset: string): [string[], string[]]
     return [locationDir.filter(value => value), assetDir];
 }
 
-function findRelativePath(this: IFileManager, file: ExternalAsset, location: string, baseDirectory?: string, partial?: boolean) {
+function findRelativePath(this: IFileManager, file: DocumentAsset, location: string, baseDirectory?: string, partial?: boolean) {
     const origin = file.uri!;
-    let asset: Undef<ExternalAsset>;
+    let asset: Undef<DocumentAsset>;
     if (partial) {
         location = Node.resolvePath(location, origin);
         if (location) {
@@ -253,8 +255,8 @@ function findRelativePath(this: IFileManager, file: ExternalAsset, location: str
     }
 }
 
-function transformCss(this: IFileManager, document: IChromeDocument, file: ExternalAsset, content: string) {
-    const getCloudUUID = (item: Undef<ExternalAsset>, url: string) => {
+function transformCss(this: IFileManager, document: IChromeDocument, file: DocumentAsset, content: string) {
+    const getCloudUUID = (item: Undef<DocumentAsset>, url: string) => {
         if (item && this.Cloud?.getStorage('upload', item.cloudStorage)) {
             if (!item.inlineCssCloud) {
                 (file.inlineCssMap ||= {})[item.inlineCssCloud = uuid.v4()] = url;
@@ -265,7 +267,7 @@ function transformCss(this: IFileManager, document: IChromeDocument, file: Exter
     };
     const cssUri = file.uri!;
     let output: Undef<string>;
-    for (const item of this.assets as ExternalAsset[]) {
+    for (const item of this.assets as DocumentAsset[]) {
         if (item.base64 && item.uri && Document.fromSameOrigin(cssUri, item.uri) && !item.outerHTML && !item.invalid) {
             const url = findRelativePath.call(this, file, item.uri, document.baseDirectory);
             if (url) {
@@ -317,7 +319,7 @@ const isObject = (value: unknown): value is PlainObject => typeof value === 'obj
 
 class ChromeDocument extends Document implements IChromeDocument {
     public static init(this: IFileManager, document: IChromeDocument) {
-        const assets = this.assets as ExternalAsset[];
+        const assets = this.assets as DocumentAsset[];
         const baseUrl = document.baseUrl;
         assets.sort((a, b) => {
             if (a.bundleId && a.bundleId === b.bundleId) {
@@ -343,7 +345,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
     }
 
-    public static async using(this: IFileManager, document: IChromeDocument, file: ExternalAsset) {
+    public static async using(this: IFileManager, document: IChromeDocument, file: DocumentAsset) {
         const { format, mimeType, fileUri } = file;
         const baseDirectory = document.baseDirectory;
         switch (mimeType) {
@@ -481,7 +483,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 replaceTry(outerHTML, replaceWith);
                                 replaceMinify(outerHTML, replaceWith);
                                 if (current !== source) {
-                                    for (const asset of this.assets as ExternalAsset[]) {
+                                    for (const asset of this.assets as DocumentAsset[]) {
                                         if (asset.outerHTML === outerHTML) {
                                             asset.outerHTML = replaceWith;
                                             break;
@@ -504,7 +506,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     });
                 }
                 const baseUri = file.uri!;
-                for (const item of this.assets as ExternalAsset[]) {
+                for (const item of this.assets as DocumentAsset[]) {
                     if (item.invalid && !item.exclude && item.bundleIndex === undefined) {
                         continue;
                     }
@@ -584,7 +586,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         }
                     }
                 }
-                for (const item of this.assets as ExternalAsset[]) {
+                for (const item of this.assets as DocumentAsset[]) {
                     if (item === file || item.content || item.bundleIndex !== undefined || item.inlineContent || !item.uri || item.invalid) {
                         continue;
                     }
@@ -739,11 +741,11 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
     }
 
-    public static async finalize(this: IFileManager, document: IChromeDocument, assets: ExternalAsset[]) {
+    public static async finalize(this: IFileManager, document: IChromeDocument, assets: DocumentAsset[]) {
         let tasks: Promise<unknown>[] = [];
         const inlineMap: StringMap = {};
         const base64Map: StringMap = {};
-        const removeFile = (item: ExternalAsset) => {
+        const removeFile = (item: DocumentAsset) => {
             const fileUri = item.fileUri!;
             this.filesToRemove.add(fileUri);
             item.invalid = true;
@@ -764,7 +766,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
         const replaced = assets.filter(item => item.originalName && !item.invalid);
         const srcSet = assets.filter(item => item.srcSet);
-        async function replaceContent(manager: IFileManager, file: ExternalAsset, source: string, content?: boolean, formatting?: boolean) {
+        async function replaceContent(manager: IFileManager, file: DocumentAsset, source: string, content?: boolean, formatting?: boolean) {
             if (file.mimeType![0] === '@') {
                 if (content) {
                     let current = source;
@@ -872,17 +874,17 @@ class ChromeDocument extends Document implements IChromeDocument {
     }
 
     public documentName = 'chrome';
-    public htmlFiles: ExternalAsset[] = [];
-    public cssFiles: ExternalAsset[] = [];
+    public htmlFiles: DocumentAsset[] = [];
+    public cssFiles: DocumentAsset[] = [];
     public baseDirectory = '';
     public unusedStyles?: string[];
     public baseUrl?: string;
 
-    private _cloudMap!: ObjectMap<CloudAsset>;
-    private _cloudCssMap!: ObjectMap<CloudAsset>;
+    private _cloudMap!: ObjectMap<DocumentAsset>;
+    private _cloudCssMap!: ObjectMap<DocumentAsset>;
     private _cloudModifiedHtml!: boolean;
     private _cloudEndpoint!: string;
-    private _cloudModifiedCss: Undef<Set<CloudAsset>>;
+    private _cloudModifiedCss: Undef<Set<DocumentAsset>>;
 
     constructor(body: RequestBody, settings?: DocumentModule, public productionRelease = false) {
         super(body, settings);
@@ -895,7 +897,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         this.unusedStyles = body.unusedStyles;
     }
 
-    async formatContent(manager: IFileManager, document: IChromeDocument, file: ExternalAsset, content: string) {
+    async formatContent(manager: IFileManager, document: IChromeDocument, file: DocumentAsset, content: string) {
         if (file.mimeType === '@text/css') {
             const unusedStyles = document.unusedStyles;
             if (!file.preserve && unusedStyles) {
@@ -920,28 +922,28 @@ class ChromeDocument extends Document implements IChromeDocument {
     imageFinalize(data: OutputData, error?: Null<Error>) {
         const { file, output, command, baseDirectory } = data;
         if (!error && output) {
-            const match = (file as ExternalAsset).outerHTML && REGEXP_SRCSETSIZE.exec(command);
+            const match = (file as DocumentAsset).outerHTML && REGEXP_SRCSETSIZE.exec(command);
             if (match) {
-                ((file as ExternalAsset).srcSet ||= []).push(Document.toPosix(baseDirectory ? output.substring(baseDirectory.length + 1) : output), match[1] + match[2].toLowerCase());
+                ((file as DocumentAsset).srcSet ||= []).push(Document.toPosix(baseDirectory ? output.substring(baseDirectory.length + 1) : output), match[1] + match[2].toLowerCase());
                 return true;
             }
         }
         return false;
     }
-    cloudInit(cloud: ICloud) {
+    cloudInit(state: FinalizeState) {
         this._cloudMap = {};
         this._cloudCssMap = {};
         this._cloudModifiedHtml = false;
         this._cloudModifiedCss = undefined;
         this._cloudEndpoint = '';
         if (this.htmlFiles.length === 1) {
-            const upload = cloud.getStorage('upload', this.htmlFiles[0].cloudStorage)?.upload;
+            const upload = state.cloud.getStorage('upload', this.htmlFiles[0].cloudStorage)?.upload;
             if (upload && upload.endpoint) {
                 this._cloudEndpoint = Document.toPosix(upload.endpoint) + '/';
             }
         }
     }
-    cloudFile(manager: IFileManager, cloud: ICloud, file: ExternalAsset) {
+    cloudFile(state: FinalizeState, file: DocumentAsset) {
         if (file.inlineCloud) {
             this._cloudMap[file.inlineCloud] = file;
             this._cloudModifiedHtml = true;
@@ -952,8 +954,9 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
         return this.htmlFiles.includes(file) || this.cssFiles.includes(file);
     }
-    async cloudUpload(manager: IFileManager, cloud: ICloud, file: ExternalAsset, url: string, active: boolean) {
+    async cloudUpload(state: FinalizeState, file: DocumentAsset, url: string, active: boolean) {
         if (active) {
+            const manager = state.manager;
             const endpoint = this._cloudEndpoint;
             let cloudUri = url;
             if (endpoint) {
@@ -985,7 +988,8 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
         return false;
     }
-    async cloudFinalize(manager: IFileManager, cloud: ICloud, state: FinalizeState) {
+    async cloudFinalize(state: FinalizeState) {
+        const { manager, localStorage, compressed } = state;
         const modifiedCss = this._cloudModifiedCss;
         let tasks: Promise<unknown>[] = [];
         if (modifiedCss) {
@@ -997,7 +1001,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         modifiedCss.add(item);
                     }
                 }
-                state.localStorage.delete(this._cloudCssMap[id]);
+                localStorage.delete(this._cloudCssMap[id]);
             }
             if (modifiedCss.size) {
                 tasks.push(...Array.from(modifiedCss).map(item => fs.writeFile(item.fileUri!, item.sourceUTF8, 'utf8')));
@@ -1011,9 +1015,9 @@ class ChromeDocument extends Document implements IChromeDocument {
             if (item.cloudStorage) {
                 if (item.compress) {
                     await manager.compressFile(item);
-                    state.compressed.push(item);
+                    compressed.push(item);
                 }
-                tasks.push(...Cloud.uploadFiles.call(manager, cloud, state, item, 'text/css'));
+                tasks.push(...Cloud.uploadAsset.call(manager, state, item, 'text/css'));
             }
         }
         if (tasks.length) {
@@ -1027,7 +1031,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 for (const id in cloudMap) {
                     const file = cloudMap[id];
                     sourceUTF8 = sourceUTF8.replace(id, file.relativePath!);
-                    state.localStorage.delete(file);
+                    localStorage.delete(file);
                 }
                 if (this._cloudEndpoint) {
                     sourceUTF8 = sourceUTF8.replace(this._cloudEndpoint, '');
@@ -1043,7 +1047,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         await manager.compressFile(item);
                         state.compressed.push(item);
                     }
-                    tasks.push(...Cloud.uploadFiles.call(manager, cloud, state, item, 'text/html', true));
+                    tasks.push(...Cloud.uploadAsset.call(manager, state, item, 'text/html', true));
                 }
             }
             if (tasks.length) {

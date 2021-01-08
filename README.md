@@ -1,4 +1,4 @@
-## squared-functions 0.10
+## squared-functions 0.11
 
 These are the available options when creating archives or copying files. Examples use squared 2.3 although the concepts can be used similarly with any NodeJS application.
 
