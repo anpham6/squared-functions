@@ -100,6 +100,12 @@ export interface WatchInterval {
     expires?: string;
 }
 
+export interface RequestData extends PlainObject {
+    assets?: FileAsset[];
+    database?: CloudDatabase[];
+    document?: string[];
+}
+
 export interface ResponseData {
     success: boolean;
     data?: unknown;

@@ -2,8 +2,8 @@
 
 /* eslint no-shadow: "off" */
 
-import type { BundleAction, CloudDatabase, CloudService, CloudStorage, CloudStorageAdmin, CloudStorageDownload, CloudStorageUpload, CompressFormat, FileAsset, ResponseData } from './squared';
-import type { UnusedStyles } from './chrome';
+import type { BundleAction, CloudDatabase, CloudService, CloudStorage, CloudStorageAdmin, CloudStorageDownload, CloudStorageUpload, CompressFormat, FileAsset, RequestData, ResponseData } from './squared';
+import type * as chrome from './chrome';
 
 import type { WriteStream } from 'fs';
 import type { Response } from 'express';
@@ -476,12 +476,8 @@ declare namespace functions {
         }
     }
 
-    interface RequestBody extends PlainObject {
+    interface RequestBody extends RequestData, chrome.RequestData {
         assets: ExternalAsset[];
-        baseUrl?: string;
-        unusedStyles?: UnusedStyles;
-        templateMap?: StandardMap;
-        database?: CloudDatabase[];
     }
 
     interface ExternalAsset extends FileAsset, BundleAction {

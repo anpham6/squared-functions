@@ -12,8 +12,14 @@ export interface ChromeAsset {
     attributes?: ObjectMap<Undef<Null<string>>>;
 }
 
-export interface TemplateeMap {
+export interface TemplateMap {
     html: ObjectMap<PlainObject>;
     js: ObjectMap<PlainObject>;
     css: ObjectMap<PlainObject>;
+}
+
+export interface RequestData {
+    baseUrl?: string;
+    templateMap?: TemplateMap;
+    unusedStyles?: string[];
 }
