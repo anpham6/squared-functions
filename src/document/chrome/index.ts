@@ -945,7 +945,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
     }
-    cloudFile(state: FinalizeState, file: DocumentAsset) {
+    cloudObject(state: FinalizeState, file: DocumentAsset) {
         if (file.inlineCloud) {
             this._cloudMap[file.inlineCloud] = file;
             this._cloudModifiedHtml = true;

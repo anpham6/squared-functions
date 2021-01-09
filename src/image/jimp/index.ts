@@ -135,7 +135,7 @@ class Jimp extends Image implements ImageCommand<jimp> {
         super();
         this.resizeData = this.parseResize(command);
         this.cropData = this.parseCrop(command);
-        this.rotateData = this.parseRotation(command);
+        this.rotateData = this.parseRotate(command);
         this.qualityData = this.parseQuality(command);
         this.opacityValue = this.parseOpacity(command);
         this.methodData = this.parseMethod(command);

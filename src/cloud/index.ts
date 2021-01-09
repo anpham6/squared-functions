@@ -169,7 +169,7 @@ class Cloud extends Module implements ICloud {
                 if (item.localUri) {
                     let ignore = false;
                     for (const { document } of this.Document) {
-                        if (document.cloudFile && document.cloudFile(state, item)) {
+                        if (document.cloudObject && document.cloudObject(state, item)) {
                             ignore = true;
                             break;
                         }

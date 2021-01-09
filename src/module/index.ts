@@ -13,6 +13,7 @@ type LogValue = string | [string, string];
 
 let SETTINGS: LoggerModule = {};
 
+// eslint-disable-next-line no-shadow
 export enum LOG_TYPE {
     UNKNOWN = 0,
     SYSTEM = 1,

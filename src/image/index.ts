@@ -56,7 +56,7 @@ abstract class Image extends Module implements IImage {
             return { width: match[1] === 'auto' ? Infinity : +match[1], height: match[2] === 'auto' ? Infinity : +match[2], mode: match[4] || 'resize', algorithm: match[3], align: [match[5], match[6]], color: parseHexDecimal(match[7]) } as ResizeData;
         }
     }
-    parseRotation(value: string) {
+    parseRotate(value: string) {
         const match = REGEXP_ROTATE.exec(value);
         if (match) {
             const result = new Set<number>();

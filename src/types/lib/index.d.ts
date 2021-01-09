@@ -1,7 +1,9 @@
 /// <reference path="type.d.ts" />
 
-import type * as squared from './squared';
-import type * as chrome from './chrome';
+/* eslint no-shadow: "off" */
+
+import type { BundleAction, CloudDatabase, CloudService, CloudStorage, CloudStorageAdmin, CloudStorageDownload, CloudStorageUpload, CompressFormat, FileAsset, ResponseData } from './squared';
+import type { UnusedStyles } from './chrome';
 
 import type { WriteStream } from 'fs';
 import type { Response } from 'express';
@@ -9,15 +11,26 @@ import type { BackgroundColor, ForegroundColor } from 'chalk';
 
 type BoolString = boolean | string;
 
+type FileData = functions.internal.FileData;
+type LogMessageOptions = functions.internal.LogMessageOptions;
+type FinalizeState = functions.internal.Cloud.FinalizeState;
+type ResizeData = functions.internal.Image.ResizeData;
+type CropData = functions.internal.Image.CropData;
+type RotateData = functions.internal.Image.RotateData;
+type QualityData = functions.internal.Image.QualityData;
+type SourceMapInput = functions.internal.Document.SourceMapInput;
+type SourceMapOutput = functions.internal.Document.SourceMapOutput;
+type ConfigOrTransformer = functions.internal.Document.ConfigOrTransformer
+
 declare namespace functions {
     type CloudFeatures = "storage" | "database";
     type CloudFunctions = "upload" | "download";
     type ModuleWriteFailMethod = (value: string | [string, string], message?: unknown) => void;
-    type FileManagerQueueImageMethod = (data: internal.FileData, ouputType: string, saveAs: string, command?: string) => Undef<string>;
+    type FileManagerQueueImageMethod = (data: FileData, ouputType: string, saveAs: string, command?: string) => Undef<string>;
     type FileManagerFinalizeImageMethod<T = void> = (data: internal.Image.OutputData, error?: Null<Error>) => T;
     type FileManagerPerformAsyncTaskCallback = VoidFunction;
     type FileManagerCompleteAsyncTaskCallback = (value?: unknown, parent?: ExternalAsset) => void;
-    type CompressTryFileMethod = (localUri: string, data: squared.CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback) => void;
+    type CompressTryFileMethod = (localUri: string, data: CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback) => void;
     type CompressTryImageCallback = (success?: boolean) => void;
 
     namespace internal {
@@ -98,13 +111,13 @@ declare namespace functions {
             }
 
             interface FunctionData {
-                admin?: squared.CloudStorageAdmin;
+                admin?: CloudStorageAdmin;
                 bucket?: string;
                 bucketGroup?: string;
             }
 
             interface UploadData extends FunctionData {
-                upload: squared.CloudStorageUpload;
+                upload: CloudStorageUpload;
                 buffer: Buffer;
                 localUri: string;
                 fileGroup: [Buffer | string, string][];
@@ -113,25 +126,25 @@ declare namespace functions {
             }
 
             interface DownloadData extends FunctionData {
-                download: squared.CloudStorageDownload;
+                download: CloudStorageDownload;
             }
 
             interface FinalizeState {
                 manager: IFileManager;
                 cloud: ICloud;
                 bucketGroup: string;
-                localStorage: Map<ExternalAsset, squared.CloudStorageUpload>;
+                localStorage: Map<ExternalAsset, CloudStorageUpload>;
                 compressed: ExternalAsset[];
             }
 
             interface ServiceClient {
-                validateStorage?(credential: PlainObject, data?: squared.CloudService): boolean;
-                validateDatabase?(credential: PlainObject, data?: squared.CloudService): boolean;
+                validateStorage?(credential: PlainObject, data?: CloudService): boolean;
+                validateDatabase?(credential: PlainObject, data?: CloudService): boolean;
                 createStorageClient?<T>(this: InstanceHost, credential: unknown, service?: string): T;
-                createDatabaseClient?<T>(this: InstanceHost, credential: unknown, data?: squared.CloudService): T;
+                createDatabaseClient?<T>(this: InstanceHost, credential: unknown, data?: CloudService): T;
                 createBucket?(this: InstanceHost, credential: unknown, bucket: string, publicRead?: boolean, service?: string, sdk?: string): Promise<boolean>;
                 deleteObjects?(this: InstanceHost, credential: unknown, bucket: string, service?: string, sdk?: string): Promise<void>;
-                executeQuery?(this: ICloud, credential: unknown, data: squared.CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
+                executeQuery?(this: ICloud, credential: unknown, data: CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
             }
 
             interface FinalizeResult {
@@ -196,7 +209,7 @@ declare namespace functions {
         isFileUNC(value: string): boolean;
         isDirectoryUNC(value: string): boolean;
         isUUID(value: string): boolean;
-        getResponseError(hint: string, message: Error | string): squared.ResponseData;
+        getResponseError(hint: string, message: Error | string): ResponseData;
         resolvePath(value: string, href: string): string;
     }
 
@@ -208,24 +221,24 @@ declare namespace functions {
         register(format: string, callback: CompressTryFileMethod): void;
         createWriteStreamAsGzip(source: string, localUri: string, level?: number): WriteStream;
         createWriteStreamAsBrotli(source: string, localUri: string, quality?: number, mimeType?: string): WriteStream;
-        findFormat(compress: Undef<squared.CompressFormat[]>, format: string): Undef<squared.CompressFormat>;
+        findFormat(compress: Undef<CompressFormat[]>, format: string): Undef<CompressFormat>;
         withinSizeRange(localUri: string, value: Undef<string>): boolean;
         tryFile: CompressTryFileMethod;
-        tryImage(localUri: string, data: squared.CompressFormat, callback: CompressTryImageCallback): void;
+        tryImage(localUri: string, data: CompressFormat, callback: CompressTryImageCallback): void;
     }
 
     interface IImage extends IModule {
-        parseCrop(value: string): Undef<internal.Image.CropData>;
-        parseOpacity(value: string): number;
-        parseQuality(value: string): Undef<internal.Image.QualityData>;
-        parseResize(value: string): Undef<internal.Image.ResizeData>;
-        parseRotation(value: string): Undef<internal.Image.RotateData>;
         parseMethod(value: string): Undef<string[]>;
+        parseResize(value: string): Undef<ResizeData>;
+        parseCrop(value: string): Undef<CropData>;
+        parseRotate(value: string): Undef<RotateData>;
+        parseQuality(value: string): Undef<QualityData>;
+        parseOpacity(value: string): number;
     }
 
     interface ImageConstructor extends ModuleConstructor {
-        resolveMime(this: IFileManager, data: internal.FileData): Promise<boolean>;
-        using(this: IFileManager, data: internal.FileData, command: string, callback?: FileManagerFinalizeImageMethod): void;
+        resolveMime(this: IFileManager, data: FileData): Promise<boolean>;
+        using(this: IFileManager, data: FileData, command: string, callback?: FileManagerFinalizeImageMethod): void;
         new(): IImage;
     }
 
@@ -234,10 +247,10 @@ declare namespace functions {
     class ImageCommand<T> {
         instance: T;
         command: string
-        resizeData?: internal.Image.ResizeData;
-        cropData?: internal.Image.CropData;
-        rotateData?: internal.Image.RotateData;
-        qualityData?: internal.Image.QualityData;
+        resizeData?: ResizeData;
+        cropData?: CropData;
+        rotateData?: RotateData;
+        qualityData?: QualityData;
         opacityValue: number;
         errorHandler?: (err: Error) => void;
         method(): void;
@@ -248,32 +261,32 @@ declare namespace functions {
         rotate(initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback): void;
         write(output: string, startTime?: number, callback?: FileManagerFinalizeImageMethod): void;
         finalize(output: string, callback: (result: string) => void): void;
-        constructor(instance: T, data: internal.FileData, command: string, finalAs?: string);
+        constructor(instance: T, data: FileData, command: string, finalAs?: string);
     }
 
     interface ICloud extends IModule {
         settings: ExtendedSettings.CloudModule;
-        database: squared.CloudDatabase[];
+        database: CloudDatabase[];
         compressFormat: Set<string>;
         cacheExpires: number;
         setObjectKeys(assets: ExternalAsset[]): void;
         createBucket(service: string, credential: unknown, bucket: string, publicRead?: boolean): Promise<boolean>;
         deleteObjects(service: string, credential: unknown, bucket: string): Promise<void>;
-        downloadObject(service: string, credential: unknown, bucket: string, download: squared.CloudStorageDownload, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string): Promise<void>;
-        getStorage(action: CloudFunctions, data: Undef<squared.CloudStorage[]>): Undef<squared.CloudStorage>;
-        hasStorage(action: CloudFunctions, storage: squared.CloudStorage): squared.CloudStorageUpload | false;
-        getDatabaseRows(data: squared.CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
+        downloadObject(service: string, credential: unknown, bucket: string, download: CloudStorageDownload, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string): Promise<void>;
+        getStorage(action: CloudFunctions, data: Undef<CloudStorage[]>): Undef<CloudStorage>;
+        hasStorage(action: CloudFunctions, storage: CloudStorage): CloudStorageUpload | false;
+        getDatabaseRows(data: CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
         getDatabaseResult(service: string, credential: unknown, queryString: string, cacheKey?: string): Undef<any[]>;
         setDatabaseResult(service: string, credential: unknown, queryString: string, result: any[], cacheKey?: string): void;
-        hasCredential(feature: CloudFeatures, data: squared.CloudService): boolean;
-        getCredential(data: squared.CloudService): PlainObject;
+        hasCredential(feature: CloudFeatures, data: CloudService): boolean;
+        getCredential(data: CloudService): PlainObject;
         getUploadHandler(service: string, credential: unknown): internal.Cloud.UploadCallback;
         getDownloadHandler(service: string, credential: unknown): internal.Cloud.DownloadCallback;
     }
 
     interface CloudConstructor extends ModuleConstructor {
         finalize(this: IFileManager, cloud: ICloud): Promise<internal.Cloud.FinalizeResult>;
-        uploadAsset(this: IFileManager, cloud: ICloud, state: internal.Cloud.FinalizeState, file: ExternalAsset, mimeType?: string, uploadDocument?: boolean): Promise<void>;
+        uploadAsset(this: IFileManager, cloud: ICloud, state: FinalizeState, file: ExternalAsset, mimeType?: string, uploadDocument?: boolean): Promise<void>;
         new(settings: ExtendedSettings.CloudModule): ICloud;
     }
 
@@ -285,16 +298,16 @@ declare namespace functions {
         internalAssignUUID: string;
         templateMap?: StandardMap;
         findPluginData(type: string, name: string, settings: ObjectMap<StandardMap>): internal.Document.PluginConfig;
-        loadOptions(value: internal.Document.ConfigOrTransformer | string): Undef<internal.Document.ConfigOrTransformer>;
+        loadOptions(value: ConfigOrTransformer | string): Undef<ConfigOrTransformer>;
         loadConfig(value: string): Undef<StandardMap | string>;
-        transform(type: string, format: string, value: string, input?: internal.Document.SourceMapInput): Promise<Void<[string, Undef<Map<string, internal.Document.SourceMapOutput>>]>>;
+        transform(type: string, format: string, value: string, input?: SourceMapInput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>>;
         formatContent?(manager: IFileManager, document: IDocument, file: ExternalAsset, content: string): Promise<string>;
         imageQueue?: FileManagerQueueImageMethod;
         imageFinalize?: FileManagerFinalizeImageMethod<boolean>;
-        cloudInit?(state: internal.Cloud.FinalizeState): void;
-        cloudFile?(state: internal.Cloud.FinalizeState, file: ExternalAsset): boolean;
-        cloudUpload?(state: internal.Cloud.FinalizeState, file: ExternalAsset, url: string, active: boolean): Promise<boolean>;
-        cloudFinalize?(state: internal.Cloud.FinalizeState): Promise<void>;
+        cloudInit?(state: FinalizeState): void;
+        cloudObject?(state: FinalizeState, file: ExternalAsset): boolean;
+        cloudUpload?(state: FinalizeState, file: ExternalAsset, url: string, active: boolean): Promise<boolean>;
+        cloudFinalize?(state: FinalizeState): Promise<void>;
     }
 
     interface DocumentConstructor extends ModuleConstructor {
@@ -356,12 +369,12 @@ declare namespace functions {
         appendContent(file: ExternalAsset, localUri: string, content: string, bundleIndex?: number): Promise<string>;
         getTrailingContent(file: ExternalAsset): Promise<string>;
         joinAllContent(localUri: string): Undef<string>;
-        createSourceMap(file: ExternalAsset, sourcesContent: string): internal.Document.SourceMapInput;
-        writeSourceMap(outputData: [string, Undef<Map<string, internal.Document.SourceMapOutput>>], file: ExternalAsset, sourceContent?: string, modified?: boolean): void;
+        createSourceMap(file: ExternalAsset, sourcesContent: string): SourceMapInput;
+        writeSourceMap(outputData: [string, Undef<Map<string, SourceMapOutput>>], file: ExternalAsset, sourceContent?: string, modified?: boolean): void;
         compressFile(file: ExternalAsset): Promise<unknown>;
         queueImage: FileManagerQueueImageMethod;
         finalizeImage: FileManagerFinalizeImageMethod;
-        finalizeAsset(data: internal.FileData, parent?: ExternalAsset): Promise<void>;
+        finalizeAsset(data: FileData, parent?: ExternalAsset): Promise<void>;
         processAssets(watch?: boolean): void;
         finalize(): Promise<void>;
     }
@@ -386,11 +399,11 @@ declare namespace functions {
         parseFunction(value: string): Null<FunctionType<string>>;
         joinPosix(...paths: Undef<string>[]): string;
         getTempDir(subDir?: boolean, filename?: string): string;
-        formatMessage(type: internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options?: internal.LogMessageOptions): void;
+        formatMessage(type: internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options?: LogMessageOptions): void;
         formatFail(type: internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown): void;
         writeFail: ModuleWriteFailMethod;
-        writeTimeElapsed(title: string, value: string, time: number, options?: internal.LogMessageOptions): void;
-        writeMessage(title: string, value: string, message?: unknown, options?: internal.LogMessageOptions): void;
+        writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions): void;
+        writeMessage(title: string, value: string, message?: unknown, options?: LogMessageOptions): void;
     }
 
     interface ModuleConstructor {
@@ -466,12 +479,12 @@ declare namespace functions {
     interface RequestBody extends PlainObject {
         assets: ExternalAsset[];
         baseUrl?: string;
-        unusedStyles?: chrome.UnusedStyles;
+        unusedStyles?: UnusedStyles;
         templateMap?: StandardMap;
-        database?: squared.CloudDatabase[];
+        database?: CloudDatabase[];
     }
 
-    interface ExternalAsset extends squared.FileAsset, squared.BundleAction {
+    interface ExternalAsset extends FileAsset, BundleAction {
         localUri?: string;
         cloudUri?: string;
         buffer?: Buffer;
