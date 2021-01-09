@@ -4,7 +4,7 @@ type SourceMapInput = functions.internal.Document.SourceMapInput;
 
 export default async function transform(value: string, options: PlainObject, output: Undef<PlainObject>, input: SourceMapInput) {
     const { map: sourceMap, file } = input;
-    const fileUri = file.fileUri!;
+    const localUri = file.localUri!;
     let includeSources = true;
     if (options.map || sourceMap && (options.map = {})) {
         const map = options.map as StandardMap;
@@ -13,7 +13,7 @@ export default async function transform(value: string, options: PlainObject, out
             includeSources = false;
         }
     }
-    const result = await context((options.plugins as string[] || []).map(item => require(item))).process(value, { from: fileUri, to: fileUri });
+    const result = await context((options.plugins as string[] || []).map(item => require(item))).process(value, { from: localUri, to: localUri });
     if (result) {
         if (result.map) {
             input.nextMap('postcss', result.map, result.css, includeSources);

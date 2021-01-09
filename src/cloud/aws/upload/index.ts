@@ -24,11 +24,11 @@ export default function upload(this: InstanceHost, credential: AWSStorageCredent
             }
             BUCKET_MAP[service + Bucket] = true;
         }
-        const fileUri = data.fileUri;
+        const localUri = data.localUri;
         const pathname = data.upload?.pathname || '';
         let filename = data.filename;
         if (!filename || !data.upload.overwrite) {
-            filename ||= path.basename(fileUri);
+            filename ||= path.basename(localUri);
             try {
                 let i = 0,
                     exists: Undef<boolean>,
@@ -52,7 +52,7 @@ export default function upload(this: InstanceHost, credential: AWSStorageCredent
                             filename = basename + `_${i}` + suffix;
                         }
                         else {
-                            filename = uuid.v4() + path.extname(fileUri);
+                            filename = uuid.v4() + path.extname(localUri);
                             break;
                         }
                     }
@@ -60,7 +60,7 @@ export default function upload(this: InstanceHost, credential: AWSStorageCredent
                         .then(() => true)
                         .catch(err => {
                             if (err.code !== 'NotFound') {
-                                filename = uuid.v4() + path.extname(fileUri);
+                                filename = uuid.v4() + path.extname(localUri);
                             }
                             return false;
                         });
@@ -71,7 +71,7 @@ export default function upload(this: InstanceHost, credential: AWSStorageCredent
                 }
             }
             catch (err) {
-                this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', path.basename(fileUri)], err);
+                this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', path.basename(localUri)], err);
                 success('');
                 return;
             }
@@ -98,7 +98,7 @@ export default function upload(this: InstanceHost, credential: AWSStorageCredent
                     }
                 }
                 else if (i === 0) {
-                    this.formatFail(this.logType.CLOUD_STORAGE, service, ['Upload failed', path.basename(fileUri)], err);
+                    this.formatFail(this.logType.CLOUD_STORAGE, service, ['Upload failed', path.basename(localUri)], err);
                     success('');
                 }
             });

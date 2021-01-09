@@ -25,11 +25,11 @@ export default function upload(this: InstanceHost, credential: GCloudStorageCred
             BUCKET_MAP[bucket] = true;
         }
         const bucketClient = storage.bucket(bucket);
-        const fileUri = data.fileUri;
+        const localUri = data.localUri;
         const pathname = data.upload?.pathname || '';
         let filename = data.filename;
         if (!filename || !data.upload.overwrite) {
-            filename ||= path.basename(fileUri);
+            filename ||= path.basename(localUri);
             try {
                 let i = 0,
                     exists: Undef<boolean>,
@@ -53,7 +53,7 @@ export default function upload(this: InstanceHost, credential: GCloudStorageCred
                             filename = basename + `_${i}` + suffix;
                         }
                         else {
-                            filename = uuid.v4() + path.extname(fileUri);
+                            filename = uuid.v4() + path.extname(localUri);
                             break;
                         }
                     }
@@ -65,7 +65,7 @@ export default function upload(this: InstanceHost, credential: GCloudStorageCred
                 }
             }
             catch (err) {
-                this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', path.basename(fileUri)], err);
+                this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', path.basename(localUri)], err);
                 success('');
                 return;
             }
@@ -78,8 +78,8 @@ export default function upload(this: InstanceHost, credential: GCloudStorageCred
             Key.push(filename + item[1]);
         }
         for (let i = 0; i < Key.length; ++i) {
-            const destUri = fileUri + path.extname(Key[i]);
-            let srcUri = i === 0 ? fileUri : Body[i] as string;
+            const destUri = localUri + path.extname(Key[i]);
+            let srcUri = i === 0 ? localUri : Body[i] as string;
             if (i === 0 || destUri !== srcUri) {
                 srcUri = this.getTempDir(true) + path.normalize(Key[i]);
                 try {
@@ -99,7 +99,7 @@ export default function upload(this: InstanceHost, credential: GCloudStorageCred
                     }
                 }
                 catch (err) {
-                    this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to write buffer', path.basename(fileUri)], err);
+                    this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to write buffer', path.basename(localUri)], err);
                     success('');
                     return;
                 }

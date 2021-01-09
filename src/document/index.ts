@@ -18,8 +18,8 @@ abstract class Document extends Module implements IDocument {
     public static async using(this: IFileManager, document: IDocument, file: ExternalAsset) {}
     public static async finalize(this: IFileManager, document: IDocument, assets: ExternalAsset[]) {}
 
-    public serverRoot = '__serverroot__';
     public documentName = '';
+    public internalAssignUUID = '__assign__';
     public templateMap?: StandardMap;
 
     private _packageMap: ObjectMap<Transformer> = {};

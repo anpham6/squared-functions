@@ -32,9 +32,9 @@ const Module = class implements IModule {
         }
     }
 
-    public static getFileSize(fileUri: string) {
+    public static getFileSize(localUri: string) {
         try {
-            return fs.statSync(fileUri).size;
+            return fs.statSync(localUri).size;
         }
         catch {
         }
@@ -42,7 +42,7 @@ const Module = class implements IModule {
     }
 
     public static toPosix(value: string, filename?: string) {
-        return value.replace(/\\+/g, '/').replace(/\/+$/, '') + (filename ? '/' + filename : '');
+        return value ? value.replace(/\\+/g, '/').replace(/\/+$/, '') + (filename ? '/' + filename : '') : '';
     }
 
     public static renameExt(value: string, ext: string) {

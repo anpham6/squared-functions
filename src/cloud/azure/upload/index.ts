@@ -16,7 +16,7 @@ export default function upload(this: InstanceHost, credential: AzureStorageCrede
     const blobServiceClient = createStorageClient.call(this, credential);
     return async (data: UploadData, success: (value: string) => void) => {
         const bucket = data.bucket ||= data.bucketGroup || uuid.v4();
-        const fileUri = data.fileUri;
+        const localUri = data.localUri;
         const containerClient = blobServiceClient.getContainerClient(bucket);
         if (!BUCKET_MAP[bucket]) {
             const { active, publicRead } = data.upload;
@@ -29,7 +29,7 @@ export default function upload(this: InstanceHost, credential: AzureStorageCrede
         const pathname = data.upload?.pathname || '';
         let filename = data.filename;
         if (!filename || !data.upload.overwrite) {
-            filename ||= path.basename(fileUri);
+            filename ||= path.basename(localUri);
             try {
                 let i = 0,
                     exists: Undef<boolean>,
@@ -53,7 +53,7 @@ export default function upload(this: InstanceHost, credential: AzureStorageCrede
                             filename = basename + `_${i}` + suffix;
                         }
                         else {
-                            filename = uuid.v4() + path.extname(fileUri);
+                            filename = uuid.v4() + path.extname(localUri);
                             break;
                         }
                     }
@@ -72,7 +72,7 @@ export default function upload(this: InstanceHost, credential: AzureStorageCrede
                 }
             }
             catch (err) {
-                this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', path.basename(fileUri)], err);
+                this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', path.basename(localUri)], err);
                 success('');
                 return;
             }

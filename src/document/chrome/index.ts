@@ -24,6 +24,7 @@ export interface IChromeDocument extends IDocument {
     htmlFiles: DocumentAsset[];
     cssFiles: DocumentAsset[];
     baseDirectory: string;
+    internalServerRoot: string;
     baseUrl?: string;
     unusedStyles?: string[];
 }
@@ -268,7 +269,7 @@ function transformCss(this: IFileManager, document: IChromeDocument, file: Docum
     const cssUri = file.uri!;
     let output: Undef<string>;
     for (const item of this.assets as DocumentAsset[]) {
-        if (item.base64 && item.uri && Document.fromSameOrigin(cssUri, item.uri) && !item.outerHTML && !item.invalid) {
+        if (item.base64 && !item.outerHTML && item.uri && Document.fromSameOrigin(cssUri, item.uri)) {
             const url = findRelativePath.call(this, file, item.uri, document.baseDirectory);
             if (url) {
                 const replaced = replaceUri(output || content, [item.base64.replace(/\+/g, '\\+')], getCloudUUID(item, url), false, true);
@@ -346,11 +347,11 @@ class ChromeDocument extends Document implements IChromeDocument {
     }
 
     public static async using(this: IFileManager, document: IChromeDocument, file: DocumentAsset) {
-        const { format, mimeType, fileUri } = file;
+        const { format, mimeType, localUri } = file;
         const baseDirectory = document.baseDirectory;
         switch (mimeType) {
             case '@text/html': {
-                let html = this.getUTF8String(file, fileUri),
+                let html = this.getUTF8String(file, localUri),
                     source = html,
                     current = '',
                     match: Null<RegExpExecArray>;
@@ -676,11 +677,11 @@ class ChromeDocument extends Document implements IChromeDocument {
                 const unusedStyles = file.preserve !== true && document?.unusedStyles;
                 const transform = mimeType[0] === '@';
                 const trailing = await this.getTrailingContent(file);
-                const bundle = this.joinAllContent(fileUri!);
+                const bundle = this.joinAllContent(localUri!);
                 if (!unusedStyles && !transform && !trailing && !bundle && !format) {
                     break;
                 }
-                let source = this.getUTF8String(file, fileUri),
+                let source = this.getUTF8String(file, localUri),
                     modified = false;
                 if (unusedStyles) {
                     const result = removeCss(source, unusedStyles);
@@ -715,11 +716,11 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
             case 'text/javascript': {
                 const trailing = await this.getTrailingContent(file);
-                const bundle = this.joinAllContent(fileUri!);
+                const bundle = this.joinAllContent(localUri!);
                 if (!trailing && !bundle && !format) {
                     break;
                 }
-                let source = this.getUTF8String(file, fileUri),
+                let source = this.getUTF8String(file, localUri),
                     modified = false;
                 if (trailing) {
                     source += trailing;
@@ -746,14 +747,14 @@ class ChromeDocument extends Document implements IChromeDocument {
         const inlineMap: StringMap = {};
         const base64Map: StringMap = {};
         const removeFile = (item: DocumentAsset) => {
-            const fileUri = item.fileUri!;
-            this.filesToRemove.add(fileUri);
+            const localUri = item.localUri!;
+            this.filesToRemove.add(localUri);
             item.invalid = true;
         };
         for (const item of assets) {
             if (item.inlineBase64 && !item.invalid) {
                 tasks.push(
-                    fs.readFile(item.fileUri!).then((data: Buffer) => {
+                    fs.readFile(item.localUri!).then((data: Buffer) => {
                         base64Map[item.inlineBase64!] = `data:${item.mimeType!};base64,${data.toString('base64').trim()}`;
                         removeFile(item);
                     })
@@ -810,7 +811,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     source = source.replace(new RegExp(escapePosix(manager.getRelativePath(asset, asset.originalName)), 'g'), asset.relativePath!);
                 }
                 if (document.productionRelease) {
-                    source = source.replace(new RegExp('(\\.\\./)*' + document.serverRoot, 'g'), '');
+                    source = source.replace(new RegExp('(\\.\\./)*' + document.internalServerRoot, 'g'), '');
                 }
             }
             if (formatting) {
@@ -844,7 +845,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 tasks.push(replaceContent(this, item, this.getUTF8String(item), content, formatting));
                             }
                             else {
-                                tasks.push(fs.readFile(item.fileUri!, 'utf8').then(data => replaceContent(this, item, data, content, formatting)));
+                                tasks.push(fs.readFile(item.localUri!, 'utf8').then(data => replaceContent(this, item, data, content, formatting)));
                             }
                             break;
                     }
@@ -877,6 +878,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     public htmlFiles: DocumentAsset[] = [];
     public cssFiles: DocumentAsset[] = [];
     public baseDirectory = '';
+    public internalServerRoot = '__serverroot__';
     public unusedStyles?: string[];
     public baseUrl?: string;
 
@@ -916,7 +918,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     imageQueue(data: FileData, outputType: string, saveAs: string, command: string) {
         const match = REGEXP_SRCSETSIZE.exec(command);
         if (match) {
-            return Document.renameExt(data.file.fileUri!, match[1] + match[2].toLowerCase() + '.' + saveAs);
+            return Document.renameExt(data.file.localUri!, match[1] + match[2].toLowerCase() + '.' + saveAs);
         }
     }
     imageFinalize(data: OutputData, error?: Null<Error>) {
@@ -1004,7 +1006,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 localStorage.delete(this._cloudCssMap[id]);
             }
             if (modifiedCss.size) {
-                tasks.push(...Array.from(modifiedCss).map(item => fs.writeFile(item.fileUri!, item.sourceUTF8, 'utf8')));
+                tasks.push(...Array.from(modifiedCss).map(item => fs.writeFile(item.localUri!, item.sourceUTF8, 'utf8')));
             }
             if (tasks.length) {
                 await Promise.all(tasks).catch(err => this.writeFail(['Update CSS', 'finalize'], err));
@@ -1037,7 +1039,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     sourceUTF8 = sourceUTF8.replace(this._cloudEndpoint, '');
                 }
                 try {
-                    fs.writeFileSync(item.fileUri!, sourceUTF8, 'utf8');
+                    fs.writeFileSync(item.localUri!, sourceUTF8, 'utf8');
                 }
                 catch (err) {
                     this.writeFail(['Update HTML', 'finalize'], err);

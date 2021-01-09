@@ -22,12 +22,12 @@ const Compress = new class extends Module implements ICompress {
     register(format: string, callback: CompressTryFileMethod) {
         this.compressorProxy[format] = callback;
     }
-    createWriteStreamAsGzip(source: string, fileUri: string, level?: number) {
+    createWriteStreamAsGzip(source: string, localUri: string, level?: number) {
         return fs.createReadStream(source)
             .pipe(zlib.createGzip({ level: level ?? this.gzipLevel }))
-            .pipe(fs.createWriteStream(fileUri));
+            .pipe(fs.createWriteStream(localUri));
     }
-    createWriteStreamAsBrotli(source: string, fileUri: string, quality?: number, mimeType = '') {
+    createWriteStreamAsBrotli(source: string, localUri: string, quality?: number, mimeType = '') {
         return fs.createReadStream(source)
             .pipe(
                 zlib.createBrotliCompress({
@@ -38,16 +38,16 @@ const Compress = new class extends Module implements ICompress {
                     }
                 })
             )
-            .pipe(fs.createWriteStream(fileUri));
+            .pipe(fs.createWriteStream(localUri));
     }
     findFormat(compress: Undef<CompressFormat[]>, format: string) {
         return compress && compress.find(item => item.format === format);
     }
-    withinSizeRange(fileUri: string, value: Undef<string>) {
+    withinSizeRange(localUri: string, value: Undef<string>) {
         if (value) {
             const [minSize, maxSize] = parseSizeRange(value);
             if (minSize > 0 || maxSize < Infinity) {
-                const fileSize = Module.getFileSize(fileUri);
+                const fileSize = Module.getFileSize(localUri);
                 if (fileSize === 0 || fileSize < minSize || fileSize > maxSize) {
                     return false;
                 }
@@ -55,21 +55,21 @@ const Compress = new class extends Module implements ICompress {
         }
         return true;
     }
-    tryFile(fileUri: string, data: CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback) {
-        if (this.withinSizeRange(fileUri, data.condition)) {
+    tryFile(localUri: string, data: CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback) {
+        if (this.withinSizeRange(localUri, data.condition)) {
             switch (data.format) {
                 case 'gz':
                 case 'br': {
                     if (initialize) {
                         initialize();
                     }
-                    const output = `${fileUri}.${data.format}`;
+                    const output = `${localUri}.${data.format}`;
                     this.formatMessage(this.logType.COMPRESS, data.format, 'Compressing file...', output, { titleColor: 'magenta' });
                     const time = Date.now();
-                    this[data.format === 'gz' ? 'createWriteStreamAsGzip' : 'createWriteStreamAsBrotli'](fileUri, output, data.level)
+                    this[data.format === 'gz' ? 'createWriteStreamAsGzip' : 'createWriteStreamAsBrotli'](localUri, output, data.level)
                         .on('finish', () => {
                             this.writeTimeElapsed(data.format, path.basename(output), time);
-                            if (data.condition?.includes('%') && Module.getFileSize(output) >= Module.getFileSize(fileUri)) {
+                            if (data.condition?.includes('%') && Module.getFileSize(output) >= Module.getFileSize(localUri)) {
                                 fs.unlink(output, () => {
                                     if (callback) {
                                         callback();
@@ -91,7 +91,7 @@ const Compress = new class extends Module implements ICompress {
                 default: {
                     const compressor = this.compressorProxy[data.format]?.bind(this);
                     if (typeof compressor === 'function') {
-                        compressor.call(this, fileUri, data, initialize, callback);
+                        compressor.call(this, localUri, data, initialize, callback);
                     }
                     else if (callback) {
                         callback();
@@ -101,16 +101,16 @@ const Compress = new class extends Module implements ICompress {
             }
         }
     }
-    tryImage(fileUri: string, data: CompressFormat, callback: CompressTryImageCallback) {
-        const ext = path.extname(fileUri).substring(1);
-        this.formatMessage(this.logType.COMPRESS, ext, ['Compressing image...', data.plugin || ''], fileUri, { titleColor: 'magenta' });
+    tryImage(localUri: string, data: CompressFormat, callback: CompressTryImageCallback) {
+        const ext = path.extname(localUri).substring(1);
+        this.formatMessage(this.logType.COMPRESS, ext, ['Compressing image...', data.plugin || ''], localUri, { titleColor: 'magenta' });
         const time = Date.now();
-        const writeFail = (err: Null<Error>) => this.writeFail(['Unable to compress image', path.basename(fileUri)], err);
+        const writeFail = (err: Null<Error>) => this.writeFail(['Unable to compress image', path.basename(localUri)], err);
         const writeFile = (result: Buffer | Uint8Array) => {
-            fs.writeFile(fileUri, result, err => {
+            fs.writeFile(localUri, result, err => {
                 if (!err) {
                     callback(true);
-                    this.writeTimeElapsed(ext, path.basename(fileUri), time);
+                    this.writeTimeElapsed(ext, path.basename(localUri), time);
                 }
                 else {
                     writeFail(err);
@@ -134,7 +134,7 @@ const Compress = new class extends Module implements ICompress {
         };
         const tinifyApiKey = (!data.plugin || data.plugin === 'tinify') && (data.format === 'png' || data.format === 'jpeg') ? data.options?.apiKey as string || this.tinifyApiKey : '';
         if (tinifyApiKey || data.plugin) {
-            fs.readFile(fileUri, async (err, buffer) => {
+            fs.readFile(localUri, async (err, buffer) => {
                 if (!err) {
                     if (tinifyApiKey) {
                         if (tinify['_key'] !== tinifyApiKey) {

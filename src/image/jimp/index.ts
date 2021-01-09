@@ -13,7 +13,7 @@ type CropData = internal.Image.CropData;
 type RotateData = internal.Image.RotateData;
 type QualityData = internal.Image.QualityData;
 
-const getBuffer = (data: FileData) => (data.file.buffer as unknown) as string || data.file.fileUri!;
+const getBuffer = (data: FileData) => (data.file.buffer as unknown) as string || data.file.localUri!;
 
 class Jimp extends Image implements ImageCommand<jimp> {
     public static async resolveMime(this: IFileManager, data: FileData) {
@@ -25,9 +25,9 @@ class Jimp extends Image implements ImageCommand<jimp> {
             case jimp.MIME_BMP:
             case jimp.MIME_GIF:
             case jimp.MIME_TIFF: {
-                const fileUri = data.file.fileUri!;
-                const output = Image.renameExt(fileUri, mimeType.split('/')[1]);
-                fs.renameSync(fileUri, output);
+                const localUri = data.file.localUri!;
+                const output = Image.renameExt(localUri, mimeType.split('/')[1]);
+                fs.renameSync(localUri, output);
                 this.replace(data.file, output, mimeType);
                 return true;
             }
@@ -37,7 +37,7 @@ class Jimp extends Image implements ImageCommand<jimp> {
 
     public static using(this: IFileManager, data: FileData, command: string, callback?: FileManagerFinalizeImageMethod) {
         const file = data.file;
-        const fileUri = file.fileUri!;
+        const localUri = file.localUri!;
         const mimeType = data.mimeType || file.mimeType;
         const transformImage = (tempFile?: string) => {
             command = command.trim();
@@ -70,7 +70,7 @@ class Jimp extends Image implements ImageCommand<jimp> {
             if (jimpType && saveAs) {
                 const output = this.queueImage(data, jimpType, saveAs, command);
                 if (output) {
-                    this.formatMessage(this.logType.PROCESS, 'jimp', ['Transforming image...', path.basename(fileUri)], command);
+                    this.formatMessage(this.logType.PROCESS, 'jimp', ['Transforming image...', path.basename(localUri)], command);
                     const startTime = Date.now();
                     jimp.read(tempFile || getBuffer(data))
                         .then(img => {
@@ -92,7 +92,7 @@ class Jimp extends Image implements ImageCommand<jimp> {
                         })
                         .catch(err => {
                             this.completeAsyncTask();
-                            this.writeFail(['Unable to read image buffer', path.basename(fileUri)], err);
+                            this.writeFail(['Unable to read image buffer', path.basename(localUri)], err);
                         });
                     return;
                 }
@@ -103,12 +103,12 @@ class Jimp extends Image implements ImageCommand<jimp> {
         if (mimeType === 'image/webp') {
             try {
                 const tempFile = this.getTempDir(false, '.bmp');
-                child_process.execFile(require('dwebp-bin'), [fileUri, '-mt', '-bmp', '-o', tempFile], null, err => {
+                child_process.execFile(require('dwebp-bin'), [localUri, '-mt', '-bmp', '-o', tempFile], null, err => {
                     if (!err) {
                         transformImage(tempFile);
                     }
                     else {
-                        this.writeFail(['Unable to convert image buffer', path.basename(fileUri)], err);
+                        this.writeFail(['Unable to convert image buffer', path.basename(localUri)], err);
                         this.completeAsyncTask();
                     }
                 });
@@ -246,7 +246,7 @@ class Jimp extends Image implements ImageCommand<jimp> {
                 this.instance = this.instance.background(color);
             }
             const file = this.data.file;
-            const fileUri = file.fileUri!;
+            const localUri = file.localUri!;
             const deg = values[0];
             for (let i = 1, length = values.length; i < length; ++i) {
                 const value = values[i];
@@ -254,8 +254,8 @@ class Jimp extends Image implements ImageCommand<jimp> {
                     initialize();
                 }
                 const img = this.instance.clone().rotate(value);
-                const index = fileUri.lastIndexOf('.');
-                const output = fileUri.substring(0, index) + '.' + value + fileUri.substring(index);
+                const index = localUri.lastIndexOf('.');
+                const output = localUri.substring(0, index) + '.' + value + localUri.substring(index);
                 img.write(output, err => {
                     if (!err) {
                         this.finalize(output, (result: string) => {

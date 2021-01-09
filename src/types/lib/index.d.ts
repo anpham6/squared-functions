@@ -17,7 +17,7 @@ declare namespace functions {
     type FileManagerFinalizeImageMethod<T = void> = (data: internal.Image.OutputData, error?: Null<Error>) => T;
     type FileManagerPerformAsyncTaskCallback = VoidFunction;
     type FileManagerCompleteAsyncTaskCallback = (value?: unknown, parent?: ExternalAsset) => void;
-    type CompressTryFileMethod = (fileUri: string, data: squared.CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback) => void;
+    type CompressTryFileMethod = (localUri: string, data: squared.CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback) => void;
     type CompressTryImageCallback = (success?: boolean) => void;
 
     namespace internal {
@@ -106,7 +106,7 @@ declare namespace functions {
             interface UploadData extends FunctionData {
                 upload: squared.CloudStorageUpload;
                 buffer: Buffer;
-                fileUri: string;
+                localUri: string;
                 fileGroup: [Buffer | string, string][];
                 filename?: string;
                 mimeType?: string;
@@ -145,8 +145,8 @@ declare namespace functions {
             type DownloadCallback = (data: DownloadData, success: (value: Null<Buffer | string>) => void) => Promise<void>;
         }
 
-        interface AssetData {
-            filename?: string;
+        interface DocumentData {
+            document?: string[];
         }
 
         interface FileData {
@@ -156,7 +156,7 @@ declare namespace functions {
 
         interface FileOutput {
             pathname: string;
-            fileUri: string;
+            localUri: string;
         }
 
         enum LOG_TYPE {
@@ -206,12 +206,12 @@ declare namespace functions {
         tinifyApiKey: string;
         compressorProxy: ObjectMap<CompressTryFileMethod>;
         register(format: string, callback: CompressTryFileMethod): void;
-        createWriteStreamAsGzip(source: string, fileUri: string, level?: number): WriteStream;
-        createWriteStreamAsBrotli(source: string, fileUri: string, quality?: number, mimeType?: string): WriteStream;
+        createWriteStreamAsGzip(source: string, localUri: string, level?: number): WriteStream;
+        createWriteStreamAsBrotli(source: string, localUri: string, quality?: number, mimeType?: string): WriteStream;
         findFormat(compress: Undef<squared.CompressFormat[]>, format: string): Undef<squared.CompressFormat>;
-        withinSizeRange(fileUri: string, value: Undef<string>): boolean;
+        withinSizeRange(localUri: string, value: Undef<string>): boolean;
         tryFile: CompressTryFileMethod;
-        tryImage(fileUri: string, data: squared.CompressFormat, callback: CompressTryImageCallback): void;
+        tryImage(localUri: string, data: squared.CompressFormat, callback: CompressTryImageCallback): void;
     }
 
     interface IImage extends IModule {
@@ -281,8 +281,8 @@ declare namespace functions {
 
     interface IDocument extends IModule {
         settings: ExtendedSettings.DocumentModule;
-        serverRoot: string;
         documentName: string;
+        internalAssignUUID: string;
         templateMap?: StandardMap;
         findPluginData(type: string, name: string, settings: ObjectMap<StandardMap>): internal.Document.PluginConfig;
         loadOptions(value: internal.Document.ConfigOrTransformer | string): Undef<internal.Document.ConfigOrTransformer>;
@@ -347,15 +347,15 @@ declare namespace functions {
         removeAsyncTask(): void;
         completeAsyncTask: FileManagerCompleteAsyncTaskCallback;
         performFinalize(): void;
-        setFileUri(file: ExternalAsset): internal.FileOutput;
+        setLocalUri(file: ExternalAsset): internal.FileOutput;
         getRelativePath(file: ExternalAsset, filename?: string): string;
-        assignFilename(data: internal.AssetData): Undef<string>;
+        assignUUID(data: internal.DocumentData, attr: string, target?: any): Undef<string>;
         findAsset(uri: string): Undef<ExternalAsset>;
         removeCwd(value: Undef<string>): string;
-        getUTF8String(file: ExternalAsset, fileUri?: string): string;
-        appendContent(file: ExternalAsset, fileUri: string, content: string, bundleIndex?: number): Promise<string>;
+        getUTF8String(file: ExternalAsset, localUri?: string): string;
+        appendContent(file: ExternalAsset, localUri: string, content: string, bundleIndex?: number): Promise<string>;
         getTrailingContent(file: ExternalAsset): Promise<string>;
-        joinAllContent(fileUri: string): Undef<string>;
+        joinAllContent(localUri: string): Undef<string>;
         createSourceMap(file: ExternalAsset, sourcesContent: string): internal.Document.SourceMapInput;
         writeSourceMap(outputData: [string, Undef<Map<string, internal.Document.SourceMapOutput>>], file: ExternalAsset, sourceContent?: string, modified?: boolean): void;
         compressFile(file: ExternalAsset): Promise<unknown>;
@@ -395,7 +395,7 @@ declare namespace functions {
 
     interface ModuleConstructor {
         loadSettings(value: Settings): void;
-        getFileSize(fileUri: string): number;
+        getFileSize(localUri: string): number;
         toPosix(value: string, filename?: string): string;
         renameExt(value: string, ext: string): string;
         isLocalPath(value: string): string;
@@ -472,7 +472,7 @@ declare namespace functions {
     }
 
     interface ExternalAsset extends squared.FileAsset, squared.BundleAction {
-        fileUri?: string;
+        localUri?: string;
         cloudUri?: string;
         buffer?: Buffer;
         sourceUTF8?: string;

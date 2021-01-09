@@ -25,12 +25,12 @@ const CLOUD_DOWNLOAD: ObjectMap<DownloadHost> = {};
 const CLOUD_USERCACHE: ObjectMap<ObjectMap<[number, any[]]>> = {};
 const CLOUD_DBCACHE: ObjectMap<ObjectMap<any[]>> = {};
 
-function setUploadFilename(this: ICloud, upload: CloudStorageUpload, filename: string) {
+function setUploadFilename(cloud: ICloud, upload: CloudStorageUpload, filename: string) {
     filename = filename.replace(/^\.*[\\/]+/, '');
     const index = filename.lastIndexOf('/');
     if (index !== -1) {
         const directory = filename.substring(0, index + 1);
-        upload.pathname = upload.pathname ? this.joinPosix(upload.pathname, directory) : directory;
+        upload.pathname = upload.pathname ? cloud.joinPosix(upload.pathname, directory) : directory;
         filename = filename.substring(index + 1);
     }
     return upload.filename = filename;
@@ -41,16 +41,16 @@ function hasSameBucket(provider: CloudStorage, other: CloudStorage) {
     return (provider.service && other.service || endpoint && endpoint === other.upload!.endpoint) && provider.bucket === other.bucket;
 }
 
-function getFiles(cloud: ICloud, item: ExternalAsset, data: CloudStorageUpload) {
-    const files = [item.fileUri!];
+function getFiles(cloud: ICloud, file: ExternalAsset, data: CloudStorageUpload) {
+    const files = [file.localUri!];
     const transforms: string[] = [];
-    if (item.transforms && data.all) {
-        for (const value of item.transforms) {
+    if (file.transforms && data.all) {
+        for (const value of file.transforms) {
             const ext = path.extname(value);
             if (cloud.compressFormat.has(ext) && value === files[0] + ext) {
                 files.push(value);
             }
-            else if (!item.cloudUri) {
+            else if (!file.cloudUri) {
                 transforms.push(value);
             }
         }
@@ -64,11 +64,11 @@ class Cloud extends Module implements ICloud {
     public static uploadAsset(this: IFileManager, state: FinalizeState, file: ExternalAsset, mimeType = file.mimeType, uploadDocument?: boolean) {
         const { cloud, bucketGroup } = state;
         const tasks: Promise<void>[] = [];
-        const cloudMain = cloud.getStorage('upload', file.cloudStorage);
         for (const storage of file.cloudStorage!) {
             if (cloud.hasStorage('upload', storage)) {
                 const upload = storage.upload!;
-                if (storage === cloudMain && upload.localStorage === false) {
+                const active = storage === cloud.getStorage('upload', file.cloudStorage);
+                if (active && upload.localStorage === false) {
                     state.localStorage.set(file, upload);
                 }
                 let uploadHandler: UploadCallback;
@@ -83,8 +83,8 @@ class Cloud extends Module implements ICloud {
                 tasks.push(new Promise<void>(resolve => {
                     const uploadTasks: Promise<string>[] = [];
                     getFiles(cloud, file, upload).forEach((group, index) => {
-                        for (const fileUri of group) {
-                            if (index === 0 || this.has(fileUri)) {
+                        for (const localUri of group) {
+                            if (index === 0 || this.has(localUri)) {
                                 const fileGroup: [Buffer | string, string][] = [];
                                 if (index === 0) {
                                     for (let i = 1; i < group.length; ++i) {
@@ -98,7 +98,7 @@ class Cloud extends Module implements ICloud {
                                 }
                                 uploadTasks.push(
                                     new Promise(success => {
-                                        fs.readFile(fileUri, (err, buffer) => {
+                                        fs.readFile(localUri, (err, buffer) => {
                                             if (!err) {
                                                 let filename: Undef<string>;
                                                 if (index === 0) {
@@ -106,13 +106,13 @@ class Cloud extends Module implements ICloud {
                                                         filename = path.basename(file.cloudUri);
                                                     }
                                                     else if (upload.filename) {
-                                                        filename = this.assignFilename(upload);
+                                                        filename = this.assignUUID(file, 'filename', upload);
                                                     }
                                                     else if (upload.overwrite) {
-                                                        filename = path.basename(fileUri);
+                                                        filename = path.basename(localUri);
                                                     }
                                                 }
-                                                uploadHandler({ buffer, upload, fileUri, fileGroup, bucket, bucketGroup, filename, mimeType: mimeType || mime.lookup(fileUri) || undefined }, success);
+                                                uploadHandler({ buffer, upload, localUri, fileGroup, bucket, bucketGroup, filename, mimeType: mimeType || mime.lookup(localUri) || undefined }, success);
                                             }
                                             else {
                                                 success('');
@@ -128,7 +128,6 @@ class Cloud extends Module implements ICloud {
                         Promise.all(uploadTasks)
                             .then(async result => {
                                 if (!uploadDocument && result[0]) {
-                                    const active = storage === cloudMain;
                                     for (const { document } of this.Document) {
                                         if (document.cloudUpload && await document.cloudUpload(state, file, result[0], active)) {
                                             break;
@@ -167,7 +166,7 @@ class Cloud extends Module implements ICloud {
         }
         for (const item of this.assets) {
             if (item.cloudStorage) {
-                if (item.fileUri) {
+                if (item.localUri) {
                     let ignore = false;
                     for (const { document } of this.Document) {
                         if (document.cloudFile && document.cloudFile(state, item)) {
@@ -226,19 +225,17 @@ class Cloud extends Module implements ICloud {
             if (item.cloudStorage) {
                 for (const data of item.cloudStorage) {
                     if (cloud.hasStorage('download', data)) {
-                        const { active, pathname, filename, overwrite } = data.download!;
+                        const { pathname, filename, active, overwrite } = data.download!;
                         if (filename) {
-                            const fileUri = item.fileUri;
+                            const localUri = item.localUri;
                             let valid = false,
-                                downloadUri = pathname ? path.join(this.baseDirectory, pathname.replace(/^([A-Z]:)?[\\/]+/i, '')) : data.admin?.preservePath && fileUri ? path.join(path.dirname(fileUri), filename) : path.join(this.baseDirectory, filename);
+                                downloadUri = pathname ? path.join(this.baseDirectory, pathname.replace(/^([A-Z]:)?[\\/]+/i, '')) : data.admin?.preservePath && localUri ? path.join(path.dirname(localUri), filename) : path.join(this.baseDirectory, filename);
                             if (fs.existsSync(downloadUri)) {
-                                if (active || overwrite) {
-                                    valid = true;
-                                }
+                                valid = !!(active || overwrite);
                             }
                             else {
-                                if (active && fileUri && path.extname(fileUri) === path.extname(downloadUri)) {
-                                    downloadUri = fileUri;
+                                if (active && localUri && path.extname(localUri) === path.extname(downloadUri)) {
+                                    downloadUri = localUri;
                                 }
                                 try {
                                     fs.mkdirpSync(path.dirname(downloadUri));
@@ -315,7 +312,7 @@ class Cloud extends Module implements ICloud {
                     const upload = data.upload;
                     if (upload) {
                         if (upload.filename) {
-                            setUploadFilename.call(this, upload, Cloud.toPosix(upload.filename));
+                            setUploadFilename(this, upload, Cloud.toPosix(upload.filename));
                         }
                         if (upload.pathname) {
                             upload.pathname = Cloud.toPosix(upload.pathname).replace(/^\/+/, '') + '/';
