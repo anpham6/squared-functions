@@ -29,7 +29,7 @@ class Watch extends Module implements IWatch {
         const etagMap: StringMap = {};
         const destMap: ObjectMap<ExternalAsset[]> = {};
         for (const item of assets.slice(0).sort((a, b) => a.etag ? -1 : b.etag ? 1 : 0)) {
-            const { uri, relativePath: dest } = item;
+            const { uri, relativeUri: dest } = item;
             if (uri && dest) {
                 if (item.etag) {
                     etagMap[uri] = item.etag;

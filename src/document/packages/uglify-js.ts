@@ -1,6 +1,6 @@
 const context = require('uglify-js');
 
-type SourceMapInput = functions.internal.Document.SourceMapInput;
+type SourceMapInput = functions.Internal.Document.SourceMapInput;
 
 export default async function transform(value: string, options: StandardMap, output: Undef<PlainObject>, input: SourceMapInput) {
     let includeSources = true;

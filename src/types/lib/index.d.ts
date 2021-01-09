@@ -11,29 +11,29 @@ import type { BackgroundColor, ForegroundColor } from 'chalk';
 
 type BoolString = boolean | string;
 
-type FileData = functions.internal.FileData;
-type LogMessageOptions = functions.internal.LogMessageOptions;
-type FinalizeState = functions.internal.Cloud.FinalizeState;
-type ResizeData = functions.internal.Image.ResizeData;
-type CropData = functions.internal.Image.CropData;
-type RotateData = functions.internal.Image.RotateData;
-type QualityData = functions.internal.Image.QualityData;
-type SourceMapInput = functions.internal.Document.SourceMapInput;
-type SourceMapOutput = functions.internal.Document.SourceMapOutput;
-type ConfigOrTransformer = functions.internal.Document.ConfigOrTransformer
+type FileData = functions.Internal.FileData;
+type LogMessageOptions = functions.Internal.LogMessageOptions;
+type FinalizeState = functions.Internal.Cloud.FinalizeState;
+type ResizeData = functions.Internal.Image.ResizeData;
+type CropData = functions.Internal.Image.CropData;
+type RotateData = functions.Internal.Image.RotateData;
+type QualityData = functions.Internal.Image.QualityData;
+type SourceMapInput = functions.Internal.Document.SourceMapInput;
+type SourceMapOutput = functions.Internal.Document.SourceMapOutput;
+type ConfigOrTransformer = functions.Internal.Document.ConfigOrTransformer
 
 declare namespace functions {
     type CloudFeatures = "storage" | "database";
     type CloudFunctions = "upload" | "download";
     type ModuleWriteFailMethod = (value: string | [string, string], message?: unknown) => void;
     type FileManagerQueueImageMethod = (data: FileData, ouputType: string, saveAs: string, command?: string) => Undef<string>;
-    type FileManagerFinalizeImageMethod<T = void> = (data: internal.Image.OutputData, error?: Null<Error>) => T;
+    type FileManagerFinalizeImageMethod<T = void> = (data: Internal.Image.OutputData, error?: Null<Error>) => T;
     type FileManagerPerformAsyncTaskCallback = VoidFunction;
     type FileManagerCompleteAsyncTaskCallback = (value?: unknown, parent?: ExternalAsset) => void;
     type CompressTryFileMethod = (localUri: string, data: CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback) => void;
     type CompressTryImageCallback = (success?: boolean) => void;
 
-    namespace internal {
+    namespace Internal {
         namespace Image {
             interface OutputData extends FileData {
                 output: string;
@@ -280,12 +280,12 @@ declare namespace functions {
         setDatabaseResult(service: string, credential: unknown, queryString: string, result: any[], cacheKey?: string): void;
         hasCredential(feature: CloudFeatures, data: CloudService): boolean;
         getCredential(data: CloudService): PlainObject;
-        getUploadHandler(service: string, credential: unknown): internal.Cloud.UploadCallback;
-        getDownloadHandler(service: string, credential: unknown): internal.Cloud.DownloadCallback;
+        getUploadHandler(service: string, credential: unknown): Internal.Cloud.UploadCallback;
+        getDownloadHandler(service: string, credential: unknown): Internal.Cloud.DownloadCallback;
     }
 
     interface CloudConstructor extends ModuleConstructor {
-        finalize(this: IFileManager, cloud: ICloud): Promise<internal.Cloud.FinalizeResult>;
+        finalize(this: IFileManager, cloud: ICloud): Promise<Internal.Cloud.FinalizeResult>;
         uploadAsset(this: IFileManager, cloud: ICloud, state: FinalizeState, file: ExternalAsset, mimeType?: string, uploadDocument?: boolean): Promise<void>;
         new(settings: ExtendedSettings.CloudModule): ICloud;
     }
@@ -297,7 +297,7 @@ declare namespace functions {
         documentName: string;
         internalAssignUUID: string;
         templateMap?: StandardMap;
-        findPluginData(type: string, name: string, settings: ObjectMap<StandardMap>): internal.Document.PluginConfig;
+        findPluginData(type: string, name: string, settings: ObjectMap<StandardMap>): Internal.Document.PluginConfig;
         loadOptions(value: ConfigOrTransformer | string): Undef<ConfigOrTransformer>;
         loadConfig(value: string): Undef<StandardMap | string>;
         transform(type: string, format: string, value: string, input?: SourceMapInput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>>;
@@ -334,7 +334,7 @@ declare namespace functions {
     interface IFileManager extends IModule {
         delayed: number;
         cleared: boolean;
-        Document: internal.Document.InstallData[];
+        Document: Internal.Document.InstallData[];
         Cloud: Null<ICloud>;
         Watch: Null<IWatch>;
         Image: Null<ImageConstructor>;
@@ -360,9 +360,9 @@ declare namespace functions {
         removeAsyncTask(): void;
         completeAsyncTask: FileManagerCompleteAsyncTaskCallback;
         performFinalize(): void;
-        setLocalUri(file: ExternalAsset): internal.FileOutput;
-        getRelativePath(file: ExternalAsset, filename?: string): string;
-        assignUUID(data: internal.DocumentData, attr: string, target?: any): Undef<string>;
+        setLocalUri(file: ExternalAsset): Internal.FileOutput;
+        getRelativeUri(file: ExternalAsset, filename?: string): string;
+        assignUUID(data: Internal.DocumentData, attr: string, target?: any): Undef<string>;
         findAsset(uri: string): Undef<ExternalAsset>;
         removeCwd(value: Undef<string>): string;
         getUTF8String(file: ExternalAsset, localUri?: string): string;
@@ -390,7 +390,7 @@ declare namespace functions {
     const FileManager: FileManagerConstructor;
 
     interface IModule {
-        logType: typeof internal.LOG_TYPE;
+        logType: typeof Internal.LOG_TYPE;
         tempDir: string;
         readonly major: number;
         readonly minor: number;
@@ -399,8 +399,8 @@ declare namespace functions {
         parseFunction(value: string): Null<FunctionType<string>>;
         joinPosix(...paths: Undef<string>[]): string;
         getTempDir(subDir?: boolean, filename?: string): string;
-        formatMessage(type: internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options?: LogMessageOptions): void;
-        formatFail(type: internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown): void;
+        formatMessage(type: Internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options?: LogMessageOptions): void;
+        formatFail(type: Internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown): void;
         writeFail: ModuleWriteFailMethod;
         writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions): void;
         writeMessage(title: string, value: string, message?: unknown, options?: LogMessageOptions): void;
@@ -456,7 +456,7 @@ declare namespace functions {
         }
 
         interface CloudModule {
-            cache?: Partial<internal.Cloud.CacheTimeout>;
+            cache?: Partial<Internal.Cloud.CacheTimeout>;
             aws?: ObjectMap<StringMap>;
             azure?: ObjectMap<StringMap>;
             gcloud?: ObjectMap<StringMap>;
@@ -482,10 +482,10 @@ declare namespace functions {
 
     interface ExternalAsset extends FileAsset, BundleAction {
         localUri?: string;
+        relativeUri?: string;
         cloudUri?: string;
         buffer?: Buffer;
         sourceUTF8?: string;
-        relativePath?: string;
         originalName?: string;
         transforms?: string[];
         etag?: string;

@@ -1,4 +1,4 @@
-import type { ExtendedSettings, IModule, Settings, internal } from '../types/lib';
+import type { ExtendedSettings, IModule, Internal, Settings } from '../types/lib';
 
 import path = require('path');
 import fs = require('fs');
@@ -7,7 +7,7 @@ import chalk = require('chalk');
 
 type LoggerModule = ExtendedSettings.LoggerModule;
 
-type LogMessageOptions = internal.LogMessageOptions;
+type LogMessageOptions = Internal.LogMessageOptions;
 
 type LogValue = string | [string, string];
 

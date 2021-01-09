@@ -1,11 +1,11 @@
-import type { IImage, internal } from '../types/lib';
+import type { IImage, Internal } from '../types/lib';
 
 import Module from '../module';
 
-type ResizeData = internal.Image.ResizeData;
-type CropData = internal.Image.CropData;
-type RotateData = internal.Image.RotateData;
-type QualityData = internal.Image.QualityData;
+type ResizeData = Internal.Image.ResizeData;
+type CropData = Internal.Image.CropData;
+type RotateData = Internal.Image.RotateData;
+type QualityData = Internal.Image.QualityData;
 
 const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : NaN;
 

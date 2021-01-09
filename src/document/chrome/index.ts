@@ -1,4 +1,4 @@
-import type { ExtendedSettings, IFileManager, RequestBody, internal } from '../../types/lib';
+import type { ExtendedSettings, IFileManager, Internal, RequestBody } from '../../types/lib';
 import type { DocumentAsset, IChromeDocument } from './document';
 
 import path = require('path');
@@ -13,9 +13,9 @@ import Cloud from '../../cloud';
 
 type DocumentModule = ExtendedSettings.DocumentModule;
 
-type FileData = internal.FileData;
-type FinalizeState = internal.Cloud.FinalizeState;
-type OutputData = internal.Image.OutputData;
+type FileData = Internal.FileData;
+type FinalizeState = Internal.Cloud.FinalizeState;
+type OutputData = Internal.Image.OutputData;
 
 const REGEXP_TAGSTART = /^(\s*<\s*[\w-]+)(\s*)/;
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
@@ -28,11 +28,11 @@ function removeFileCommands(value: string) {
         .replace(/\s+data-(use|chrome-[\w-]+)="([^"]|(?<=\\)")*"/g, '');
 }
 
-function getObjectValue(data: PlainObject, key: string, joinString = ' ') {
+function getObjectValue(data: unknown, key: string, joinString = ' ') {
     const pattern = /([^[.\s]+)((?:\s*\[[^\]]+\]\s*)+)?\s*\.?\s*/g;
     const indexPattern = /\[\s*(["'])?(.+?)\1\s*\]/g;
     let found = false,
-        value: unknown = data,
+        value = data,
         match: Null<RegExpMatchArray>;
     while (match = pattern.exec(key)) {
         if (isObject(value)) {
@@ -220,7 +220,7 @@ function findRelativePath(this: IFileManager, file: DocumentAsset, location: str
         }
         if (baseDirectory && Document.fromSameOrigin(origin, baseDirectory)) {
             const [originDir] = getRootDirectory(this.joinPosix(baseDir, file.filename), new URL(baseDirectory).pathname);
-            return '../'.repeat(originDir.length - 1) + asset.relativePath;
+            return '../'.repeat(originDir.length - 1) + asset.relativeUri;
         }
     }
 }
@@ -277,7 +277,7 @@ function transformCss(this: IFileManager, document: IChromeDocument, file: Docum
             if (asset) {
                 const pathname = file.pathname;
                 const count = pathname && pathname !== '/' && file.uri !== document.baseUrl ? pathname.split(/[\\/]/).length : 0;
-                output = (output || content).replace(match[0], `url(${getCloudUUID(asset, (count ? '../'.repeat(count) : '') + asset.relativePath)})`);
+                output = (output || content).replace(match[0], `url(${getCloudUUID(asset, (count ? '../'.repeat(count) : '') + asset.relativeUri)})`);
             }
         }
     }
@@ -520,7 +520,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 item.inlineCloud = value;
                             }
                             else {
-                                value = item.relativePath!;
+                                value = item.relativeUri!;
                             }
                             output = getOuterHTML(/^\s*<link\b/.test(outerHTML) || !!item.mimeType?.endsWith('/css'), value);
                         }
@@ -568,21 +568,21 @@ class ChromeDocument extends Document implements IChromeDocument {
                         if (outerHTML) {
                             item.mimeType ||= mime.lookup(uri).toString();
                             const segments = [uri];
-                            let value = item.relativePath!,
-                                relativePath: Undef<string>,
+                            let value = item.relativeUri!,
+                                relativeUri: Undef<string>,
                                 ascending: Undef<boolean>;
                             if (baseDirectory) {
-                                relativePath = uri.replace(baseDirectory, '');
-                                if (relativePath === uri) {
-                                    relativePath = '';
+                                relativeUri = uri.replace(baseDirectory, '');
+                                if (relativeUri === uri) {
+                                    relativeUri = '';
                                 }
                             }
-                            if (!relativePath && Document.fromSameOrigin(baseUri, uri)) {
-                                relativePath = path.join(item.pathname, path.basename(uri));
+                            if (!relativeUri && Document.fromSameOrigin(baseUri, uri)) {
+                                relativeUri = path.join(item.pathname, path.basename(uri));
                                 ascending = true;
                             }
-                            if (relativePath) {
-                                segments.push(relativePath);
+                            if (relativeUri) {
+                                segments.push(relativeUri);
                             }
                             if (cloud && cloud.getStorage('upload', item.cloudStorage)) {
                                 value = uuid.v4();
@@ -606,8 +606,8 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     break found;
                                 }
                             }
-                            if (relativePath) {
-                                const directory = new RegExp(`(["'\\s,=])(${(ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + escapePosix(relativePath)})`, 'g');
+                            if (relativeUri) {
+                                const directory = new RegExp(`(["'\\s,=])(${(ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + escapePosix(relativeUri)})`, 'g');
                                 while (match = directory.exec(html)) {
                                     if (uri === Node.resolvePath(match[2], baseUri)) {
                                         const src = match[1] + value;
@@ -624,7 +624,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             delete item.inlineBase64;
                         }
                         else if (item.base64) {
-                            let value = item.relativePath!;
+                            let value = item.relativeUri!;
                             if (cloud && cloud.getStorage('upload', item.cloudStorage)) {
                                 value = uuid.v4();
                                 item.inlineCloud = value;
@@ -714,7 +714,6 @@ class ChromeDocument extends Document implements IChromeDocument {
     }
 
     public static async finalize(this: IFileManager, document: IChromeDocument, assets: DocumentAsset[]) {
-        let tasks: Promise<unknown>[] = [];
         const inlineMap: StringMap = {};
         const base64Map: StringMap = {};
         const removeFile = (item: DocumentAsset) => {
@@ -722,6 +721,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             this.filesToRemove.add(localUri);
             item.invalid = true;
         };
+        let tasks: Promise<unknown>[] = [];
         for (const item of assets) {
             if (item.inlineBase64 && !item.invalid) {
                 tasks.push(
@@ -779,7 +779,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     source = source.replace(new RegExp(id, 'g'), base64Map[id]!);
                 }
                 for (const asset of replaced) {
-                    source = source.replace(new RegExp(escapePosix(manager.getRelativePath(asset, asset.originalName)), 'g'), asset.relativePath!);
+                    source = source.replace(new RegExp(escapePosix(manager.getRelativeUri(asset, asset.originalName)), 'g'), asset.relativeUri!);
                 }
                 if (document.productionRelease) {
                     source = source.replace(new RegExp('(\\.\\./)*' + document.internalServerRoot, 'g'), '');
@@ -1005,7 +1005,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 let sourceUTF8 = manager.getUTF8String(item);
                 for (const id in cloudMap) {
                     const file = cloudMap[id];
-                    sourceUTF8 = sourceUTF8.replace(id, file.relativePath!);
+                    sourceUTF8 = sourceUTF8.replace(id, file.relativeUri!);
                     localStorage.delete(file);
                 }
                 if (this._cloudEndpoint) {
@@ -1020,7 +1020,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 if (item.cloudStorage) {
                     if (item.compress) {
                         await manager.compressFile(item);
-                        state.compressed.push(item);
+                        compressed.push(item);
                     }
                     tasks.push(...Cloud.uploadAsset.call(manager, state, item, 'text/html', true));
                 }

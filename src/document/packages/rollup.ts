@@ -4,7 +4,7 @@ import uuid = require('uuid');
 import rollup = require('rollup');
 
 type ModuleWriteFailMethod = functions.ModuleWriteFailMethod;
-type SourceMapInput = functions.internal.Document.SourceMapInput;
+type SourceMapInput = functions.Internal.Document.SourceMapInput;
 type RollupPlugins = [string, Undef<PlainObject>][];
 
 function loadPlugins(plugins: RollupPlugins, writeFail: ModuleWriteFailMethod) {

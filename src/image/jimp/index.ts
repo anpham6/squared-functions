@@ -1,4 +1,4 @@
-import type { FileManagerCompleteAsyncTaskCallback, FileManagerFinalizeImageMethod, FileManagerPerformAsyncTaskCallback, IFileManager, ImageCommand, internal } from '../../types/lib';
+import type { FileManagerCompleteAsyncTaskCallback, FileManagerFinalizeImageMethod, FileManagerPerformAsyncTaskCallback, IFileManager, ImageCommand, Internal } from '../../types/lib';
 
 import path = require('path');
 import fs = require('fs');
@@ -7,11 +7,11 @@ import jimp = require('jimp');
 
 import Image from '../index';
 
-type FileData = internal.FileData;
-type ResizeData = internal.Image.ResizeData;
-type CropData = internal.Image.CropData;
-type RotateData = internal.Image.RotateData;
-type QualityData = internal.Image.QualityData;
+type FileData = Internal.FileData;
+type ResizeData = Internal.Image.ResizeData;
+type CropData = Internal.Image.CropData;
+type RotateData = Internal.Image.RotateData;
+type QualityData = Internal.Image.QualityData;
 
 const getBuffer = (data: FileData) => (data.file.buffer as unknown) as string || data.file.localUri!;
 

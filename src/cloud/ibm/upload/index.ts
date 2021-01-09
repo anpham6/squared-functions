@@ -1,10 +1,10 @@
-import type { internal } from '../../../types/lib';
+import type { Internal } from '../../../types/lib';
 import type { IBMStorageCredential } from '../index';
 
 import { setStorageCredential } from '../index';
 
-type InstanceHost = internal.Cloud.InstanceHost;
-type UploadHost = internal.Cloud.UploadHost;
+type InstanceHost = Internal.Cloud.InstanceHost;
+type UploadHost = Internal.Cloud.UploadHost;
 
 export default function upload(this: InstanceHost, credential: IBMStorageCredential, service = 'ibm') {
     setStorageCredential(credential);

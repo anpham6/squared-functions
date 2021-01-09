@@ -1,4 +1,4 @@
-import type { ICloud, internal } from '../../types/lib';
+import type { ICloud, Internal } from '../../types/lib';
 import type { CloudDatabase, CloudService } from '../../types/lib/squared';
 import type { GoogleAuthOptions } from 'google-auth-library';
 import type { Acl } from '@google-cloud/storage/build/src/acl';
@@ -8,7 +8,7 @@ import type * as gcb from '@google-cloud/bigquery';
 
 import path = require('path');
 
-type InstanceHost = internal.Cloud.InstanceHost;
+type InstanceHost = Internal.Cloud.InstanceHost;
 
 export interface GCloudStorageCredential extends GoogleAuthOptions {
     location?: string;

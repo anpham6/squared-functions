@@ -1,11 +1,11 @@
-import type { internal } from '../../../types/lib';
+import type { Internal } from '../../../types/lib';
 import type { IBMStorageCredential } from '../index';
 
 import { setStorageCredential } from '../index';
 
-type InstanceHost = internal.Cloud.InstanceHost;
-type DownloadHost = internal.Cloud.DownloadHost;
-type DownloadCallback = internal.Cloud.DownloadCallback;
+type InstanceHost = Internal.Cloud.InstanceHost;
+type DownloadHost = Internal.Cloud.DownloadHost;
+type DownloadCallback = Internal.Cloud.DownloadCallback;
 
 export default function download(this: InstanceHost, credential: IBMStorageCredential, service = 'ibm'): DownloadCallback {
     setStorageCredential(credential);

@@ -1,6 +1,6 @@
 const context = require('postcss');
 
-type SourceMapInput = functions.internal.Document.SourceMapInput;
+type SourceMapInput = functions.Internal.Document.SourceMapInput;
 
 export default async function transform(value: string, options: PlainObject, output: Undef<PlainObject>, input: SourceMapInput) {
     const { map: sourceMap, file } = input;

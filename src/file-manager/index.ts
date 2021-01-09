@@ -1,4 +1,4 @@
-import type { DocumentConstructor, ExtendedSettings, ExternalAsset, ICloud, ICompress, IFileManager, IWatch, ImageConstructor, RequestBody, Settings, internal } from '../types/lib';
+import type { DocumentConstructor, ExtendedSettings, ExternalAsset, ICloud, ICompress, IFileManager, IWatch, ImageConstructor, Internal, RequestBody, Settings } from '../types/lib';
 import type { CloudService } from '../types/lib/squared';
 import type { Response } from 'express';
 
@@ -22,14 +22,14 @@ type CloudModule = ExtendedSettings.CloudModule;
 type GulpModule = ExtendedSettings.GulpModule;
 type DocumentModule = ExtendedSettings.DocumentModule;
 
-type DocumentData = internal.DocumentData;
-type FileData = internal.FileData;
-type FileOutput = internal.FileOutput;
-type OutputData = internal.Image.OutputData;
-type DocumentInstallData = internal.Document.InstallData;
-type SourceMap = internal.Document.SourceMap;
-type SourceMapInput = internal.Document.SourceMapInput;
-type SourceMapOutput = internal.Document.SourceMapOutput;
+type DocumentData = Internal.DocumentData;
+type FileData = Internal.FileData;
+type FileOutput = Internal.FileOutput;
+type OutputData = Internal.Image.OutputData;
+type DocumentInstallData = Internal.Document.InstallData;
+type SourceMap = Internal.Document.SourceMap;
+type SourceMapInput = Internal.Document.SourceMapInput;
+type SourceMapOutput = Internal.Document.SourceMapOutput;
 
 interface GulpData {
     gulpfile: string;
@@ -242,7 +242,7 @@ class FileManager extends Module implements IFileManager {
                 file.originalName ||= file.filename;
                 file.filename = path.basename(replaceWith);
                 file.localUri = this.setLocalUri(file).localUri;
-                file.relativePath = this.getRelativePath(file);
+                file.relativeUri = this.getRelativeUri(file);
                 file.mimeType = mimeType || mime.lookup(replaceWith) || file.mimeType;
                 this.filesToRemove.add(localUri);
                 this.add(replaceWith);
@@ -278,10 +278,10 @@ class FileManager extends Module implements IFileManager {
         const pathname = segments.length > 1 ? path.join(...segments) : this.baseDirectory;
         const localUri = path.join(pathname, file.filename);
         file.localUri = localUri;
-        file.relativePath = this.getRelativePath(file);
+        file.relativeUri = this.getRelativeUri(file);
         return { pathname, localUri };
     }
-    getRelativePath(file: ExternalAsset, filename = file.filename) {
+    getRelativeUri(file: ExternalAsset, filename = file.filename) {
         return Node.joinPosix(file.moveTo, file.pathname, filename);
     }
     assignUUID(data: DocumentData, attr: string, target: any = data) {

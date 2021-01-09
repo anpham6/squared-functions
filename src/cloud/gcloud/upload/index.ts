@@ -1,4 +1,4 @@
-import type { internal } from '../../../types/lib';
+import type { Internal } from '../../../types/lib';
 import type { GCloudStorageCredential } from '../index';
 
 import path = require('path');
@@ -7,9 +7,9 @@ import uuid = require('uuid');
 
 import { createBucket, createStorageClient, setPublicRead } from '../index';
 
-type InstanceHost = internal.Cloud.InstanceHost;
-type UploadCallback = internal.Cloud.UploadCallback;
-type UploadData = internal.Cloud.UploadData;
+type InstanceHost = Internal.Cloud.InstanceHost;
+type UploadCallback = Internal.Cloud.UploadCallback;
+type UploadData = Internal.Cloud.UploadData;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 

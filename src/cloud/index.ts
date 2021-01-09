@@ -1,4 +1,4 @@
-import type { CloudFeatures, CloudFunctions, ExtendedSettings, ExternalAsset, ICloud, IFileManager, internal } from '../types/lib';
+import type { CloudFeatures, CloudFunctions, ExtendedSettings, ExternalAsset, ICloud, IFileManager, Internal } from '../types/lib';
 import type { CloudDatabase, CloudService, CloudStorage, CloudStorageAction, CloudStorageDownload, CloudStorageUpload } from '../types/lib/squared';
 
 import path = require('path');
@@ -10,14 +10,14 @@ import Module from '../module';
 
 type CloudModule = ExtendedSettings.CloudModule;
 
-type ServiceClient = internal.Cloud.ServiceClient;
-type UploadHost = internal.Cloud.UploadHost;
-type UploadCallback = internal.Cloud.UploadCallback;
-type DownloadHost = internal.Cloud.DownloadHost;
-type DownloadCallback = internal.Cloud.DownloadCallback;
-type FinalizeState = internal.Cloud.FinalizeState;
-type FinalizeResult = internal.Cloud.FinalizeResult;
-type CacheTimeout = internal.Cloud.CacheTimeout;
+type ServiceClient = Internal.Cloud.ServiceClient;
+type UploadHost = Internal.Cloud.UploadHost;
+type UploadCallback = Internal.Cloud.UploadCallback;
+type DownloadHost = Internal.Cloud.DownloadHost;
+type DownloadCallback = Internal.Cloud.DownloadCallback;
+type FinalizeState = Internal.Cloud.FinalizeState;
+type FinalizeResult = Internal.Cloud.FinalizeResult;
+type CacheTimeout = Internal.Cloud.CacheTimeout;
 
 const CLOUD_SERVICE: ObjectMap<ServiceClient> = {};
 const CLOUD_UPLOAD: ObjectMap<UploadHost> = {};

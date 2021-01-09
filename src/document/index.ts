@@ -1,4 +1,4 @@
-import type { ExtendedSettings, ExternalAsset, IDocument, IFileManager, RequestBody, internal } from '../types/lib';
+import type { ExtendedSettings, ExternalAsset, IDocument, IFileManager, Internal, RequestBody } from '../types/lib';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -7,11 +7,11 @@ import Module from '../module';
 
 type DocumentModule = ExtendedSettings.DocumentModule;
 
-type SourceMapInput = internal.Document.SourceMapInput;
-type SourceMapOutput = internal.Document.SourceMapOutput;
-type PluginConfig = internal.Document.PluginConfig;
-type Transformer = internal.Document.Transformer;
-type ConfigOrTransformer = internal.Document.ConfigOrTransformer;
+type SourceMapInput = Internal.Document.SourceMapInput;
+type SourceMapOutput = Internal.Document.SourceMapOutput;
+type PluginConfig = Internal.Document.PluginConfig;
+type Transformer = Internal.Document.Transformer;
+type ConfigOrTransformer = Internal.Document.ConfigOrTransformer;
 
 abstract class Document extends Module implements IDocument {
     public static init(this: IFileManager, document: IDocument) {}
