@@ -195,13 +195,15 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Empty buckets in cloud storage', 'finalize'], err));
+            await Promise.all(tasks).catch(err => this.writeFail(['Empty buckets [cloud storage]', 'finalize'], err));
             tasks = [];
         }
         if (rawFiles.length) {
-            rawFiles.forEach(item => tasks.push(...Cloud.uploadAsset.call(this, state, item)));
+            for (const item of rawFiles) {
+                tasks.push(...Cloud.uploadAsset.call(this, state, item));
+            }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail(['Upload raw assets to cloud', 'finalize'], err));
+                await Promise.all(tasks).catch(err => this.writeFail(['Upload raw assets [cloud storage]', 'finalize'], err));
                 tasks = [];
             }
         }
@@ -218,7 +220,7 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Delete cloud temporary files', 'finalize'], err));
+            await Promise.all(tasks).catch(err => this.writeFail(['Delete temporary files [cloud storage]', 'finalize'], err));
             tasks = [];
         }
         for (const item of this.assets) {
@@ -269,7 +271,7 @@ class Cloud extends Module implements ICloud {
                                                     }
                                                 }
                                                 catch (err) {
-                                                    this.writeFail(['Write buffer', data.service], err);
+                                                    this.writeFail(['Unable to write buffer', data.service], err);
                                                 }
                                             }
                                         }, bucketGroup));
@@ -286,7 +288,7 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Download from cloud', 'finalize'], err));
+            await Promise.all(tasks).catch(err => this.writeFail(['Download objects [cloud storage]', 'finalize'], err));
         }
         return { compressed } as FinalizeResult;
     }

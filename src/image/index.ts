@@ -7,24 +7,17 @@ type CropData = internal.Image.CropData;
 type RotateData = internal.Image.RotateData;
 type QualityData = internal.Image.QualityData;
 
-const REGEXP_RESIZE = /\(\s*(\d+|auto)\s*x\s*(\d+|auto)(?:\s*\[\s*(bilinear|bicubic|hermite|bezier)\s*\])?(?:\s*\^\s*(contain|cover|scale)(?:\s*\[\s*(left|center|right)?(?:\s*\|?\s*(top|middle|bottom))?\s*\])?)?(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\)/;
-const REGEXP_CROP = /\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*\|\s*(\d+)\s*x\s*(\d+)\s*\)/;
-const REGEXP_ROTATE = /\{\s*([\d\s,]+)(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\}/;
-const REGEXP_OPACITY = /\|\s*(\d*\.\d+)\s*\|/;
-const REGEXP_QUALITY = /\|\s*(\d+)(?:\s*\[\s*(photo|picture|drawing|icon|text)\s*\])?(?:\s*\[\s*(\d+)\s*\])?\s*\|/;
-const REGEXP_METHOD = /!\s*([A-Za-z$][\w$]*)/g;
-
 const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : NaN;
 
 abstract class Image extends Module implements IImage {
     parseCrop(value: string) {
-        const match = REGEXP_CROP.exec(value);
+        const match = /\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*\|\s*(\d+)\s*x\s*(\d+)\s*\)/.exec(value);
         if (match) {
             return { x: +match[1], y: +match[2], width: +match[3], height: +match[4] } as CropData;
         }
     }
     parseOpacity(value: string) {
-        const match = REGEXP_OPACITY.exec(value);
+        const match = /\|\s*(\d*\.\d+)\s*\|/.exec(value);
         if (match) {
             const opacity = +match[1];
             if (opacity >= 0 && opacity < 1) {
@@ -34,7 +27,7 @@ abstract class Image extends Module implements IImage {
         return NaN;
     }
     parseQuality(value: string) {
-        const match = REGEXP_QUALITY.exec(value);
+        const match = /\|\s*(\d+)(?:\s*\[\s*(photo|picture|drawing|icon|text)\s*\])?(?:\s*\[\s*(\d+)\s*\])?\s*\|/.exec(value);
         if (match) {
             const result: QualityData = { value: NaN, preset: match[2], nearLossless: NaN };
             const quality = +match[1];
@@ -51,13 +44,13 @@ abstract class Image extends Module implements IImage {
         }
     }
     parseResize(value: string) {
-        const match = REGEXP_RESIZE.exec(value);
+        const match = /\(\s*(\d+|auto)\s*x\s*(\d+|auto)(?:\s*\[\s*(bilinear|bicubic|hermite|bezier)\s*\])?(?:\s*\^\s*(contain|cover|scale)(?:\s*\[\s*(left|center|right)?(?:\s*\|?\s*(top|middle|bottom))?\s*\])?)?(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\)/.exec(value);
         if (match) {
             return { width: match[1] === 'auto' ? Infinity : +match[1], height: match[2] === 'auto' ? Infinity : +match[2], mode: match[4] || 'resize', algorithm: match[3], align: [match[5], match[6]], color: parseHexDecimal(match[7]) } as ResizeData;
         }
     }
     parseRotate(value: string) {
-        const match = REGEXP_ROTATE.exec(value);
+        const match = /\{\s*([\d\s,]+)(?:\s*#\s*([A-Fa-f\d]{1,8}))?\s*\}/.exec(value);
         if (match) {
             const result = new Set<number>();
             for (const segment of match[1].split(',')) {
@@ -69,10 +62,10 @@ abstract class Image extends Module implements IImage {
         }
     }
     parseMethod(value: string) {
-        REGEXP_METHOD.lastIndex = 0;
         const result: string[] = [];
+        const pattern = /!\s*([A-Za-z$][\w$]*)/g;
         let match: Null<RegExpExecArray>;
-        while (match = REGEXP_METHOD.exec(value)) {
+        while (match = pattern.exec(value)) {
             result.push(match[1]);
         }
         if (result.length) {

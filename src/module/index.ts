@@ -218,7 +218,7 @@ const Module = class implements IModule {
             }
             message = ' ' + chalk.blackBright('(') + message + chalk.blackBright(')');
         }
-        console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase()) + chalk.blackBright(':') + ' ' + value + (message || ''));
+        console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase()) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
     }
     get logType() {
         return LOG_TYPE;

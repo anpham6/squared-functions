@@ -1078,7 +1078,9 @@ class FileManager extends Module implements IFileManager {
         }
         if (this.Cloud) {
             const { compressed } = await Cloud.finalize.call(this, this.Cloud);
-            compressed.forEach(item => compressMap.add(item));
+            for (const item of compressed) {
+                compressMap.add(item);
+            }
         }
         if (this.Compress) {
             for (const item of this.assets) {
