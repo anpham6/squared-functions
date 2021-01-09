@@ -1015,7 +1015,7 @@ class FileManager extends Module implements IFileManager {
                         .then(() => {
                             this.formatMessage(this.logType.PROCESS, 'gulp', ['Executing task...', task], data.gulpfile);
                             const time = Date.now();
-                            child_process.exec(`gulp ${task} --gulpfile "${data.gulpfile}" --cwd "${tempDir}"`, { cwd: process.cwd() }, err => {
+                            child_process.exec(`gulp ${task} --gulpfile "${data.gulpfile.replace(/\\/g, '\\\\')}" --cwd "${tempDir.replace(/\\/g, '\\\\')}"`, { cwd: process.cwd() }, err => {
                                 if (!err) {
                                     Promise.all(data.items.map(uri => fs.unlink(uri).then(() => this.delete(uri))))
                                         .then(() => {
