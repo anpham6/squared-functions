@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "npm run build && copyfiles -a ./publish/**/* -u 1 ../squared/node_modules/@squared-functions && copyfiles -a ./publish/**/* -u 1 ../squared-express/node_modules/@squared-functions",
     "prod": "rimraf build/* && eslint ./src/**/*.ts && npm run build",
-    "build": "tsc && rollup --silent -c rollup.config.js && rollup --silent -c ./src/cloud/rollup.config.js && rollup --silent -c ./src/document/rollup.config.js && copyfiles -a ./src/types/lib/* -u 1 ./publish",
+    "build": "tsc && rollup --silent -c rollup.config.js && rollup --silent -c ./src/cloud/rollup.config.js && rollup --silent -c ./src/document/rollup.config.js && copyfiles -a ./src/**/*.d.ts -u 1 ./publish",
     "dev-publish": "npm publish --dry-run && cd publish && cd types && npm publish --dry-run && npm publish --dry-run && cd ../module && npm publish --dry-run && cd ../node && npm publish --dry-run && cd ../document && npm publish --dry-run && cd ../cloud && npm publish --dry-run && cd ../compress && npm publish --dry-run && cd ../image && npm publish --dry-run && cd ../watch && cd ../file-manager && npm publish --dry-run",
     "prod-publish": "npm publish && cd publish && cd types && npm publish && cd ../module && npm publish && cd ../node && npm publish && cd ../document && npm publish && cd ../cloud && npm publish && cd ../compress && npm publish && cd ../image && npm publish && cd ../watch && npm publish && cd ../file-manager && npm publish"
   },
