@@ -184,7 +184,7 @@ function getRootDirectory(location: string, asset: string): [string[], string[]]
     return [locationDir.filter(value => value), assetDir];
 }
 
-function findRelativePath(this: IFileManager, file: DocumentAsset, location: string, baseDirectory?: string, partial?: boolean) {
+function findRelativeUri(this: IFileManager, file: DocumentAsset, location: string, baseDirectory?: string, partial?: boolean) {
     const origin = file.uri!;
     let asset: Undef<DocumentAsset>;
     if (partial) {
@@ -225,23 +225,24 @@ function findRelativePath(this: IFileManager, file: DocumentAsset, location: str
     }
 }
 
-function transformCss(this: IFileManager, document: IChromeDocument, file: DocumentAsset, content: string) {
-    const getCloudUUID = (item: Undef<DocumentAsset>, url: string) => {
-        if (item && this.Cloud?.getStorage('upload', item.cloudStorage)) {
-            if (!item.inlineCssCloud) {
-                (file.inlineCssMap ||= {})[item.inlineCssCloud = uuid.v4()] = url;
-            }
-            return item.inlineCssCloud;
+function getCssUrlOrCloudUUID(this: IFileManager, file: DocumentAsset, image: Undef<DocumentAsset>, url: string) {
+    if (image && this.Cloud?.getStorage('upload', image.cloudStorage)) {
+        if (!image.inlineCssCloud) {
+            (file.inlineCssMap ||= {})[image.inlineCssCloud = uuid.v4()] = url;
         }
-        return url;
-    };
+        return image.inlineCssCloud;
+    }
+    return url;
+}
+
+function transformCss(this: IFileManager, document: IChromeDocument, file: DocumentAsset, content: string) {
     const cssUri = file.uri!;
     let output: Undef<string>;
     for (const item of this.assets as DocumentAsset[]) {
         if (item.base64 && !item.outerHTML && item.uri && Document.fromSameOrigin(cssUri, item.uri)) {
-            const url = findRelativePath.call(this, file, item.uri, document.baseDirectory);
+            const url = findRelativeUri.call(this, file, item.uri, document.baseDirectory);
             if (url) {
-                const replaced = replaceUri(output || content, [item.base64.replace(/\+/g, '\\+')], getCloudUUID(item, url), false, true);
+                const replaced = replaceUri(output || content, [item.base64.replace(/\+/g, '\\+')], getCssUrlOrCloudUUID.call(this, file, item, url), false, true);
                 if (replaced) {
                     output = replaced;
                 }
@@ -260,15 +261,15 @@ function transformCss(this: IFileManager, document: IChromeDocument, file: Docum
         const url = match[1].trim().replace(/^["']\s*/, '').replace(/\s*["']$/, '');
         if (!Node.isFileURI(url) || Document.fromSameOrigin(cssUri, url)) {
             const baseDirectory = document.baseDirectory;
-            let location = findRelativePath.call(this, file, url, baseDirectory, true);
+            let location = findRelativeUri.call(this, file, url, baseDirectory, true);
             if (location) {
                 const uri = Node.resolvePath(url, cssUri);
-                output = (output || content).replace(match[0], `url(${getCloudUUID(uri ? this.findAsset(uri) : undefined, location)})`);
+                output = (output || content).replace(match[0], `url(${getCssUrlOrCloudUUID.call(this, file, uri ? this.findAsset(uri) : undefined, location)})`);
             }
             else if (baseDirectory && (location = Node.resolvePath(url, baseDirectory))) {
                 const asset = this.findAsset(location);
-                if (asset && (location = findRelativePath.call(this, file, location, baseDirectory))) {
-                    output = (output || content).replace(match[0], `url(${getCloudUUID(asset, location)})`);
+                if (asset && (location = findRelativeUri.call(this, file, location, baseDirectory))) {
+                    output = (output || content).replace(match[0], `url(${getCssUrlOrCloudUUID.call(this, file, asset, location)})`);
                 }
             }
         }
@@ -277,7 +278,7 @@ function transformCss(this: IFileManager, document: IChromeDocument, file: Docum
             if (asset) {
                 const pathname = file.pathname;
                 const count = pathname && pathname !== '/' && file.uri !== document.baseUrl ? pathname.split(/[\\/]/).length : 0;
-                output = (output || content).replace(match[0], `url(${getCloudUUID(asset, (count ? '../'.repeat(count) : '') + asset.relativeUri)})`);
+                output = (output || content).replace(match[0], `url(${getCssUrlOrCloudUUID.call(this, file, asset, (count ? '../'.repeat(count) : '') + asset.relativeUri)})`);
             }
         }
     }
@@ -733,7 +734,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Cache base64', 'finalize'], err));
+            await Document.allSettled(tasks, ['Cache base64 <finalize>', instance.documentName]);
             tasks = [];
         }
         const replaced = assets.filter(item => item.originalName && !item.invalid);
@@ -824,7 +825,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Replace UTF-8', 'finalize'], err));
+            await Document.allSettled(tasks, ['Replace UTF-8 <finalize>', instance.documentName]);
         }
         if (instance.htmlFiles.length) {
             for (const item of assets) {
@@ -982,7 +983,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 tasks.push(...Array.from(modifiedCss).map(item => fs.writeFile(item.localUri!, item.sourceUTF8, 'utf8')));
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail(['Update CSS', 'finalize'], err));
+                await Document.allSettled(tasks, ['Update "text/css" <cloud storage>', this.documentName]);
                 tasks = [];
             }
         }
@@ -996,7 +997,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Upload "text/css" to cloud', 'finalize'], err));
+            await Document.allSettled(tasks, ['Upload "text/css" <cloud storage>', this.documentName]);
             tasks = [];
         }
         if (this._cloudModifiedHtml) {
@@ -1015,7 +1016,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     fs.writeFileSync(item.localUri!, sourceUTF8, 'utf8');
                 }
                 catch (err) {
-                    this.writeFail(['Update HTML', 'finalize'], err);
+                    this.writeFail(['Update "text/html" <cloud storage>', this.documentName], err);
                 }
                 if (item.cloudStorage) {
                     if (item.compress) {
@@ -1026,7 +1027,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail(['Upload "text/html" to cloud', 'finalize'], err));
+                await Document.allSettled(tasks, ['Upload "text/html" <cloud storage>', this.documentName]);
             }
         }
     }

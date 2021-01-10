@@ -25,6 +25,7 @@ type ConfigOrTransformer = functions.Internal.Document.ConfigOrTransformer
 declare namespace functions {
     type CloudFeatures = "storage" | "database";
     type CloudFunctions = "upload" | "download";
+    type ModuleFormatMessageMethod = (type: Internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options?: LogMessageOptions) => void;
     type ModuleWriteFailMethod = (value: string | [string, string], message?: unknown) => void;
     type FileManagerQueueImageMethod = (data: FileData, ouputType: string, saveAs: string, command?: string) => Undef<string>;
     type FileManagerFinalizeImageMethod<T = void> = (data: Internal.Image.OutputData, error?: Null<Error>) => T;
@@ -413,7 +414,7 @@ declare namespace functions {
         parseFunction(value: string): Null<FunctionType<string>>;
         joinPosix(...paths: Undef<string>[]): string;
         getTempDir(subDir?: boolean, filename?: string): string;
-        formatMessage(type: Internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options?: LogMessageOptions): void;
+        formatMessage: ModuleFormatMessageMethod;
         formatFail(type: Internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown): void;
         writeFail: ModuleWriteFailMethod;
         writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions): void;
@@ -421,6 +422,8 @@ declare namespace functions {
     }
 
     interface ModuleConstructor {
+        formatMessage: ModuleFormatMessageMethod;
+        allSettled<T>(values: readonly (T | PromiseLike<T>)[], rejected?: string | [string, string]): Promise<PromiseSettledResult<T>[]>;
         loadSettings(value: Settings): void;
         getFileSize(localUri: string): number;
         toPosix(value: string, filename?: string): string;

@@ -15,7 +15,7 @@ function loadPlugins(plugins: RollupPlugins, writeFail: ModuleWriteFailMethod) {
                 result.push(require(plugin[0])(plugin[1]));
             }
             catch (err) {
-                writeFail([`Install required? [npm i ${plugin[0]}]`, 'rollup'], err);
+                writeFail([`Install required? <npm i ${plugin[0]}>`, 'rollup'], err);
             }
         }
     }

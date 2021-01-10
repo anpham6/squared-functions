@@ -125,18 +125,20 @@ class Cloud extends Module implements ICloud {
                                 }
                             }
                         }
-                        Promise.all(uploadTasks)
-                            .then(async result => {
-                                if (!uploadDocument && result[0]) {
-                                    for (const { instance } of this.Document) {
-                                        if (instance.cloudUpload && await instance.cloudUpload(state, file, result[0], active)) {
-                                            break;
+                        Module.allSettled(uploadTasks).then(async result => {
+                            if (!uploadDocument) {
+                                for (const item of result) {
+                                    if (item.status === 'fulfilled' && item.value) {
+                                        for (const { instance } of this.Document) {
+                                            if (instance.cloudUpload && await instance.cloudUpload(state, file, item.value, active)) {
+                                                break;
+                                            }
                                         }
                                     }
                                 }
-                                resolve();
-                            })
-                            .catch(() => resolve());
+                            }
+                            resolve();
+                        });
                     });
                 }));
             }
@@ -195,7 +197,7 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Empty buckets [cloud storage]', 'finalize'], err));
+            await Module.allSettled(tasks, ['Empty bucket <finalize>', 'cloud storage']);
             tasks = [];
         }
         if (rawFiles.length) {
@@ -203,7 +205,7 @@ class Cloud extends Module implements ICloud {
                 tasks.push(...Cloud.uploadAsset.call(this, state, item));
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail(['Upload raw assets [cloud storage]', 'finalize'], err));
+                await Module.allSettled(tasks, ['Upload raw assets <finalize>', 'cloud storage']);
                 tasks = [];
             }
         }
@@ -220,7 +222,7 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Delete temporary files [cloud storage]', 'finalize'], err));
+            await Module.allSettled(tasks, ['Delete temporary files <finalize>', 'cloud storage']);
             tasks = [];
         }
         for (const item of this.assets) {
@@ -288,7 +290,7 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Download objects [cloud storage]', 'finalize'], err));
+            await Module.allSettled(tasks, ['Download objects <finalize>', 'cloud storage']);
         }
         return { compressed } as FinalizeResult;
     }

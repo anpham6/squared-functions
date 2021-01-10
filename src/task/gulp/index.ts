@@ -119,7 +119,7 @@ class Gulp extends Task {
             }));
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Exec tasks', 'finalize'], err));
+            await Task.allSettled(tasks, ['Execute tasks <finalize>', instance.taskName]);
         }
     }
 
@@ -132,6 +132,7 @@ class Gulp extends Task {
     execute(manager: IFileManager, gulp: GulpTask, callback: (value?: unknown) => void) {
         const { task, origDir, data } = gulp;
         const tempDir = this.getTempDir(true);
+        const errorHint = this.taskName + ': ' + task;
         try {
             fs.mkdirpSync(tempDir);
             Promise.all(data.items.map(uri => fs.copyFile(uri, path.join(tempDir, path.basename(uri)))))
@@ -154,7 +155,7 @@ class Gulp extends Task {
                                                     callback();
                                                 })
                                                 .catch(err_w => {
-                                                    this.writeFail(['Unable to replace original files', 'gulp: ' + task], err_w);
+                                                    this.writeFail(['Unable to replace files <execute>', errorHint], err_w);
                                                     callback();
                                                 });
                                         }
@@ -163,18 +164,18 @@ class Gulp extends Task {
                                         }
                                     });
                                 })
-                                .catch(error => this.writeFail(['Unable to delete original files', 'gulp: ' + task], error));
+                                .catch(error => this.writeFail(['Unable to delete files <execute>', errorHint], error));
                         }
                         else {
-                            this.writeFail(['Unknown', 'gulp: ' + task], err);
+                            this.writeFail(['Unknown <execute>', errorHint], err);
                             callback();
                         }
                     });
                 })
-                .catch(err => this.writeFail(['Unable to copy original files', 'gulp: ' + task], err));
+                .catch(err => this.writeFail(['Unable to copy original files', errorHint], err));
         }
         catch (err) {
-            this.writeFail(['Unknown', 'gulp: ' + task], err);
+            this.writeFail(['Unknown', errorHint], err);
             callback();
         }
     }

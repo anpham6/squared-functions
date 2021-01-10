@@ -10,7 +10,7 @@ function loadPlugins(plugins: [string, Undef<PlainObject>][], writeFail: ModuleW
                 result.push(require(plugin[0])(plugin[1]));
             }
             catch (err) {
-                writeFail([`Install required? [npm i ${plugin[0]}]`, 'posthtml'], err);
+                writeFail([`Install required? <npm i ${plugin[0]}>`, 'posthtml'], err);
             }
         }
     }

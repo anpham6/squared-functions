@@ -486,7 +486,7 @@ class FileManager extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                return Promise.all(tasks).catch(err => this.writeFail(['Compress', path.basename(localUri)], err));
+                return Module.allSettled(tasks, ['Compress <finalize>', path.basename(localUri)]);
             }
         }
     }
@@ -876,7 +876,7 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Write modified files', 'finalize'], err));
+            await Module.allSettled(tasks, 'Write modified files <finalize>');
             tasks = [];
         }
         for (const value of this.filesToRemove) {
@@ -891,7 +891,7 @@ class FileManager extends Module implements IFileManager {
             );
         }
         if (tasks.length) {
-            await Promise.all(tasks).catch(err => this.writeFail(['Delete temporary files', 'finalize'], err));
+            await Module.allSettled(tasks, 'Delete temporary files <finalize>');
             tasks = [];
         }
         if (this.Compress) {
@@ -916,7 +916,7 @@ class FileManager extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail(['Unable to compress images', 'finalize'], err));
+                await Module.allSettled(tasks, 'Unable to compress images <finalize>');
                 tasks = [];
             }
         }
@@ -941,7 +941,7 @@ class FileManager extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail(['Compress files', 'finalize'], err));
+                await Module.allSettled(tasks, 'Compress files <finalize>');
                 tasks = [];
             }
         }

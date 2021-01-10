@@ -26,7 +26,123 @@ export enum LOG_TYPE {
     TIME_ELAPSED = 128
 }
 
+function allSettled<T>(values: readonly (T | PromiseLike<T>)[]) {
+    return Promise.all(values.map((promise: Promise<T>) => promise.then(value => ({ status: 'fulfilled', value })).catch(reason => ({ status: 'rejected', reason })) as Promise<PromiseSettledResult<T>>));
+}
+
+function writeMessage(title: string, value: string, message?: unknown, options: LogMessageOptions = {}) {
+    const { titleColor = 'green', titleBgColor = 'bgBlack', valueColor, valueBgColor, messageColor, messageBgColor } = options;
+    if (valueColor) {
+        value = chalk[valueColor](value);
+    }
+    if (valueBgColor) {
+        value = chalk[valueBgColor](value);
+    }
+    if (message) {
+        if (messageColor) {
+            message = chalk[messageColor](message);
+        }
+        if (messageBgColor) {
+            message = chalk[messageBgColor](message);
+        }
+        message = ' ' + chalk.blackBright('(') + message + chalk.blackBright(')');
+    }
+    console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase()) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
+}
+
 const Module = class implements IModule {
+    public static formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
+        switch (type) {
+            case LOG_TYPE.SYSTEM:
+                if (SETTINGS.system === false) {
+                    return;
+                }
+                break;
+            case LOG_TYPE.PROCESS:
+                if (SETTINGS.process === false) {
+                    return;
+                }
+                options.titleColor ||= 'magenta';
+                break;
+            case LOG_TYPE.NODE:
+                if (SETTINGS.node === false) {
+                    return;
+                }
+                options.titleColor ||= 'black';
+                options.titleBgColor ||= 'bgWhite';
+                options.hintColor ||= 'yellow';
+                break;
+            case LOG_TYPE.COMPRESS:
+                if (SETTINGS.compress === false) {
+                    return;
+                }
+                break;
+            case LOG_TYPE.WATCH:
+                if (SETTINGS.watch === false) {
+                    return;
+                }
+                break;
+            case LOG_TYPE.CLOUD_STORAGE:
+                if (SETTINGS.cloud_storage === false) {
+                    return;
+                }
+                break;
+            case LOG_TYPE.CLOUD_DATABASE:
+                if (SETTINGS.cloud_database === false) {
+                    return;
+                }
+                break;
+            case LOG_TYPE.TIME_ELAPSED:
+                if (SETTINGS.time_elapsed === false) {
+                    return;
+                }
+                options.hintColor ||= 'magenta';
+                break;
+            default:
+                if (SETTINGS.unknown === false) {
+                    return;
+                }
+                break;
+        }
+        if (Array.isArray(value)) {
+            const length = value[1] ? value[1].length : 0;
+            if (length) {
+                const formatHint = (hint: string) => {
+                    const { hintColor, hintBgColor } = options;
+                    if (hintColor) {
+                        hint = chalk[hintColor](hint);
+                    }
+                    if (hintBgColor) {
+                        hint = chalk[hintBgColor](hint);
+                    }
+                    return hint;
+                };
+                value = value[0].padEnd(38) + (length < 32 ? chalk.blackBright(' '.repeat(32 - length)) : '') + chalk.blackBright('[') + formatHint(length > 32 ? value[1].substring(0, 29) + '...' : value[1]) + chalk.blackBright(']');
+            }
+            else {
+                value = value[0].padEnd(72);
+            }
+        }
+        else {
+            value = value.padEnd(72);
+        }
+        writeMessage(title.padEnd(6), value, message, options);
+    }
+
+    public static allSettled<T>(values: readonly (T | PromiseLike<T>)[], rejected?: string | [string, string]) {
+        const promise = Promise.allSettled ? Promise.allSettled(values) as Promise<PromiseSettledResult<T>[]> : allSettled(values);
+        if (rejected) {
+            promise.then(result => {
+                for (const item of result) {
+                    if (item.status === 'rejected') {
+                        this.formatMessage(LOG_TYPE.SYSTEM, 'FAIL', rejected, item.reason, { titleColor: 'white', titleBgColor: 'bgRed' });
+                    }
+                }
+            });
+        }
+        return promise;
+    }
+
     public static loadSettings(value: Settings) {
         if (value.logger) {
             SETTINGS = value.logger;
@@ -125,100 +241,10 @@ const Module = class implements IModule {
         this.formatMessage(type, title, value, message, options);
     }
     formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
-        switch (type) {
-            case LOG_TYPE.SYSTEM:
-                if (SETTINGS.system === false) {
-                    return;
-                }
-                break;
-            case LOG_TYPE.PROCESS:
-                if (SETTINGS.process === false) {
-                    return;
-                }
-                options.titleColor ||= 'magenta';
-                break;
-            case LOG_TYPE.NODE:
-                if (SETTINGS.node === false) {
-                    return;
-                }
-                options.titleColor ||= 'black';
-                options.titleBgColor ||= 'bgWhite';
-                options.hintColor ||= 'yellow';
-                break;
-            case LOG_TYPE.COMPRESS:
-                if (SETTINGS.compress === false) {
-                    return;
-                }
-                break;
-            case LOG_TYPE.WATCH:
-                if (SETTINGS.watch === false) {
-                    return;
-                }
-                break;
-            case LOG_TYPE.CLOUD_STORAGE:
-                if (SETTINGS.cloud_storage === false) {
-                    return;
-                }
-                break;
-            case LOG_TYPE.CLOUD_DATABASE:
-                if (SETTINGS.cloud_database === false) {
-                    return;
-                }
-                break;
-            case LOG_TYPE.TIME_ELAPSED:
-                if (SETTINGS.time_elapsed === false) {
-                    return;
-                }
-                options.hintColor ||= 'magenta';
-                break;
-            default:
-                if (SETTINGS.unknown === false) {
-                    return;
-                }
-                break;
-        }
-        if (Array.isArray(value)) {
-            const length = value[1] ? value[1].length : 0;
-            if (length) {
-                const formatHint = (hint: string) => {
-                    const { hintColor, hintBgColor } = options;
-                    if (hintColor) {
-                        hint = chalk[hintColor](hint);
-                    }
-                    if (hintBgColor) {
-                        hint = chalk[hintBgColor](hint);
-                    }
-                    return hint;
-                };
-                value = value[0].padEnd(38) + (length < 32 ? chalk.blackBright(' '.repeat(32 - length)) : '') + chalk.blackBright('[') + formatHint(length > 32 ? value[1].substring(0, 29) + '...' : value[1]) + chalk.blackBright(']');
-            }
-            else {
-                value = value[0].padEnd(72);
-            }
-        }
-        else {
-            value = value.padEnd(72);
-        }
-        this.writeMessage(title.padEnd(6), value, message, options);
+        Module.formatMessage(type, title, value, message, options);
     }
     writeMessage(title: string, value: string, message?: unknown, options: LogMessageOptions = {}) {
-        const { titleColor = 'green', titleBgColor = 'bgBlack', valueColor, valueBgColor, messageColor, messageBgColor } = options;
-        if (valueColor) {
-            value = chalk[valueColor](value);
-        }
-        if (valueBgColor) {
-            value = chalk[valueBgColor](value);
-        }
-        if (message) {
-            if (messageColor) {
-                message = chalk[messageColor](message);
-            }
-            if (messageBgColor) {
-                message = chalk[messageBgColor](message);
-            }
-            message = ' ' + chalk.blackBright('(') + message + chalk.blackBright(')');
-        }
-        console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase()) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
+        writeMessage(title, value, message, options);
     }
     get logType() {
         return LOG_TYPE;
