@@ -124,7 +124,7 @@ Tasks can be performed with Gulp to take advantage of their pre-built plugin rep
   "type": "js",
   "tasks": [
     { handler: "gulp", task: "minify" },
-    { handler: "gulp", task: "beautify" },
+    { handler: "gulp", task: "beautify", preceding: "true" } // execute tasks before transformations
   ]
 }
 
@@ -145,7 +145,7 @@ const options = {
 
 ```xml
 <!-- chrome -->
-<script src="/common/system.js" data-chrome-tasks="gulp:minify+gulp:beautify"></script>
+<script src="/common/system.js" data-chrome-tasks="gulp:minify+gulp:beautify:true"></script>
 
 <!-- android -->
 <img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg" data-android-tasks="gulp:compress" />

@@ -276,6 +276,20 @@ class FileManager extends Module implements IFileManager {
         file.relativeUri = this.getRelativeUri(file);
         return { pathname, localUri };
     }
+    writeLocalUri(file: ExternalAsset) {
+        const buffer = file.sourceUTF8 ? Buffer.from(file.sourceUTF8, 'utf8') : file.buffer;
+        if (buffer) {
+            try {
+                fs.writeFileSync(file.localUri!, buffer);
+                file.buffer = buffer;
+                return true;
+            }
+            catch (err) {
+                this.writeFail(['Unable to write buffer', file.localUri!], err);
+            }
+        }
+        return false;
+    }
     getRelativeUri(file: ExternalAsset, filename = file.filename) {
         return Node.joinPosix(file.moveTo, file.pathname, filename);
     }
@@ -319,7 +333,7 @@ class FileManager extends Module implements IFileManager {
         if (file.document) {
             for (const { instance } of this.Document) {
                 if (hasDocument(file.document, instance.documentName) && instance.formatContent) {
-                    content = await instance.formatContent(this, instance, file, content);
+                    content = await instance.formatContent(this, file, content);
                 }
             }
         }
@@ -342,7 +356,7 @@ class FileManager extends Module implements IFileManager {
                 if (file.document) {
                     for (const { instance } of this.Document) {
                         if (hasDocument(file.document, instance.documentName) && instance.formatContent) {
-                            value = await instance.formatContent(this, instance, file, value);
+                            value = await instance.formatContent(this, file, value);
                         }
                     }
                 }
@@ -537,6 +551,18 @@ class FileManager extends Module implements IFileManager {
     async finalizeAsset(data: FileData, parent?: ExternalAsset) {
         const file = data.file;
         const localUri = file.localUri!;
+        if (file.tasks) {
+            const taskName = new Set<string>();
+            for (const task of file.tasks) {
+                if (task.preceding && !taskName.has(task.handler)) {
+                    const handler = this.Task.find(item => task.handler === item.instance.taskName);
+                    if (handler) {
+                        await handler.constructor.using.call(this, handler.instance, [file], true);
+                        taskName.add(task.handler);
+                    }
+                }
+            }
+        }
         if (this.Image) {
             const mimeType = file.mimeType || mime.lookup(localUri);
             if (mimeType && mimeType.startsWith('image/')) {
@@ -922,9 +948,9 @@ class FileManager extends Module implements IFileManager {
         }
         if (this.taskAssets.length) {
             for (const { instance, constructor } of this.Task) {
-                const assets = this.taskAssets.filter(item => item.tasks!.find(data => data.handler === instance.taskName && item.localUri && !item.invalid));
+                const assets = this.taskAssets.filter(item => item.tasks!.find(data => data.handler === instance.taskName && !data.preceding && item.localUri && !item.invalid));
                 if (assets.length) {
-                    await constructor.finalize.call(this, instance, assets);
+                    await constructor.using.call(this, instance, assets);
                 }
             }
         }

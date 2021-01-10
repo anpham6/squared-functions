@@ -268,11 +268,11 @@ declare namespace functions {
     interface ITask extends IModule {
         module: ExtendedSettings.DocumentModule;
         readonly taskName: string;
-        execute(manager: IFileManager, item: PlainObject, callback: (value?: unknown) => void): void;
+        execute?(manager: IFileManager, task: PlainObject, callback: (value?: unknown) => void): void;
     }
 
     interface TaskConstructor extends ModuleConstructor {
-        finalize(this: IFileManager, task: ITask, assets: ExternalAsset[]): Promise<void>;
+        using(this: IFileManager, task: ITask, assets: ExternalAsset[], beforeStage?: boolean): Promise<void>;
         new(module: ExtendedSettings.DocumentModule): ITask;
     }
 
@@ -315,7 +315,7 @@ declare namespace functions {
         loadOptions(value: ConfigOrTransformer | string): Undef<ConfigOrTransformer>;
         loadConfig(value: string): Undef<StandardMap | string>;
         transform(type: string, format: string, value: string, input?: SourceMapInput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>>;
-        formatContent?(manager: IFileManager, document: IDocument, file: ExternalAsset, content: string): Promise<string>;
+        formatContent?(manager: IFileManager, file: ExternalAsset, content: string): Promise<string>;
         imageQueue?: FileManagerQueueImageMethod;
         imageFinalize?: FileManagerFinalizeImageMethod<boolean>;
         cloudInit?(state: FinalizeState): void;
@@ -376,6 +376,7 @@ declare namespace functions {
         completeAsyncTask: FileManagerCompleteAsyncTaskCallback;
         performFinalize(): void;
         setLocalUri(file: ExternalAsset): Internal.FileOutput;
+        writeLocalUri(file: ExternalAsset): boolean;
         getRelativeUri(file: ExternalAsset, filename?: string): string;
         assignUUID(data: Internal.DocumentData, attr: string, target?: any): Undef<string>;
         findAsset(uri: string): Undef<ExternalAsset>;

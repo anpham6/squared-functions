@@ -25,6 +25,7 @@ export interface OutputAction {
 export interface TaskAction {
     handler: string;
     task: string;
+    preceding?: boolean;
 }
 
 export interface LocationUri {

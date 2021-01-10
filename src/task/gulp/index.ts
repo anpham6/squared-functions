@@ -1,4 +1,4 @@
-import type { ExtendedSettings, ExternalAsset, IFileManager, ITask } from '../../types/lib';
+import type { ExtendedSettings, ExternalAsset, IFileManager } from '../../types/lib';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -20,7 +20,7 @@ interface GulpTask extends PlainObject {
 }
 
 class Gulp extends Task {
-    public static async finalize(this: IFileManager, instance: ITask, assets: ExternalAsset[]) {
+    public static async using(this: IFileManager, instance: Gulp, assets: ExternalAsset[], beforeStage = false) {
         const gulp = instance.module.settings as Undef<StringMap>;
         if (!gulp) {
             return;
@@ -31,21 +31,19 @@ class Gulp extends Task {
         for (const item of assets) {
             const origDir = path.dirname(item.localUri!);
             const scheduled = new Set<string>();
-            for (let { task } of item.tasks!) {
-                if (!scheduled.has(task = task.trim()) && gulp[task]) {
-                    const gulpfile = path.resolve(gulp[task]!);
-                    if (fs.existsSync(gulpfile)) {
-                        if (!taskMap.has(task)) {
-                            taskMap.set(task, new Map<string, GulpData>());
-                        }
-                        const dirMap = taskMap.get(task)!;
-                        if (!dirMap.has(origDir)) {
-                            dirMap.set(origDir, { gulpfile, items: [] });
-                        }
-                        dirMap.get(origDir)!.items.push(item.localUri!);
-                        scheduled.add(task);
-                        delete item.sourceUTF8;
+            let gulpfile: Undef<string>;
+            for (const { handler, task, preceding } of item.tasks!) {
+                if (instance.taskName === handler && !!preceding === beforeStage && !scheduled.has(task) && (gulpfile = gulp[task]) && (fs.existsSync(gulpfile = path.resolve(gulpfile)))) {
+                    if (!taskMap.has(task)) {
+                        taskMap.set(task, new Map<string, GulpData>());
                     }
+                    const dirMap = taskMap.get(task)!;
+                    if (!dirMap.has(origDir)) {
+                        dirMap.set(origDir, { gulpfile, items: [] });
+                    }
+                    dirMap.get(origDir)!.items.push(item.localUri!);
+                    scheduled.add(task);
+                    delete item.sourceUTF8;
                 }
             }
             if (scheduled.size) {

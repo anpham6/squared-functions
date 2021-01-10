@@ -872,16 +872,16 @@ class ChromeDocument extends Document implements IChromeDocument {
         this.unusedStyles = body.unusedStyles;
     }
 
-    async formatContent(manager: IFileManager, document: IChromeDocument, file: DocumentAsset, content: string) {
+    async formatContent(manager: IFileManager, file: DocumentAsset, content: string) {
         if (file.mimeType === '@text/css') {
-            const unusedStyles = document.unusedStyles;
+            const unusedStyles = this.unusedStyles;
             if (!file.preserve && unusedStyles) {
                 const result = removeCss(content, unusedStyles);
                 if (result) {
                     content = result;
                 }
             }
-            const result = transformCss.call(manager, document, file, content);
+            const result = transformCss.call(manager, this, file, content);
             if (result) {
                 content = result;
             }
