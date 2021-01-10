@@ -2,7 +2,7 @@
 
 interface ElementScope {
     watch?: boolean | WatchInterval;
-    tasks?: string[];
+    tasks?: TaskAction[];
 }
 
 interface Asset extends ElementScope {
@@ -14,12 +14,17 @@ interface TextAsset extends Asset, LocationUri {
     content?: string;
 }
 
-interface OutputAction {
+export interface OutputAction {
     moveTo?: string;
     commands?: string[];
     compress?: CompressFormat[];
-    document?: string[];
+    document?: string | string[];
     cloudStorage?: CloudStorage[];
+}
+
+export interface TaskAction {
+    handler: string;
+    task: string;
 }
 
 export interface LocationUri {
@@ -104,6 +109,7 @@ export interface RequestData extends PlainObject {
     assets?: FileAsset[];
     database?: CloudDatabase[];
     document?: string[];
+    task?: string[];
 }
 
 export interface ResponseData {

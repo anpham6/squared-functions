@@ -288,9 +288,9 @@ const escapePosix = (value: string) => value.replace(/[\\/]/g, '[\\\\/]');
 const isObject = (value: unknown): value is PlainObject => typeof value === 'object' && value !== null;
 
 class ChromeDocument extends Document implements IChromeDocument {
-    public static init(this: IFileManager, document: IChromeDocument) {
+    public static init(this: IFileManager, instance: IChromeDocument) {
         const assets = this.assets as DocumentAsset[];
-        const baseUrl = document.baseUrl;
+        const baseUrl = instance.baseUrl;
         assets.sort((a, b) => {
             if (a.bundleId && a.bundleId === b.bundleId) {
                 return a.bundleIndex! - b.bundleIndex!;
@@ -306,18 +306,18 @@ class ChromeDocument extends Document implements IChromeDocument {
         for (const item of assets) {
             switch (item.mimeType) {
                 case '@text/html':
-                    document.htmlFiles.push(item);
+                    instance.htmlFiles.push(item);
                     break;
                 case '@text/css':
-                    document.cssFiles.push(item);
+                    instance.cssFiles.push(item);
                     break;
             }
         }
     }
 
-    public static async using(this: IFileManager, document: IChromeDocument, file: DocumentAsset) {
+    public static async using(this: IFileManager, instance: IChromeDocument, file: DocumentAsset) {
         const { format, mimeType, localUri } = file;
-        const baseDirectory = document.baseDirectory;
+        const baseDirectory = instance.baseDirectory;
         switch (mimeType) {
             case '@text/html': {
                 let html = this.getUTF8String(file, localUri),
@@ -640,12 +640,12 @@ class ChromeDocument extends Document implements IChromeDocument {
                         }
                     }
                 }
-                file.sourceUTF8 = removeFileCommands(transformCss.call(this, document, file, source) || source);
+                file.sourceUTF8 = removeFileCommands(transformCss.call(this, instance, file, source) || source);
                 break;
             }
             case 'text/css':
             case '@text/css': {
-                const unusedStyles = file.preserve !== true && document?.unusedStyles;
+                const unusedStyles = file.preserve !== true && instance?.unusedStyles;
                 const transform = mimeType[0] === '@';
                 const trailing = await this.getTrailingContent(file);
                 const bundle = this.joinAllContent(localUri!);
@@ -662,7 +662,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                 }
                 if (transform) {
-                    const result = transformCss.call(this, document, file, source);
+                    const result = transformCss.call(this, instance, file, source);
                     if (result) {
                         source = result;
                         modified = true;
@@ -676,7 +676,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     source += bundle;
                 }
                 if (format) {
-                    const result = await document.transform('css', format, source, this.createSourceMap(file, source));
+                    const result = await instance.transform('css', format, source, this.createSourceMap(file, source));
                     if (result) {
                         this.writeSourceMap(result, file, source, modified);
                         source = result[0];
@@ -701,7 +701,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     source += bundle;
                 }
                 if (format) {
-                    const result = await document.transform('js', format, source, this.createSourceMap(file, source));
+                    const result = await instance.transform('js', format, source, this.createSourceMap(file, source));
                     if (result) {
                         this.writeSourceMap(result, file, source, modified);
                         source = result[0];
@@ -713,7 +713,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
     }
 
-    public static async finalize(this: IFileManager, document: IChromeDocument, assets: DocumentAsset[]) {
+    public static async finalize(this: IFileManager, instance: IChromeDocument, assets: DocumentAsset[]) {
         const inlineMap: StringMap = {};
         const base64Map: StringMap = {};
         const removeFile = (item: DocumentAsset) => {
@@ -781,19 +781,19 @@ class ChromeDocument extends Document implements IChromeDocument {
                 for (const asset of replaced) {
                     source = source.replace(new RegExp(escapePosix(manager.getRelativeUri(asset, asset.originalName)), 'g'), asset.relativeUri!);
                 }
-                if (document.productionRelease) {
-                    source = source.replace(new RegExp('(\\.\\./)*' + document.internalServerRoot, 'g'), '');
+                if (instance.productionRelease) {
+                    source = source.replace(new RegExp('(\\.\\./)*' + instance.internalServerRoot, 'g'), '');
                 }
             }
             if (formatting) {
-                const result = await document.transform('html', file.format!, source);
+                const result = await instance.transform('html', file.format!, source);
                 if (result) {
                     source = result[0];
                 }
             }
             file.sourceUTF8 = source;
         }
-        if (document.productionRelease || replaced.length || srcSet.length || Object.keys(base64Map).length || assets.find(item => item.format && item.mimeType?.endsWith('text/html'))) {
+        if (instance.productionRelease || replaced.length || srcSet.length || Object.keys(base64Map).length || assets.find(item => item.format && item.mimeType?.endsWith('text/html'))) {
             for (const item of assets) {
                 if (!item.invalid) {
                     let content: Undef<boolean>,
@@ -826,7 +826,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         if (tasks.length) {
             await Promise.all(tasks).catch(err => this.writeFail(['Replace UTF-8', 'finalize'], err));
         }
-        if (document.htmlFiles.length) {
+        if (instance.htmlFiles.length) {
             for (const item of assets) {
                 const inlineContent = item.inlineContent;
                 if (inlineContent && inlineContent.startsWith('<!--')) {
@@ -835,7 +835,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
             }
             if (Object.keys(inlineMap).length) {
-                for (const item of document.htmlFiles) {
+                for (const item of instance.htmlFiles) {
                     let content = this.getUTF8String(item);
                     for (const id in inlineMap) {
                         content = content.replace(id, inlineMap[id]!);
@@ -860,7 +860,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     private _cloudEndpoint!: string;
     private _cloudModifiedCss: Undef<Set<DocumentAsset>>;
 
-    constructor(body: RequestBody, settings?: DocumentModule, public productionRelease = false) {
+    constructor(body: RequestBody, settings: DocumentModule, public productionRelease = false) {
         super(body, settings);
         const baseUrl = body.baseUrl;
         if (baseUrl) {

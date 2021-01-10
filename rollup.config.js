@@ -22,6 +22,28 @@ export default [
         plugins: []
     },
     {
+        input: './build/task/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/task/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/task ${require('./publish/task/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
+        },
+        plugins: []
+    },
+    {
+        input: './build/task/gulp/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/task/gulp/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/task/gulp ${require('./publish/task/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
+        },
+        plugins: []
+    },
+    {
         input: './build/cloud/index.js',
         treeshake: false,
         output: {

@@ -14,23 +14,23 @@ type Transformer = Internal.Document.Transformer;
 type ConfigOrTransformer = Internal.Document.ConfigOrTransformer;
 
 abstract class Document extends Module implements IDocument {
-    public static init(this: IFileManager, document: IDocument) {}
-    public static async using(this: IFileManager, document: IDocument, file: ExternalAsset) {}
-    public static async finalize(this: IFileManager, document: IDocument, assets: ExternalAsset[]) {}
+    public static init(this: IFileManager, instance: IDocument) {}
+    public static async using(this: IFileManager, instance: IDocument, file: ExternalAsset) {}
+    public static async finalize(this: IFileManager, instance: IDocument, assets: ExternalAsset[]) {}
 
-    public documentName = '';
     public internalAssignUUID = '__assign__';
     public templateMap?: StandardMap;
+    public abstract documentName: string;
 
     private _packageMap: ObjectMap<Transformer> = {};
 
-    constructor(body: RequestBody, public settings: DocumentModule = {}) {
+    constructor(body: RequestBody, public module: DocumentModule) {
         super();
         this.templateMap = body.templateMap;
     }
 
     findPluginData(type: string, value: string, settings: ObjectMap<StandardMap>): PluginConfig {
-        if (this.templateMap && this.settings.eval_template) {
+        if (this.templateMap && this.module.eval_template) {
             const data = this.templateMap[type];
             for (const plugin in data) {
                 const item = data[plugin][value];
@@ -58,7 +58,7 @@ abstract class Document extends Module implements IDocument {
         return [];
     }
     loadOptions(value: ConfigOrTransformer | string): Undef<ConfigOrTransformer> {
-        if (typeof value === 'string' && this.settings.eval_function) {
+        if (typeof value === 'string' && this.module.eval_function) {
             const transformer = this.parseFunction(value);
             if (transformer) {
                 return transformer;
@@ -90,7 +90,7 @@ abstract class Document extends Module implements IDocument {
         }
     }
     async transform(type: string, format: string, value: string, input?: SourceMapInput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>> {
-        const settings = this.settings[type];
+        const settings = this.module.settings?.[type] as ObjectMap<StandardMap>;
         if (settings) {
             const writeFail = this.writeFail.bind(this);
             let valid: Undef<boolean>;

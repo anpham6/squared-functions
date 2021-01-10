@@ -1,4 +1,4 @@
-import type { FileManagerCompleteAsyncTaskCallback, FileManagerFinalizeImageMethod, FileManagerPerformAsyncTaskCallback, IFileManager, ImageCommand, Internal } from '../../types/lib';
+import type { FileManagerCompleteAsyncTaskCallback, FileManagerFinalizeImageMethod, FileManagerPerformAsyncTaskCallback, IFileManager, ImageHandler, Internal } from '../../types/lib';
 
 import path = require('path');
 import fs = require('fs');
@@ -15,7 +15,7 @@ type QualityData = Internal.Image.QualityData;
 
 const getBuffer = (data: FileData) => (data.file.buffer as unknown) as string || data.file.localUri!;
 
-class Jimp extends Image implements ImageCommand<jimp> {
+class Jimp extends Image implements ImageHandler<jimp> {
     public static async resolveMime(this: IFileManager, data: FileData) {
         const img = await jimp.read(getBuffer(data));
         const mimeType = img.getMIME();

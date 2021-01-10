@@ -106,10 +106,15 @@ Tasks can be performed with Gulp to take advantage of their pre-built plugin rep
 // squared.settings.json
 
 {
-  "gulp": {
-    "minify": "./gulpfile.js"
-    "beautify": "./gulpfile.js",
-    "compress": "./gulpfile.android.js"
+  "task": {
+    "gulp": {
+      "handler": "@squared-functions/task/gulp",
+      "settings": {
+        "minify": "./gulpfile.js"
+        "beautify": "./gulpfile.js",
+        "compress": "./gulpfile.android.js"
+      }
+    }
   }
 }
 
@@ -118,8 +123,8 @@ Tasks can be performed with Gulp to take advantage of their pre-built plugin rep
   "selector": "head > script:nth-of-type(1)",
   "type": "js",
   "tasks": [
-    "minify",
-    "beautify"
+    { handler: "gulp", task: "minify" },
+    { handler: "gulp", task: "beautify" },
   ]
 }
 
@@ -131,7 +136,7 @@ const options = {
             filename: 'pencil.png',
             mimeType: 'image/png',
             commands: ['jpeg', 'bmp@(50000,100000)'],
-            tasks: ['compress'],
+            tasks: [{ handler: 'gulp', task: 'compress' }],
             uri: 'http://localhost:3000/common/images/pencil.png'
         }
     ]
@@ -140,10 +145,10 @@ const options = {
 
 ```xml
 <!-- chrome -->
-<script src="/common/system.js" data-chrome-tasks="minify+beautify"></script>
+<script src="/common/system.js" data-chrome-tasks="gulp:minify+gulp:beautify"></script>
 
 <!-- android -->
-<img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg" data-android-tasks="compress" />
+<img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg" data-android-tasks="gulp:compress" />
 ```
 
 NOTE: SRC (temp) and DEST (original) always read and write to the current directory.

@@ -128,8 +128,8 @@ class Cloud extends Module implements ICloud {
                         Promise.all(uploadTasks)
                             .then(async result => {
                                 if (!uploadDocument && result[0]) {
-                                    for (const { document } of this.Document) {
-                                        if (document.cloudUpload && await document.cloudUpload(state, file, result[0], active)) {
+                                    for (const { instance } of this.Document) {
+                                        if (instance.cloudUpload && await instance.cloudUpload(state, file, result[0], active)) {
                                             break;
                                         }
                                     }
@@ -159,17 +159,17 @@ class Cloud extends Module implements ICloud {
             }
         }
         cloud.setObjectKeys(this.assets);
-        for (const { document } of this.Document) {
-            if (document.cloudInit) {
-                document.cloudInit(state);
+        for (const { instance } of this.Document) {
+            if (instance.cloudInit) {
+                instance.cloudInit(state);
             }
         }
         for (const item of this.assets) {
             if (item.cloudStorage) {
                 if (item.localUri) {
                     let ignore = false;
-                    for (const { document } of this.Document) {
-                        if (document.cloudObject && document.cloudObject(state, item)) {
+                    for (const { instance } of this.Document) {
+                        if (instance.cloudObject && instance.cloudObject(state, item)) {
                             ignore = true;
                             break;
                         }
@@ -207,9 +207,9 @@ class Cloud extends Module implements ICloud {
                 tasks = [];
             }
         }
-        for (const { document } of this.Document) {
-            if (document.cloudFinalize) {
-                await document.cloudFinalize(state);
+        for (const { instance } of this.Document) {
+            if (instance.cloudFinalize) {
+                await instance.cloudFinalize(state);
             }
         }
         for (const [item, data] of localStorage) {

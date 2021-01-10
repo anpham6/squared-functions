@@ -1,8 +1,7 @@
-import type { DocumentConstructor, ExtendedSettings, ExternalAsset, ICloud, ICompress, IFileManager, IWatch, ImageConstructor, Internal, RequestBody, Settings } from '../types/lib';
+import type { DocumentConstructor, ExtendedSettings, ExternalAsset, ICloud, ICompress, IDocument, IFileManager, ITask, IWatch, ImageConstructor, Internal, RequestBody, Settings, TaskConstructor } from '../types/lib';
 import type { CloudService } from '../types/lib/squared';
 import type { Response } from 'express';
 
-import child_process = require('child_process');
 import path = require('path');
 import fs = require('fs-extra');
 import request = require('request');
@@ -11,6 +10,7 @@ import mime = require('mime-types');
 
 import Module from '../module';
 import Document from '../document';
+import Task from '../task';
 import Image from '../image';
 import Cloud from '../cloud';
 import Watch from '../watch';
@@ -19,36 +19,21 @@ import Node from '../node';
 import Compress from '../compress';
 
 type CloudModule = ExtendedSettings.CloudModule;
-type GulpModule = ExtendedSettings.GulpModule;
 type DocumentModule = ExtendedSettings.DocumentModule;
 
 type DocumentData = Internal.DocumentData;
 type FileData = Internal.FileData;
 type FileOutput = Internal.FileOutput;
 type OutputData = Internal.Image.OutputData;
-type DocumentInstallData = Internal.Document.InstallData;
+type DocumentInstallData = Internal.InstallData<IDocument, DocumentConstructor>;
+type TaskInstallData = Internal.InstallData<ITask, TaskConstructor>;
 type SourceMap = Internal.Document.SourceMap;
 type SourceMapInput = Internal.Document.SourceMapInput;
 type SourceMapOutput = Internal.Document.SourceMapOutput;
 
-interface GulpData {
-    gulpfile: string;
-    items: string[];
-}
-
-interface GulpTask {
-    task: string;
-    origDir: string;
-    data: GulpData;
-}
-
-function isObject<T = PlainObject>(value: any): value is T {
-    return typeof value === 'object' && value !== null;
-}
-
-function isFunction<T>(value: any): value is T {
-    return typeof value === 'function';
-}
+const isObject = <T = PlainObject>(value: unknown): value is T => typeof value === 'object' && value !== null;
+const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
+const hasDocument = (document: string | string[], documentName: string) => Array.isArray(document) && document.includes(documentName) || document === documentName;
 
 class FileManager extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {
@@ -69,8 +54,8 @@ class FileManager extends Module implements IFileManager {
         }
         if (value.compress) {
             const { gzip_level, brotli_quality, tinypng_api_key } = value.compress;
-            const gzip = +(gzip_level as string);
-            const brotli = +(brotli_quality as string);
+            const gzip = parseInt(gzip_level as string);
+            const brotli = parseInt(brotli_quality as string);
             if (!isNaN(gzip)) {
                 Compress.gzipLevel = gzip;
             }
@@ -128,12 +113,13 @@ class FileManager extends Module implements IFileManager {
     public cleared = false;
     public Image: Null<ImageConstructor> = null;
     public Document: DocumentInstallData[] = [];
+    public Task: TaskInstallData[] = [];
     public Cloud: Null<ICloud> = null;
     public Watch: Null<IWatch> = null;
     public Compress: Null<ICompress> = null;
-    public Gulp: Null<GulpModule> = null;
     public readonly assets: ExternalAsset[];
-    public readonly documentAssets: ExternalAsset[];
+    public readonly documentAssets: ExternalAsset[] = [];
+    public readonly taskAssets: ExternalAsset[] = [];
     public readonly files = new Set<string>();
     public readonly filesQueued = new Set<string>();
     public readonly filesToRemove = new Set<string>();
@@ -149,50 +135,59 @@ class FileManager extends Module implements IFileManager {
     {
         super();
         this.assets = this.body.assets;
-        this.documentAssets = this.assets.filter(item => item.document);
+        for (const item of this.assets) {
+            if (item.document) {
+                this.documentAssets.push(item);
+            }
+            if (item.tasks) {
+                this.taskAssets.push(item);
+            }
+        }
         this.postFinalize = postFinalize.bind(this);
     }
 
     install(name: string, ...args: unknown[]) {
-        const param = args[0];
+        const target = args[0];
+        const params = args.slice(1);
         switch (name) {
             case 'document':
-                if (isFunction<DocumentConstructor>(param) && param.prototype instanceof Document) {
-                    const document = new param(this.body, args[1] as DocumentModule, ...args.slice(2));
-                    param.init.call(this, document);
-                    this.Document.push({ document, instance: param, params: args.slice(1) });
+                if (isFunction<DocumentConstructor>(target) && target.prototype instanceof Document) {
+                    const instance = new target(this.body, args[1] as DocumentModule, ...args.slice(2));
+                    target.init.call(this, instance);
+                    this.Document.push({ instance, constructor: target, params });
+                }
+                break;
+            case 'task':
+                if (isFunction<TaskConstructor>(target) && target.prototype instanceof Task && isObject(args[1])) {
+                    const instance = new target(args[1]);
+                    this.Task.push({ instance, constructor: target, params });
                 }
                 break;
             case 'image':
-                if (isFunction<ImageConstructor>(param) && param.prototype instanceof Image) {
-                    this.Image = param;
+                if (isFunction<ImageConstructor>(target) && target.prototype instanceof Image) {
+                    this.Image = target;
                 }
                 break;
             case 'cloud':
-                if (isObject<CloudModule>(param)) {
-                    this.Cloud = new Cloud(param, this.body.database);
-                }
-                break;
-            case 'gulp':
-                if (isObject<GulpModule>(param)) {
-                    this.Gulp = param;
+                if (isObject<CloudModule>(target)) {
+                    this.Cloud = new Cloud(target, this.body.database);
                 }
                 break;
             case 'watch': {
-                const watch = new Watch(typeof param === 'number' && param > 0 ? param : undefined);
+                const watch = new Watch(typeof target === 'number' && target > 0 ? target : undefined);
                 watch.whenModified = (assets: ExternalAsset[]) => {
                     const manager = new FileManager(this.baseDirectory, { ...this.body, assets });
-                    for (const { instance, params } of this.Document) {
-                        manager.install('document', instance, ...params);
+                    for (const { constructor, params } of this.Document) { // eslint-disable-line no-shadow
+                        manager.install('document', constructor, ...params);
+                    }
+                    for (const { constructor, params } of this.Task) { // eslint-disable-line no-shadow
+                        manager.install('task', constructor, ...params);
                     }
                     if (this.Cloud) {
                         manager.install('cloud', this.Cloud.settings);
                     }
                     if (this.Compress) {
                         manager.install('compress', this.Compress);
-                    }
-                    if (this.Gulp) {
-                        manager.install('gulp', this.Gulp);
                     }
                     manager.processAssets();
                 };
@@ -289,9 +284,9 @@ class FileManager extends Module implements IFileManager {
         if (document) {
             const value: unknown = data[attr];
             if (typeof value === 'string') {
-                for (const { document: item } of this.Document) {
-                    if (document.includes(item.documentName) && value.includes(item.internalAssignUUID)) {
-                        return target[attr] = value.replace(item.internalAssignUUID, uuid.v4());
+                for (const { instance } of this.Document) {
+                    if (hasDocument(document, instance.documentName) && value.includes(instance.internalAssignUUID)) {
+                        return target[attr] = value.replace(instance.internalAssignUUID, uuid.v4());
                     }
                 }
                 return value;
@@ -322,9 +317,9 @@ class FileManager extends Module implements IFileManager {
     }
     async appendContent(file: ExternalAsset, localUri: string, content: string, bundleIndex = 0) {
         if (file.document) {
-            for (const { document } of this.Document) {
-                if (file.document.includes(document.documentName) && document.formatContent) {
-                    content = await document.formatContent(this, document, file, content);
+            for (const { instance } of this.Document) {
+                if (hasDocument(file.document, instance.documentName) && instance.formatContent) {
+                    content = await instance.formatContent(this, instance, file, content);
                 }
             }
         }
@@ -345,9 +340,9 @@ class FileManager extends Module implements IFileManager {
         if (file.trailingContent) {
             for (let value of file.trailingContent) {
                 if (file.document) {
-                    for (const { document } of this.Document) {
-                        if (file.document.includes(document.documentName) && document.formatContent) {
-                            value = await document.formatContent(this, document, file, value);
+                    for (const { instance } of this.Document) {
+                        if (hasDocument(file.document, instance.documentName) && instance.formatContent) {
+                            value = await instance.formatContent(this, instance, file, value);
                         }
                     }
                 }
@@ -428,8 +423,8 @@ class FileManager extends Module implements IFileManager {
         const localUri = file.localUri!;
         let output: Undef<string>;
         if (file.document) {
-            for (const { document } of this.Document) {
-                if (file.document.includes(document.documentName) && document.imageQueue && (output = document.imageQueue(data, outputType, saveAs, command))) {
+            for (const { instance } of this.Document) {
+                if (hasDocument(file.document, instance.documentName) && instance.imageQueue && (output = instance.imageQueue(data, outputType, saveAs, command))) {
                     break;
                 }
             }
@@ -501,8 +496,8 @@ class FileManager extends Module implements IFileManager {
             parent: Undef<ExternalAsset>;
         if (file.document) {
             data.baseDirectory = this.baseDirectory;
-            for (const { document } of this.Document) {
-                if (file.document.includes(document.documentName) && document.imageFinalize && document.imageFinalize(data, error)) {
+            for (const { instance } of this.Document) {
+                if (hasDocument(file.document, instance.documentName) && instance.imageFinalize && instance.imageFinalize(data, error)) {
                     if (error || !output) {
                         this.completeAsyncTask();
                         return;
@@ -572,9 +567,9 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (file.document) {
-            for (const { document, instance } of this.Document) {
-                if (file.document.includes(document.documentName)) {
-                    await instance.using.call(this, document, file);
+            for (const { instance, constructor } of this.Document) {
+                if (hasDocument(file.document, instance.documentName)) {
+                    await constructor.using.call(this, instance, file);
                 }
             }
         }
@@ -868,10 +863,10 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (this.documentAssets.length) {
-            for (const { document, instance } of this.Document) {
-                const assets = this.documentAssets.filter(item => item.document!.includes(document.documentName));
+            for (const { instance, constructor } of this.Document) {
+                const assets = this.documentAssets.filter(item => item.document!.includes(instance.documentName) && !item.invalid);
                 if (assets.length) {
-                    await instance.finalize.call(this, document, assets);
+                    await constructor.finalize.call(this, instance, assets);
                 }
             }
         }
@@ -925,155 +920,12 @@ class FileManager extends Module implements IFileManager {
                 tasks = [];
             }
         }
-        if (this.Gulp) {
-            const gulp = this.Gulp;
-            const taskMap = new Map<string, Map<string, GulpData>>();
-            const origMap = new Map<string, string[]>();
-            for (const item of this.assets) {
-                if (!item.tasks || item.invalid) {
-                    continue;
+        if (this.taskAssets.length) {
+            for (const { instance, constructor } of this.Task) {
+                const assets = this.taskAssets.filter(item => item.tasks!.find(data => data.handler === instance.taskName && item.localUri && !item.invalid));
+                if (assets.length) {
+                    await constructor.finalize.call(this, instance, assets);
                 }
-                const origDir = path.dirname(item.localUri!);
-                const scheduled = new Set<string>();
-                for (let task of item.tasks) {
-                    if (!scheduled.has(task = task.trim()) && gulp[task]) {
-                        const gulpfile = path.resolve(gulp[task]!);
-                        if (fs.existsSync(gulpfile)) {
-                            if (!taskMap.has(task)) {
-                                taskMap.set(task, new Map<string, GulpData>());
-                            }
-                            const dirMap = taskMap.get(task)!;
-                            if (!dirMap.has(origDir)) {
-                                dirMap.set(origDir, { gulpfile, items: [] });
-                            }
-                            dirMap.get(origDir)!.items.push(item.localUri!);
-                            scheduled.add(task);
-                            delete item.sourceUTF8;
-                        }
-                    }
-                }
-                if (scheduled.size) {
-                    const stored = origMap.get(origDir);
-                    const items = Array.from(scheduled);
-                    if (!stored) {
-                        origMap.set(origDir, items);
-                    }
-                    else {
-                        let previous = -1;
-                        for (const task of items.reverse()) {
-                            const index = stored.indexOf(task);
-                            if (index !== -1) {
-                                if (index > previous) {
-                                    stored.splice(index, 1);
-                                }
-                                else {
-                                    previous = index;
-                                    continue;
-                                }
-                            }
-                            if (previous !== -1) {
-                                stored.splice(previous--, 0, task);
-                            }
-                            else {
-                                stored.push(task);
-                                previous = stored.length - 1;
-                            }
-                        }
-                    }
-                }
-            }
-            const itemsAsync: GulpTask[] = [];
-            const itemsSync: GulpTask[] = [];
-            for (const [task, dirMap] of taskMap) {
-                for (const [origDir, data] of dirMap) {
-                    const item = origMap.get(origDir);
-                    (item && item.length > 1 ? itemsSync : itemsAsync).push({ task, origDir, data });
-                }
-            }
-            itemsSync.sort((a, b) => {
-                if (a.origDir === b.origDir && a.task !== b.task) {
-                    const taskData = origMap.get(a.origDir)!;
-                    const indexA = taskData.indexOf(a.task);
-                    const indexB = taskData.indexOf(b.task);
-                    if (indexA !== -1 && indexB !== -1) {
-                        if (indexA < indexB) {
-                            return -1;
-                        }
-                        if (indexB < indexA) {
-                            return 1;
-                        }
-                    }
-                }
-                return 0;
-            });
-            const resumeThread = (item: GulpTask, callback: (value?: unknown) => void) => {
-                const { task, origDir, data } = item;
-                const tempDir = this.getTempDir(true);
-                try {
-                    fs.mkdirpSync(tempDir);
-                    Promise.all(data.items.map(uri => fs.copyFile(uri, path.join(tempDir, path.basename(uri)))))
-                        .then(() => {
-                            this.formatMessage(this.logType.PROCESS, 'gulp', ['Executing task...', task], data.gulpfile);
-                            const time = Date.now();
-                            child_process.exec(`gulp ${task} --gulpfile "${data.gulpfile.replace(/\\/g, '\\\\')}" --cwd "${tempDir.replace(/\\/g, '\\\\')}"`, { cwd: process.cwd() }, err => {
-                                if (!err) {
-                                    Promise.all(data.items.map(uri => fs.unlink(uri).then(() => this.delete(uri))))
-                                        .then(() => {
-                                            fs.readdir(tempDir, (err_r, files) => {
-                                                if (!err_r) {
-                                                    Promise.all(
-                                                        files.map(filename => {
-                                                            const uri = path.join(origDir, filename);
-                                                            return fs.move(path.join(tempDir, filename), uri, { overwrite: true }).then(() => this.add(uri));
-                                                        }))
-                                                        .then(() => {
-                                                            this.writeTimeElapsed('gulp', task, time);
-                                                            callback();
-                                                        })
-                                                        .catch(err_w => {
-                                                            this.writeFail(['Unable to replace original files', 'gulp: ' + task], err_w);
-                                                            callback();
-                                                        });
-                                                }
-                                                else {
-                                                    callback();
-                                                }
-                                            });
-                                        })
-                                        .catch(error => this.writeFail(['Unable to delete original files', 'gulp: ' + task], error));
-                                }
-                                else {
-                                    this.writeFail(['Unknown', 'gulp: ' + task], err);
-                                    callback();
-                                }
-                            });
-                        })
-                        .catch(err => this.writeFail(['Unable to copy original files', 'gulp: ' + task], err));
-                }
-                catch (err) {
-                    this.writeFail(['Unknown', 'gulp: ' + task], err);
-                    callback();
-                }
-            };
-            for (const item of itemsAsync) {
-                tasks.push(new Promise(resolve => resumeThread(item, resolve)));
-            }
-            if (itemsSync.length) {
-                tasks.push(new Promise<void>(resolve => {
-                    (function nextTask(this: IFileManager) {
-                        const item = itemsSync.shift();
-                        if (item) {
-                            resumeThread.call(this, item, nextTask);
-                        }
-                        else {
-                            resolve();
-                        }
-                    }).bind(this)();
-                }));
-            }
-            if (tasks.length) {
-                await Promise.all(tasks).catch(err => this.writeFail(['Exec tasks', 'finalize'], err));
-                tasks = [];
             }
         }
         if (this.Cloud) {

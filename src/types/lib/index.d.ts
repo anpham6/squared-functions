@@ -63,12 +63,6 @@ declare namespace functions {
         }
 
         namespace Document {
-            interface InstallData {
-                document: IDocument;
-                instance: DocumentConstructor;
-                params: unknown[];
-            }
-
             interface SourceMapInput {
                 file: ExternalAsset;
                 sourcesContent: Null<string>;
@@ -158,8 +152,14 @@ declare namespace functions {
             type DownloadCallback = (data: DownloadData, success: (value: Null<Buffer | string>) => void) => Promise<void>;
         }
 
+        interface InstallData<T, U> {
+            instance: T;
+            constructor: U;
+            params: unknown[];
+        }
+
         interface DocumentData {
-            document?: string[];
+            document?: string | string[];
         }
 
         interface FileData {
@@ -244,7 +244,7 @@ declare namespace functions {
 
     const Image: ImageConstructor;
 
-    class ImageCommand<T> {
+    class ImageHandler<T> {
         instance: T;
         command: string
         resizeData?: ResizeData;
@@ -263,6 +263,19 @@ declare namespace functions {
         finalize(output: string, callback: (result: string) => void): void;
         constructor(instance: T, data: FileData, command: string, finalAs?: string);
     }
+
+    interface ITask extends IModule {
+        module: ExtendedSettings.DocumentModule;
+        readonly taskName: string;
+        execute(manager: IFileManager, item: PlainObject, callback: (value?: unknown) => void): void;
+    }
+
+    interface TaskConstructor extends ModuleConstructor {
+        finalize(this: IFileManager, task: ITask, assets: ExternalAsset[]): Promise<void>;
+        new(module: ExtendedSettings.DocumentModule): ITask;
+    }
+
+    const Task: TaskConstructor;
 
     interface ICloud extends IModule {
         settings: ExtendedSettings.CloudModule;
@@ -293,7 +306,7 @@ declare namespace functions {
     const Cloud: CloudConstructor;
 
     interface IDocument extends IModule {
-        settings: ExtendedSettings.DocumentModule;
+        module: ExtendedSettings.DocumentModule;
         documentName: string;
         internalAssignUUID: string;
         templateMap?: StandardMap;
@@ -311,10 +324,10 @@ declare namespace functions {
     }
 
     interface DocumentConstructor extends ModuleConstructor {
-        init(this: IFileManager, document: IDocument): boolean;
-        using(this: IFileManager, document: IDocument, file: ExternalAsset): Promise<void>;
-        finalize(this: IFileManager, document: IDocument, assets: ExternalAsset[]): void;
-        new(body: RequestBody, settings?: ExtendedSettings.DocumentModule, ...args: unknown[]): IDocument;
+        init(this: IFileManager, instance: IDocument): boolean;
+        using(this: IFileManager, instance: IDocument, file: ExternalAsset): Promise<void>;
+        finalize(this: IFileManager, instance: IDocument, assets: ExternalAsset[]): void;
+        new(body: RequestBody, module: ExtendedSettings.DocumentModule, ...args: unknown[]): IDocument;
     }
 
     const Document: DocumentConstructor;
@@ -334,12 +347,12 @@ declare namespace functions {
     interface IFileManager extends IModule {
         delayed: number;
         cleared: boolean;
-        Document: Internal.Document.InstallData[];
+        Document: Internal.InstallData<IDocument, DocumentConstructor>[];
+        Task: Internal.InstallData<ITask, TaskConstructor>[];
         Cloud: Null<ICloud>;
         Watch: Null<IWatch>;
         Image: Null<ImageConstructor>;
         Compress: Null<ICompress>;
-        Gulp: Null<ExtendedSettings.GulpModule>;
         readonly body: RequestBody;
         readonly files: Set<string>;
         readonly filesQueued: Set<string>;
@@ -349,6 +362,7 @@ declare namespace functions {
         readonly emptyDir: Set<string>;
         readonly assets: ExternalAsset[];
         readonly documentAssets: ExternalAsset[];
+        readonly taskAssets: ExternalAsset[];
         readonly postFinalize: FunctionType<void>;
         readonly baseDirectory: string;
         install(name: string, ...args: unknown[]): void;
@@ -424,30 +438,29 @@ declare namespace functions {
         disk_write?: BoolString;
         unc_read?: BoolString;
         unc_write?: BoolString;
-        logger?: ExtendedSettings.LoggerModule;
-        watch?: ExtendedSettings.WatchModule;
-        image?: ExtendedSettings.ImageModule;
         compress?: ExtendedSettings.CompressModule;
+        image?: ExtendedSettings.ImageModule;
+        document?: ObjectMap<ExtendedSettings.DocumentModule>;
+        task?: ObjectMap<ExtendedSettings.TaskModule>;
+        watch?: ExtendedSettings.WatchModule;
         cloud?: ExtendedSettings.CloudModule;
-        gulp?: ExtendedSettings.GulpModule;
+        logger?: ExtendedSettings.LoggerModule;
     }
 
     namespace ExtendedSettings {
-        interface LoggerModule {
-            unknown?: boolean;
-            system?: boolean;
-            node?: boolean;
-            process?: boolean;
-            compress?: boolean;
-            watch?: boolean;
-            cloud_storage?: boolean;
-            cloud_database?: boolean;
-            time_elapsed?: boolean;
+        interface HandlerModule {
+            handler?: string;
+            settings?: PlainObject;
         }
 
-        interface ImageModule {
-            command?: string;
+        interface DocumentModule extends HandlerModule {
+            eval_function?: boolean;
+            eval_template?: boolean;
         }
+
+        interface TaskModule extends HandlerModule {}
+
+        interface ImageModule extends HandlerModule {}
 
         interface CompressModule {
             gzip_level?: NumString;
@@ -464,15 +477,20 @@ declare namespace functions {
             oci?: ObjectMap<StringMap>;
         }
 
-        interface GulpModule extends StringMap {}
-
-        interface DocumentModule extends StandardMap {
-            eval_function?: boolean;
-            eval_template?: boolean;
-        }
-
         interface WatchModule {
             interval?: number;
+        }
+
+        interface LoggerModule {
+            unknown?: boolean;
+            system?: boolean;
+            node?: boolean;
+            process?: boolean;
+            compress?: boolean;
+            watch?: boolean;
+            cloud_storage?: boolean;
+            cloud_database?: boolean;
+            time_elapsed?: boolean;
         }
     }
 
