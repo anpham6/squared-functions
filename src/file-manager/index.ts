@@ -146,20 +146,19 @@ class FileManager extends Module implements IFileManager {
         this.postFinalize = postFinalize.bind(this);
     }
 
-    install(name: string, ...args: unknown[]) {
-        const target = args[0];
-        const params = args.slice(1);
+    install(name: string, ...params: unknown[]) {
+        const target = params.shift();
         switch (name) {
             case 'document':
                 if (isFunction<DocumentConstructor>(target) && target.prototype instanceof Document) {
-                    const instance = new target(this.body, args[1] as DocumentModule, ...args.slice(2));
+                    const instance = new target(this.body, params[0] as DocumentModule, ...params.slice(1));
                     target.init.call(this, instance);
                     this.Document.push({ instance, constructor: target, params });
                 }
                 break;
             case 'task':
-                if (isFunction<TaskConstructor>(target) && target.prototype instanceof Task && isObject(args[1])) {
-                    const instance = new target(args[1]);
+                if (isFunction<TaskConstructor>(target) && target.prototype instanceof Task && isObject(params[0])) {
+                    const instance = new target(params[0]);
                     this.Task.push({ instance, constructor: target, params });
                 }
                 break;
@@ -174,7 +173,7 @@ class FileManager extends Module implements IFileManager {
                 }
                 break;
             case 'watch': {
-                const watch = new Watch(typeof target === 'number' && target > 0 ? target : undefined);
+                const watch = new Watch(Node, typeof target === 'number' && target > 0 ? target : undefined);
                 watch.whenModified = (assets: ExternalAsset[]) => {
                     const manager = new FileManager(this.baseDirectory, { ...this.body, assets });
                     for (const { constructor, params } of this.Document) { // eslint-disable-line no-shadow
@@ -394,8 +393,8 @@ class FileManager extends Module implements IFileManager {
             }
         }) as SourceMapInput;
     }
-    writeSourceMap(outputData: [string, Undef<Map<string, SourceMapOutput>>], file: ExternalAsset, sourcesContent = '', modified?: boolean) {
-        const sourceMap = outputData[1];
+    writeSourceMap(file: ExternalAsset, output: [string, Undef<Map<string, SourceMapOutput>>], modified?: boolean) {
+        const sourceMap = output[1];
         if (!sourceMap || sourceMap.size === 0) {
             return;
         }
@@ -415,14 +414,14 @@ class FileManager extends Module implements IFileManager {
             map.sources = ['unknown'];
         }
         if (!excludeSources) {
-            if (!Array.isArray(map.sourcesContent) || map.sourcesContent.length === 1 && !map.sourcesContent[0]) {
-                map.sourcesContent = [data.sourcesContent || sourcesContent];
+            if (!Array.isArray(map.sourcesContent) || map.sourcesContent.length < 1 || !map.sourcesContent[0]) {
+                map.sourcesContent = [data.sourcesContent];
             }
         }
         else {
             delete map.sourcesContent;
         }
-        outputData[0] = outputData[0].replace(/# sourceMappingURL=[\S\s]+$/, '# sourceMappingURL=' + mapFile);
+        output[0] = output[0].replace(/# sourceMappingURL=[\S\s]+$/, '# sourceMappingURL=' + mapFile);
         try {
             const mapUri = path.join(path.dirname(localUri), mapFile);
             fs.writeFileSync(mapUri, JSON.stringify(map), 'utf8');

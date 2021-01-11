@@ -1,18 +1,24 @@
-import type { ExternalAsset, IWatch } from '../types/lib';
+import type { ExternalAsset, INode, IWatch } from '../types/lib';
 
 import Module from '../module';
 
+import path = require('path');
+import fs = require('fs');
 import request = require('request');
 
 interface FileWatch {
     uri: string;
-    etag: string;
     assets: ExternalAsset[];
+    start: number;
     expires: number;
     interval: number;
+    etag?: string;
 }
 
-const HTTP_MAP: ObjectMap<Map<string, FileWatch>> = {};
+type FileWatchMap = ObjectMap<Map<string, FileWatch>>;
+
+const DISK_MAP: FileWatchMap = {};
+const HTTP_MAP: FileWatchMap = {};
 const TIMER_MAP: ObjectMap<[NodeJS.Timeout, number]> = {};
 
 const getInterval = (file: ExternalAsset) => Math.max(typeof file.watch === 'object' && file.watch.interval || 0, 0);
@@ -21,24 +27,17 @@ const formatDate = (value: number) => new Date(value).toLocaleString().replace(/
 class Watch extends Module implements IWatch {
     public whenModified?: (assets: ExternalAsset[]) => void;
 
-    constructor(public interval = 200) {
+    constructor(public Node: INode, public interval = 200) {
         super();
     }
 
     start(assets: ExternalAsset[]) {
-        const etagMap: StringMap = {};
+        const Node = this.Node;
         const destMap: ObjectMap<ExternalAsset[]> = {};
-        for (const item of assets.slice(0).sort((a, b) => a.etag ? -1 : b.etag ? 1 : 0)) {
-            const { uri, relativeUri: dest } = item;
-            if (uri && dest) {
-                if (item.etag) {
-                    etagMap[uri] = item.etag;
-                    (destMap[dest] ||= []).push(item);
-                }
-                else if (destMap[dest]) {
-                    item.etag = etagMap[uri];
-                    destMap[dest].push(item);
-                }
+        for (const item of assets) {
+            const { uri, relativeUri } = item;
+            if (uri && relativeUri) {
+                (destMap[relativeUri] ||= []).push(item);
             }
         }
         for (const dest in destMap) {
@@ -82,6 +81,11 @@ class Watch extends Module implements IWatch {
                     }
                     const start = Date.now();
                     const interval = getInterval(item) || watchInterval || this.interval;
+                    const fileModified = (input: FileWatch) => this.formatMessage(this.logType.WATCH, 'WATCH', 'File modified', input.uri, { titleColor: 'yellow' });
+                    const watchExpired = (map: FileWatchMap, input: FileWatch, message = 'Expired') => {
+                        this.formatMessage(this.logType.WATCH, 'WATCH', [message, 'since ' + formatDate(input.start)], input.uri, { titleColor: 'grey' });
+                        delete map[input.uri];
+                    };
                     let expires = 0;
                     if (typeof watch === 'object' && watch.expires) {
                         const match = /^\s*(?:([\d.]+)\s*h)?(?:\s*([\d.]+)\s*m)?(?:\s*([\d.]+)\s*s)?\s*$/i.exec(watch.expires);
@@ -100,59 +104,92 @@ class Watch extends Module implements IWatch {
                             }
                         }
                     }
-                    const http = HTTP_MAP[uri];
-                    const timer = TIMER_MAP[uri];
                     const data = {
                         uri,
                         etag,
                         assets: items,
+                        start,
                         interval,
                         expires
                     } as FileWatch;
-                    if (http && http.size && interval <= timer[1]) {
-                        http.set(dest, data);
-                    }
-                    else {
-                        if (timer) {
-                            clearInterval(timer[0]);
+                    if (Node.isFileURI(uri)) {
+                        if (!etag) {
+                            continue;
                         }
-                        const timeout = setInterval(() => {
-                            request(uri, { method: 'HEAD' })
-                                .on('response', res => {
-                                    const map = HTTP_MAP[uri];
-                                    for (const [output, input] of map) {
-                                        if (!input.expires || Date.now() < input.expires) {
-                                            const value = (res.headers['etag'] || res.headers['last-modified']) as string;
-                                            if (value) {
-                                                if (value !== input.etag) {
+                        const http = HTTP_MAP[uri];
+                        const timer = TIMER_MAP[uri];
+                        if (http && http.size && timer && interval <= timer[1]) {
+                            http.set(dest, data);
+                        }
+                        else {
+                            if (timer) {
+                                clearInterval(timer[0]);
+                            }
+                            const timeout = setInterval(() => {
+                                request(uri, { method: 'HEAD' })
+                                    .on('response', res => {
+                                        const map = HTTP_MAP[uri];
+                                        for (const [output, input] of map) {
+                                            if (!input.expires || Date.now() < input.expires) {
+                                                const value = (res.headers['etag'] || res.headers['last-modified']) as string;
+                                                if (value && value !== input.etag) {
                                                     input.etag = value;
                                                     if (this.whenModified) {
                                                         this.whenModified(input.assets);
                                                     }
-                                                    this.formatMessage(this.logType.WATCH, 'WATCH', 'File modified', uri, { titleColor: 'yellow' });
+                                                    fileModified(input);
                                                 }
-                                                else {
-                                                    return;
+                                            }
+                                            else if (input.expires) {
+                                                map.delete(output);
+                                                if (map.size === 0) {
+                                                    watchExpired(HTTP_MAP, input);
+                                                    clearInterval(timeout);
                                                 }
                                             }
                                         }
-                                        else if (input.expires) {
-                                            map.delete(output);
-                                            if (map.size === 0) {
-                                                this.formatMessage(this.logType.WATCH, 'WATCH', ['Expired', 'since ' + formatDate(start)], uri, { titleColor: 'grey' });
-                                                clearInterval(timeout);
-                                            }
+                                    })
+                                    .on('error', err => {
+                                        HTTP_MAP[uri].clear();
+                                        clearInterval(timeout);
+                                        this.writeFail(['Unable to watch', uri], err);
+                                    });
+                            }, interval);
+                            (HTTP_MAP[uri] ||= new Map()).set(dest, data);
+                            TIMER_MAP[uri] = [timeout, interval];
+                        }
+                    }
+                    else if (Node.hasUNCRead() && Node.isFileUNC(uri) || Node.hasDiskRead() && path.isAbsolute(uri)) {
+                        let timeout: Null<NodeJS.Timeout> = null;
+                        if (expires) {
+                            timeout = setTimeout(() => {
+                                watcher.close();
+                                watchExpired(DISK_MAP, data);
+                            }, expires - start);
+                        }
+                        const watcher = fs.watch(uri, (event, filename) => {
+                            switch (event) {
+                                case 'change':
+                                    for (const input of DISK_MAP[uri].values()) {
+                                        if (this.whenModified) {
+                                            this.whenModified(input.assets);
                                         }
+                                        fileModified(input);
                                     }
-                                })
-                                .on('error', err => {
-                                    HTTP_MAP[uri].clear();
-                                    clearInterval(timeout);
-                                    this.writeFail(['Unable to watch', uri], err);
-                                });
-                        }, interval);
-                        (HTTP_MAP[uri] ||= new Map()).set(dest, data);
-                        TIMER_MAP[uri] = [timeout, interval];
+                                    break;
+                                case 'rename':
+                                    if (timeout) {
+                                        clearTimeout(timeout);
+                                    }
+                                    watcher.close();
+                                    watchExpired(DISK_MAP, data, 'File renamed: ' + filename);
+                                    break;
+                            }
+                        });
+                        (DISK_MAP[uri] ||= new Map()).set(dest, data);
+                    }
+                    else {
+                        continue;
                     }
                     this.formatMessage(this.logType.WATCH, 'WATCH', ['Start', `${interval}ms ${expires ? formatDate(expires) : 'never'}`], uri, { titleColor: 'blue' });
                 }

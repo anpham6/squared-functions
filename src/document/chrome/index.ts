@@ -679,7 +679,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 if (format) {
                     const result = await instance.transform('css', format, source, this.createSourceMap(file, source));
                     if (result) {
-                        this.writeSourceMap(result, file, source, modified);
+                        this.writeSourceMap(file, result, modified);
                         source = result[0];
                     }
                 }
@@ -704,7 +704,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 if (format) {
                     const result = await instance.transform('js', format, source, this.createSourceMap(file, source));
                     if (result) {
-                        this.writeSourceMap(result, file, source, modified);
+                        this.writeSourceMap(file, result, modified);
                         source = result[0];
                     }
                 }

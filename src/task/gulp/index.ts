@@ -33,7 +33,7 @@ class Gulp extends Task {
             const scheduled = new Set<string>();
             let gulpfile: Undef<string>;
             for (const { handler, task, preceding } of item.tasks!) {
-                if (instance.taskName === handler && !!preceding === beforeStage && !scheduled.has(task) && (gulpfile = gulp[task]) && (fs.existsSync(gulpfile = path.resolve(gulpfile)))) {
+                if (instance.taskName === handler && !!preceding === beforeStage && !scheduled.has(task) && (gulpfile = gulp[task]) && fs.existsSync(gulpfile = path.resolve(gulpfile))) {
                     if (!taskMap.has(task)) {
                         taskMap.set(task, new Map<string, GulpData>());
                     }

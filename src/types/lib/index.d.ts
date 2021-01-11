@@ -29,7 +29,7 @@ declare namespace functions {
     type ModuleWriteFailMethod = (value: string | [string, string], message?: unknown) => void;
     type FileManagerQueueImageMethod = (data: FileData, ouputType: string, saveAs: string, command?: string) => Undef<string>;
     type FileManagerFinalizeImageMethod<T = void> = (data: Internal.Image.OutputData, error?: Null<Error>) => T;
-    type FileManagerPerformAsyncTaskCallback = VoidFunction;
+    type FileManagerPerformAsyncTaskCallback = () => void;
     type FileManagerCompleteAsyncTaskCallback = (value?: unknown, parent?: ExternalAsset) => void;
     type CompressTryFileMethod = (localUri: string, data: CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback) => void;
     type CompressTryImageCallback = (success?: boolean) => void;
@@ -334,13 +334,14 @@ declare namespace functions {
     const Document: DocumentConstructor;
 
     interface IWatch extends IModule {
+        Node: INode;
         interval: number;
         whenModified?: (assets: ExternalAsset[]) => void;
         start(assets: ExternalAsset[]): void;
     }
 
     interface WatchConstructor extends ModuleConstructor {
-        new(interval?: number): IWatch;
+        new(node: INode, interval?: number): IWatch;
     }
 
     const Watch: WatchConstructor;
@@ -366,7 +367,7 @@ declare namespace functions {
         readonly taskAssets: ExternalAsset[];
         readonly postFinalize: FunctionType<void>;
         readonly baseDirectory: string;
-        install(name: string, ...args: unknown[]): void;
+        install(name: string, ...params: unknown[]): void;
         add(value: string): void;
         delete(value: string, emptyDir?: boolean): void;
         has(value: Undef<string>): value is string;
@@ -386,7 +387,7 @@ declare namespace functions {
         getTrailingContent(file: ExternalAsset): Promise<string>;
         joinAllContent(localUri: string): Undef<string>;
         createSourceMap(file: ExternalAsset, sourcesContent: string): SourceMapInput;
-        writeSourceMap(outputData: [string, Undef<Map<string, SourceMapOutput>>], file: ExternalAsset, sourceContent?: string, modified?: boolean): void;
+        writeSourceMap(file: ExternalAsset, output: [string, Undef<Map<string, SourceMapOutput>>], modified?: boolean): void;
         compressFile(file: ExternalAsset): Promise<unknown>;
         queueImage: FileManagerQueueImageMethod;
         finalizeImage: FileManagerFinalizeImageMethod;
