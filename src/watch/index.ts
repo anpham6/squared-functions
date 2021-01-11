@@ -35,9 +35,11 @@ class Watch extends Module implements IWatch {
         const Node = this.Node;
         const destMap: ObjectMap<ExternalAsset[]> = {};
         for (const item of assets) {
-            const { uri, relativeUri } = item;
-            if (uri && relativeUri) {
-                (destMap[relativeUri] ||= []).push(item);
+            if (!item.invalid) {
+                const { uri, relativeUri } = item;
+                if (uri && relativeUri) {
+                    (destMap[relativeUri] ||= []).push(item);
+                }
             }
         }
         for (const dest in destMap) {
@@ -112,7 +114,7 @@ class Watch extends Module implements IWatch {
                         interval,
                         expires
                     } as FileWatch;
-                    if (Node.isFileURI(uri)) {
+                    if (Node.isFileHTTP(uri)) {
                         if (!etag) {
                             continue;
                         }

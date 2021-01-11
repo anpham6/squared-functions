@@ -206,11 +206,12 @@ declare namespace functions {
         hasDiskWrite(): boolean;
         hasUNCRead(): boolean;
         hasUNCWrite(): boolean;
-        isFileURI(value: string): boolean;
+        isFileHTTP(value: string): boolean;
         isFileUNC(value: string): boolean;
         isDirectoryUNC(value: string): boolean;
         isUUID(value: string): boolean;
         getResponseError(hint: string, message: Error | string): ResponseData;
+        resolveUri(value: string): string;
         resolvePath(value: string, href: string): string;
     }
 
@@ -392,7 +393,7 @@ declare namespace functions {
         queueImage: FileManagerQueueImageMethod;
         finalizeImage: FileManagerFinalizeImageMethod;
         finalizeAsset(data: FileData, parent?: ExternalAsset): Promise<void>;
-        processAssets(watch?: boolean): void;
+        processAssets(emptyDir?: boolean): void;
         finalize(): Promise<void>;
     }
 

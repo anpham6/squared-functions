@@ -1,6 +1,8 @@
 import type { INode } from '../types/lib';
 import type { ResponseData } from '../types/lib/squared';
 
+import path = require('path');
+
 import Module from '../module';
 
 const Node = new class extends Module implements INode {
@@ -33,8 +35,8 @@ const Node = new class extends Module implements INode {
     hasUNCWrite() {
         return this._unc_write;
     }
-    isFileURI(value: string) {
-        return /^[A-Za-z]{3,}:\/\/[^/]/.test(value) && !value.startsWith('file:');
+    isFileHTTP(value: string) {
+        return /^https?:\/\/[^/]/i.test(value);
     }
     isFileUNC(value: string) {
         return /^\\\\([\w.-]+)\\([\w-]+\$?)((?<=\$)(?:[^\\]*|\\.+)|\\.+)$/.test(value);
@@ -53,6 +55,23 @@ const Node = new class extends Module implements INode {
                 message: message.toString()
             }
         } as ResponseData;
+    }
+    resolveUri(value: string) {
+        if (value.startsWith('file://')) {
+            try {
+                let url = new URL(value).pathname;
+                if (path.isAbsolute(url)) {
+                    if (path.sep === '\\' && /^\/[A-Za-z]:\//.test(url)) {
+                        url = url.substring(1);
+                    }
+                    return path.resolve(value);
+                }
+            }
+            catch {
+            }
+            return '';
+        }
+        return value;
     }
     resolvePath(value: string, href: string) {
         if (href.startsWith('http')) {

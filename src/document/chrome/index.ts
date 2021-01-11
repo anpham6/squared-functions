@@ -259,7 +259,7 @@ function transformCss(this: IFileManager, document: IChromeDocument, file: Docum
     let match: Null<RegExpExecArray>;
     while (match = pattern.exec(content)) {
         const url = match[1].trim().replace(/^["']\s*/, '').replace(/\s*["']$/, '');
-        if (!Node.isFileURI(url) || Document.fromSameOrigin(cssUri, url)) {
+        if (!Node.isFileHTTP(url) || Document.fromSameOrigin(cssUri, url)) {
             const baseDirectory = document.baseDirectory;
             let location = findRelativeUri.call(this, file, url, baseDirectory, true);
             if (location) {

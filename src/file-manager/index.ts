@@ -33,29 +33,30 @@ type SourceMapOutput = Internal.Document.SourceMapOutput;
 
 const isObject = <T = PlainObject>(value: unknown): value is T => typeof value === 'object' && value !== null;
 const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
+const isTrue = (value: unknown): value is true => value ? value === true || value === 'true' || +(value as string) === 1 : false;
 const hasDocument = (document: string | string[], documentName: string) => Array.isArray(document) && document.includes(documentName) || document === documentName;
 
 class FileManager extends Module implements IFileManager {
     public static loadSettings(value: Settings, ignorePermissions?: boolean) {
         if (!ignorePermissions) {
             const { disk_read, disk_write, unc_read, unc_write } = value;
-            if (disk_read === true || disk_read === 'true') {
+            if (isTrue(disk_read)) {
                 Node.setDiskRead();
             }
-            if (disk_write === true || disk_write === 'true') {
+            if (isTrue(disk_write)) {
                 Node.setDiskWrite();
             }
-            if (unc_read === true || unc_read === 'true') {
+            if (isTrue(unc_read)) {
                 Node.setUNCRead();
             }
-            if (unc_write === true || unc_write === 'true') {
+            if (isTrue(unc_write)) {
                 Node.setUNCWrite();
             }
         }
         if (value.compress) {
             const { gzip_level, brotli_quality, tinypng_api_key } = value.compress;
-            const gzip = parseInt(gzip_level as string);
-            const brotli = parseInt(brotli_quality as string);
+            const gzip = +(gzip_level as string);
+            const brotli = +(brotli_quality as string);
             if (!isNaN(gzip)) {
                 Compress.gzipLevel = gzip;
             }
@@ -265,6 +266,14 @@ class FileManager extends Module implements IFileManager {
         }
     }
     setLocalUri(file: ExternalAsset): FileOutput {
+        const uri = file.uri;
+        if (uri) {
+            file.uri = Node.resolveUri(uri);
+            if (!file.uri) {
+                file.invalid = true;
+                this.writeFail(['Unable to parse file:// protocol', uri], new Error('Path not absolute'));
+            }
+        }
         file.pathname = Module.toPosix(file.pathname);
         this.assignUUID(file, 'pathname');
         this.assignUUID(file, 'filename');
@@ -602,8 +611,8 @@ class FileManager extends Module implements IFileManager {
             this.completeAsyncTask(localUri, parent);
         }
     }
-    processAssets(emptyDirectory?: boolean) {
-        const emptyDir = new Set<string>();
+    processAssets(emptyDir?: boolean) {
+        const emptied = new Set<string>();
         const notFound: ObjectMap<boolean> = {};
         const processing: ObjectMap<ExternalAsset[]> = {};
         const appending: ObjectMap<ExternalAsset[]> = {};
@@ -754,8 +763,8 @@ class FileManager extends Module implements IFileManager {
                     this.completeAsyncTask();
                 }
             };
-            if (!emptyDir.has(pathname)) {
-                if (emptyDirectory) {
+            if (!emptied.has(pathname)) {
+                if (emptyDir) {
                     try {
                         fs.emptyDirSync(pathname);
                     }
@@ -770,7 +779,7 @@ class FileManager extends Module implements IFileManager {
                     this.writeFail(['Unable to create directory', pathname], err);
                     item.invalid = true;
                 }
-                emptyDir.add(pathname);
+                emptied.add(pathname);
             }
             if (item.content) {
                 if (!checkQueue(item, localUri, true)) {
@@ -798,7 +807,7 @@ class FileManager extends Module implements IFileManager {
                     continue;
                 }
                 try {
-                    if (Node.isFileURI(uri)) {
+                    if (Node.isFileHTTP(uri)) {
                         if (!checkQueue(item, localUri)) {
                             const stream = fs.createWriteStream(localUri);
                             stream.on('finish', () => {
