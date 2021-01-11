@@ -316,7 +316,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
     }
 
-    public static async using(this: IFileManager, instance: IChromeDocument, file: DocumentAsset) {
+    public static async using(this: IFileManager, instance: ChromeDocument, file: DocumentAsset) {
         const { format, mimeType, localUri } = file;
         const baseDirectory = instance.baseDirectory;
         switch (mimeType) {
@@ -648,27 +648,12 @@ class ChromeDocument extends Document implements IChromeDocument {
             case '@text/css': {
                 const unusedStyles = file.preserve !== true && instance?.unusedStyles;
                 const transform = mimeType[0] === '@';
-                const trailing = await this.getTrailingContent(file);
-                const bundle = this.joinAllContent(localUri!);
+                const trailing = this.getTrailingContent(file);
+                const bundle = this.getBundleContent(localUri!);
                 if (!unusedStyles && !transform && !trailing && !bundle && !format) {
                     break;
                 }
-                let source = this.getUTF8String(file, localUri),
-                    modified = false;
-                if (unusedStyles) {
-                    const result = removeCss(source, unusedStyles);
-                    if (result) {
-                        source = result;
-                        modified = true;
-                    }
-                }
-                if (transform) {
-                    const result = transformCss.call(this, instance, file, source);
-                    if (result) {
-                        source = result;
-                        modified = true;
-                    }
-                }
+                let [source, modified] = await instance.formatContent(this, file, this.getUTF8String(file, localUri));
                 if (trailing) {
                     source += trailing;
                     modified = true;
@@ -687,8 +672,8 @@ class ChromeDocument extends Document implements IChromeDocument {
                 break;
             }
             case 'text/javascript': {
-                const trailing = await this.getTrailingContent(file);
-                const bundle = this.joinAllContent(localUri!);
+                const trailing = this.getTrailingContent(file);
+                const bundle = this.getBundleContent(localUri!);
                 if (!trailing && !bundle && !format) {
                     break;
                 }
@@ -872,21 +857,24 @@ class ChromeDocument extends Document implements IChromeDocument {
         this.unusedStyles = body.unusedStyles;
     }
 
-    async formatContent(manager: IFileManager, file: DocumentAsset, content: string) {
+    async formatContent(manager: IFileManager, file: DocumentAsset, content: string): Promise<[string, boolean]> {
+        let modified = false;
         if (file.mimeType === '@text/css') {
             const unusedStyles = this.unusedStyles;
             if (!file.preserve && unusedStyles) {
                 const result = removeCss(content, unusedStyles);
                 if (result) {
                     content = result;
+                    modified = true;
                 }
             }
             const result = transformCss.call(manager, this, file, content);
             if (result) {
                 content = result;
+                modified = true;
             }
         }
-        return content;
+        return [content, modified];
     }
     imageQueue(data: FileData, outputType: string, saveAs: string, command: string) {
         const match = REGEXP_SRCSETSIZE.exec(command);

@@ -315,7 +315,7 @@ declare namespace functions {
         loadOptions(value: ConfigOrTransformer | string): Undef<ConfigOrTransformer>;
         loadConfig(value: string): Undef<StandardMap | string>;
         transform(type: string, format: string, value: string, input?: SourceMapInput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>>;
-        formatContent?(manager: IFileManager, file: ExternalAsset, content: string): Promise<string>;
+        formatContent?(manager: IFileManager, file: ExternalAsset, content: string): Promise<[string, boolean]>;
         imageQueue?: FileManagerQueueImageMethod;
         imageFinalize?: FileManagerFinalizeImageMethod<boolean>;
         cloudInit?(state: FinalizeState): void;
@@ -384,8 +384,8 @@ declare namespace functions {
         removeCwd(value: Undef<string>): string;
         getUTF8String(file: ExternalAsset, localUri?: string): string;
         appendContent(file: ExternalAsset, localUri: string, content: string, bundleIndex?: number): Promise<string>;
-        getTrailingContent(file: ExternalAsset): Promise<string>;
-        joinAllContent(localUri: string): Undef<string>;
+        getTrailingContent(file: ExternalAsset): Undef<string>;
+        getBundleContent(localUri: string): Undef<string>;
         createSourceMap(file: ExternalAsset, sourcesContent: string): SourceMapInput;
         writeSourceMap(file: ExternalAsset, output: [string, Undef<Map<string, SourceMapOutput>>], modified?: boolean): void;
         compressFile(file: ExternalAsset): Promise<unknown>;

@@ -66,7 +66,7 @@ class FileManager extends Module implements IFileManager {
                 Compress.tinifyApiKey = tinypng_api_key;
             }
         }
-        super.loadSettings(value as PlainObject);
+        super.loadSettings(value);
     }
 
     public static moduleNode() {
@@ -329,16 +329,16 @@ class FileManager extends Module implements IFileManager {
         return file.sourceUTF8 || '';
     }
     async appendContent(file: ExternalAsset, localUri: string, content: string, bundleIndex = 0) {
+        const trailing = this.getTrailingContent(file);
+        if (trailing) {
+            content += trailing;
+        }
         if (file.document) {
             for (const { instance } of this.Document) {
                 if (hasDocument(file.document, instance.documentName) && instance.formatContent) {
-                    content = await instance.formatContent(this, file, content);
+                    [content] = await instance.formatContent(this, file, content);
                 }
             }
-        }
-        const trailing = await this.getTrailingContent(file);
-        if (trailing) {
-            content += trailing;
         }
         if (bundleIndex === 0) {
             return content;
@@ -348,26 +348,15 @@ class FileManager extends Module implements IFileManager {
         this.contentToAppend.set(localUri, items);
         return '';
     }
-    async getTrailingContent(file: ExternalAsset) {
-        let output = '';
+    getTrailingContent(file: ExternalAsset) {
         if (file.trailingContent) {
-            for (let value of file.trailingContent) {
-                if (file.document) {
-                    for (const { instance } of this.Document) {
-                        if (hasDocument(file.document, instance.documentName) && instance.formatContent) {
-                            value = await instance.formatContent(this, file, value);
-                        }
-                    }
-                }
-                output += '\n' + value;
-            }
+            return file.trailingContent.reduce((a, b) => a + '\n' + b, '');
         }
-        return output;
     }
-    joinAllContent(localUri: string) {
-        const files = this.contentToAppend.get(localUri);
-        if (files) {
-            return files.reduce((a, b) => b ? a + '\n' + b : a, '');
+    getBundleContent(localUri: string) {
+        const content = this.contentToAppend.get(localUri);
+        if (content) {
+            return content.reduce((a, b) => b ? a + '\n' + b : a, '');
         }
     }
     createSourceMap(file: ExternalAsset, sourcesContent: string) {
@@ -647,26 +636,17 @@ class FileManager extends Module implements IFileManager {
             if (file.bundleIndex !== undefined) {
                 let cloudStorage: Undef<CloudService[]>;
                 if (file.bundleIndex === 0) {
-                    let content = this.getUTF8String(file, localUri);
+                    const content = await this.appendContent(file, localUri, this.getUTF8String(file, localUri));
                     if (content) {
-                        content = await this.appendContent(file, localUri, content);
-                        if (content) {
-                            file.sourceUTF8 = content;
-                        }
+                        file.sourceUTF8 = content;
+                        file.invalid = false;
                         bundleMain = file;
                     }
                     else {
-                        content = await this.getTrailingContent(file);
-                        if (content) {
-                            file.sourceUTF8 = content;
-                            bundleMain = file;
-                        }
-                        else {
-                            delete file.sourceUTF8;
-                            file.bundleIndex = Infinity;
-                            file.invalid = true;
-                            cloudStorage = file.cloudStorage;
-                        }
+                        file.bundleIndex = Infinity;
+                        file.invalid = true;
+                        cloudStorage = file.cloudStorage;
+                        delete file.sourceUTF8;
                     }
                 }
                 const items = appending[localUri];
@@ -681,7 +661,7 @@ class FileManager extends Module implements IFileManager {
                                 return this.appendContent(next, localUri, value, next.bundleIndex);
                             }
                             if (value) {
-                                next.sourceUTF8 = await this.appendContent(next, localUri, value) || value;
+                                next.sourceUTF8 = await this.appendContent(next, localUri, value);
                                 next.cloudStorage = cloudStorage;
                                 bundleMain = queue;
                             }
@@ -735,8 +715,8 @@ class FileManager extends Module implements IFileManager {
                 this.finalizeAsset({ file });
             }
         };
-        const errorRequest = (file: ExternalAsset, localUri: string, err: Error | string, stream?: fs.WriteStream) => {
-            const uri = file.uri!;
+        const errorRequest = (file: ExternalAsset, uri: string, localUri: string, err: Error | string, stream?: fs.WriteStream) => {
+            file.invalid = true;
             if (!notFound[uri]) {
                 if (appending[localUri]) {
                     processQueue(file, localUri);
@@ -755,7 +735,6 @@ class FileManager extends Module implements IFileManager {
                 }
             }
             this.writeFail(['Unable to download file', uri], err);
-            file.invalid = true;
             delete processing[localUri];
         };
         for (const item of this.assets) {
@@ -835,7 +814,7 @@ class FileManager extends Module implements IFileManager {
                                     }
                                     const statusCode = response.statusCode;
                                     if (statusCode >= 300) {
-                                        errorRequest(item, localUri, statusCode + ' ' + response.statusMessage, stream);
+                                        errorRequest(item, uri, localUri, statusCode + ' ' + response.statusMessage, stream);
                                     }
                                 })
                                 .on('data', data => {
@@ -843,7 +822,7 @@ class FileManager extends Module implements IFileManager {
                                         item.buffer = item.buffer ? Buffer.concat([item.buffer, data]) : data;
                                     }
                                 })
-                                .on('error', err => errorRequest(item, localUri, err, stream))
+                                .on('error', err => errorRequest(item, uri, localUri, err, stream))
                                 .pipe(stream);
                             }
                     }
@@ -858,7 +837,7 @@ class FileManager extends Module implements IFileManager {
                     }
                 }
                 catch (err) {
-                    errorRequest(item, localUri, err);
+                    errorRequest(item, uri, localUri, err);
                 }
             }
         }
