@@ -210,7 +210,6 @@ declare namespace functions {
     interface ICompress extends IModule {
         gzipLevel: number;
         brotliQuality: number;
-        tinifyApiKey: string;
         compressorProxy: ObjectMap<CompressTryFileMethod>;
         register(format: string, callback: CompressTryFileMethod): void;
         createWriteStreamAsGzip(source: string, localUri: string, level?: number): WriteStream;
@@ -479,7 +478,7 @@ declare namespace functions {
         interface CompressModule {
             gzip_level?: NumString;
             brotli_quality?: NumString;
-            tinypng_api_key?: string;
+            tinify_api_key?: string;
         }
 
         interface CloudModule {

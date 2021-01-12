@@ -66,7 +66,7 @@ class Permission implements IPermission {
 class FileManager extends Module implements IFileManager {
     public static loadSettings(value: Settings) {
         if (value.compress) {
-            const { gzip_level, brotli_quality, tinypng_api_key } = value.compress;
+            const { gzip_level, brotli_quality } = value.compress;
             const gzip = +(gzip_level as string);
             const brotli = +(brotli_quality as string);
             if (!isNaN(gzip)) {
@@ -74,9 +74,6 @@ class FileManager extends Module implements IFileManager {
             }
             if (!isNaN(brotli)) {
                 Compress.brotliQuality = brotli;
-            }
-            if (tinypng_api_key) {
-                Compress.tinifyApiKey = tinypng_api_key;
             }
         }
         super.loadSettings(value);

@@ -16,7 +16,6 @@ function parseSizeRange(value: string): [number, number] {
 const Compress = new class extends Module implements ICompress {
     public gzipLevel = 9;
     public brotliQuality = 11;
-    public tinifyApiKey = '';
     public compressorProxy: ObjectMap<CompressTryFileMethod> = {};
 
     register(format: string, callback: CompressTryFileMethod) {
@@ -103,8 +102,6 @@ const Compress = new class extends Module implements ICompress {
     }
     tryImage(localUri: string, data: CompressFormat, callback: CompressTryImageCallback) {
         const ext = path.extname(localUri).substring(1);
-        this.formatMessage(this.logType.COMPRESS, ext, ['Compressing image...', data.plugin || ''], localUri, { titleColor: 'magenta' });
-        const time = Date.now();
         const writeFail = (err: Null<Error>) => this.writeFail(['Unable to compress image', path.basename(localUri)], err);
         const writeFile = (result: Buffer | Uint8Array) => {
             fs.writeFile(localUri, result, err => {
@@ -132,47 +129,53 @@ const Compress = new class extends Module implements ICompress {
                 }
             });
         };
-        const tinifyApiKey = (!data.plugin || data.plugin === 'tinify') && (data.format === 'png' || data.format === 'jpeg') ? data.options?.apiKey as string || this.tinifyApiKey : '';
-        if (tinifyApiKey || data.plugin) {
-            fs.readFile(localUri, async (err, buffer) => {
-                if (!err) {
-                    if (tinifyApiKey) {
-                        if (tinify['_key'] !== tinifyApiKey) {
-                            tinify.key = tinifyApiKey;
-                            tinify.validate(error => {
-                                if (!error) {
-                                    loadBuffer(buffer);
-                                }
-                                else {
-                                    writeFail(error);
-                                    callback(false);
-                                }
-                            });
-                        }
-                        else {
-                            loadBuffer(buffer);
-                        }
+        let apiKey: Undef<string>;
+        if ((data.plugin ||= 'tinify') === 'tinify') {
+            if (data.options && (data.format === 'png' || data.format === 'jpeg')) {
+                apiKey = data.options.apiKey as Undef<string>;
+            }
+            if (!apiKey) {
+                writeFail(new Error('Tinify API key not found'));
+                callback(false);
+                return;
+            }
+        }
+        this.formatMessage(this.logType.COMPRESS, ext, ['Compressing image...', data.plugin], localUri, { titleColor: 'magenta' });
+        const time = Date.now();
+        fs.readFile(localUri, async (err, buffer) => {
+            if (!err) {
+                if (apiKey) {
+                    if (tinify['_key'] !== apiKey) {
+                        tinify.key = apiKey;
+                        tinify.validate(error => {
+                            if (!error) {
+                                loadBuffer(buffer);
+                            }
+                            else {
+                                writeFail(error);
+                                callback(false);
+                            }
+                        });
+                    }
+                    else {
+                        loadBuffer(buffer);
+                    }
+                    return;
+                }
+                else if (data.plugin) {
+                    try {
+                        const plugin = require(data.plugin);
+                        writeFile(await plugin(data.options)(buffer));
                         return;
                     }
-                    else if (data.plugin) {
-                        try {
-                            const plugin = require(data.plugin);
-                            writeFile(await plugin(data.options)(buffer));
-                            return;
-                        }
-                        catch (error) {
-                            err = error;
-                        }
+                    catch (error) {
+                        err = error;
                     }
                 }
-                writeFail(err);
-                callback(false);
-            });
-        }
-        else {
-            writeFail(new Error('Compressor not found'));
+            }
+            writeFail(err);
             callback(false);
-        }
+        });
     }
 }();
 
