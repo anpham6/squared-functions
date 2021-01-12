@@ -77,7 +77,7 @@ abstract class Document extends Module implements IDocument {
                 }
             }
             else {
-                this.writeFail('Only relateive paths are supported', value);
+                this.writeFail('Only relative paths are supported', value);
             }
         }
         else if (typeof value === 'object') {
@@ -89,7 +89,7 @@ abstract class Document extends Module implements IDocument {
             }
         }
     }
-    async transform(type: string, format: string, value: string, input?: SourceMapInput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>> {
+    async transform(type: string, format: string, value: string, errors?: string[], input?: SourceMapInput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>> {
         const settings = this.module.settings?.[type] as ObjectMap<StandardMap>;
         if (settings) {
             const writeFail = this.writeFail.bind(this);
@@ -115,6 +115,9 @@ abstract class Document extends Module implements IDocument {
                             }
                             catch (err) {
                                 this.writeFail(['Install required?', 'npm i ' + plugin], err);
+                                if (errors) {
+                                    errors.push(err.toString());
+                                }
                             }
                         }
                         else {
@@ -133,6 +136,9 @@ abstract class Document extends Module implements IDocument {
                             }
                             catch (err) {
                                 this.writeFail(['Unable to transform source', plugin], err);
+                                if (errors) {
+                                    errors.push(err.toString());
+                                }
                             }
                         }
                     }

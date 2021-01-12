@@ -129,13 +129,16 @@ const Module = class implements IModule {
         writeMessage(title.padEnd(6), value, message, options);
     }
 
-    public static allSettled<T>(values: readonly (T | PromiseLike<T>)[], rejected?: string | [string, string]) {
+    public static allSettled<T>(values: readonly (T | PromiseLike<T>)[], rejected?: string | [string, string], errors?: string[]) {
         const promise = Promise.allSettled ? Promise.allSettled(values) as Promise<PromiseSettledResult<T>[]> : allSettled(values);
         if (rejected) {
             promise.then(result => {
                 for (const item of result) {
-                    if (item.status === 'rejected') {
+                    if (item.status === 'rejected' && item.reason) {
                         this.formatMessage(LOG_TYPE.SYSTEM, 'FAIL', rejected, item.reason, { titleColor: 'white', titleBgColor: 'bgRed' });
+                        if (errors) {
+                            errors.push(item.reason.toString());
+                        }
                     }
                 }
             });
@@ -179,6 +182,7 @@ const Module = class implements IModule {
     public minor: number;
     public patch: number;
     public tempDir = 'tmp';
+    public readonly errors: string[] = [];
 
     constructor() {
         [this.major, this.minor, this.patch] = process.version.substring(1).split('.').map(value => +value);
@@ -239,6 +243,9 @@ const Module = class implements IModule {
         options.titleColor ||= 'white';
         options.titleBgColor ||= 'bgRed';
         this.formatMessage(type, title, value, message, options);
+        if (message) {
+            this.errors.push((message as Error).toString());
+        }
     }
     formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
         Module.formatMessage(type, title, value, message, options);

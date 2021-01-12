@@ -400,7 +400,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     const items = cloud.database.filter(item => item.element?.outerHTML);
                     const cacheKey = uuid.v4();
                     const pattern = /\$\{\s*(\w+)\s*\}/g;
-                    (await Promise.all(items.map(item => cloud.getDatabaseRows(item, cacheKey).catch(() => [])))).forEach((result, index) => {
+                    (await Promise.all(items.map(item => cloud.getDatabaseRows(item, cacheKey).catch(err => { this.errors.push(err.toString()); return []; })))).forEach((result, index) => {
                         if (result.length) {
                             const item = items[index];
                             const outerHTML = item.element!.outerHTML!;
@@ -662,7 +662,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     source += bundle;
                 }
                 if (format) {
-                    const result = await instance.transform('css', format, source, this.createSourceMap(file, source));
+                    const result = await instance.transform('css', format, source, this.errors, this.createSourceMap(file, source));
                     if (result) {
                         this.writeSourceMap(file, result, modified);
                         source = result[0];
@@ -687,7 +687,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     source += bundle;
                 }
                 if (format) {
-                    const result = await instance.transform('js', format, source, this.createSourceMap(file, source));
+                    const result = await instance.transform('js', format, source, this.errors, this.createSourceMap(file, source));
                     if (result) {
                         this.writeSourceMap(file, result, modified);
                         source = result[0];
@@ -719,7 +719,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
         if (tasks.length) {
-            await Document.allSettled(tasks, ['Cache base64 <finalize>', instance.documentName]);
+            await Document.allSettled(tasks, ['Cache base64 <finalize>', instance.documentName], this.errors);
             tasks = [];
         }
         const replaced = assets.filter(item => item.originalName && !item.invalid);
@@ -772,7 +772,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
             }
             if (formatting) {
-                const result = await instance.transform('html', file.format!, source);
+                const result = await instance.transform('html', file.format!, source, manager.errors);
                 if (result) {
                     source = result[0];
                 }
@@ -810,7 +810,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
         if (tasks.length) {
-            await Document.allSettled(tasks, ['Replace UTF-8 <finalize>', instance.documentName]);
+            await Document.allSettled(tasks, ['Replace UTF-8 <finalize>', instance.documentName], this.errors);
         }
         if (instance.htmlFiles.length) {
             for (const item of assets) {
@@ -882,9 +882,9 @@ class ChromeDocument extends Document implements IChromeDocument {
             return Document.renameExt(data.file.localUri!, match[1] + match[2].toLowerCase() + '.' + saveAs);
         }
     }
-    imageFinalize(data: OutputData, error?: Null<Error>) {
+    imageFinalize(err: Null<Error>, data: OutputData) {
         const { file, output } = data;
-        if (!error && output) {
+        if (!err && output) {
             const match = (file as DocumentAsset).outerHTML && REGEXP_SRCSETSIZE.exec(data.command);
             if (match) {
                 ((file as DocumentAsset).srcSet ||= []).push(Document.toPosix(data.baseDirectory ? output.substring(data.baseDirectory.length + 1) : output), match[1] + match[2].toLowerCase());
@@ -971,7 +971,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 tasks.push(...Array.from(modifiedCss).map(item => fs.writeFile(item.localUri!, item.sourceUTF8, 'utf8')));
             }
             if (tasks.length) {
-                await Document.allSettled(tasks, ['Update "text/css" <cloud storage>', this.documentName]);
+                await Document.allSettled(tasks, ['Update "text/css" <cloud storage>', this.documentName], manager.errors);
                 tasks = [];
             }
         }
@@ -985,7 +985,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
         if (tasks.length) {
-            await Document.allSettled(tasks, ['Upload "text/css" <cloud storage>', this.documentName]);
+            await Document.allSettled(tasks, ['Upload "text/css" <cloud storage>', this.documentName], manager.errors);
             tasks = [];
         }
         if (this._cloudModifiedHtml) {
@@ -1015,7 +1015,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
             }
             if (tasks.length) {
-                await Document.allSettled(tasks, ['Upload "text/html" <cloud storage>', this.documentName]);
+                await Document.allSettled(tasks, ['Upload "text/html" <cloud storage>', this.documentName], manager.errors);
             }
         }
     }

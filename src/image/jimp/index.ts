@@ -1,4 +1,4 @@
-import type { FileManagerCompleteAsyncTaskCallback, FileManagerFinalizeImageMethod, FileManagerPerformAsyncTaskCallback, IFileManager, ImageHandler, Internal } from '../../types/lib';
+import type { FileManagerCompleteAsyncTaskCallback, FileManagerFinalizeImageCallback, FileManagerPerformAsyncTaskMethod, IFileManager, ImageHandler, Internal } from '../../types/lib';
 
 import path = require('path');
 import fs = require('fs');
@@ -35,7 +35,7 @@ class Jimp extends Image implements ImageHandler<jimp> {
         return false;
     }
 
-    public static using(this: IFileManager, data: FileData, command: string, callback?: FileManagerFinalizeImageMethod) {
+    public static using(this: IFileManager, data: FileData, command: string, callback?: FileManagerFinalizeImageCallback) {
         const file = data.file;
         const localUri = file.localUri!;
         const mimeType = data.mimeType || file.mimeType;
@@ -91,8 +91,8 @@ class Jimp extends Image implements ImageHandler<jimp> {
                             proxy.write(output, startTime, callback);
                         })
                         .catch(err => {
-                            this.completeAsyncTask();
                             this.writeFail(['Unable to read image buffer', path.basename(localUri)], err);
+                            this.completeAsyncTask();
                         });
                     return;
                 }
@@ -239,7 +239,7 @@ class Jimp extends Image implements ImageHandler<jimp> {
             }
         }
     }
-    rotate(initialize?: FileManagerPerformAsyncTaskCallback, callback?: FileManagerCompleteAsyncTaskCallback) {
+    rotate(performAsyncTask?: FileManagerPerformAsyncTaskMethod, callback?: FileManagerCompleteAsyncTaskCallback) {
         if (this.rotateData) {
             const { values, color } = this.rotateData;
             if (!isNaN(color)) {
@@ -250,24 +250,24 @@ class Jimp extends Image implements ImageHandler<jimp> {
             const deg = values[0];
             for (let i = 1, length = values.length; i < length; ++i) {
                 const value = values[i];
-                if (initialize) {
-                    initialize();
+                if (performAsyncTask) {
+                    performAsyncTask();
                 }
                 const img = this.instance.clone().rotate(value);
                 const index = localUri.lastIndexOf('.');
                 const output = localUri.substring(0, index) + '.' + value + localUri.substring(index);
                 img.write(output, err => {
                     if (!err) {
-                        this.finalize(output, (result: string) => {
+                        this.finalize(output, (error: Null<Error>, result: string) => {
                             if (callback) {
-                                callback(result, file);
+                                callback(error, result, file);
                             }
                         });
                     }
                     else {
-                        this.writeFail(['Unable to rotate image', output], err);
+                        this.writeFail(['Unable to rotate image <jimp>', path.basename(output)], err);
                         if (callback) {
-                            callback();
+                            callback(err);
                         }
                     }
                 });
@@ -277,15 +277,15 @@ class Jimp extends Image implements ImageHandler<jimp> {
             }
         }
     }
-    write(output: string, startTime?: number, callback?: FileManagerFinalizeImageMethod) {
+    write(output: string, startTime?: number, callback?: FileManagerFinalizeImageCallback) {
         this.instance.write(output, err => {
             if (!err) {
-                this.finalize(output, (result: string) => {
+                this.finalize(output, (error: Null<Error>, result: string) => {
                     if (startTime) {
                         this.writeTimeElapsed('jimp', path.basename(result), startTime);
                     }
                     if (callback) {
-                        callback({ ...this.data, output: result, command: this.command }, err);
+                        callback(error, { ...this.data, output: result, command: this.command });
                     }
                 });
             }
@@ -294,7 +294,7 @@ class Jimp extends Image implements ImageHandler<jimp> {
             }
         });
     }
-    finalize(output: string, callback: (result: string) => void) {
+    finalize(output: string, callback: (err: Null<Error>, result: string) => void) {
         if (this.finalAs === 'webp') {
             const webp = Image.renameExt(output, 'webp');
             const args = [output, '-mt', '-m', '6'];
@@ -314,23 +314,23 @@ class Jimp extends Image implements ImageHandler<jimp> {
             child_process.execFile(require('cwebp-bin'), args, null, err => {
                 if (err) {
                     this.writeFail(['Install WebP?', 'npm i cwebp-bin'], err);
-                    callback(output);
+                    callback(err, output);
                 }
                 else if (webp !== output) {
                     fs.unlink(output, error => {
                         if (error) {
                             this.writeFail(['Unable to delete temporary image', output], error);
                         }
-                        callback(webp);
+                        callback(error, webp);
                     });
                 }
                 else {
-                    callback(webp);
+                    callback(null, webp);
                 }
             });
         }
         else {
-            callback(output);
+            callback(null, output);
         }
     }
 }

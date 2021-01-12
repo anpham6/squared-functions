@@ -125,7 +125,7 @@ class Cloud extends Module implements ICloud {
                                 }
                             }
                         }
-                        Module.allSettled(uploadTasks).then(async result => {
+                        Module.allSettled(uploadTasks, ['Upload file <cloud storage>', path.basename(file.localUri!)], this.errors).then(async result => {
                             if (!uploadDocument) {
                                 for (const item of result) {
                                     if (item.status === 'fulfilled' && item.value) {
@@ -197,7 +197,7 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, ['Empty bucket <finalize>', 'cloud storage']);
+            await Module.allSettled(tasks, ['Empty bucket <finalize>', 'cloud storage'], this.errors);
             tasks = [];
         }
         if (rawFiles.length) {
@@ -205,7 +205,7 @@ class Cloud extends Module implements ICloud {
                 tasks.push(...Cloud.uploadAsset.call(this, state, item));
             }
             if (tasks.length) {
-                await Module.allSettled(tasks, ['Upload raw assets <finalize>', 'cloud storage']);
+                await Module.allSettled(tasks, ['Upload raw assets <finalize>', 'cloud storage'], this.errors);
                 tasks = [];
             }
         }
@@ -222,7 +222,7 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, ['Delete temporary files <finalize>', 'cloud storage']);
+            await Module.allSettled(tasks, ['Delete temporary files <finalize>', 'cloud storage'], this.errors);
             tasks = [];
         }
         for (const item of this.assets) {
@@ -290,7 +290,7 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, ['Download objects <finalize>', 'cloud storage']);
+            await Module.allSettled(tasks, ['Download objects <finalize>', 'cloud storage'], this.errors);
         }
         return { compressed } as FinalizeResult;
     }

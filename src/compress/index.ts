@@ -1,4 +1,4 @@
-import type { CompressTryFileMethod, CompressTryImageCallback, FileManagerCompleteAsyncTaskCallback, FileManagerPerformAsyncTaskCallback, ICompress } from '../types/lib';
+import type { CompressTryFileMethod, CompressTryImageCallback, FileManagerCompleteAsyncTaskCallback, FileManagerPerformAsyncTaskMethod, ICompress } from '../types/lib';
 import type { CompressFormat } from '../types/lib/squared';
 
 import path = require('path');
@@ -54,7 +54,7 @@ const Compress = new class extends Module implements ICompress {
         }
         return true;
     }
-    tryFile(localUri: string, data: CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskCallback>, callback?: FileManagerCompleteAsyncTaskCallback) {
+    tryFile(localUri: string, data: CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskMethod>, callback?: FileManagerCompleteAsyncTaskCallback) {
         if (this.withinSizeRange(localUri, data.condition)) {
             switch (data.format) {
                 case 'gz':
@@ -69,20 +69,20 @@ const Compress = new class extends Module implements ICompress {
                         .on('finish', () => {
                             this.writeTimeElapsed(data.format, path.basename(output), time);
                             if (data.condition?.includes('%') && Module.getFileSize(output) >= Module.getFileSize(localUri)) {
-                                fs.unlink(output, () => {
+                                fs.unlink(output, err => {
                                     if (callback) {
-                                        callback();
+                                        callback(err);
                                     }
                                 });
                             }
                             else if (callback) {
-                                callback(output);
+                                callback(null, output);
                             }
                         })
                         .on('error', err => {
                             this.writeFail(['Unable to compress file', path.basename(output)], err);
                             if (callback) {
-                                callback();
+                                callback(err);
                             }
                         });
                     break;
@@ -102,16 +102,14 @@ const Compress = new class extends Module implements ICompress {
     }
     tryImage(localUri: string, data: CompressFormat, callback: CompressTryImageCallback) {
         const ext = path.extname(localUri).substring(1);
-        const writeFail = (err: Null<Error>) => this.writeFail(['Unable to compress image', path.basename(localUri)], err);
         const writeFile = (result: Buffer | Uint8Array) => {
             fs.writeFile(localUri, result, err => {
                 if (!err) {
-                    callback(true);
                     this.writeTimeElapsed(ext, path.basename(localUri), time);
+                    callback(null);
                 }
                 else {
-                    writeFail(err);
-                    callback(false);
+                    throw err;
                 }
             });
         };
@@ -121,11 +119,10 @@ const Compress = new class extends Module implements ICompress {
                     writeFile(result);
                 }
                 else {
-                    if (err) {
-                        writeFail(err);
-                    }
-                    callback(false);
                     delete tinify['_key'];
+                    if (err) {
+                        throw err;
+                    }
                 }
             });
         };
@@ -135,9 +132,7 @@ const Compress = new class extends Module implements ICompress {
                 apiKey = data.options.apiKey as Undef<string>;
             }
             if (!apiKey) {
-                writeFail(new Error('Tinify API key not found'));
-                callback(false);
-                return;
+                throw new Error('Tinify API key not found');
             }
         }
         this.formatMessage(this.logType.COMPRESS, ext, ['Compressing image...', data.plugin], localUri, { titleColor: 'magenta' });
@@ -152,8 +147,7 @@ const Compress = new class extends Module implements ICompress {
                                 loadBuffer(buffer);
                             }
                             else {
-                                writeFail(error);
-                                callback(false);
+                                throw error;
                             }
                         });
                     }
@@ -172,9 +166,11 @@ const Compress = new class extends Module implements ICompress {
                         err = error;
                     }
                 }
+                else {
+                    err = new Error('Plugin not found');
+                }
             }
-            writeFail(err);
-            callback(false);
+            throw err;
         });
     }
 }();

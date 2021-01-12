@@ -140,13 +140,13 @@ class FileManager extends Module implements IFileManager {
     public readonly filesToCompare = new Map<ExternalAsset, string[]>();
     public readonly contentToAppend = new Map<string, string[]>();
     public readonly emptyDir = new Set<string>();
-    public readonly postFinalize: FunctionType<void>;
     public readonly permission: IPermission;
+    public readonly postFinalize?: (errors: string[]) => void;
 
     constructor(
         public readonly baseDirectory: string,
         public readonly body: RequestBody,
-        postFinalize: FunctionType<void> = () => undefined,
+        postFinalize?: (errors: string[]) => void,
         settings: PermissionSettings = {})
     {
         super();
@@ -159,7 +159,9 @@ class FileManager extends Module implements IFileManager {
                 this.taskAssets.push(item);
             }
         }
-        this.postFinalize = postFinalize.bind(this);
+        if (postFinalize) {
+            this.postFinalize = postFinalize.bind(this);
+        }
         this.permission = new Permission(settings);
     }
 
@@ -266,7 +268,7 @@ class FileManager extends Module implements IFileManager {
     removeAsyncTask() {
         --this.delayed;
     }
-    completeAsyncTask(localUri?: string, parent?: ExternalAsset) {
+    completeAsyncTask(err: Null<Error> = null, localUri?: string, parent?: ExternalAsset) {
         if (this.delayed !== Infinity) {
             if (localUri) {
                 this.add(localUri, parent);
@@ -274,14 +276,21 @@ class FileManager extends Module implements IFileManager {
             this.removeAsyncTask();
             this.performFinalize();
         }
+        if (err) {
+            this.writeFail('Unknown', err);
+        }
     }
     performFinalize() {
         if (this.cleared && this.delayed <= 0) {
             this.delayed = Infinity;
-            this.finalize().then(() => this.postFinalize());
+            this.finalize().then(() => {
+                if (this.postFinalize) {
+                    this.postFinalize(this.errors);
+                }
+            });
         }
     }
-    setLocalUri(file: ExternalAsset): FileOutput {
+    setLocalUri(file: ExternalAsset) {
         const uri = file.uri;
         if (uri) {
             file.uri = Node.resolveUri(uri);
@@ -298,7 +307,7 @@ class FileManager extends Module implements IFileManager {
         const localUri = path.join(pathname, file.filename);
         file.localUri = localUri;
         file.relativeUri = this.getRelativeUri(file);
-        return { pathname, localUri };
+        return { pathname, localUri } as FileOutput;
     }
     writeLocalUri(file: ExternalAsset) {
         const buffer = file.sourceUTF8 ? Buffer.from(file.sourceUTF8, 'utf8') : file.buffer;
@@ -484,49 +493,16 @@ class FileManager extends Module implements IFileManager {
         this.filesQueued.add(output ||= localUri);
         return output;
     }
-    async compressFile(file: ExternalAsset) {
-        const { compress, localUri } = file;
-        if (compress && this.has(localUri)) {
-            const tasks: Promise<void>[] = [];
-            for (const item of compress) {
-                let valid = false;
-                switch (item.format) {
-                    case 'gz':
-                        valid = true;
-                        break;
-                    case 'br':
-                        valid = Node.supported(11, 7);
-                        break;
-                    default:
-                        valid = typeof Compress.compressorProxy[item.format] === 'function';
-                        break;
-                }
-                if (valid) {
-                    tasks.push(
-                        new Promise<void>(resolve => Compress.tryFile(localUri, item, null, (result: string) => {
-                            if (result) {
-                                this.add(result, file);
-                            }
-                            resolve();
-                        }))
-                    );
-                }
-            }
-            if (tasks.length) {
-                return Module.allSettled(tasks, ['Compress <finalize>', path.basename(localUri)]);
-            }
-        }
-    }
-    finalizeImage(data: OutputData, error?: Null<Error>) {
+    finalizeImage(err: Null<Error>, data: OutputData) {
         const { file, command } = data;
         let output = data.output,
             parent: Undef<ExternalAsset>;
         if (file.document) {
             data.baseDirectory = this.baseDirectory;
             for (const { instance } of this.Document) {
-                if (hasDocument(file.document, instance.documentName) && instance.imageFinalize && instance.imageFinalize(data, error)) {
-                    if (error || !output) {
-                        this.completeAsyncTask();
+                if (hasDocument(file.document, instance.documentName) && instance.imageFinalize && instance.imageFinalize(err, data)) {
+                    if (err || !output) {
+                        this.completeAsyncTask(err);
                         return;
                     }
                     parent = file;
@@ -534,7 +510,7 @@ class FileManager extends Module implements IFileManager {
                 }
             }
         }
-        if (!error && output) {
+        if (!err && output) {
             const original = file.localUri === output;
             if (!parent && !original) {
                 if (command.includes('%')) {
@@ -554,11 +530,44 @@ class FileManager extends Module implements IFileManager {
                     parent = file;
                 }
             }
-            this.completeAsyncTask(output, !original ? parent : undefined);
+            this.completeAsyncTask(null, output, !original ? parent : undefined);
         }
         else {
-            this.writeFail(['Unable to finalize image', path.basename(output)], error);
+            this.writeFail(['Unable to finalize image', path.basename(output)], err);
             this.completeAsyncTask();
+        }
+    }
+    async compressFile(file: ExternalAsset) {
+        const { compress, localUri } = file;
+        if (compress && this.has(localUri)) {
+            const tasks: Promise<void>[] = [];
+            for (const item of compress) {
+                let valid = false;
+                switch (item.format) {
+                    case 'gz':
+                        valid = true;
+                        break;
+                    case 'br':
+                        valid = Node.supported(11, 7);
+                        break;
+                    default:
+                        valid = typeof Compress.compressorProxy[item.format] === 'function';
+                        break;
+                }
+                if (valid) {
+                    tasks.push(
+                        new Promise<void>(resolve => Compress.tryFile(localUri, item, null, (err: Null<Error>, result: string) => {
+                            if (result) {
+                                this.add(result, file);
+                            }
+                            resolve();
+                        }))
+                    );
+                }
+            }
+            if (tasks.length) {
+                return Module.allSettled(tasks, ['Compress <finalize>', path.basename(localUri)]);
+            }
         }
     }
     async finalizeAsset(data: FileData, parent?: ExternalAsset) {
@@ -621,10 +630,10 @@ class FileManager extends Module implements IFileManager {
                     this.writeFail(['Unable to delete file', path.basename(localUri)], err);
                 }
             }
-            this.completeAsyncTask('');
+            this.completeAsyncTask();
         }
         else {
-            this.completeAsyncTask(localUri, parent);
+            this.completeAsyncTask(null, localUri, parent);
         }
     }
     processAssets(emptyDir?: boolean) {
@@ -776,7 +785,7 @@ class FileManager extends Module implements IFileManager {
                     processQueue(item, localUri);
                 }
                 else {
-                    this.completeAsyncTask();
+                    this.completeAsyncTask(err);
                 }
             };
             if (!emptied.has(pathname)) {
@@ -812,7 +821,7 @@ class FileManager extends Module implements IFileManager {
                     }
                     else {
                         item.invalid = true;
-                        this.completeAsyncTask();
+                        this.completeAsyncTask(err);
                     }
                 });
             }
@@ -905,7 +914,7 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, 'Write modified files <finalize>');
+            await Module.allSettled(tasks, 'Write modified files <finalize>', this.errors);
             tasks = [];
         }
         for (const value of this.filesToRemove) {
@@ -920,7 +929,7 @@ class FileManager extends Module implements IFileManager {
             );
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, 'Delete temporary files <finalize>');
+            await Module.allSettled(tasks, 'Delete temporary files <finalize>', this.errors);
             tasks = [];
         }
         if (this.Compress) {
@@ -937,7 +946,7 @@ class FileManager extends Module implements IFileManager {
                                 }
                                 catch (err) {
                                     this.writeFail(['Unable to compress image', path.basename(localUri)], err);
-                                    resolve(false);
+                                    resolve(null);
                                 }
                             }));
                         }
@@ -945,7 +954,7 @@ class FileManager extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Module.allSettled(tasks, 'Unable to compress images <finalize>');
+                await Module.allSettled(tasks);
                 tasks = [];
             }
         }
@@ -970,7 +979,7 @@ class FileManager extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Module.allSettled(tasks, 'Compress files <finalize>');
+                await Module.allSettled(tasks, 'Compress files <finalize>', this.errors);
                 tasks = [];
             }
         }
