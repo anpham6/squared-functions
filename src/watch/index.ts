@@ -1,4 +1,4 @@
-import type { ExternalAsset, INode, IWatch } from '../types/lib';
+import type { ExternalAsset, INode, IPermission, IWatch } from '../types/lib';
 
 import Module from '../module';
 
@@ -31,7 +31,7 @@ class Watch extends Module implements IWatch {
         super();
     }
 
-    start(assets: ExternalAsset[]) {
+    start(assets: ExternalAsset[], permission?: IPermission) {
         const Node = this.Node;
         const destMap: ObjectMap<ExternalAsset[]> = {};
         for (const item of assets) {
@@ -161,7 +161,7 @@ class Watch extends Module implements IWatch {
                             TIMER_MAP[uri] = [timeout, interval];
                         }
                     }
-                    else if (Node.hasUNCRead() && Node.isFileUNC(uri) || Node.hasDiskRead() && path.isAbsolute(uri)) {
+                    else if (permission && (permission.hasUNCRead() && Node.isFileUNC(uri) || permission.hasDiskRead() && path.isAbsolute(uri))) {
                         let timeout: Null<NodeJS.Timeout> = null;
                         if (expires) {
                             timeout = setTimeout(() => {

@@ -198,14 +198,6 @@ declare namespace functions {
     }
 
     interface INode extends IModule {
-        setDiskRead(): void;
-        setDiskWrite(): void;
-        setUNCRead(): void;
-        setUNCWrite(): void;
-        hasDiskRead(): boolean;
-        hasDiskWrite(): boolean;
-        hasUNCRead(): boolean;
-        hasUNCWrite(): boolean;
         isFileHTTP(value: string): boolean;
         isFileUNC(value: string): boolean;
         isDirectoryUNC(value: string): boolean;
@@ -338,7 +330,7 @@ declare namespace functions {
         Node: INode;
         interval: number;
         whenModified?: (assets: ExternalAsset[]) => void;
-        start(assets: ExternalAsset[]): void;
+        start(assets: ExternalAsset[], permission?: IPermission): void;
     }
 
     interface WatchConstructor extends ModuleConstructor {
@@ -346,6 +338,19 @@ declare namespace functions {
     }
 
     const Watch: WatchConstructor;
+
+    interface IPermission {
+        hasDiskRead(): boolean;
+        hasDiskWrite(): boolean;
+        hasUNCRead(): boolean;
+        hasUNCWrite(): boolean;
+    }
+
+    interface PermissionConstructor {
+        new(settings?: PermissionSettings): IFileManager;
+    }
+
+    const Permission: PermissionConstructor;
 
     interface IFileManager extends IModule {
         delayed: number;
@@ -398,11 +403,11 @@ declare namespace functions {
     }
 
     interface FileManagerConstructor extends ModuleConstructor {
-        hasPermissions(dirname: string, res?: Response): boolean;
-        loadSettings(value: Settings, ignorePermissions?: boolean): void;
+        getPermission(settings?: PermissionSettings): IPermission;
+        hasPermission(dirname: string, permission: IPermission, res?: Response): boolean;
         moduleNode(): INode;
         moduleCompress(): ICompress;
-        new(baseDirectory: string, body: RequestBody, postFinalize?: FunctionType<void>): IFileManager;
+        new(baseDirectory: string, body: RequestBody, postFinalize?: FunctionType<void>, settings?: PermissionSettings): IFileManager;
     }
 
     const FileManager: FileManagerConstructor;
@@ -438,12 +443,15 @@ declare namespace functions {
 
     const Module: ModuleConstructor;
 
-    interface Settings {
-        apiVersion?: string;
+    interface PermissionSettings {
         disk_read?: BoolString;
         disk_write?: BoolString;
         unc_read?: BoolString;
         unc_write?: BoolString;
+    }
+
+    interface Settings extends PermissionSettings {
+        apiVersion?: string;
         compress?: ExtendedSettings.CompressModule;
         image?: ExtendedSettings.ImageModule;
         document?: ObjectMap<ExtendedSettings.DocumentModule>;

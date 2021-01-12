@@ -6,35 +6,6 @@ import path = require('path');
 import Module from '../module';
 
 const Node = new class extends Module implements INode {
-    private _disk_read = false;
-    private _disk_write = false;
-    private _unc_read = false;
-    private _unc_write = false;
-
-    setDiskRead() {
-        this._disk_read = true;
-    }
-    setDiskWrite() {
-        this._disk_write = true;
-    }
-    setUNCRead() {
-        this._unc_read = true;
-    }
-    setUNCWrite() {
-        this._unc_write = true;
-    }
-    hasDiskRead() {
-        return this._disk_read;
-    }
-    hasDiskWrite() {
-        return this._disk_write;
-    }
-    hasUNCRead() {
-        return this._unc_read;
-    }
-    hasUNCWrite() {
-        return this._unc_write;
-    }
     isFileHTTP(value: string) {
         return /^https?:\/\/[^/]/i.test(value);
     }

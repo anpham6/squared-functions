@@ -1,4 +1,4 @@
-import type { DocumentConstructor, ExtendedSettings, ExternalAsset, ICloud, ICompress, IDocument, IFileManager, ITask, IWatch, ImageConstructor, Internal, RequestBody, Settings, TaskConstructor } from '../types/lib';
+import type { DocumentConstructor, ExtendedSettings, ExternalAsset, ICloud, ICompress, IDocument, IFileManager, IPermission, ITask, IWatch, ImageConstructor, Internal, PermissionSettings, RequestBody, Settings, TaskConstructor } from '../types/lib';
 import type { CloudService } from '../types/lib/squared';
 import type { Response } from 'express';
 
@@ -36,23 +36,35 @@ const isFunction = <T>(value: unknown): value is T => typeof value === 'function
 const isTrue = (value: unknown): value is true => value ? value === true || value === 'true' || +(value as string) === 1 : false;
 const hasDocument = (document: string | string[], documentName: string) => Array.isArray(document) && document.includes(documentName) || document === documentName;
 
+class Permission implements IPermission {
+    private _disk_read: boolean;
+    private _disk_write: boolean;
+    private _unc_read: boolean;
+    private _unc_write: boolean;
+
+    constructor(settings: PermissionSettings = {}) {
+        const { disk_read, disk_write, unc_read, unc_write } = settings;
+        this._disk_read = isTrue(disk_read);
+        this._disk_write = isTrue(disk_write);
+        this._unc_read = isTrue(unc_read);
+        this._unc_write = isTrue(unc_write);
+    }
+    hasDiskRead() {
+        return this._disk_read;
+    }
+    hasDiskWrite() {
+        return this._disk_write;
+    }
+    hasUNCRead() {
+        return this._unc_read;
+    }
+    hasUNCWrite() {
+        return this._unc_write;
+    }
+}
+
 class FileManager extends Module implements IFileManager {
-    public static loadSettings(value: Settings, ignorePermissions?: boolean) {
-        if (!ignorePermissions) {
-            const { disk_read, disk_write, unc_read, unc_write } = value;
-            if (isTrue(disk_read)) {
-                Node.setDiskRead();
-            }
-            if (isTrue(disk_write)) {
-                Node.setDiskWrite();
-            }
-            if (isTrue(unc_read)) {
-                Node.setUNCRead();
-            }
-            if (isTrue(unc_write)) {
-                Node.setUNCWrite();
-            }
-        }
+    public static loadSettings(value: Settings) {
         if (value.compress) {
             const { gzip_level, brotli_quality, tinypng_api_key } = value.compress;
             const gzip = +(gzip_level as string);
@@ -78,16 +90,20 @@ class FileManager extends Module implements IFileManager {
         return Compress;
     }
 
-    public static hasPermissions(dirname: string, res?: Response) {
+    public static getPermission(settings?: PermissionSettings) {
+        return new Permission(settings);
+    }
+
+    public static hasPermission(dirname: string, permission: IPermission, res?: Response) {
         if (Node.isDirectoryUNC(dirname)) {
-            if (!Node.hasUNCWrite()) {
+            if (!permission.hasUNCWrite()) {
                 if (res) {
                     res.json(Node.getResponseError('OPTION: --unc-write', 'Writing to UNC shares is not enabled.'));
                 }
                 return false;
             }
         }
-        else if (!Node.hasDiskWrite()) {
+        else if (!permission.hasDiskWrite()) {
             if (res) {
                 res.json(Node.getResponseError('OPTION: --disk-write', 'Writing to disk is not enabled.'));
             }
@@ -128,11 +144,13 @@ class FileManager extends Module implements IFileManager {
     public readonly contentToAppend = new Map<string, string[]>();
     public readonly emptyDir = new Set<string>();
     public readonly postFinalize: FunctionType<void>;
+    public readonly permission: IPermission;
 
     constructor(
         public readonly baseDirectory: string,
         public readonly body: RequestBody,
-        postFinalize: FunctionType<void> = () => undefined)
+        postFinalize: FunctionType<void> = () => undefined,
+        settings: PermissionSettings = {})
     {
         super();
         this.assets = this.body.assets;
@@ -145,6 +163,7 @@ class FileManager extends Module implements IFileManager {
             }
         }
         this.postFinalize = postFinalize.bind(this);
+        this.permission = new Permission(settings);
     }
 
     install(name: string, ...params: unknown[]) {
@@ -835,7 +854,7 @@ class FileManager extends Module implements IFileManager {
                                 .pipe(stream);
                             }
                     }
-                    else if (Node.hasUNCRead() && Node.isFileUNC(uri) || Node.hasDiskRead() && path.isAbsolute(uri)) {
+                    else if (this.permission.hasUNCRead() && Node.isFileUNC(uri) || this.permission.hasDiskRead() && path.isAbsolute(uri)) {
                         if (!checkQueue(item, localUri)) {
                             this.performAsyncTask();
                             fs.copyFile(uri, localUri, err => fileReceived(err));
@@ -959,7 +978,7 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (this.Watch) {
-            this.Watch.start(this.assets);
+            this.Watch.start(this.assets, this.permission);
         }
         for (const value of Array.from(this.emptyDir).reverse()) {
             try {
