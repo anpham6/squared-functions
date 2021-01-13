@@ -1,4 +1,5 @@
 import type { ExtendedSettings, IModule, Internal, Settings } from '../types/lib';
+import type { ResponseData } from '../types/lib/squared';
 
 import path = require('path');
 import fs = require('fs');
@@ -28,26 +29,6 @@ export enum LOG_TYPE {
 
 function allSettled<T>(values: readonly (T | PromiseLike<T>)[]) {
     return Promise.all(values.map((promise: Promise<T>) => promise.then(value => ({ status: 'fulfilled', value })).catch(reason => ({ status: 'rejected', reason })) as Promise<PromiseSettledResult<T>>));
-}
-
-function writeMessage(title: string, value: string, message?: unknown, options: LogMessageOptions = {}) {
-    const { titleColor = 'green', titleBgColor = 'bgBlack', valueColor, valueBgColor, messageColor, messageBgColor } = options;
-    if (valueColor) {
-        value = chalk[valueColor](value);
-    }
-    if (valueBgColor) {
-        value = chalk[valueBgColor](value);
-    }
-    if (message) {
-        if (messageColor) {
-            message = chalk[messageColor](message);
-        }
-        if (messageBgColor) {
-            message = chalk[messageBgColor](message);
-        }
-        message = ' ' + chalk.blackBright('(') + message + chalk.blackBright(')');
-    }
-    console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase()) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
 }
 
 const Module = class implements IModule {
@@ -126,7 +107,141 @@ const Module = class implements IModule {
         else {
             value = value.padEnd(72);
         }
-        writeMessage(title.padEnd(6), value, message, options);
+        const { titleColor = 'green', titleBgColor = 'bgBlack', valueColor, valueBgColor, messageColor, messageBgColor } = options;
+        if (valueColor) {
+            value = chalk[valueColor](value);
+        }
+        if (valueBgColor) {
+            value = chalk[valueBgColor](value);
+        }
+        if (message) {
+            if (messageColor) {
+                message = chalk[messageColor](message);
+            }
+            if (messageBgColor) {
+                message = chalk[messageBgColor](message);
+            }
+            message = ' ' + chalk.blackBright('(') + message + chalk.blackBright(')');
+        }
+        console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase()) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
+    }
+
+    public static toPosix(value: string, filename?: string) {
+        return value ? value.replace(/\\+/g, '/').replace(/\/+$/, '') + (filename ? '/' + filename : '') : '';
+    }
+
+    public static renameExt(value: string, ext: string) {
+        const index = value.lastIndexOf('.');
+        return (index !== -1 ?value.substring(0, index) : value) + '.' + ext;
+    }
+
+    public static isLocalPath(value: string) {
+        return /^\.?\.[\\/]/.test(value);
+    }
+
+    public static hasSameOrigin(value: string, other: string) {
+        return new URL(value).origin === new URL(other).origin;
+    }
+
+    public static isFileHTTP(value: string) {
+        return /^https?:\/\/[^/]/i.test(value);
+    }
+
+    public static isFileUNC(value: string) {
+        return /^\\\\([\w.-]+)\\([\w-]+\$?)((?<=\$)(?:[^\\]*|\\.+)|\\.+)$/.test(value);
+    }
+
+    public static isDirectoryUNC(value: string) {
+        return /^\\\\([\w.-]+)\\([\w-]+\$|[\w-]+\$\\.+|[\w-]+\\.*)$/.test(value);
+    }
+
+    public static isUUID(value: string) {
+        return /[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}/.test(value);
+    }
+
+    public static resolveUri(value: string) {
+        if (value.startsWith('file://')) {
+            try {
+                let url = new URL(value).pathname;
+                if (path.isAbsolute(url)) {
+                    if (path.sep === '\\' && /^\/[A-Za-z]:\//.test(url)) {
+                        url = url.substring(1);
+                    }
+                    return path.resolve(value);
+                }
+            }
+            catch {
+            }
+            return '';
+        }
+        return value;
+    }
+
+    public static resolvePath(value: string, href: string) {
+        if (href.startsWith('http')) {
+            const url = new URL(href);
+            const origin = url.origin;
+            const pathname = url.pathname.split('/');
+            --pathname.length;
+            value = value.replace(/\\/g, '/');
+            if (value[0] === '/') {
+                return origin + value;
+            }
+            else if (value.startsWith('../')) {
+                const trailing: string[] = [];
+                for (const dir of value.split('/')) {
+                    if (dir === '..') {
+                        if (trailing.length === 0) {
+                            pathname.pop();
+                        }
+                        else {
+                            --trailing.length;
+                        }
+                    }
+                    else {
+                        trailing.push(dir);
+                    }
+                }
+                value = trailing.join('/');
+            }
+            return Module.joinPosix(origin, pathname.join('/'), value);
+        }
+        return '';
+   }
+
+   public static joinPosix(...paths: Undef<string>[]) {
+        paths = paths.filter(value => value && value.trim());
+        let result = '';
+        for (let i = 0; i < paths.length; ++i) {
+            const trailing = paths[i]!.replace(/\\+/g, '/');
+            if (i === 0) {
+                result = trailing;
+            }
+            else {
+                const leading = paths[i - 1];
+                result += (leading && trailing && !leading.endsWith('/') && !trailing.startsWith('/') ? '/' : '') + trailing;
+            }
+        }
+        return result;
+    }
+
+    public static getFileSize(localUri: string) {
+        try {
+            return fs.statSync(localUri).size;
+        }
+        catch {
+        }
+        return 0;
+    }
+
+    public static responseError(message: Error | string, hint?: string) {
+        return {
+            success: false,
+            error: {
+                hint,
+                message: message.toString()
+            }
+        } as ResponseData;
     }
 
     public static allSettled<T>(values: readonly (T | PromiseLike<T>)[], rejected?: string | [string, string], errors?: string[]) {
@@ -150,32 +265,6 @@ const Module = class implements IModule {
         if (value.logger) {
             SETTINGS = value.logger;
         }
-    }
-
-    public static getFileSize(localUri: string) {
-        try {
-            return fs.statSync(localUri).size;
-        }
-        catch {
-        }
-        return 0;
-    }
-
-    public static toPosix(value: string, filename?: string) {
-        return value ? value.replace(/\\+/g, '/').replace(/\/+$/, '') + (filename ? '/' + filename : '') : '';
-    }
-
-    public static renameExt(value: string, ext: string) {
-        const index = value.lastIndexOf('.');
-        return (index !== -1 ?value.substring(0, index) : value) + '.' + ext;
-    }
-
-    public static isLocalPath(value: string) {
-        return /^\.?\.[\\/]/.test(value);
-    }
-
-    public static fromSameOrigin(value: string, other: string) {
-        return new URL(value).origin === new URL(other).origin;
     }
 
     public major: number;
@@ -218,23 +307,8 @@ const Module = class implements IModule {
     getTempDir(subDir?: boolean, filename = '') {
         return process.cwd() + path.sep + this.tempDir + path.sep + (subDir ? uuid.v4() + path.sep : '') + (filename.startsWith('.') ? uuid.v4() : '') + filename;
     }
-    joinPosix(...paths: Undef<string>[]) {
-        paths = paths.filter(value => value && value.trim());
-        let result = '';
-        for (let i = 0; i < paths.length; ++i) {
-            const trailing = paths[i]!.replace(/\\+/g, '/');
-            if (i === 0) {
-                result = trailing;
-            }
-            else {
-                const leading = paths[i - 1];
-                result += (leading && trailing && !leading.endsWith('/') && !trailing.startsWith('/') ? '/' : '') + trailing;
-            }
-        }
-        return result;
-    }
     writeTimeElapsed(title: string, value: string, time: number, options: LogMessageOptions = {}) {
-        this.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Completed', (Date.now() - time) / 1000 + 's'], value, options);
+        Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Completed', (Date.now() - time) / 1000 + 's'], value, options);
     }
     writeFail(value: LogValue, message?: unknown) {
         this.formatFail(LOG_TYPE.SYSTEM, 'FAIL', value, message);
@@ -242,16 +316,13 @@ const Module = class implements IModule {
     formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
         options.titleColor ||= 'white';
         options.titleBgColor ||= 'bgRed';
-        this.formatMessage(type, title, value, message, options);
+        Module.formatMessage(type, title, value, message, options);
         if (message) {
             this.errors.push((message as Error).toString());
         }
     }
-    formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
+    formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options?: LogMessageOptions) {
         Module.formatMessage(type, title, value, message, options);
-    }
-    writeMessage(title: string, value: string, message?: unknown, options: LogMessageOptions = {}) {
-        writeMessage(title, value, message, options);
     }
     get logType() {
         return LOG_TYPE;

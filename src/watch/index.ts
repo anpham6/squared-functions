@@ -1,4 +1,4 @@
-import type { ExternalAsset, INode, IPermission, IWatch } from '../types/lib';
+import type { ExternalAsset, IPermission, IWatch } from '../types/lib';
 
 import Module from '../module';
 
@@ -15,11 +15,10 @@ interface FileWatch {
     etag?: string;
 }
 
-type FileWatchMap = ObjectMap<Map<string, FileWatch>>;
+type FileWatchMap = ObjectMap<Map<string, { data: FileWatch; timeout: [Null<NodeJS.Timeout>, number] }>>;
 
-const DISK_MAP: FileWatchMap = {};
 const HTTP_MAP: FileWatchMap = {};
-const TIMER_MAP: ObjectMap<[NodeJS.Timeout, number]> = {};
+const DISK_MAP: FileWatchMap = {};
 
 const getInterval = (file: ExternalAsset) => Math.max(typeof file.watch === 'object' && file.watch.interval || 0, 0);
 const formatDate = (value: number) => new Date(value).toLocaleString().replace(/\/20\d+, /, '@').replace(/:\d+ (AM|PM)$/, (...match) => match[1]);
@@ -27,12 +26,11 @@ const formatDate = (value: number) => new Date(value).toLocaleString().replace(/
 class Watch extends Module implements IWatch {
     public whenModified?: (assets: ExternalAsset[]) => void;
 
-    constructor(public Node: INode, public interval = 200) {
+    constructor(public interval = 200) {
         super();
     }
 
     start(assets: ExternalAsset[], permission?: IPermission) {
-        const Node = this.Node;
         const destMap: ObjectMap<ExternalAsset[]> = {};
         for (const item of assets) {
             if (!item.invalid) {
@@ -114,54 +112,65 @@ class Watch extends Module implements IWatch {
                         interval,
                         expires
                     } as FileWatch;
-                    if (Node.isFileHTTP(uri)) {
+                    if (Module.isFileHTTP(uri)) {
                         if (!etag) {
                             continue;
                         }
                         const http = HTTP_MAP[uri];
-                        const timer = TIMER_MAP[uri];
-                        if (http && http.size && timer && interval <= timer[1]) {
-                            http.set(dest, data);
-                        }
-                        else {
-                            if (timer) {
-                                clearInterval(timer[0]);
+                        const previous = http && http.get(dest);
+                        if (previous) {
+                            if (expires > previous.data.expires || expires === previous.data.expires && interval < previous.timeout[1]) {
+                                clearInterval(previous.timeout[0]!);
                             }
-                            const timeout = setInterval(() => {
-                                request(uri, { method: 'HEAD' })
-                                    .on('response', res => {
-                                        const map = HTTP_MAP[uri];
-                                        for (const [output, input] of map) {
-                                            if (!input.expires || Date.now() < input.expires) {
-                                                const value = (res.headers['etag'] || res.headers['last-modified']) as string;
-                                                if (value && value !== input.etag) {
-                                                    input.etag = value;
-                                                    if (this.whenModified) {
-                                                        this.whenModified(input.assets);
-                                                    }
-                                                    fileModified(input);
+                            else {
+                                return;
+                            }
+                        }
+                        const timeout = setInterval(() => {
+                            request(uri, { method: 'HEAD' })
+                                .on('response', res => {
+                                    const map = HTTP_MAP[uri];
+                                    for (const [target, input] of map) {
+                                        const next = input.data;
+                                        const expired = next.expires;
+                                        if (!expired || Date.now() < expired) {
+                                            const value = (res.headers['etag'] || res.headers['last-modified']) as string;
+                                            if (value && value !== next.etag) {
+                                                next.etag = value;
+                                                if (this.whenModified) {
+                                                    this.whenModified(next.assets);
                                                 }
-                                            }
-                                            else if (input.expires) {
-                                                map.delete(output);
-                                                if (map.size === 0) {
-                                                    watchExpired(HTTP_MAP, input);
-                                                    clearInterval(timeout);
-                                                }
+                                                fileModified(next);
                                             }
                                         }
-                                    })
-                                    .on('error', err => {
-                                        HTTP_MAP[uri].clear();
-                                        clearInterval(timeout);
-                                        this.writeFail(['Unable to watch', uri], err);
-                                    });
-                            }, interval);
-                            (HTTP_MAP[uri] ||= new Map()).set(dest, data);
-                            TIMER_MAP[uri] = [timeout, interval];
-                        }
+                                        else if (expired) {
+                                            map.delete(target);
+                                            if (map.size === 0) {
+                                                watchExpired(HTTP_MAP, next);
+                                                clearInterval(timeout);
+                                            }
+                                        }
+                                    }
+                                })
+                                .on('error', err => {
+                                    this.writeFail(['Unable to watch', uri], err);
+                                    delete HTTP_MAP[uri];
+                                    clearInterval(timeout);
+                                });
+                        }, interval);
+                        (HTTP_MAP[uri] ||= new Map()).set(dest, { data, timeout: [timeout, interval] });
                     }
-                    else if (permission && (permission.hasUNCRead() && Node.isFileUNC(uri) || permission.hasDiskRead() && path.isAbsolute(uri))) {
+                    else if (permission && (permission.hasUNCRead() && Module.isFileUNC(uri) || permission.hasDiskRead() && path.isAbsolute(uri))) {
+                        const disk = DISK_MAP[uri];
+                        const previous = disk && disk.get(dest);
+                        if (previous) {
+                            if (expires > previous.data.expires && previous.data.expires !== 0) {
+                                clearTimeout(previous.timeout[0]!);
+                            }
+                            else {
+                                return;
+                            }
+                        }
                         let timeout: Null<NodeJS.Timeout> = null;
                         if (expires) {
                             timeout = setTimeout(() => {
@@ -173,10 +182,11 @@ class Watch extends Module implements IWatch {
                             switch (event) {
                                 case 'change':
                                     for (const input of DISK_MAP[uri].values()) {
+                                        const next = input.data;
                                         if (this.whenModified) {
-                                            this.whenModified(input.assets);
+                                            this.whenModified(next.assets);
                                         }
-                                        fileModified(input);
+                                        fileModified(next);
                                     }
                                     break;
                                 case 'rename':
@@ -188,7 +198,7 @@ class Watch extends Module implements IWatch {
                                     break;
                             }
                         });
-                        (DISK_MAP[uri] ||= new Map()).set(dest, data);
+                        (DISK_MAP[uri] ||= new Map()).set(dest, { data, timeout: [timeout, Infinity] });
                     }
                     else {
                         continue;

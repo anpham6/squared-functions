@@ -1,6 +1,8 @@
 import type { Internal } from '../../../types/lib';
 import type { AzureStorageCredential } from '../index';
 
+import Module from '../../../module';
+
 import { createStorageClient } from '../index';
 
 type InstanceHost = Internal.Cloud.InstanceHost;
@@ -13,7 +15,7 @@ export default function download(this: InstanceHost, credential: AzureStorageCre
         const { bucket: Bucket, download: Download } = data;
         if (Bucket && Download && Download.filename) {
             try {
-                const location = this.joinPosix(Bucket, Download.filename);
+                const location = Module.joinPosix(Bucket, Download.filename);
                 const blobClient = blobServiceClient.getContainerClient(Bucket);
                 blobClient.getBlockBlobClient(Download.filename).downloadToBuffer()
                     .then(buffer => {

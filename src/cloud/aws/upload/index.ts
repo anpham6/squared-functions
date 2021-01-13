@@ -4,6 +4,8 @@ import type { AWSStorageCredential } from '../index';
 import path = require('path');
 import uuid = require('uuid');
 
+import Module from '../../../module';
+
 import { createBucket, createStorageClient } from '../index';
 
 type InstanceHost = Internal.Cloud.InstanceHost;
@@ -91,7 +93,7 @@ export default function upload(this: InstanceHost, credential: AWSStorageCredent
         for (let i = 0; i < Key.length; ++i) {
             s3.upload({ Bucket, Key: pathname + Key[i], ACL, Body: Body[i], ContentType: ContentType[i] }, (err, result) => {
                 if (!err) {
-                    const url = endpoint ? this.joinPosix(endpoint, result.Key) : result.Location;
+                    const url = endpoint ? Module.joinPosix(endpoint, result.Key) : result.Location;
                     this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Upload success', url);
                     if (i === 0) {
                         success(url);

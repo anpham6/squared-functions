@@ -5,6 +5,8 @@ import path = require('path');
 import fs = require('fs-extra');
 import uuid = require('uuid');
 
+import Module from '../../../module';
+
 import { createBucket, createStorageClient, setPublicRead } from '../index';
 
 type InstanceHost = Internal.Cloud.InstanceHost;
@@ -107,13 +109,13 @@ export default function upload(this: InstanceHost, credential: GCloudStorageCred
             bucketClient.upload(srcUri, { contentType: ContentType[i], destination: pathname ? pathname + path.basename(srcUri) : undefined }, (err, file) => {
                 if (file) {
                     const { active, endpoint, publicRead } = data.upload;
-                    const url = this.joinPosix(endpoint ? endpoint : 'https://storage.googleapis.com/' + bucket, file.name);
+                    const url = Module.joinPosix(endpoint ? endpoint : 'https://storage.googleapis.com/' + bucket, file.name);
                     this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Upload success', url);
                     if (i === 0) {
                         success(url);
                     }
                     if (publicRead || active && publicRead !== false) {
-                        setPublicRead.call(this, file.acl, this.joinPosix(bucket, file.name), publicRead);
+                        setPublicRead.call(this, file.acl, Module.joinPosix(bucket, file.name), publicRead);
                     }
                 }
                 else if (i === 0) {

@@ -6,7 +6,6 @@ import type { BundleAction, CloudDatabase, CloudService, CloudStorage, CloudStor
 import type * as chrome from './chrome';
 
 import type { WriteStream } from 'fs';
-import type { Response } from 'express';
 import type { BackgroundColor, ForegroundColor } from 'chalk';
 
 type BoolString = boolean | string;
@@ -197,16 +196,6 @@ declare namespace functions {
         }
     }
 
-    interface INode extends IModule {
-        isFileHTTP(value: string): boolean;
-        isFileUNC(value: string): boolean;
-        isDirectoryUNC(value: string): boolean;
-        isUUID(value: string): boolean;
-        getResponseError(hint: string, message: Error | string): ResponseData;
-        resolveUri(value: string): string;
-        resolvePath(value: string, href: string): string;
-    }
-
     interface ICompress extends IModule {
         gzipLevel: number;
         brotliQuality: number;
@@ -326,14 +315,13 @@ declare namespace functions {
     const Document: DocumentConstructor;
 
     interface IWatch extends IModule {
-        Node: INode;
         interval: number;
         whenModified?: (assets: ExternalAsset[]) => void;
         start(assets: ExternalAsset[], permission?: IPermission): void;
     }
 
     interface WatchConstructor extends ModuleConstructor {
-        new(node: INode, interval?: number): IWatch;
+        new(interval?: number): IWatch;
     }
 
     const Watch: WatchConstructor;
@@ -404,8 +392,7 @@ declare namespace functions {
 
     interface FileManagerConstructor extends ModuleConstructor {
         getPermission(settings?: PermissionSettings): IPermission;
-        hasPermission(dirname: string, permission: IPermission, res?: Response): boolean;
-        moduleNode(): INode;
+        hasPermission(dirname: string, permission: IPermission, res?: Response): true | ResponseData;
         moduleCompress(): ICompress;
         new(baseDirectory: string, body: RequestBody, postFinalize?: (errors: string[]) => void, settings?: PermissionSettings): IFileManager;
     }
@@ -421,24 +408,30 @@ declare namespace functions {
         readonly errors: string[];
         supported(major: number, minor: number, patch?: number): boolean;
         parseFunction(value: string): Null<FunctionType<string>>;
-        joinPosix(...paths: Undef<string>[]): string;
         getTempDir(subDir?: boolean, filename?: string): string;
         formatMessage: ModuleFormatMessageMethod;
         formatFail(type: Internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown): void;
         writeFail: ModuleWriteFailMethod;
         writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions): void;
-        writeMessage(title: string, value: string, message?: unknown, options?: LogMessageOptions): void;
     }
 
     interface ModuleConstructor {
         formatMessage: ModuleFormatMessageMethod;
-        allSettled<T>(values: readonly (T | PromiseLike<T>)[], rejected?: string | [string, string]): Promise<PromiseSettledResult<T>[]>;
-        loadSettings(value: Settings): void;
-        getFileSize(localUri: string): number;
         toPosix(value: string, filename?: string): string;
         renameExt(value: string, ext: string): string;
         isLocalPath(value: string): string;
-        fromSameOrigin(value: string, other: string): boolean;
+        hasSameOrigin(value: string, other: string): boolean;
+        isFileHTTP(value: string): boolean;
+        isFileUNC(value: string): boolean;
+        isDirectoryUNC(value: string): boolean;
+        isUUID(value: string): boolean;
+        resolveUri(value: string): string;
+        resolvePath(value: string, href: string): string;
+        joinPosix(...paths: Undef<string>[]): string;
+        getFileSize(localUri: string): number;
+        loadSettings(value: Settings): void;
+        responseError(message: Error | string, hint?: string): ResponseData;
+        allSettled<T>(values: readonly (T | PromiseLike<T>)[], rejected?: string | [string, string]): Promise<PromiseSettledResult<T>[]>;
         new(): IModule;
     }
 

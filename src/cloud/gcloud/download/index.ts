@@ -1,9 +1,11 @@
 import type { Internal } from '../../../types/lib';
 import type { GCloudStorageCredential } from '../index';
 
-import { createStorageClient } from '../index';
-
 import fs = require('fs-extra');
+
+import Module from '../../../module';
+
+import { createStorageClient } from '../index';
 
 type InstanceHost = Internal.Cloud.InstanceHost;
 type DownloadData = Internal.Cloud.DownloadData;
@@ -24,7 +26,7 @@ export default function download(this: InstanceHost, credential: GCloudStorageCr
                 }
                 const filename = Download.filename;
                 const destination = tempDir + filename;
-                const location = this.joinPosix(Bucket, filename);
+                const location = Module.joinPosix(Bucket, filename);
                 const bucket = storage.bucket(Bucket);
                 const file = bucket.file(filename, { generation: Download.versionId });
                 file.download({ destination })

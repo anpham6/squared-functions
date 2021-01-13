@@ -1,6 +1,5 @@
 import type { DocumentConstructor, ExtendedSettings, ExternalAsset, ICloud, ICompress, IDocument, IFileManager, IPermission, ITask, IWatch, ImageConstructor, Internal, PermissionSettings, RequestBody, Settings, TaskConstructor } from '../types/lib';
 import type { CloudService } from '../types/lib/squared';
-import type { Response } from 'express';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -15,7 +14,6 @@ import Image from '../image';
 import Cloud from '../cloud';
 import Watch from '../watch';
 
-import Node from '../node';
 import Compress from '../compress';
 
 type CloudModule = ExtendedSettings.CloudModule;
@@ -79,10 +77,6 @@ class FileManager extends Module implements IFileManager {
         super.loadSettings(value);
     }
 
-    public static moduleNode() {
-        return Node;
-    }
-
     public static moduleCompress() {
         return Compress;
     }
@@ -91,34 +85,25 @@ class FileManager extends Module implements IFileManager {
         return new Permission(settings);
     }
 
-    public static hasPermission(dirname: string, permission: IPermission, res?: Response) {
-        if (Node.isDirectoryUNC(dirname)) {
+    public static hasPermission(dirname: string, permission: IPermission) {
+        if (Module.isDirectoryUNC(dirname)) {
             if (!permission.hasUNCWrite()) {
-                if (res) {
-                    res.json(Node.getResponseError('OPTION: --unc-write', 'Writing to UNC shares is not enabled.'));
-                }
-                return false;
+                return Module.responseError('Writing to UNC shares is not enabled.', 'NODE (cli): --unc-write');
             }
         }
         else if (!permission.hasDiskWrite()) {
-            if (res) {
-                res.json(Node.getResponseError('OPTION: --disk-write', 'Writing to disk is not enabled.'));
-            }
-            return false;
+            return Module.responseError('Writing to disk is not enabled.', 'NODE (cli): --disk-write');
         }
         try {
             if (!fs.existsSync(dirname)) {
                 fs.mkdirpSync(dirname);
             }
             else if (!fs.lstatSync(dirname).isDirectory()) {
-                throw new Error('Root is not a directory.');
+                throw new Error('Target is not a directory.');
             }
         }
         catch (err) {
-            if (res) {
-                res.json(Node.getResponseError('DIRECTORY: ' + dirname, err));
-            }
-            return false;
+            return Module.responseError(err, 'DIRECTORY: ' + dirname);
         }
         return true;
     }
@@ -181,18 +166,13 @@ class FileManager extends Module implements IFileManager {
                     this.Task.push({ instance, constructor: target, params });
                 }
                 break;
-            case 'image':
-                if (isFunction<ImageConstructor>(target) && target.prototype instanceof Image) {
-                    this.Image = target;
-                }
-                break;
             case 'cloud':
                 if (isObject<CloudModule>(target)) {
                     this.Cloud = new Cloud(target, this.body.database);
                 }
                 break;
             case 'watch': {
-                const watch = new Watch(Node, typeof target === 'number' && target > 0 ? target : undefined);
+                const watch = new Watch(typeof target === 'number' && target > 0 ? target : undefined);
                 watch.whenModified = (assets: ExternalAsset[]) => {
                     const manager = new FileManager(this.baseDirectory, { ...this.body, assets });
                     for (const { constructor, params } of this.Document) { // eslint-disable-line no-shadow
@@ -212,6 +192,11 @@ class FileManager extends Module implements IFileManager {
                 this.Watch = watch;
                 break;
             }
+            case 'image':
+                if (isFunction<ImageConstructor>(target) && target.prototype instanceof Image) {
+                    this.Image = target;
+                }
+                break;
             case 'compress':
                 this.Compress = Compress;
                 break;
@@ -285,7 +270,27 @@ class FileManager extends Module implements IFileManager {
             this.delayed = Infinity;
             this.finalize().then(() => {
                 if (this.postFinalize) {
-                    this.postFinalize(this.errors);
+                    const errors = this.errors.slice(0);
+                    const addErrors = (list: string[]) => {
+                        if (list.length) {
+                            errors.push(...list);
+                            list.length = 0;
+                        }
+                    };
+                    for (const { instance } of this.Document) {
+                        addErrors(instance.errors);
+                    }
+                    for (const { instance } of this.Task) {
+                        addErrors(instance.errors);
+                    }
+                    if (this.Cloud) {
+                        addErrors(this.Cloud.errors);
+                    }
+                    if (this.Watch) {
+                        addErrors(this.Watch.errors);
+                    }
+                    this.postFinalize(errors);
+                    this.errors.length = 0;
                 }
             });
         }
@@ -293,7 +298,7 @@ class FileManager extends Module implements IFileManager {
     setLocalUri(file: ExternalAsset) {
         const uri = file.uri;
         if (uri) {
-            file.uri = Node.resolveUri(uri);
+            file.uri = Module.resolveUri(uri);
             if (!file.uri) {
                 file.invalid = true;
                 this.writeFail(['Unable to parse file:// protocol', uri], new Error('Path not absolute'));
@@ -324,7 +329,7 @@ class FileManager extends Module implements IFileManager {
         return false;
     }
     getRelativeUri(file: ExternalAsset, filename = file.filename) {
-        return Node.joinPosix(file.moveTo, file.pathname, filename);
+        return Module.joinPosix(file.moveTo, file.pathname, filename);
     }
     assignUUID(data: DocumentData, attr: string, target: any = data) {
         const document = data.document;
@@ -548,7 +553,7 @@ class FileManager extends Module implements IFileManager {
                         valid = true;
                         break;
                     case 'br':
-                        valid = Node.supported(11, 7);
+                        valid = this.supported(11, 7);
                         break;
                     default:
                         valid = typeof Compress.compressorProxy[item.format] === 'function';
@@ -832,7 +837,7 @@ class FileManager extends Module implements IFileManager {
                     continue;
                 }
                 try {
-                    if (Node.isFileHTTP(uri)) {
+                    if (Module.isFileHTTP(uri)) {
                         if (!checkQueue(item, localUri)) {
                             const stream = fs.createWriteStream(localUri);
                             stream.on('finish', () => {
@@ -860,7 +865,7 @@ class FileManager extends Module implements IFileManager {
                                 .pipe(stream);
                             }
                     }
-                    else if (this.permission.hasUNCRead() && Node.isFileUNC(uri) || this.permission.hasDiskRead() && path.isAbsolute(uri)) {
+                    else if (this.permission.hasUNCRead() && Module.isFileUNC(uri) || this.permission.hasDiskRead() && path.isAbsolute(uri)) {
                         if (!checkQueue(item, localUri)) {
                             this.performAsyncTask();
                             fs.copyFile(uri, localUri, err => fileReceived(err));

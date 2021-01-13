@@ -67,37 +67,40 @@ class Jimp extends Image implements ImageHandler<jimp> {
                 }
                 finalAs = 'webp';
             }
-            if (jimpType && saveAs) {
-                const output = this.queueImage(data, jimpType, saveAs, command);
-                if (output) {
-                    this.formatMessage(this.logType.PROCESS, 'jimp', ['Transforming image...', path.basename(localUri)], command);
-                    const startTime = Date.now();
-                    jimp.read(tempFile || getBuffer(data))
-                        .then(img => {
-                            if (command.includes('@')) {
-                                delete file.buffer;
-                            }
-                            const proxy = new Jimp(img, data, command, finalAs);
-                            proxy.method();
-                            proxy.resize();
-                            proxy.crop();
-                            if (jimpType === jimp.MIME_JPEG && !finalAs) {
-                                proxy.quality();
-                            }
-                            else {
-                                proxy.opacity();
-                            }
-                            proxy.rotate(this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
-                            proxy.write(output, startTime, callback);
-                        })
-                        .catch(err => {
-                            this.writeFail(['Unable to read image buffer', path.basename(localUri)], err);
-                            this.completeAsyncTask();
-                        });
-                    return;
-                }
+            else {
+                this.completeAsyncTask();
+                return;
             }
-            this.completeAsyncTask();
+            const output = this.queueImage(data, jimpType, saveAs, command);
+            if (output) {
+                this.formatMessage(this.logType.PROCESS, 'jimp', ['Transforming image...', path.basename(localUri)], command);
+                const startTime = Date.now();
+                jimp.read(tempFile || getBuffer(data))
+                    .then(img => {
+                        if (command.includes('@')) {
+                            delete file.buffer;
+                        }
+                        const proxy = new Jimp(img, data, command, finalAs);
+                        proxy.method();
+                        proxy.resize();
+                        proxy.crop();
+                        if (jimpType === jimp.MIME_JPEG && !finalAs) {
+                            proxy.quality();
+                        }
+                        else {
+                            proxy.opacity();
+                        }
+                        proxy.rotate(this.performAsyncTask.bind(this), this.completeAsyncTask.bind(this));
+                        proxy.write(output, startTime, callback);
+                    })
+                    .catch(err => {
+                        this.writeFail(['Unable to read image buffer', path.basename(localUri)], err);
+                        this.completeAsyncTask();
+                    });
+            }
+            else {
+                this.completeAsyncTask();
+            }
         };
         this.performAsyncTask();
         if (mimeType === 'image/webp') {

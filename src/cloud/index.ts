@@ -25,12 +25,12 @@ const CLOUD_DOWNLOAD: ObjectMap<DownloadHost> = {};
 const CLOUD_USERCACHE: ObjectMap<ObjectMap<[number, any[]]>> = {};
 const CLOUD_DBCACHE: ObjectMap<ObjectMap<any[]>> = {};
 
-function setUploadFilename(cloud: ICloud, upload: CloudStorageUpload, filename: string) {
+function setUploadFilename(upload: CloudStorageUpload, filename: string) {
     filename = filename.replace(/^\.*[\\/]+/, '');
     const index = filename.lastIndexOf('/');
     if (index !== -1) {
         const directory = filename.substring(0, index + 1);
-        upload.pathname = upload.pathname ? cloud.joinPosix(upload.pathname, directory) : directory;
+        upload.pathname = upload.pathname ? Module.joinPosix(upload.pathname, directory) : directory;
         filename = filename.substring(index + 1);
     }
     return upload.filename = filename;
@@ -316,13 +316,13 @@ class Cloud extends Module implements ICloud {
                     const upload = data.upload;
                     if (upload) {
                         if (upload.filename) {
-                            setUploadFilename(this, upload, Cloud.toPosix(upload.filename));
+                            setUploadFilename(upload, Cloud.toPosix(upload.filename));
                         }
                         if (upload.pathname) {
                             upload.pathname = Cloud.toPosix(upload.pathname).replace(/^\/+/, '') + '/';
                         }
                         else if (data.admin?.preservePath && item.pathname) {
-                            upload.pathname = Cloud.toPosix(this.joinPosix(item.moveTo, item.pathname)) + '/';
+                            upload.pathname = Cloud.toPosix(Module.joinPosix(item.moveTo, item.pathname)) + '/';
                         }
                     }
                 }
@@ -340,7 +340,7 @@ class Cloud extends Module implements ICloud {
                         const basename = trailing.filename;
                         const filename = basename || current.filename;
                         const trailingFolder = trailing.pathname || '';
-                        const trailingName = this.joinPosix(trailingFolder, filename);
+                        const trailingName = Module.joinPosix(trailingFolder, filename);
                         for (let j = 0; j < length - 1; ++j) {
                             const previous = storage[j];
                             if (current !== previous) {
@@ -359,7 +359,7 @@ class Cloud extends Module implements ICloud {
                                             break renamed;
                                         }
                                         else {
-                                            const leadingName = this.joinPosix(leadingFolder, leading.filename || previous.filename);
+                                            const leadingName = Module.joinPosix(leadingFolder, leading.filename || previous.filename);
                                             if (trailingName === leadingName) {
                                                 if (!trailing.overwrite || leading.overwrite) {
                                                     renameTrailing(filename);

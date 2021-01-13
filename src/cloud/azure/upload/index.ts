@@ -4,6 +4,8 @@ import type { AzureStorageCredential } from '../index';
 import path = require('path');
 import uuid = require('uuid');
 
+import Module from '../../../module';
+
 import { createBucket, createStorageClient } from '../index';
 
 type InstanceHost = Internal.Cloud.InstanceHost;
@@ -89,7 +91,7 @@ export default function upload(this: InstanceHost, credential: AzureStorageCrede
             const blobName = pathname + Key[i];
             containerClient.getBlockBlobClient(blobName).upload(Body[i], Body[i].byteLength, { blobHTTPHeaders: { blobContentType: ContentType[i] } })
                 .then(() => {
-                    const url = this.joinPosix(endpoint ? endpoint : `https://${credential.accountName!}.blob.core.windows.net/${bucket}`, blobName);
+                    const url = Module.joinPosix(endpoint ? endpoint : `https://${credential.accountName!}.blob.core.windows.net/${bucket}`, blobName);
                     this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Upload success', url);
                     if (i === 0) {
                         success(url);

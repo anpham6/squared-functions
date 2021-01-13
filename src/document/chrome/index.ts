@@ -7,7 +7,6 @@ import mime = require('mime-types');
 import escapeRegexp = require('escape-string-regexp');
 import uuid = require('uuid');
 
-import Node from '../../node';
 import Document from '../../document';
 import Cloud from '../../cloud';
 
@@ -188,7 +187,7 @@ function findRelativeUri(this: IFileManager, file: DocumentAsset, location: stri
     const origin = file.uri!;
     let asset: Undef<DocumentAsset>;
     if (partial) {
-        location = Node.resolvePath(location, origin);
+        location = Document.resolvePath(location, origin);
         if (location) {
             asset = this.findAsset(location);
         }
@@ -198,11 +197,11 @@ function findRelativeUri(this: IFileManager, file: DocumentAsset, location: stri
     }
     if (asset) {
         const baseDir = (file.rootDir || '') + file.pathname;
-        if (Document.fromSameOrigin(origin, asset.uri!)) {
+        if (Document.hasSameOrigin(origin, asset.uri!)) {
             const rootDir = asset.rootDir;
             if (asset.moveTo) {
                 if (file.moveTo === asset.moveTo) {
-                    return this.joinPosix(asset.pathname, asset.filename);
+                    return Document.joinPosix(asset.pathname, asset.filename);
                 }
             }
             else if (rootDir) {
@@ -210,7 +209,7 @@ function findRelativeUri(this: IFileManager, file: DocumentAsset, location: stri
                     return asset.filename;
                 }
                 else if (baseDir === rootDir) {
-                    return this.joinPosix(asset.pathname, asset.filename);
+                    return Document.joinPosix(asset.pathname, asset.filename);
                 }
             }
             else {
@@ -218,8 +217,8 @@ function findRelativeUri(this: IFileManager, file: DocumentAsset, location: stri
                 return '../'.repeat(originDir.length - 1) + uriDir.join('/');
             }
         }
-        if (baseDirectory && Document.fromSameOrigin(origin, baseDirectory)) {
-            const [originDir] = getRootDirectory(this.joinPosix(baseDir, file.filename), new URL(baseDirectory).pathname);
+        if (baseDirectory && Document.hasSameOrigin(origin, baseDirectory)) {
+            const [originDir] = getRootDirectory(Document.joinPosix(baseDir, file.filename), new URL(baseDirectory).pathname);
             return '../'.repeat(originDir.length - 1) + asset.relativeUri;
         }
     }
@@ -239,7 +238,7 @@ function transformCss(this: IFileManager, document: IChromeDocument, file: Docum
     const cssUri = file.uri!;
     let output: Undef<string>;
     for (const item of this.assets as DocumentAsset[]) {
-        if (item.base64 && !item.outerHTML && item.uri && Document.fromSameOrigin(cssUri, item.uri)) {
+        if (item.base64 && !item.outerHTML && item.uri && Document.hasSameOrigin(cssUri, item.uri)) {
             const url = findRelativeUri.call(this, file, item.uri, document.baseDirectory);
             if (url) {
                 const replaced = replaceUri(output || content, [item.base64.replace(/\+/g, '\\+')], getCssUrlOrCloudUUID.call(this, file, item, url), false, true);
@@ -259,14 +258,14 @@ function transformCss(this: IFileManager, document: IChromeDocument, file: Docum
     let match: Null<RegExpExecArray>;
     while (match = pattern.exec(content)) {
         const url = match[1].trim().replace(/^["']\s*/, '').replace(/\s*["']$/, '');
-        if (!Node.isFileHTTP(url) || Document.fromSameOrigin(cssUri, url)) {
+        if (!Document.isFileHTTP(url) || Document.hasSameOrigin(cssUri, url)) {
             const baseDirectory = document.baseDirectory;
             let location = findRelativeUri.call(this, file, url, baseDirectory, true);
             if (location) {
-                const uri = Node.resolvePath(url, cssUri);
+                const uri = Document.resolvePath(url, cssUri);
                 output = (output || content).replace(match[0], `url(${getCssUrlOrCloudUUID.call(this, file, uri ? this.findAsset(uri) : undefined, location)})`);
             }
-            else if (baseDirectory && (location = Node.resolvePath(url, baseDirectory))) {
+            else if (baseDirectory && (location = Document.resolvePath(url, baseDirectory))) {
                 const asset = this.findAsset(location);
                 if (asset && (location = findRelativeUri.call(this, file, location, baseDirectory))) {
                     output = (output || content).replace(match[0], `url(${getCssUrlOrCloudUUID.call(this, file, asset, location)})`);
@@ -578,7 +577,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     relativeUri = '';
                                 }
                             }
-                            if (!relativeUri && Document.fromSameOrigin(baseUri, uri)) {
+                            if (!relativeUri && Document.hasSameOrigin(baseUri, uri)) {
                                 relativeUri = path.join(item.pathname, path.basename(uri));
                                 ascending = true;
                             }
@@ -610,7 +609,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             if (relativeUri) {
                                 const directory = new RegExp(`(["'\\s,=])(${(ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + escapePosix(relativeUri)})`, 'g');
                                 while (match = directory.exec(html)) {
-                                    if (uri === Node.resolvePath(match[2], baseUri)) {
+                                    if (uri === Document.resolvePath(match[2], baseUri)) {
                                         const src = match[1] + value;
                                         source = source.replace(match[0], src);
                                         if (current !== source) {

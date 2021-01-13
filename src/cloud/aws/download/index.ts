@@ -2,6 +2,8 @@ import type { Internal } from '../../../types/lib';
 import type { AWSStorageCredential } from '../index';
 import type * as aws from 'aws-sdk';
 
+import Module from '../../../module';
+
 import { createStorageClient } from '../index';
 
 type InstanceHost = Internal.Cloud.InstanceHost;
@@ -14,7 +16,7 @@ export default function download(this: InstanceHost, credential: AWSStorageCrede
         const { bucket: Bucket, download: Download } = data;
         if (Bucket && Download && Download.filename) {
             try {
-                const location = this.joinPosix(Bucket, Download.filename);
+                const location = Module.joinPosix(Bucket, Download.filename);
                 const params: aws.S3.Types.GetObjectRequest = {
                     Bucket,
                     Key: Download.filename,

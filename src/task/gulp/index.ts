@@ -154,34 +154,34 @@ class Gulp extends Task {
                                                 callback();
                                             })
                                             .catch(error => {
-                                                manager.writeFail(['Unable to replace files <exec>', errorHint], error);
+                                                this.writeFail(['Unable to replace files <exec>', errorHint], error);
                                                 callback();
                                             });
                                         }
                                     )
                                     .catch(error => {
-                                        manager.writeFail(['Unable to read directory <exec>', errorHint], error);
+                                        this.writeFail(['Unable to read directory <exec>', errorHint], error);
                                         callback();
                                     });
                                 })
                                 .catch(error => {
-                                    manager.writeFail(['Unable to delete files <exec>', errorHint], error);
+                                    this.writeFail(['Unable to delete files <exec>', errorHint], error);
                                     callback();
                                 });
                         }
                         else {
-                            manager.writeFail(['Unknown <exec>', errorHint], err);
+                            this.writeFail(['Unknown <exec>', errorHint], err);
                             callback();
                         }
                     });
                 })
                 .catch(err => {
-                    manager.writeFail(['Unable to copy original files', errorHint], err);
+                    this.writeFail(['Unable to copy original files', errorHint], err);
                     callback();
                 });
         }
         catch (err) {
-            manager.writeFail(['Unknown', errorHint], err);
+            this.writeFail(['Unknown', errorHint], err);
             callback();
         }
     }
