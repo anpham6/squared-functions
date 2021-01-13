@@ -83,14 +83,18 @@ class Permission implements IPermission {
 class FileManager extends Module implements IFileManager {
     public static loadSettings(value: Settings) {
         if (value.compress) {
-            const { gzip_level, brotli_quality } = value.compress;
+            const { gzip_level, brotli_quality, chunk_size } = value.compress;
             const gzip = +(gzip_level as string);
             const brotli = +(brotli_quality as string);
+            const chunkSize = +(chunk_size as string);
             if (!isNaN(gzip)) {
                 Compress.gzipLevel = gzip;
             }
             if (!isNaN(brotli)) {
                 Compress.brotliQuality = brotli;
+            }
+            if (!isNaN(chunkSize) && chunkSize > 0 && chunkSize % 1024 === 0) {
+                Compress.chunkSize = chunkSize;
             }
         }
         super.loadSettings(value);

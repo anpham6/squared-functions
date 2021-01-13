@@ -11,6 +11,7 @@ import Module from '../module';
 const Compress = new class extends Module implements ICompress {
     public gzipLevel = 9;
     public brotliQuality = 11;
+    public chunkSize?: number;
     public compressorProxy: ObjectMap<CompressTryFileMethod> = {};
 
     register(format: string, callback: CompressTryFileMethod) {
@@ -18,7 +19,7 @@ const Compress = new class extends Module implements ICompress {
     }
     createWriteStreamAsGzip(source: string, uri: string, level?: number) {
         return fs.createReadStream(source)
-            .pipe(zlib.createGzip({ level: level ?? this.gzipLevel }))
+            .pipe(zlib.createGzip({ level: level ?? this.gzipLevel, chunkSize: this.chunkSize }))
             .pipe(fs.createWriteStream(uri));
     }
     createWriteStreamAsBrotli(source: string, uri: string, quality?: number, mimeType = '') {
@@ -29,7 +30,8 @@ const Compress = new class extends Module implements ICompress {
                         [zlib.constants.BROTLI_PARAM_MODE]: mimeType.includes('text/') ? zlib.constants.BROTLI_MODE_TEXT : zlib.constants.BROTLI_MODE_GENERIC,
                         [zlib.constants.BROTLI_PARAM_QUALITY]: quality ?? this.brotliQuality,
                         [zlib.constants.BROTLI_PARAM_SIZE_HINT]: Module.getFileSize(source)
-                    }
+                    },
+                    chunkSize: this.chunkSize
                 })
             )
             .pipe(fs.createWriteStream(uri));

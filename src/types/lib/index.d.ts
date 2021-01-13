@@ -200,6 +200,7 @@ declare namespace functions {
         gzipLevel: number;
         brotliQuality: number;
         compressorProxy: ObjectMap<CompressTryFileMethod>;
+        chunkSize?: number;
         register(format: string, callback: CompressTryFileMethod): void;
         createWriteStreamAsGzip(source: string, uri: string, level?: number): WriteStream;
         createWriteStreamAsBrotli(source: string, uri: string, quality?: number, mimeType?: string): WriteStream;
@@ -471,6 +472,7 @@ declare namespace functions {
         interface CompressModule {
             gzip_level?: NumString;
             brotli_quality?: NumString;
+            chunk_size?: NumString;
             tinify_api_key?: string;
         }
 
