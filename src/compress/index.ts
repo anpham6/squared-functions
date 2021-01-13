@@ -8,11 +8,6 @@ import tinify = require('tinify');
 
 import Module from '../module';
 
-function parseSizeRange(value: string): [number, number] {
-    const match = /\(\s*(\d+)\s*,\s*(\d+|\*)\s*\)/.exec(value);
-    return match ? [+match[1], match[2] === '*' ? Infinity : +match[2]] : [0, Infinity];
-}
-
 const Compress = new class extends Module implements ICompress {
     public gzipLevel = 9;
     public brotliQuality = 11;
@@ -21,12 +16,12 @@ const Compress = new class extends Module implements ICompress {
     register(format: string, callback: CompressTryFileMethod) {
         this.compressorProxy[format] = callback;
     }
-    createWriteStreamAsGzip(source: string, localUri: string, level?: number) {
+    createWriteStreamAsGzip(source: string, uri: string, level?: number) {
         return fs.createReadStream(source)
             .pipe(zlib.createGzip({ level: level ?? this.gzipLevel }))
-            .pipe(fs.createWriteStream(localUri));
+            .pipe(fs.createWriteStream(uri));
     }
-    createWriteStreamAsBrotli(source: string, localUri: string, quality?: number, mimeType = '') {
+    createWriteStreamAsBrotli(source: string, uri: string, quality?: number, mimeType = '') {
         return fs.createReadStream(source)
             .pipe(
                 zlib.createBrotliCompress({
@@ -37,75 +32,49 @@ const Compress = new class extends Module implements ICompress {
                     }
                 })
             )
-            .pipe(fs.createWriteStream(localUri));
+            .pipe(fs.createWriteStream(uri));
     }
-    findFormat(compress: Undef<CompressFormat[]>, format: string) {
-        return compress && compress.find(item => item.format === format);
-    }
-    withinSizeRange(localUri: string, value: Undef<string>) {
-        if (value) {
-            const [minSize, maxSize] = parseSizeRange(value);
-            if (minSize > 0 || maxSize < Infinity) {
-                const fileSize = Module.getFileSize(localUri);
-                if (fileSize === 0 || fileSize < minSize || fileSize > maxSize) {
-                    return false;
+    tryFile(uri: string, data: CompressFormat, performAsyncTask?: Null<FileManagerPerformAsyncTaskMethod>, callback?: FileManagerCompleteAsyncTaskCallback) {
+        const { format, level } = data;
+        switch (format) {
+            case 'gz':
+            case 'br': {
+                if (performAsyncTask) {
+                    performAsyncTask();
                 }
+                const output = uri + '.' + format;
+                this.formatMessage(this.logType.COMPRESS, format, 'Compressing file...', output, { titleColor: 'magenta' });
+                const time = Date.now();
+                this[format === 'gz' ? 'createWriteStreamAsGzip' : 'createWriteStreamAsBrotli'](uri, output, level)
+                    .on('finish', () => {
+                        this.writeTimeElapsed(format, path.basename(output), time);
+                        if (callback) {
+                            callback(null, output);
+                        }
+                    })
+                    .on('error', err => {
+                        throw err;
+                    });
+                break;
             }
-        }
-        return true;
-    }
-    tryFile(localUri: string, data: CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskMethod>, callback?: FileManagerCompleteAsyncTaskCallback) {
-        if (this.withinSizeRange(localUri, data.condition)) {
-            switch (data.format) {
-                case 'gz':
-                case 'br': {
-                    if (initialize) {
-                        initialize();
-                    }
-                    const output = `${localUri}.${data.format}`;
-                    this.formatMessage(this.logType.COMPRESS, data.format, 'Compressing file...', output, { titleColor: 'magenta' });
-                    const time = Date.now();
-                    this[data.format === 'gz' ? 'createWriteStreamAsGzip' : 'createWriteStreamAsBrotli'](localUri, output, data.level)
-                        .on('finish', () => {
-                            this.writeTimeElapsed(data.format, path.basename(output), time);
-                            if (data.condition?.includes('%') && Module.getFileSize(output) >= Module.getFileSize(localUri)) {
-                                fs.unlink(output, err => {
-                                    if (callback) {
-                                        callback(err);
-                                    }
-                                });
-                            }
-                            else if (callback) {
-                                callback(null, output);
-                            }
-                        })
-                        .on('error', err => {
-                            this.writeFail(['Unable to compress file', path.basename(output)], err);
-                            if (callback) {
-                                callback(err);
-                            }
-                        });
-                    break;
+            default: {
+                const compressor = this.compressorProxy[format]?.bind(this);
+                if (typeof compressor === 'function') {
+                    compressor.call(this, uri, data, performAsyncTask, callback);
                 }
-                default: {
-                    const compressor = this.compressorProxy[data.format]?.bind(this);
-                    if (typeof compressor === 'function') {
-                        compressor.call(this, localUri, data, initialize, callback);
-                    }
-                    else if (callback) {
-                        callback();
-                    }
-                    break;
+                else if (callback) {
+                    callback();
                 }
+                break;
             }
         }
     }
-    tryImage(localUri: string, data: CompressFormat, callback: CompressTryImageCallback) {
-        const ext = path.extname(localUri).substring(1);
+    tryImage(uri: string, data: CompressFormat, callback: CompressTryImageCallback) {
+        const ext = path.extname(uri).substring(1);
         const writeFile = (result: Buffer | Uint8Array) => {
-            fs.writeFile(localUri, result, err => {
+            fs.writeFile(uri, result, err => {
                 if (!err) {
-                    this.writeTimeElapsed(ext, path.basename(localUri), time);
+                    this.writeTimeElapsed(ext, path.basename(uri), time);
                     callback(null);
                 }
                 else {
@@ -135,9 +104,9 @@ const Compress = new class extends Module implements ICompress {
                 throw new Error('Tinify API key not found');
             }
         }
-        this.formatMessage(this.logType.COMPRESS, ext, ['Compressing image...', data.plugin], localUri, { titleColor: 'magenta' });
+        this.formatMessage(this.logType.COMPRESS, ext, ['Compressing image...', data.plugin], uri, { titleColor: 'magenta' });
         const time = Date.now();
-        fs.readFile(localUri, async (err, buffer) => {
+        fs.readFile(uri, async (err, buffer) => {
             if (!err) {
                 if (apiKey) {
                     if (tinify['_key'] !== apiKey) {
@@ -154,23 +123,18 @@ const Compress = new class extends Module implements ICompress {
                     else {
                         loadBuffer(buffer);
                     }
-                    return;
                 }
                 else if (data.plugin) {
-                    try {
-                        const plugin = require(data.plugin);
-                        writeFile(await plugin(data.options)(buffer));
-                        return;
-                    }
-                    catch (error) {
-                        err = error;
-                    }
+                    const plugin = require(data.plugin);
+                    writeFile(await plugin(data.options)(buffer));
                 }
                 else {
-                    err = new Error('Plugin not found');
+                    throw new Error('Plugin not found');
                 }
             }
-            throw err;
+            else {
+                throw err;
+            }
         });
     }
 }();

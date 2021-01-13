@@ -1,5 +1,5 @@
 import type { DocumentConstructor, ExtendedSettings, ExternalAsset, ICloud, ICompress, IDocument, IFileManager, IPermission, ITask, IWatch, ImageConstructor, Internal, PermissionSettings, RequestBody, Settings, TaskConstructor } from '../types/lib';
-import type { CloudService } from '../types/lib/squared';
+import type { CloudService, CompressFormat } from '../types/lib/squared';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -29,6 +29,25 @@ type SourceMap = Internal.Document.SourceMap;
 type SourceMapInput = Internal.Document.SourceMapInput;
 type SourceMapOutput = Internal.Document.SourceMapOutput;
 
+function parseSizeRange(value: string): [number, number] {
+    const match = /\(\s*(\d+)\s*,\s*(\d+|\*)\s*\)/.exec(value);
+    return match ? [+match[1], match[2] === '*' ? Infinity : +match[2]] : [0, Infinity];
+}
+
+function withinSizeRange(uri: string, value: Undef<string>) {
+    if (value) {
+        const [minSize, maxSize] = parseSizeRange(value);
+        if (minSize > 0 || maxSize < Infinity) {
+            const fileSize = Module.getFileSize(uri);
+            if (fileSize === 0 || fileSize < minSize || fileSize > maxSize) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+const findFormat = (compress: Undef<CompressFormat[]>, format: string) => compress && compress.find(item => item.format === format);
 const isObject = <T = PlainObject>(value: unknown): value is T => typeof value === 'object' && value !== null;
 const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
 const isTrue = (value: unknown): value is true => value ? value === true || value === 'true' || +(value as string) === 1 : false;
@@ -559,19 +578,39 @@ class FileManager extends Module implements IFileManager {
                         valid = typeof Compress.compressorProxy[item.format] === 'function';
                         break;
                 }
-                if (valid) {
+                if (valid && withinSizeRange(localUri, item.condition)) {
                     tasks.push(
-                        new Promise<void>(resolve => Compress.tryFile(localUri, item, null, (err: Null<Error>, result: string) => {
-                            if (result) {
-                                this.add(result, file);
+                        new Promise<void>(resolve => {
+                            try {
+                                Compress.tryFile(localUri, item, null, (err?: Null<Error>, result?: string) => {
+                                    if (err) {
+                                        throw err;
+                                    }
+                                    if (result) {
+                                        if (item.condition?.includes('%') && Module.getFileSize(result) >= Module.getFileSize(localUri)) {
+                                            try {
+                                                fs.unlinkSync(result);
+                                            }
+                                            catch {
+                                            }
+                                        }
+                                        else {
+                                            this.add(result, file);
+                                        }
+                                    }
+                                    resolve();
+                                });
                             }
-                            resolve();
-                        }))
+                            catch (err) {
+                                this.writeFail(['Unable to compress file', path.basename(localUri)], err);
+                                resolve();
+                            }
+                        })
                     );
                 }
             }
             if (tasks.length) {
-                return Module.allSettled(tasks, ['Compress <finalize>', path.basename(localUri)]);
+                return Module.allSettled(tasks);
             }
         }
     }
@@ -612,7 +651,7 @@ class FileManager extends Module implements IFileManager {
                 if (valid && file.commands) {
                     const callback = this.finalizeImage.bind(this);
                     for (const command of file.commands) {
-                        if (Compress.withinSizeRange(localUri, command)) {
+                        if (withinSizeRange(localUri, command)) {
                             this.Image.using.call(this, data, command, callback);
                         }
                     }
@@ -943,8 +982,8 @@ class FileManager extends Module implements IFileManager {
                     const localUri = item.localUri!;
                     const mimeType = mime.lookup(localUri) || item.mimeType;
                     if (mimeType && mimeType.startsWith('image/')) {
-                        const image = Compress.findFormat(item.compress, mimeType.split('/')[1]);
-                        if (image && Compress.withinSizeRange(localUri, image.condition)) {
+                        const image = findFormat(item.compress, mimeType.split('/')[1]);
+                        if (image && withinSizeRange(localUri, image.condition)) {
                             tasks.push(new Promise(resolve => {
                                 try {
                                     Compress.tryImage(localUri, image, resolve);

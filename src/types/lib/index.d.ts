@@ -30,7 +30,7 @@ declare namespace functions {
     type FileManagerQueueImageMethod = (data: FileData, ouputType: string, saveAs: string, command?: string) => Undef<string>;
     type FileManagerFinalizeImageCallback<T = void> = (err: Null<Error>, data: Internal.Image.OutputData) => T;
     type FileManagerCompleteAsyncTaskCallback = (err?: Null<Error>, value?: unknown, parent?: ExternalAsset) => void;
-    type CompressTryFileMethod = (localUri: string, data: CompressFormat, initialize?: Null<FileManagerPerformAsyncTaskMethod>, callback?: FileManagerCompleteAsyncTaskCallback) => void;
+    type CompressTryFileMethod = (uri: string, data: CompressFormat, performAsyncTask?: Null<FileManagerPerformAsyncTaskMethod>, callback?: FileManagerCompleteAsyncTaskCallback) => void;
     type CompressTryImageCallback = (value: unknown) => void;
 
     namespace Internal {
@@ -201,12 +201,10 @@ declare namespace functions {
         brotliQuality: number;
         compressorProxy: ObjectMap<CompressTryFileMethod>;
         register(format: string, callback: CompressTryFileMethod): void;
-        createWriteStreamAsGzip(source: string, localUri: string, level?: number): WriteStream;
-        createWriteStreamAsBrotli(source: string, localUri: string, quality?: number, mimeType?: string): WriteStream;
-        findFormat(compress: Undef<CompressFormat[]>, format: string): Undef<CompressFormat>;
-        withinSizeRange(localUri: string, value: Undef<string>): boolean;
+        createWriteStreamAsGzip(source: string, uri: string, level?: number): WriteStream;
+        createWriteStreamAsBrotli(source: string, uri: string, quality?: number, mimeType?: string): WriteStream;
         tryFile: CompressTryFileMethod;
-        tryImage(localUri: string, data: CompressFormat, callback: CompressTryImageCallback): void;
+        tryImage(uri: string, data: CompressFormat, callback: CompressTryImageCallback): void;
     }
 
     interface IImage extends IModule {
@@ -392,7 +390,7 @@ declare namespace functions {
 
     interface FileManagerConstructor extends ModuleConstructor {
         getPermission(settings?: PermissionSettings): IPermission;
-        hasPermission(dirname: string, permission: IPermission, res?: Response): true | ResponseData;
+        hasPermission(dirname: string, permission: IPermission): true | ResponseData;
         moduleCompress(): ICompress;
         new(baseDirectory: string, body: RequestBody, postFinalize?: (errors: string[]) => void, settings?: PermissionSettings): IFileManager;
     }
