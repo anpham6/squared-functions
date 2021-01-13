@@ -1,11 +1,9 @@
-import type { ICloud, Internal } from '../../types/lib';
+import type { ICloud, IModule } from '../../types/lib';
 import type { CloudDatabase } from '../../types/lib/squared';
 import type { ConfigurationOptions } from 'aws-sdk/lib/core';
 import type { Connection, ConnectionAttributes } from 'oracledb';
 
 import { createBucket as createBucket_s3, deleteObjects as deleteObjects_s3 } from '../aws';
-
-type InstanceHost = Internal.Cloud.InstanceHost;
 
 const OUT_FORMAT_OBJECT = 4002;
 
@@ -33,7 +31,7 @@ export function setStorageCredential(credential: OCIStorageCredential) {
     credential.signatureVersion = 'v4';
 }
 
-export async function createDatabaseClient(this: InstanceHost, credential: OCIDatabaseCredential) {
+export async function createDatabaseClient(this: IModule, credential: OCIDatabaseCredential) {
     try {
         const oracledb = require('oracledb');
         oracledb.autoCommit = true;
@@ -45,11 +43,11 @@ export async function createDatabaseClient(this: InstanceHost, credential: OCIDa
     }
 }
 
-export async function createBucket(this: InstanceHost, credential: OCIStorageCredential, bucket: string, publicRead?: boolean) {
+export async function createBucket(this: IModule, credential: OCIStorageCredential, bucket: string, publicRead?: boolean) {
     return createBucket_s3.call(this, credential, bucket, publicRead, 'oci');
 }
 
-export async function deleteObjects(this: InstanceHost, credential: OCIStorageCredential, bucket: string, service = 'oci') {
+export async function deleteObjects(this: IModule, credential: OCIStorageCredential, bucket: string, service = 'oci') {
     setStorageCredential(credential);
     return deleteObjects_s3.call(this, credential, bucket, service);
 }

@@ -1,10 +1,8 @@
-import type { ICloud, Internal } from '../../types/lib';
+import type { ICloud, IModule } from '../../types/lib';
 import type { CloudDatabase } from '../../types/lib/squared';
 import type { ConfigurationOptions, SharedIniFileCredentials } from 'aws-sdk/lib/core';
 import type { ServiceConfigurationOptions } from 'aws-sdk/lib/service';
 import type * as aws from 'aws-sdk';
-
-type InstanceHost = Internal.Cloud.InstanceHost;
 
 export interface AWSStorageCredential extends ConfigurationOptions {
     fromPath?: string;
@@ -37,7 +35,7 @@ function getPublicReadPolicy(bucket: string) {
     });
 }
 
-function setPublicRead(this: InstanceHost, s3: aws.S3, Bucket: string, service = 'aws') {
+function setPublicRead(this: IModule, s3: aws.S3, Bucket: string, service = 'aws') {
     const callback = (err: Null<Error>) => {
         if (!err) {
             this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Grant public-read', Bucket, { titleColor: 'blue' });
@@ -64,7 +62,7 @@ export function validateDatabase(credential: AWSDatabaseCredential, data: CloudD
     return validateStorage(credential) && !!(credential.region || credential.endpoint) && !!data.table;
 }
 
-export function createStorageClient(this: InstanceHost, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3') {
+export function createStorageClient(this: IModule, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3') {
     try {
         if (service === 'aws') {
             const AWS = require('aws-sdk');
@@ -91,7 +89,7 @@ export function createStorageClient(this: InstanceHost, credential: AWSStorageCr
     }
 }
 
-export function createDatabaseClient(this: InstanceHost, credential: AWSDatabaseCredential) {
+export function createDatabaseClient(this: IModule, credential: AWSDatabaseCredential) {
     credential.endpoint ||= `https://dynamodb.${credential.region!}.amazonaws.com`;
     try {
         const AWS = require('aws-sdk');
@@ -113,7 +111,7 @@ export function createDatabaseClient(this: InstanceHost, credential: AWSDatabase
     }
 }
 
-export async function createBucket(this: InstanceHost, credential: ConfigurationOptions, Bucket: string, publicRead?: boolean, service = 'aws', sdk = 'aws-sdk/clients/s3') {
+export async function createBucket(this: IModule, credential: ConfigurationOptions, Bucket: string, publicRead?: boolean, service = 'aws', sdk = 'aws-sdk/clients/s3') {
     const s3 = createStorageClient.call(this, credential, service, sdk);
     return await s3.headBucket({ Bucket }).promise()
         .then(() => {
@@ -145,7 +143,7 @@ export async function createBucket(this: InstanceHost, credential: Configuration
         });
 }
 
-export async function deleteObjects(this: InstanceHost, credential: AWSStorageCredential, Bucket: string, service = 'aws', sdk = 'aws-sdk/clients/s3') {
+export async function deleteObjects(this: IModule, credential: AWSStorageCredential, Bucket: string, service = 'aws', sdk = 'aws-sdk/clients/s3') {
     const s3 = createStorageClient.call(this, credential, service, sdk);
     try {
         const Contents = (await s3.listObjects({ Bucket }).promise()).Contents;

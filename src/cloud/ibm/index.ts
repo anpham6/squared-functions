@@ -1,12 +1,10 @@
-import type { ICloud, Internal } from '../../types/lib';
+import type { ICloud, IModule } from '../../types/lib';
 import type { CloudDatabase } from '../../types/lib/squared';
 import type { ConfigurationOptions } from 'ibm-cos-sdk/lib/config';
 import type { MangoQuery } from 'nano';
 import type { Configuration, ServerScope } from '@cloudant/cloudant';
 
 import { createBucket as createBucket_s3, deleteObjects as deleteObjects_s3 } from '../aws';
-
-type InstanceHost = Internal.Cloud.InstanceHost;
 
 export interface IBMStorageCredential extends ConfigurationOptions {
     endpoint?: string;
@@ -33,7 +31,7 @@ export function setStorageCredential(credential: IBMStorageCredential) {
     credential.signatureVersion = 'iam';
 }
 
-export function createDatabaseClient(this: InstanceHost, credential: IBMDatabaseCredential) {
+export function createDatabaseClient(this: IModule, credential: IBMDatabaseCredential) {
     try {
         const Cloudant = require('@cloudant/cloudant');
         return new Cloudant(credential) as ServerScope;
@@ -44,11 +42,11 @@ export function createDatabaseClient(this: InstanceHost, credential: IBMDatabase
     }
 }
 
-export async function createBucket(this: InstanceHost, credential: IBMStorageCredential, bucket: string, publicRead?: boolean) {
+export async function createBucket(this: IModule, credential: IBMStorageCredential, bucket: string, publicRead?: boolean) {
     return createBucket_s3.call(this, credential as PlainObject, bucket, publicRead, 'ibm', 'ibm-cos-sdk/clients/s3');
 }
 
-export async function deleteObjects(this: InstanceHost, credential: IBMStorageCredential, bucket: string, service = 'ibm') {
+export async function deleteObjects(this: IModule, credential: IBMStorageCredential, bucket: string, service = 'ibm') {
     setStorageCredential(credential);
     return deleteObjects_s3.call(this, credential as PlainObject, bucket, service, 'ibm-cos-sdk/clients/s3');
 }

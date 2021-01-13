@@ -1,12 +1,11 @@
-import type { Internal } from '../../../types/lib';
+import type { IModule, Internal } from '../../../types/lib';
 import type { OCIStorageCredential } from '../index';
 
 import { setStorageCredential } from '../index';
 
-type InstanceHost = Internal.Cloud.InstanceHost;
 type UploadHost = Internal.Cloud.UploadHost;
 
-export default function upload(this: InstanceHost, credential: OCIStorageCredential, service = 'oci') {
+export default function upload(this: IModule, credential: OCIStorageCredential, service = 'oci') {
     setStorageCredential(credential);
     return (require('../../aws/upload') as UploadHost).call(this, credential, service);
 }

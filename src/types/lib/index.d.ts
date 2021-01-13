@@ -95,8 +95,6 @@ declare namespace functions {
         }
 
         namespace Cloud {
-            type InstanceHost = ICloud | IFileManager;
-
             interface CacheTimeout {
                 aws?: number;
                 azure?: number;
@@ -135,10 +133,10 @@ declare namespace functions {
             interface ServiceClient {
                 validateStorage?(credential: PlainObject, data?: CloudService): boolean;
                 validateDatabase?(credential: PlainObject, data?: CloudService): boolean;
-                createStorageClient?<T>(this: InstanceHost, credential: unknown, service?: string): T;
-                createDatabaseClient?<T>(this: InstanceHost, credential: unknown, data?: CloudService): T;
-                createBucket?(this: InstanceHost, credential: unknown, bucket: string, publicRead?: boolean, service?: string, sdk?: string): Promise<boolean>;
-                deleteObjects?(this: InstanceHost, credential: unknown, bucket: string, service?: string, sdk?: string): Promise<void>;
+                createStorageClient?<T>(this: IModule, credential: unknown, service?: string): T;
+                createDatabaseClient?<T>(this: IModule, credential: unknown, data?: CloudService): T;
+                createBucket?(this: IModule, credential: unknown, bucket: string, publicRead?: boolean, service?: string, sdk?: string): Promise<boolean>;
+                deleteObjects?(this: IModule, credential: unknown, bucket: string, service?: string, sdk?: string): Promise<void>;
                 executeQuery?(this: ICloud, credential: unknown, data: CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
             }
 
@@ -146,7 +144,7 @@ declare namespace functions {
                 compressed: ExternalAsset[];
             }
 
-            type ServiceHost<T> = (this: InstanceHost, credential: unknown, service?: string, sdk?: string) => T;
+            type ServiceHost<T> = (this: IModule, credential: unknown, service?: string, sdk?: string) => T;
             type UploadHost = ServiceHost<UploadCallback>;
             type DownloadHost = ServiceHost<DownloadCallback>;
             type UploadCallback = (data: UploadData, success: (value: string) => void) => Promise<void>;

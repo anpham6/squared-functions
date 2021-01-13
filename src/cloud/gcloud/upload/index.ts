@@ -1,4 +1,4 @@
-import type { Internal } from '../../../types/lib';
+import type { IModule, Internal } from '../../../types/lib';
 import type { GCloudStorageCredential } from '../index';
 
 import path = require('path');
@@ -9,13 +9,12 @@ import Module from '../../../module';
 
 import { createBucket, createStorageClient, setPublicRead } from '../index';
 
-type InstanceHost = Internal.Cloud.InstanceHost;
 type UploadCallback = Internal.Cloud.UploadCallback;
 type UploadData = Internal.Cloud.UploadData;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-export default function upload(this: InstanceHost, credential: GCloudStorageCredential, service = 'gcloud'): UploadCallback {
+export default function upload(this: IModule, credential: GCloudStorageCredential, service = 'gcloud'): UploadCallback {
     const storage = createStorageClient.call(this, credential);
     return async (data: UploadData, success: (value: string) => void) => {
         const bucket = data.bucket ||= data.bucketGroup || uuid.v4();

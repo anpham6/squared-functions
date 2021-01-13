@@ -1,4 +1,4 @@
-import type { Internal } from '../../../types/lib';
+import type { IModule, Internal } from '../../../types/lib';
 import type { AWSStorageCredential } from '../index';
 
 import path = require('path');
@@ -8,13 +8,12 @@ import Module from '../../../module';
 
 import { createBucket, createStorageClient } from '../index';
 
-type InstanceHost = Internal.Cloud.InstanceHost;
 type UploadData = Internal.Cloud.UploadData;
 type UploadCallback = Internal.Cloud.UploadCallback;
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
-export default function upload(this: InstanceHost, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3'): UploadCallback {
+export default function upload(this: IModule, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3'): UploadCallback {
     const s3 = createStorageClient.call(this, credential, service, sdk);
     return async (data: UploadData, success: (value: string) => void) => {
         const Bucket = data.bucket ||= data.bucketGroup || uuid.v4();

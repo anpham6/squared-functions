@@ -1,4 +1,4 @@
-import type { Internal } from '../../../types/lib';
+import type { IModule, Internal } from '../../../types/lib';
 import type { AWSStorageCredential } from '../index';
 import type * as aws from 'aws-sdk';
 
@@ -6,11 +6,10 @@ import Module from '../../../module';
 
 import { createStorageClient } from '../index';
 
-type InstanceHost = Internal.Cloud.InstanceHost;
 type DownloadData = Internal.Cloud.DownloadData;
 type DownloadCallback = Internal.Cloud.DownloadCallback;
 
-export default function download(this: InstanceHost, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3'): DownloadCallback {
+export default function download(this: IModule, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3'): DownloadCallback {
     const s3 = createStorageClient.call(this, credential, service, sdk);
     return async (data: DownloadData, success: (value: Null<Buffer>) => void) => {
         const { bucket: Bucket, download: Download } = data;

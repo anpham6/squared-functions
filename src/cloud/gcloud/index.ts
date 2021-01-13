@@ -1,4 +1,4 @@
-import type { ICloud, Internal } from '../../types/lib';
+import type { ICloud, IModule } from '../../types/lib';
 import type { CloudDatabase, CloudService } from '../../types/lib/squared';
 import type { GoogleAuthOptions } from 'google-auth-library';
 import type { Acl } from '@google-cloud/storage/build/src/acl';
@@ -7,8 +7,6 @@ import type * as gcf from '@google-cloud/firestore';
 import type * as gcb from '@google-cloud/bigquery';
 
 import path = require('path');
-
-type InstanceHost = Internal.Cloud.InstanceHost;
 
 export interface GCloudStorageCredential extends GoogleAuthOptions {
     location?: string;
@@ -31,7 +29,7 @@ export function validateDatabase(credential: GCloudDatabaseCredential, data: GCl
     return validateStorage(credential) && (!!data.table || typeof data.query === 'string');
 }
 
-export function createStorageClient(this: InstanceHost, credential: GCloudStorageCredential) {
+export function createStorageClient(this: IModule, credential: GCloudStorageCredential) {
     try {
         const { Storage } = require('@google-cloud/storage');
         return new Storage(credential) as gcs.Storage;
@@ -42,7 +40,7 @@ export function createStorageClient(this: InstanceHost, credential: GCloudStorag
     }
 }
 
-export function createDatabaseClient(this: InstanceHost, credential: GCloudDatabaseCredential, data?: GCloudDatabaseQuery) {
+export function createDatabaseClient(this: IModule, credential: GCloudDatabaseCredential, data?: GCloudDatabaseQuery) {
     try {
         credential.projectId = getProjectId(credential);
         if (data && typeof data.query === 'string') {
@@ -58,7 +56,7 @@ export function createDatabaseClient(this: InstanceHost, credential: GCloudDatab
     }
 }
 
-export async function createBucket(this: InstanceHost, credential: GCloudStorageCredential, bucket: string, publicRead?: boolean, service = 'gcloud') {
+export async function createBucket(this: IModule, credential: GCloudStorageCredential, bucket: string, publicRead?: boolean, service = 'gcloud') {
     const storage = createStorageClient.call(this, credential);
     try {
         const [exists] = await storage.bucket(bucket).exists();
@@ -80,7 +78,7 @@ export async function createBucket(this: InstanceHost, credential: GCloudStorage
     return true;
 }
 
-export async function deleteObjects(this: InstanceHost, credential: GCloudStorageCredential, bucket: string, service = 'gcloud') {
+export async function deleteObjects(this: IModule, credential: GCloudStorageCredential, bucket: string, service = 'gcloud') {
     const storage = createStorageClient.call(this, credential);
     try {
         return storage.bucket(bucket)
@@ -155,7 +153,7 @@ export async function executeQuery(this: ICloud, credential: GCloudDatabaseCrede
     return [];
 }
 
-export function setPublicRead(this: InstanceHost, acl: Acl, filename: string, requested?: boolean) {
+export function setPublicRead(this: IModule, acl: Acl, filename: string, requested?: boolean) {
     acl.add({ entity: 'allUsers', role: 'READER' })
         .then(() => {
             this.formatMessage(this.logType.CLOUD_STORAGE, 'gcloud', 'Grant public-read', filename, { titleColor: 'blue' });
