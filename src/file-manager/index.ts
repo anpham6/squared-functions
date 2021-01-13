@@ -51,7 +51,7 @@ const findFormat = (compress: Undef<CompressFormat[]>, format: string) => compre
 const isObject = <T = PlainObject>(value: unknown): value is T => typeof value === 'object' && value !== null;
 const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
 const isTrue = (value: unknown): value is true => value ? value === true || value === 'true' || +(value as string) === 1 : false;
-const hasDocument = (document: string | string[], documentName: string) => Array.isArray(document) && document.includes(documentName) || document === documentName;
+const hasDocument = (document: string | string[], moduleName: string) => Array.isArray(document) && document.includes(moduleName) || document === moduleName;
 
 class Permission implements IPermission {
     private _disk_read: boolean;
@@ -368,7 +368,7 @@ class FileManager extends Module implements IFileManager {
             const value: unknown = data[attr];
             if (typeof value === 'string') {
                 for (const { instance } of this.Document) {
-                    if (hasDocument(document, instance.documentName) && value.includes(instance.internalAssignUUID)) {
+                    if (hasDocument(document, instance.moduleName) && value.includes(instance.internalAssignUUID)) {
                         return target[attr] = value.replace(instance.internalAssignUUID, uuid.v4());
                     }
                 }
@@ -405,7 +405,7 @@ class FileManager extends Module implements IFileManager {
         }
         if (file.document) {
             for (const { instance } of this.Document) {
-                if (hasDocument(file.document, instance.documentName) && instance.formatContent) {
+                if (hasDocument(file.document, instance.moduleName) && instance.formatContent) {
                     [content] = await instance.formatContent(this, file, content);
                 }
             }
@@ -496,7 +496,7 @@ class FileManager extends Module implements IFileManager {
         let output: Undef<string>;
         if (file.document) {
             for (const { instance } of this.Document) {
-                if (hasDocument(file.document, instance.documentName) && instance.imageQueue && (output = instance.imageQueue(data, outputType, saveAs, command))) {
+                if (hasDocument(file.document, instance.moduleName) && instance.imageQueue && (output = instance.imageQueue(data, outputType, saveAs, command))) {
                     this.filesQueued.add(output);
                     return output;
                 }
@@ -538,7 +538,7 @@ class FileManager extends Module implements IFileManager {
         if (file.document) {
             data.baseDirectory = this.baseDirectory;
             for (const { instance } of this.Document) {
-                if (hasDocument(file.document, instance.documentName) && instance.imageFinalize && instance.imageFinalize(err, data)) {
+                if (hasDocument(file.document, instance.moduleName) && instance.imageFinalize && instance.imageFinalize(err, data)) {
                     if (err || !output) {
                         this.completeAsyncTask();
                         return;
@@ -635,7 +635,7 @@ class FileManager extends Module implements IFileManager {
             const taskName = new Set<string>();
             for (const task of file.tasks) {
                 if (task.preceding && !taskName.has(task.handler)) {
-                    const handler = this.Task.find(item => task.handler === item.instance.taskName);
+                    const handler = this.Task.find(item => task.handler === item.instance.moduleName);
                     if (handler) {
                         await handler.constructor.using.call(this, handler.instance, [file], true);
                         taskName.add(task.handler);
@@ -678,7 +678,7 @@ class FileManager extends Module implements IFileManager {
         }
         if (file.document) {
             for (const { instance, constructor } of this.Document) {
-                if (hasDocument(file.document, instance.documentName)) {
+                if (hasDocument(file.document, instance.moduleName)) {
                     await constructor.using.call(this, instance, file);
                 }
             }
@@ -964,7 +964,7 @@ class FileManager extends Module implements IFileManager {
         }
         if (this.documentAssets.length) {
             for (const { instance, constructor } of this.Document) {
-                const assets = this.documentAssets.filter(item => item.document!.includes(instance.documentName) && !item.invalid);
+                const assets = this.documentAssets.filter(item => item.document!.includes(instance.moduleName) && !item.invalid);
                 if (assets.length) {
                     await constructor.finalize.call(this, instance, assets);
                 }
@@ -1027,7 +1027,7 @@ class FileManager extends Module implements IFileManager {
         }
         if (this.taskAssets.length) {
             for (const { instance, constructor } of this.Task) {
-                const assets = this.taskAssets.filter(item => item.tasks!.find(data => data.handler === instance.taskName && !data.preceding && item.localUri && !item.invalid));
+                const assets = this.taskAssets.filter(item => item.tasks!.find(data => data.handler === instance.moduleName && !data.preceding && item.localUri && !item.invalid));
                 if (assets.length) {
                     await constructor.using.call(this, instance, assets);
                 }

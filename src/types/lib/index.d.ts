@@ -210,7 +210,7 @@ declare namespace functions {
     }
 
     interface IImage extends IModule {
-        readonly imageName: string;
+        readonly moduleName: string;
         parseMethod(value: string): Undef<string[]>;
         parseResize(value: string): Undef<ResizeData>;
         parseCrop(value: string): Undef<CropData>;
@@ -248,7 +248,6 @@ declare namespace functions {
 
     interface ITask extends IModule {
         module: ExtendedSettings.DocumentModule;
-        readonly taskName: string;
         execute?(manager: IFileManager, task: PlainObject, callback: (value?: unknown) => void): void;
     }
 
@@ -289,9 +288,9 @@ declare namespace functions {
 
     interface IDocument extends IModule {
         module: ExtendedSettings.DocumentModule;
-        documentName: string;
         internalAssignUUID: string;
         templateMap?: StandardMap;
+        readonly moduleName: string;
         findPluginData(type: string, name: string, settings: ObjectMap<StandardMap>): Internal.Document.PluginConfig;
         loadOptions(value: ConfigOrTransformer | string): Undef<ConfigOrTransformer>;
         loadConfig(value: string): Undef<StandardMap | string>;
@@ -406,6 +405,7 @@ declare namespace functions {
         readonly minor: number;
         readonly patch: number;
         readonly errors: string[];
+        readonly moduleName?: string;
         supported(major: number, minor: number, patch?: number): boolean;
         parseFunction(value: string): Null<FunctionType<string>>;
         getTempDir(subDir?: boolean, filename?: string): string;

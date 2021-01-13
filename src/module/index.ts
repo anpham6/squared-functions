@@ -31,7 +31,7 @@ function allSettled<T>(values: readonly (T | PromiseLike<T>)[]) {
     return Promise.all(values.map((promise: Promise<T>) => promise.then(value => ({ status: 'fulfilled', value })).catch(reason => ({ status: 'rejected', reason })) as Promise<PromiseSettledResult<T>>));
 }
 
-const Module = class implements IModule {
+abstract class Module implements IModule {
     public static formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
         switch (type) {
             case LOG_TYPE.SYSTEM:
@@ -271,6 +271,7 @@ const Module = class implements IModule {
     public minor: number;
     public patch: number;
     public tempDir = 'tmp';
+    public moduleName?: string;
     public readonly errors: string[] = [];
 
     constructor() {
@@ -327,7 +328,7 @@ const Module = class implements IModule {
     get logType() {
         return LOG_TYPE;
     }
-};
+}
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = Module;

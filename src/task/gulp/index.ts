@@ -33,7 +33,7 @@ class Gulp extends Task {
             const scheduled = new Set<string>();
             let gulpfile: Undef<string>;
             for (const { handler, task, preceding } of item.tasks!) {
-                if (instance.taskName === handler && !!preceding === beforeStage && !scheduled.has(task) && (gulpfile = gulp[task]) && fs.existsSync(gulpfile = path.resolve(gulpfile))) {
+                if (instance.moduleName === handler && !!preceding === beforeStage && !scheduled.has(task) && (gulpfile = gulp[task]) && fs.existsSync(gulpfile = path.resolve(gulpfile))) {
                     if (!taskMap.has(task)) {
                         taskMap.set(task, new Map<string, GulpData>());
                     }
@@ -117,11 +117,11 @@ class Gulp extends Task {
             }));
         }
         if (tasks.length) {
-            await Task.allSettled(tasks, ['Execute tasks <finalize>', instance.taskName], this.errors);
+            await Task.allSettled(tasks, ['Execute tasks <finalize>', instance.moduleName], this.errors);
         }
     }
 
-    public readonly taskName = 'gulp';
+    public readonly moduleName = 'gulp';
 
     constructor(module: TaskModule) {
         super(module);
@@ -129,7 +129,7 @@ class Gulp extends Task {
 
     execute(manager: IFileManager, gulp: GulpTask, callback: (value?: unknown) => void) {
         const { task, origDir, data } = gulp;
-        const errorHint = this.taskName + ': ' + task;
+        const errorHint = this.moduleName + ': ' + task;
         try {
             const tempDir = this.getTempDir(true);
             fs.mkdirpSync(tempDir);

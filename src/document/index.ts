@@ -20,7 +20,8 @@ abstract class Document extends Module implements IDocument {
 
     public internalAssignUUID = '__assign__';
     public templateMap?: StandardMap;
-    public abstract documentName: string;
+
+    public abstract moduleName: string;
 
     private _packageMap: ObjectMap<Transformer> = {};
 
@@ -98,7 +99,7 @@ abstract class Document extends Module implements IDocument {
                 const [plugin, options, output] = this.findPluginData(type, name = name.trim(), settings);
                 if (plugin) {
                     if (!options) {
-                        this.writeFail('Unable to load configuration', new Error(`Incomplete plugin <${this.documentName}:${name}>`));
+                        this.writeFail('Unable to load configuration', new Error(`Incomplete plugin <${this.moduleName}:${name}>`));
                     }
                     else {
                         this.formatMessage(this.logType.PROCESS, type, ['Transforming source...', plugin], name, { hintColor: 'cyan' });
@@ -114,7 +115,7 @@ abstract class Document extends Module implements IDocument {
                                 }
                             }
                             catch (err) {
-                                this.writeFail([`Install required? <npm i ${plugin}>`, this.documentName], err);
+                                this.writeFail([`Install required? <npm i ${plugin}>`, this.moduleName], err);
                             }
                         }
                         else {
@@ -138,7 +139,7 @@ abstract class Document extends Module implements IDocument {
                     }
                 }
                 else {
-                    this.writeFail('Process method not found', new Error(`Unknown plugin <${this.documentName}:${name}>`));
+                    this.writeFail('Process method not found', new Error(`Unknown plugin <${this.moduleName}:${name}>`));
                 }
             }
             if (valid) {

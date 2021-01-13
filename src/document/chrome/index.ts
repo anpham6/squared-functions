@@ -725,7 +725,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
         if (tasks.length) {
-            await Document.allSettled(tasks, ['Cache base64 <finalize>', instance.documentName], this.errors);
+            await Document.allSettled(tasks, ['Cache base64 <finalize>', instance.moduleName], this.errors);
             tasks = [];
         }
         const replaced = assets.filter(item => item.originalName && !item.invalid);
@@ -816,7 +816,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
         if (tasks.length) {
-            await Document.allSettled(tasks, ['Replace UTF-8 <finalize>', instance.documentName], this.errors);
+            await Document.allSettled(tasks, ['Replace UTF-8 <finalize>', instance.moduleName], this.errors);
         }
         if (instance.htmlFiles.length) {
             for (const item of assets) {
@@ -838,13 +838,13 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
     }
 
-    public documentName = 'chrome';
     public htmlFiles: DocumentAsset[] = [];
     public cssFiles: DocumentAsset[] = [];
     public baseDirectory = '';
     public internalServerRoot = '__serverroot__';
     public unusedStyles?: string[];
     public baseUrl?: string;
+    public readonly moduleName = 'chrome';
 
     private _cloudMap!: ObjectMap<DocumentAsset>;
     private _cloudCssMap!: ObjectMap<DocumentAsset>;
@@ -977,7 +977,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 tasks.push(...Array.from(modifiedCss).map(item => fs.writeFile(item.localUri!, item.sourceUTF8, 'utf8')));
             }
             if (tasks.length) {
-                await Document.allSettled(tasks, ['Update "text/css" <cloud storage>', this.documentName], manager.errors);
+                await Document.allSettled(tasks, ['Update "text/css" <cloud storage>', this.moduleName], manager.errors);
                 tasks = [];
             }
         }
@@ -991,7 +991,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
         if (tasks.length) {
-            await Document.allSettled(tasks, ['Upload "text/css" <cloud storage>', this.documentName], manager.errors);
+            await Document.allSettled(tasks, ['Upload "text/css" <cloud storage>', this.moduleName], manager.errors);
             tasks = [];
         }
         if (this._cloudModifiedHtml) {
@@ -1010,7 +1010,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     fs.writeFileSync(item.localUri!, sourceUTF8, 'utf8');
                 }
                 catch (err) {
-                    this.writeFail(['Update "text/html" <cloud storage>', this.documentName], err);
+                    this.writeFail(['Update "text/html" <cloud storage>', this.moduleName], err);
                 }
                 if (item.cloudStorage) {
                     if (item.compress) {
@@ -1021,7 +1021,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
             }
             if (tasks.length) {
-                await Document.allSettled(tasks, ['Upload "text/html" <cloud storage>', this.documentName], manager.errors);
+                await Document.allSettled(tasks, ['Upload "text/html" <cloud storage>', this.moduleName], manager.errors);
             }
         }
     }

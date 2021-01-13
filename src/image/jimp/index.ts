@@ -133,7 +133,7 @@ class Jimp extends Image implements ImageHandler<jimp> {
     public qualityData?: QualityData;
     public methodData?: string[];
     public opacityValue = NaN;
-    public readonly imageName = 'jimp';
+    public readonly moduleName = 'jimp';
 
     constructor(public instance: jimp, public data: FileData, public command: string, public finalAs?: string) {
         super();

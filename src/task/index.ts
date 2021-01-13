@@ -7,7 +7,7 @@ type TaskModule = ExtendedSettings.TaskModule;
 abstract class Task extends Module implements ITask {
     public static async using(this: IFileManager, instance: ITask, assets: ExternalAsset[]): Promise<void> {}
 
-    public abstract readonly taskName: string;
+    public abstract readonly moduleName: string;
 
     constructor(public module: TaskModule) {
         super();
