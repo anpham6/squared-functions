@@ -1,4 +1,4 @@
-import type { FileManagerCompleteAsyncTaskCallback, FileManagerFinalizeImageCallback, FileManagerPerformAsyncTaskMethod, IFileManager, ImageHandler, Internal } from '../../types/lib';
+import type { ExternalAsset, FileManagerCompleteAsyncTaskCallback, FileManagerFinalizeImageCallback, FileManagerPerformAsyncTaskMethod, IFileManager, ImageHandler, Internal } from '../../types/lib';
 
 import path = require('path');
 import fs = require('fs');
@@ -13,11 +13,12 @@ type CropData = Internal.Image.CropData;
 type RotateData = Internal.Image.RotateData;
 type QualityData = Internal.Image.QualityData;
 
-const getBuffer = (data: FileData) => (data.file.buffer as unknown) as string || data.file.localUri!;
+const getBuffer = (file: ExternalAsset) => (file.buffer as unknown) as string || file.localUri!;
 
 class Jimp extends Image implements ImageHandler<jimp> {
     public static async resolveMime(this: IFileManager, data: FileData) {
-        const img = await jimp.read(getBuffer(data));
+        const file = data.file;
+        const img = await jimp.read(getBuffer(file));
         const mimeType = img.getMIME();
         switch (mimeType) {
             case jimp.MIME_PNG:
@@ -25,10 +26,10 @@ class Jimp extends Image implements ImageHandler<jimp> {
             case jimp.MIME_BMP:
             case jimp.MIME_GIF:
             case jimp.MIME_TIFF: {
-                const localUri = data.file.localUri!;
+                const localUri = file.localUri!;
                 const output = Image.renameExt(localUri, mimeType.split('/')[1]);
                 fs.renameSync(localUri, output);
-                this.replace(data.file, output, mimeType);
+                this.replace(file, output, mimeType);
                 return true;
             }
         }
@@ -75,7 +76,7 @@ class Jimp extends Image implements ImageHandler<jimp> {
             if (output) {
                 this.formatMessage(this.logType.PROCESS, 'jimp', ['Transforming image...', path.basename(localUri)], command);
                 const startTime = Date.now();
-                jimp.read(tempFile || getBuffer(data))
+                jimp.read(tempFile || getBuffer(file))
                     .then(img => {
                         if (command.includes('@')) {
                             delete file.buffer;
@@ -132,7 +133,7 @@ class Jimp extends Image implements ImageHandler<jimp> {
     public qualityData?: QualityData;
     public methodData?: string[];
     public opacityValue = NaN;
-    public errorHandler?: (err: Error) => void;
+    public readonly imageName = 'jimp';
 
     constructor(public instance: jimp, public data: FileData, public command: string, public finalAs?: string) {
         super();
@@ -158,7 +159,7 @@ class Jimp extends Image implements ImageHandler<jimp> {
                             this.instance = this.instance[name]();
                         }
                         catch (err) {
-                            this.writeFail(['Method not supported', 'jimp: ' + name], err);
+                            this.writeFail(['Method not supported <jimp>', name], err);
                         }
                         break;
                 }
@@ -288,12 +289,12 @@ class Jimp extends Image implements ImageHandler<jimp> {
                         this.writeTimeElapsed('jimp', path.basename(result), startTime);
                     }
                     if (callback) {
-                        callback(error, { ...this.data, output: result, command: this.command });
+                        callback(error, { ...this.data, output: result, command: this.command, errors: this.errors });
                     }
                 });
             }
-            else if (this.errorHandler) {
-                this.errorHandler(err);
+            else if (callback) {
+                callback(err, { file: this.data.file, output: '', command: this.command, errors: this.errors });
             }
         });
     }
@@ -322,9 +323,9 @@ class Jimp extends Image implements ImageHandler<jimp> {
                 else if (webp !== output) {
                     fs.unlink(output, error => {
                         if (error) {
-                            this.writeFail(['Unable to delete temporary image', output], error);
+                            this.writeFail(['Unable to delete source image', output], error);
                         }
-                        callback(error, webp);
+                        callback(null, webp);
                     });
                 }
                 else {

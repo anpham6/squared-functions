@@ -108,7 +108,7 @@ export async function executeQuery(this: ICloud, credential: GCloudDatabaseCrede
             const [job] = await (client as gcb.BigQuery).createQueryJob(options);
             [result] = await job.getQueryResults();
         }
-        else {
+        else if (table) {
             queryString = table;
             if (id) {
                 queryString += id;
@@ -146,7 +146,7 @@ export async function executeQuery(this: ICloud, credential: GCloudDatabaseCrede
         }
     }
     catch (err) {
-        this.writeFail(['Unable to execute database query', data.service], err);
+        this.writeFail(['Unable to execute DB query', data.service], err);
     }
     if (result) {
         this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);

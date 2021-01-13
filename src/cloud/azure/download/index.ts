@@ -13,11 +13,12 @@ export default function download(this: InstanceHost, credential: AzureStorageCre
     const blobServiceClient = createStorageClient.call(this, credential);
     return async (data: DownloadData, success: (value: Null<Buffer>) => void) => {
         const { bucket: Bucket, download: Download } = data;
-        if (Bucket && Download && Download.filename) {
+        const Key = Download && Download.filename;
+        if (Bucket && Key) {
             try {
-                const location = Module.joinPosix(Bucket, Download.filename);
+                const location = Module.joinPosix(Bucket, Key);
                 const blobClient = blobServiceClient.getContainerClient(Bucket);
-                blobClient.getBlockBlobClient(Download.filename).downloadToBuffer()
+                blobClient.getBlockBlobClient(Key).downloadToBuffer()
                     .then(buffer => {
                         this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Download success', location);
                         success(buffer);
@@ -36,12 +37,19 @@ export default function download(this: InstanceHost, credential: AzureStorageCre
                         success(null);
                     });
             }
-            catch {
+            catch (err) {
+                this.formatFail(this.logType.CLOUD_STORAGE, service, 'Unknown', err);
                 success(null);
             }
         }
         else {
-            this.formatFail(this.logType.CLOUD_STORAGE, service, 'Container not specified', Download && Download.filename);
+            const writeFail = (prop: string) => this.formatFail(this.logType.CLOUD_STORAGE, service, prop + ' not specified', new Error(`Missing property <${service}:${prop.toLowerCase()}>`));
+            if (!Bucket) {
+                writeFail('Bucket');
+            }
+            if (!Key) {
+                writeFail('Filename');
+            }
             success(null);
         }
     };

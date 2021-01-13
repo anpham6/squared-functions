@@ -10,6 +10,8 @@ type QualityData = Internal.Image.QualityData;
 const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : NaN;
 
 abstract class Image extends Module implements IImage {
+    public abstract readonly imageName: string;
+
     parseCrop(value: string) {
         const match = /\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*\|\s*(\d+)\s*x\s*(\d+)\s*\)/.exec(value);
         if (match) {

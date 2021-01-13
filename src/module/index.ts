@@ -123,7 +123,7 @@ const Module = class implements IModule {
             }
             message = ' ' + chalk.blackBright('(') + message + chalk.blackBright(')');
         }
-        console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase()) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
+        console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase().padEnd(6)) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
     }
 
     public static toPosix(value: string, filename?: string) {
@@ -310,15 +310,15 @@ const Module = class implements IModule {
     writeTimeElapsed(title: string, value: string, time: number, options: LogMessageOptions = {}) {
         Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Completed', (Date.now() - time) / 1000 + 's'], value, options);
     }
-    writeFail(value: LogValue, message?: unknown) {
+    writeFail(value: LogValue, message?: Null<Error>) {
         this.formatFail(LOG_TYPE.SYSTEM, 'FAIL', value, message);
     }
-    formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
+    formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: Null<Error>, options: LogMessageOptions = {}) {
         options.titleColor ||= 'white';
         options.titleBgColor ||= 'bgRed';
         Module.formatMessage(type, title, value, message, options);
         if (message) {
-            this.errors.push((message as Error).toString());
+            this.errors.push(message instanceof Error ? message.message : (message as string).toString());
         }
     }
     formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options?: LogMessageOptions) {

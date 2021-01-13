@@ -14,14 +14,11 @@ export default function download(this: InstanceHost, credential: AWSStorageCrede
     const s3 = createStorageClient.call(this, credential, service, sdk);
     return async (data: DownloadData, success: (value: Null<Buffer>) => void) => {
         const { bucket: Bucket, download: Download } = data;
-        if (Bucket && Download && Download.filename) {
+        const Key = Download && Download.filename;
+        if (Bucket && Key) {
             try {
-                const location = Module.joinPosix(Bucket, Download.filename);
-                const params: aws.S3.Types.GetObjectRequest = {
-                    Bucket,
-                    Key: Download.filename,
-                    VersionId: Download.versionId
-                };
+                const location = Module.joinPosix(Bucket, Key);
+                const params: aws.S3.Types.GetObjectRequest = { Bucket, Key, VersionId: Download.versionId };
                 s3.getObject(params, (err, result) => {
                     if (!err) {
                         this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Download success', location);
@@ -43,12 +40,19 @@ export default function download(this: InstanceHost, credential: AWSStorageCrede
                     }
                 });
             }
-            catch {
+            catch (err) {
+                this.formatFail(this.logType.CLOUD_STORAGE, service, 'Unknown', err);
                 success(null);
             }
         }
         else {
-            this.formatFail(this.logType.CLOUD_STORAGE, service, 'Bucket not specified', Download && Download.filename);
+            const writeFail = (prop: string) => this.formatFail(this.logType.CLOUD_STORAGE, service, prop + ' not specified', new Error(`Missing property <${service}:${prop.toLowerCase()}>`));
+            if (!Bucket) {
+                writeFail('Bucket');
+            }
+            if (!Key) {
+                writeFail('Filename');
+            }
             success(null);
         }
     };

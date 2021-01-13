@@ -25,7 +25,7 @@ declare namespace functions {
     type CloudFeatures = "storage" | "database";
     type CloudFunctions = "upload" | "download";
     type ModuleFormatMessageMethod = (type: Internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options?: LogMessageOptions) => void;
-    type ModuleWriteFailMethod = (value: string | [string, string], message?: unknown) => void;
+    type ModuleWriteFailMethod = (value: string | [string, string], message?: Null<Error>) => void;
     type FileManagerPerformAsyncTaskMethod = () => void;
     type FileManagerQueueImageMethod = (data: FileData, ouputType: string, saveAs: string, command?: string) => Undef<string>;
     type FileManagerFinalizeImageCallback<T = void> = (err: Null<Error>, data: Internal.Image.OutputData) => T;
@@ -39,6 +39,7 @@ declare namespace functions {
                 output: string;
                 command: string;
                 baseDirectory?: string;
+                errors?: string[];
             }
 
             interface RotateData {
@@ -209,6 +210,7 @@ declare namespace functions {
     }
 
     interface IImage extends IModule {
+        readonly imageName: string;
         parseMethod(value: string): Undef<string[]>;
         parseResize(value: string): Undef<ResizeData>;
         parseCrop(value: string): Undef<CropData>;
@@ -233,7 +235,6 @@ declare namespace functions {
         rotateData?: RotateData;
         qualityData?: QualityData;
         opacityValue: number;
-        errorHandler?: (err: Error) => void;
         method(): void;
         resize(): void;
         crop(): void;
@@ -294,7 +295,7 @@ declare namespace functions {
         findPluginData(type: string, name: string, settings: ObjectMap<StandardMap>): Internal.Document.PluginConfig;
         loadOptions(value: ConfigOrTransformer | string): Undef<ConfigOrTransformer>;
         loadConfig(value: string): Undef<StandardMap | string>;
-        transform(type: string, format: string, value: string, errors?: string[], input?: SourceMapInput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>>;
+        transform(type: string, format: string, value: string, input?: SourceMapInput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>>;
         formatContent?(manager: IFileManager, file: ExternalAsset, content: string): Promise<[string, boolean]>;
         imageQueue?: FileManagerQueueImageMethod;
         imageFinalize?: FileManagerFinalizeImageCallback<boolean>;
@@ -345,7 +346,7 @@ declare namespace functions {
         Task: Internal.InstallData<ITask, TaskConstructor>[];
         Cloud: Null<ICloud>;
         Watch: Null<IWatch>;
-        Image: Null<ImageConstructor>;
+        Image: Null<Map<string, ImageConstructor>>;
         Compress: Null<ICompress>;
         readonly baseDirectory: string;
         readonly body: RequestBody;
@@ -409,7 +410,7 @@ declare namespace functions {
         parseFunction(value: string): Null<FunctionType<string>>;
         getTempDir(subDir?: boolean, filename?: string): string;
         formatMessage: ModuleFormatMessageMethod;
-        formatFail(type: Internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown): void;
+        formatFail(type: Internal.LOG_TYPE, title: string, value: string | [string, string], message?: Null<Error>): void;
         writeFail: ModuleWriteFailMethod;
         writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions): void;
     }
@@ -457,17 +458,19 @@ declare namespace functions {
     namespace ExtendedSettings {
         interface HandlerModule {
             handler?: string;
-            settings?: PlainObject;
         }
 
         interface DocumentModule extends HandlerModule {
             eval_function?: boolean;
             eval_template?: boolean;
+            settings?: PlainObject;
         }
 
-        interface TaskModule extends HandlerModule {}
+        interface TaskModule extends HandlerModule {
+            settings?: PlainObject;
+        }
 
-        interface ImageModule extends HandlerModule {}
+        interface ImageModule extends HandlerModule, StringMap {}
 
         interface CompressModule {
             gzip_level?: NumString;

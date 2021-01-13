@@ -3,7 +3,6 @@ import type { DocumentAsset, IChromeDocument } from './document';
 
 import path = require('path');
 import fs = require('fs-extra');
-import mime = require('mime-types');
 import escapeRegexp = require('escape-string-regexp');
 import uuid = require('uuid');
 
@@ -399,7 +398,16 @@ class ChromeDocument extends Document implements IChromeDocument {
                     const items = cloud.database.filter(item => item.element?.outerHTML);
                     const cacheKey = uuid.v4();
                     const pattern = /\$\{\s*(\w+)\s*\}/g;
-                    (await Promise.all(items.map(item => cloud.getDatabaseRows(item, cacheKey).catch(err => { this.errors.push(err.toString()); return []; })))).forEach((result, index) => {
+                    (await Promise.all(
+                        items.map(item => {
+                            return cloud.getDatabaseRows(item, cacheKey).catch(err => {
+                                if (err instanceof Error && err.message) {
+                                    this.errors.push(err.toString());
+                                }
+                                return [];
+                            });
+                        })
+                    )).forEach((result, index) => {
                         if (result.length) {
                             const item = items[index];
                             const outerHTML = item.element!.outerHTML!;
@@ -472,7 +480,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             else if (query) {
                                 queryString = typeof query !== 'string' ? JSON.stringify(query) : query;
                             }
-                            this.formatMessage(this.logType.CLOUD_DATABASE, service, ['Query had no results', 'table: ' + table], queryString, { titleColor: 'yellow' });
+                            this.formatMessage(this.logType.CLOUD_DATABASE, service, ['Query had no results', table ? 'table: ' + table : ''], queryString, { titleColor: 'yellow' });
                         }
                     });
                 }
@@ -566,7 +574,6 @@ class ChromeDocument extends Document implements IChromeDocument {
                         const { uri, outerHTML } = item;
                         current = source;
                         if (outerHTML) {
-                            item.mimeType ||= mime.lookup(uri).toString();
                             const segments = [uri];
                             let value = item.relativeUri!,
                                 relativeUri: Undef<string>,
@@ -588,7 +595,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 value = uuid.v4();
                                 item.inlineCloud = value;
                             }
-                            else if (item.mimeType.startsWith('image/') && item.format === 'base64') {
+                            else if (item.mimeType?.startsWith('image/') && item.format === 'base64') {
                                 value = uuid.v4();
                                 item.inlineBase64 = value;
                                 item.watch = false;
@@ -661,7 +668,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     source += bundle;
                 }
                 if (format) {
-                    const result = await instance.transform('css', format, source, this.errors, this.createSourceMap(file, source));
+                    const result = await instance.transform('css', format, source, this.createSourceMap(file, source));
                     if (result) {
                         this.writeSourceMap(file, result, modified);
                         source = result[0];
@@ -686,7 +693,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     source += bundle;
                 }
                 if (format) {
-                    const result = await instance.transform('js', format, source, this.errors, this.createSourceMap(file, source));
+                    const result = await instance.transform('js', format, source, this.createSourceMap(file, source));
                     if (result) {
                         this.writeSourceMap(file, result, modified);
                         source = result[0];
@@ -771,7 +778,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
             }
             if (formatting) {
-                const result = await instance.transform('html', file.format!, source, manager.errors);
+                const result = await instance.transform('html', file.format!, source);
                 if (result) {
                     source = result[0];
                 }

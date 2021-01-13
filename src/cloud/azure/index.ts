@@ -112,44 +112,46 @@ export async function executeQuery(this: ICloud, credential: AzureDatabaseCreden
         queryString = '';
     try {
         const { name, table, id, query, storedProcedureId, params, partitionKey = '', limit = 0 } = data;
-        const container = client.database(name!).container(table);
-        queryString = name! + table + partitionKey + (data.options ? JSON.stringify(data.options) : '');
-        if (storedProcedureId && params) {
-            queryString += storedProcedureId + JSON.stringify(params);
-            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-            if (result) {
-                return result;
+        if (table) {
+            const container = client.database(name!).container(table);
+            queryString = name! + table + partitionKey + (data.options ? JSON.stringify(data.options) : '');
+            if (storedProcedureId && params) {
+                queryString += storedProcedureId + JSON.stringify(params);
+                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+                if (result) {
+                    return result;
+                }
+                const item = await container.scripts.storedProcedure(storedProcedureId).execute(partitionKey, params, data.options);
+                if (item.statusCode === 200) {
+                    result = Array.isArray(item.resource) ? item.resource : [item.resource];
+                }
             }
-            const item = await container.scripts.storedProcedure(storedProcedureId).execute(partitionKey, params, data.options);
-            if (item.statusCode === 200) {
-                result = Array.isArray(item.resource) ? item.resource : [item.resource];
+            else if (id) {
+                queryString += id;
+                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+                if (result) {
+                    return result;
+                }
+                const item = await container.item(id.toString(), partitionKey).read(data.options);
+                if (item.statusCode === 200) {
+                    result = [item.resource];
+                }
             }
-        }
-        else if (id) {
-            queryString += id;
-            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-            if (result) {
-                return result;
+            else if (typeof query === 'string') {
+                queryString += query + limit;
+                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+                if (result) {
+                    return result;
+                }
+                if (limit > 0) {
+                    (data.options ||= {}).maxItemCount = limit;
+                }
+                result = (await container.items.query(query, data.options).fetchAll()).resources;
             }
-            const item = await container.item(id.toString(), partitionKey).read(data.options);
-            if (item.statusCode === 200) {
-                result = [item.resource];
-            }
-        }
-        else if (typeof query === 'string') {
-            queryString += query + limit;
-            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-            if (result) {
-                return result;
-            }
-            if (limit > 0) {
-                (data.options ||= {}).maxItemCount = limit;
-            }
-            result = (await container.items.query(query, data.options).fetchAll()).resources;
         }
     }
     catch (err) {
-        this.writeFail(['Unable to execute database query', data.service], err);
+        this.writeFail(['Unable to execute DB query', data.service], err);
     }
     if (result) {
         this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);

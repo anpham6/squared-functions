@@ -77,7 +77,7 @@ abstract class Document extends Module implements IDocument {
                 }
             }
             else {
-                this.writeFail('Only relative paths are supported', value);
+                this.writeFail('Only relative paths are supported', new Error(`Unknown config <${value}>`));
             }
         }
         else if (typeof value === 'object') {
@@ -89,7 +89,7 @@ abstract class Document extends Module implements IDocument {
             }
         }
     }
-    async transform(type: string, format: string, value: string, errors?: string[], input?: SourceMapInput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>> {
+    async transform(type: string, format: string, value: string, input?: SourceMapInput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>> {
         const settings = this.module.settings?.[type] as ObjectMap<StandardMap>;
         if (settings) {
             const writeFail = this.writeFail.bind(this);
@@ -98,7 +98,7 @@ abstract class Document extends Module implements IDocument {
                 const [plugin, options, output] = this.findPluginData(type, name = name.trim(), settings);
                 if (plugin) {
                     if (!options) {
-                        this.writeFail('Unable to load configuration', plugin);
+                        this.writeFail('Unable to load configuration', new Error(`Incomplete plugin <${this.documentName}:${name}>`));
                     }
                     else {
                         this.formatMessage(this.logType.PROCESS, type, ['Transforming source...', plugin], name, { hintColor: 'cyan' });
@@ -114,10 +114,7 @@ abstract class Document extends Module implements IDocument {
                                 }
                             }
                             catch (err) {
-                                this.writeFail(['Install required?', 'npm i ' + plugin], err);
-                                if (errors) {
-                                    errors.push(err.toString());
-                                }
+                                this.writeFail([`Install required? <npm i ${plugin}>`, this.documentName], err);
                             }
                         }
                         else {
@@ -136,15 +133,12 @@ abstract class Document extends Module implements IDocument {
                             }
                             catch (err) {
                                 this.writeFail(['Unable to transform source', plugin], err);
-                                if (errors) {
-                                    errors.push(err.toString());
-                                }
                             }
                         }
                     }
                 }
                 else {
-                    this.writeFail('Process method not found', name);
+                    this.writeFail('Process method not found', new Error(`Unknown plugin <${this.documentName}:${name}>`));
                 }
             }
             if (valid) {

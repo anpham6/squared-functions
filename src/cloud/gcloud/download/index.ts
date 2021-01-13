@@ -15,7 +15,8 @@ export default function download(this: InstanceHost, credential: GCloudStorageCr
     const storage = createStorageClient.call(this, credential);
     return async (data: DownloadData, success: (value: string) => void) => {
         const { bucket: Bucket, download: Download } = data;
-        if (Bucket && Download && Download.filename) {
+        const Key = Download && Download.filename;
+        if (Bucket && Key) {
             try {
                 let tempDir = this.getTempDir(true);
                 try {
@@ -24,11 +25,10 @@ export default function download(this: InstanceHost, credential: GCloudStorageCr
                 catch {
                     tempDir = this.getTempDir();
                 }
-                const filename = Download.filename;
-                const destination = tempDir + filename;
-                const location = Module.joinPosix(Bucket, filename);
+                const destination = tempDir + Key;
+                const location = Module.joinPosix(Bucket, Key);
                 const bucket = storage.bucket(Bucket);
-                const file = bucket.file(filename, { generation: Download.versionId });
+                const file = bucket.file(Key, { generation: Download.versionId });
                 file.download({ destination })
                     .then(() => {
                         this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Download success', location);
@@ -49,12 +49,19 @@ export default function download(this: InstanceHost, credential: GCloudStorageCr
                         success('');
                     });
             }
-            catch {
+            catch (err) {
+                this.formatFail(this.logType.CLOUD_STORAGE, service, 'Unknown', err);
                 success('');
             }
         }
         else {
-            this.formatFail(this.logType.CLOUD_STORAGE, service, 'Container not specified', Download && Download.filename);
+            const writeFail = (prop: string) => this.formatFail(this.logType.CLOUD_STORAGE, service, prop + ' not specified', new Error(`Missing property <${service}:${prop.toLowerCase()}>`));
+            if (!Bucket) {
+                writeFail('Bucket');
+            }
+            if (!Key) {
+                writeFail('Filename');
+            }
             success('');
         }
     };

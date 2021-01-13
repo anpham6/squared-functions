@@ -112,7 +112,10 @@ class Cloud extends Module implements ICloud {
                                                         filename = path.basename(localUri);
                                                     }
                                                 }
-                                                uploadHandler({ buffer, upload, localUri, fileGroup, bucket, bucketGroup, filename, mimeType: mimeType || mime.lookup(localUri) || undefined }, success);
+                                                else {
+                                                    mimeType = mime.lookup(localUri) || file.mimeType;
+                                                }
+                                                uploadHandler({ buffer, upload, localUri, fileGroup, bucket, bucketGroup, filename, mimeType }, success);
                                             }
                                             else {
                                                 success('');
@@ -382,7 +385,7 @@ class Cloud extends Module implements ICloud {
         if (createHandler) {
             return createHandler.call(this, credential, bucket, publicRead);
         }
-        this.writeFail(['Create bucket function not supported', service]);
+        this.writeFail(['Create bucket function not supported', service], new Error(`Insufficent permissions <${service}:${bucket}>`));
         return Promise.resolve(false);
     }
     deleteObjects(service: string, credential: PlainObject, bucket: string): Promise<void> {
@@ -390,7 +393,7 @@ class Cloud extends Module implements ICloud {
         if (deleteHandler) {
             return deleteHandler.call(this, credential, bucket, service);
         }
-        this.writeFail(['Delete objects function not supported', service]);
+        this.writeFail(['Delete objects function not supported', service], new Error(`Insufficent permissions <${service}:${bucket}>`));
         return Promise.resolve();
     }
     downloadObject(service: string, credential: PlainObject, bucket: string, download: CloudStorageDownload, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string) {

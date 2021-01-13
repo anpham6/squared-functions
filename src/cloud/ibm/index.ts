@@ -59,36 +59,38 @@ export async function executeQuery(this: ICloud, credential: IBMDatabaseCredenti
         queryString = '';
     try {
         const { table, id, query, partitionKey = '', limit = 0 } = data;
-        const scope = client.db.use(table);
-        queryString = table + partitionKey;
-        if (id) {
-            queryString += id;
-            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-            if (result) {
-                return result;
+        if (table) {
+            const scope = client.db.use(table);
+            queryString = table + partitionKey;
+            if (id) {
+                queryString += id;
+                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+                if (result) {
+                    return result;
+                }
+                const item = await scope.get((partitionKey ? partitionKey + ':' : '') + id);
+                result = [item];
             }
-            const item = await scope.get((partitionKey ? partitionKey + ':' : '') + id);
-            result = [item];
-        }
-        else if (typeof query === 'object' && query !== null) {
-            queryString += JSON.stringify(query) + limit;
-            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-            if (result) {
-                return result;
-            }
-            if (limit > 0) {
-                query.limit = limit;
-            }
-            if (partitionKey) {
-                result = (await scope.partitionedFind(partitionKey, query)).docs;
-            }
-            else {
-                result = (await scope.find(query)).docs;
+            else if (typeof query === 'object' && query !== null) {
+                queryString += JSON.stringify(query) + limit;
+                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+                if (result) {
+                    return result;
+                }
+                if (limit > 0) {
+                    query.limit = limit;
+                }
+                if (partitionKey) {
+                    result = (await scope.partitionedFind(partitionKey, query)).docs;
+                }
+                else {
+                    result = (await scope.find(query)).docs;
+                }
             }
         }
     }
     catch (err) {
-        this.writeFail(['Unable to execute database query', data.service], err);
+        this.writeFail(['Unable to execute DB query', data.service], err);
     }
     if (result) {
         this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);

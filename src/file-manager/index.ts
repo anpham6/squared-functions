@@ -133,7 +133,7 @@ class FileManager extends Module implements IFileManager {
 
     public delayed = 0;
     public cleared = false;
-    public Image: Null<ImageConstructor> = null;
+    public Image: Null<Map<string, ImageConstructor>> = null;
     public Document: DocumentInstallData[] = [];
     public Task: TaskInstallData[] = [];
     public Cloud: Null<ICloud> = null;
@@ -216,8 +216,15 @@ class FileManager extends Module implements IFileManager {
                 break;
             }
             case 'image':
-                if (isFunction<ImageConstructor>(target) && target.prototype instanceof Image) {
-                    this.Image = target;
+                if (target instanceof Map) {
+                    for (const [mimeType, item] of target) {
+                        if (!(item.prototype instanceof Image)) {
+                            target.delete(mimeType);
+                        }
+                    }
+                    if (target.size) {
+                        this.Image = target;
+                    }
                 }
                 break;
             case 'compress':
@@ -335,6 +342,7 @@ class FileManager extends Module implements IFileManager {
         const localUri = path.join(pathname, file.filename);
         file.localUri = localUri;
         file.relativeUri = this.getRelativeUri(file);
+        file.mimeType ||= mime.lookup(uri || localUri) || '';
         return { pathname, localUri } as FileOutput;
     }
     writeLocalUri(file: ExternalAsset) {
@@ -489,40 +497,42 @@ class FileManager extends Module implements IFileManager {
         if (file.document) {
             for (const { instance } of this.Document) {
                 if (hasDocument(file.document, instance.documentName) && instance.imageQueue && (output = instance.imageQueue(data, outputType, saveAs, command))) {
-                    break;
+                    this.filesQueued.add(output);
+                    return output;
                 }
             }
         }
-        if (!output) {
-            if (file.mimeType === outputType) {
-                if (!command.includes('@') || this.filesQueued.has(localUri)) {
-                    let i = 1;
-                    do {
-                        output = Module.renameExt(localUri, '__copy__.' + (i > 1 ? `(${i}).` : '') + saveAs);
-                    }
-                    while (this.filesQueued.has(output) && ++i);
-                    try {
-                        fs.copyFileSync(localUri, output);
-                    }
-                    catch (err) {
-                        this.writeFail(['Unable to copy file', path.basename(localUri)], err);
-                        return;
-                    }
-                }
-            }
-            else {
+        if (file.mimeType === outputType) {
+            if (!command.includes('@') || this.filesQueued.has(localUri)) {
                 let i = 1;
                 do {
-                    output = Module.renameExt(localUri, (i > 1 ? `(${i}).` : '') + saveAs);
+                    output = Module.renameExt(localUri, '__copy__.' + (i > 1 ? `(${i}).` : '') + saveAs);
                 }
                 while (this.filesQueued.has(output) && ++i);
+                try {
+                    fs.copyFileSync(localUri, output);
+                }
+                catch (err) {
+                    this.writeFail(['Unable to copy file', path.basename(localUri)], err);
+                    return;
+                }
             }
+        }
+        else {
+            let i = 1;
+            do {
+                output = Module.renameExt(localUri, (i > 1 ? `(${i}).` : '') + saveAs);
+            }
+            while (this.filesQueued.has(output) && ++i);
         }
         this.filesQueued.add(output ||= localUri);
         return output;
     }
     finalizeImage(err: Null<Error>, data: OutputData) {
-        const { file, command } = data;
+        const { file, command, errors = [] } = data;
+        if (errors.length) {
+            this.errors.push(...errors);
+        }
         let output = data.output,
             parent: Undef<ExternalAsset>;
         if (file.document) {
@@ -530,7 +540,7 @@ class FileManager extends Module implements IFileManager {
             for (const { instance } of this.Document) {
                 if (hasDocument(file.document, instance.documentName) && instance.imageFinalize && instance.imageFinalize(err, data)) {
                     if (err || !output) {
-                        this.completeAsyncTask(err);
+                        this.completeAsyncTask();
                         return;
                     }
                     parent = file;
@@ -561,7 +571,7 @@ class FileManager extends Module implements IFileManager {
             this.completeAsyncTask(null, output, !original ? parent : undefined);
         }
         else {
-            this.writeFail(['Unable to finalize image', path.basename(output)], err);
+            this.writeFail(['Unable to finalize image', path.basename(output)]);
             this.completeAsyncTask();
         }
     }
@@ -634,12 +644,13 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (this.Image) {
-            const mimeType = file.mimeType || mime.lookup(localUri);
+            const mimeType = file.mimeType;
             if (mimeType && mimeType.startsWith('image/')) {
                 let valid = true;
-                if (file.mimeType === 'image/unknown') {
+                if (mimeType === 'image/unknown') {
                     try {
-                        valid = await this.Image.resolveMime.call(this, data);
+                        const handler = this.Image.get('unknown') || this.Image.get('handler');
+                        valid = handler ? await handler.resolveMime.call(this, data) : false;
                     }
                     catch (err) {
                         this.writeFail(['Unable to read image buffer', path.basename(localUri)], err);
@@ -653,10 +664,13 @@ class FileManager extends Module implements IFileManager {
                     data.mimeType = mimeType;
                 }
                 if (valid && file.commands) {
-                    const callback = this.finalizeImage.bind(this);
+                    const ext = mimeType.split('/')[1];
                     for (const command of file.commands) {
                         if (withinSizeRange(localUri, command)) {
-                            this.Image.using.call(this, data, command, callback);
+                            const handler = this.Image.get(ext) || this.Image.get('handler');
+                            if (handler) {
+                                handler.using.call(this, data, command, this.finalizeImage.bind(this));
+                            }
                         }
                     }
                 }
@@ -752,9 +766,9 @@ class FileManager extends Module implements IFileManager {
                             }
                         };
                         const resumeQueue = () => processQueue(queue!, localUri, bundleMain);
-                        const uri = queue.uri;
-                        if (queue.content) {
-                            verifyBundle(queue, queue.content).then(resumeQueue);
+                        const { uri, content } = queue;
+                        if (content) {
+                            verifyBundle(queue, content).then(resumeQueue);
                         }
                         else if (uri) {
                             request(uri, (err, res) => {
@@ -797,7 +811,7 @@ class FileManager extends Module implements IFileManager {
                 this.finalizeAsset({ file });
             }
         };
-        const errorRequest = (file: ExternalAsset, uri: string, localUri: string, err: Error | string, stream?: fs.WriteStream) => {
+        const errorRequest = (file: ExternalAsset, uri: string, localUri: string, err: Error, stream?: fs.WriteStream) => {
             file.invalid = true;
             if (!notFound[uri]) {
                 if (appending[localUri]) {
@@ -896,7 +910,7 @@ class FileManager extends Module implements IFileManager {
                                     }
                                     const statusCode = response.statusCode;
                                     if (statusCode >= 300) {
-                                        errorRequest(item, uri, localUri, statusCode + ' ' + response.statusMessage, stream);
+                                        errorRequest(item, uri, localUri, new Error(statusCode + ' ' + response.statusMessage), stream);
                                     }
                                 })
                                 .on('data', data => {
@@ -971,32 +985,37 @@ class FileManager extends Module implements IFileManager {
                     .then(() => this.delete(value))
                     .catch(err => {
                         if (err.code !== 'ENOENT') {
-                            throw err;
+                            this.writeFail(['Unable to delete file', value], err);
                         }
                     })
             );
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, 'Delete temporary files <finalize>', this.errors);
+            await Module.allSettled(tasks);
             tasks = [];
         }
         if (this.Compress) {
             for (const item of this.assets) {
                 if (item.compress && !item.invalid) {
-                    const localUri = item.localUri!;
-                    const mimeType = mime.lookup(localUri) || item.mimeType;
-                    if (mimeType && mimeType.startsWith('image/')) {
-                        const image = findFormat(item.compress, mimeType.split('/')[1]);
-                        if (image && withinSizeRange(localUri, image.condition)) {
-                            tasks.push(new Promise(resolve => {
-                                try {
-                                    Compress.tryImage(localUri, image, resolve);
-                                }
-                                catch (err) {
-                                    this.writeFail(['Unable to compress image', path.basename(localUri)], err);
-                                    resolve(null);
-                                }
-                            }));
+                    const files = [item.localUri!];
+                    if (item.transforms) {
+                        files.push(...item.transforms);
+                    }
+                    for (const file of files) {
+                        const mimeType = mime.lookup(file);
+                        if (mimeType && mimeType.startsWith('image/')) {
+                            const image = findFormat(item.compress, mimeType.split('/')[1]);
+                            if (image && withinSizeRange(file, image.condition)) {
+                                tasks.push(new Promise(resolve => {
+                                    try {
+                                        Compress.tryImage(file, image, resolve);
+                                    }
+                                    catch (err) {
+                                        this.writeFail(['Unable to compress image', path.basename(file)], err);
+                                        resolve(null);
+                                    }
+                                }));
+                            }
                         }
                     }
                 }

@@ -58,8 +58,8 @@ export interface CloudService extends ObjectMap<unknown> {
 }
 
 export interface CloudDatabase<T = string | PlainObject | any[]> extends CloudService {
-    table: string;
     value: string | ObjectMap<string | string[]>;
+    table?: string;
     name?: string;
     id?: string;
     query?: T;
@@ -116,7 +116,7 @@ export interface RequestData extends PlainObject {
 export interface ResponseData {
     success: boolean;
     data?: unknown;
-    zipname?: string;
+    filename?: string;
     downloadKey?: string;
     bytes?: number;
     files?: string[];

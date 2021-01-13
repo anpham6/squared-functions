@@ -169,36 +169,38 @@ export async function executeQuery(this: ICloud, credential: AWSDatabaseCredenti
         queryString = '';
     try {
         const { table: TableName, id, query, partitionKey, limit = 0 } = data;
-        queryString = TableName;
-        if (partitionKey && id) {
-            queryString += partitionKey + id;
-            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-            if (result) {
-                return result;
+        if (TableName) {
+            queryString = TableName;
+            if (partitionKey && id) {
+                queryString += partitionKey + id;
+                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+                if (result) {
+                    return result;
+                }
+                const output = await client.get({ TableName, Key: { [partitionKey]: id } }).promise();
+                if (output.Item) {
+                    result = [output.Item];
+                }
             }
-            const output = await client.get({ TableName, Key: { [partitionKey]: id } }).promise();
-            if (output.Item) {
-                result = [output.Item];
-            }
-        }
-        else if (typeof query === 'object' && query !== null) {
-            queryString += JSON.stringify(query) + limit;
-            result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-            if (result) {
-                return result;
-            }
-            query.TableName = TableName;
-            if (limit > 0) {
-                query.Limit = limit;
-            }
-            const output = await client.query(query).promise();
-            if (output.Count && output.Items) {
-                result = output.Items;
+            else if (typeof query === 'object' && query !== null) {
+                queryString += JSON.stringify(query) + limit;
+                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
+                if (result) {
+                    return result;
+                }
+                query.TableName = TableName;
+                if (limit > 0) {
+                    query.Limit = limit;
+                }
+                const output = await client.query(query).promise();
+                if (output.Count && output.Items) {
+                    result = output.Items;
+                }
             }
         }
     }
     catch (err) {
-        this.writeFail(['Unable to execute database query', data.service], err);
+        this.writeFail(['Unable to execute DB query', data.service], err);
     }
     if (result) {
         this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);
