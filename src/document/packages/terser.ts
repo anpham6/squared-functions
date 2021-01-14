@@ -2,9 +2,9 @@ const context = require('terser');
 
 type SourceMapInput = functions.Internal.Document.SourceMapInput;
 
-export default async function transform(value: string, options: StandardMap, output: Undef<PlainObject>, input: SourceMapInput) {
+export default async function transform(value: string, options: StandardMap, output?: PlainObject, input?: SourceMapInput) {
     let includeSources = true;
-    if (options.sourceMap && typeof options.sourceMap === 'object' || input.map && (options.sourceMap = {})) {
+    if (input && (options.sourceMap && typeof options.sourceMap === 'object' || input.map && (options.sourceMap = {}))) {
         const sourceMap = options.sourceMap;
         sourceMap.content = input.map;
         sourceMap.asObject = true;
@@ -15,7 +15,7 @@ export default async function transform(value: string, options: StandardMap, out
     }
     const result = await context.minify(value, options);
     if (result) {
-        if (result.map) {
+        if (input && result.map) {
             input.nextMap('terser', result.map, result.code, includeSources);
         }
         return result.code;

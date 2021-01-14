@@ -130,26 +130,31 @@ class Watch extends Module implements IWatch {
                             request(uri, { method: 'HEAD' })
                                 .on('response', res => {
                                     const map = HTTP_MAP[uri];
-                                    for (const [target, input] of map) {
-                                        const next = input.data;
-                                        const expired = next.expires;
-                                        if (!expired || Date.now() < expired) {
-                                            const value = (res.headers['etag'] || res.headers['last-modified']) as string;
-                                            if (value && value !== next.etag) {
-                                                next.etag = value;
-                                                if (this.whenModified) {
-                                                    this.whenModified(next.assets);
+                                    if (map) {
+                                        for (const [target, input] of map) {
+                                            const next = input.data;
+                                            const expired = next.expires;
+                                            if (!expired || Date.now() < expired) {
+                                                const value = (res.headers['etag'] || res.headers['last-modified']) as string;
+                                                if (value && value !== next.etag) {
+                                                    next.etag = value;
+                                                    if (this.whenModified) {
+                                                        this.whenModified(next.assets);
+                                                    }
+                                                    fileModified(next);
                                                 }
-                                                fileModified(next);
+                                            }
+                                            else if (expired) {
+                                                map.delete(target);
+                                                if (map.size === 0) {
+                                                    watchExpired(HTTP_MAP, next);
+                                                    clearInterval(timeout);
+                                                }
                                             }
                                         }
-                                        else if (expired) {
-                                            map.delete(target);
-                                            if (map.size === 0) {
-                                                watchExpired(HTTP_MAP, next);
-                                                clearInterval(timeout);
-                                            }
-                                        }
+                                    }
+                                    else {
+                                        clearInterval(timeout);
                                     }
                                 })
                                 .on('error', err => {

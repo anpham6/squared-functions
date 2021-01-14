@@ -1,15 +1,19 @@
 const context = require('clean-css');
 
+type SourceMap = functions.Internal.Document.SourceMap;
 type SourceMapInput = functions.Internal.Document.SourceMapInput;
 
-export default async function transform(value: string, options: PlainObject, output: Undef<PlainObject>, input: SourceMapInput) {
-    const sourceMap = input.map;
-    if (sourceMap) {
-        options.sourceMap = true;
+export default async function transform(value: string, options: PlainObject, output?: PlainObject, input?: SourceMapInput) {
+    let sourceMap: Undef<SourceMap>;
+    if (input) {
+        sourceMap = input.map;
+        if (sourceMap) {
+            options.sourceMap = true;
+        }
     }
     const result = new context(options).minify(value, sourceMap);
     if (result) {
-        if (result.sourceMap) {
+        if (input && result.sourceMap) {
             input.nextMap('clean-css', result.sourceMap, result.styles);
         }
         return result.styles;

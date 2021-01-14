@@ -425,6 +425,8 @@ Using element "id" is recommended when there are multiple elements with identica
 <link rel="stylesheet" type="text/css" title="" disabled href="css/prod.css" />
 ```
 
+You can also use the workspace feature in [squared-express](https://github.com/anpham6/squared-express#readme) to precompile text assets during development.
+
 ### External configuration
 
 JSON (json/js) configuration is optional and is provided for those who prefer to separate the bundling and transformations from the HTML. Any assets inside the configuration file will override any settings either inline or from JavaScript. You can also use the equivalent in YAML (yml/yaml) for configuring as well.

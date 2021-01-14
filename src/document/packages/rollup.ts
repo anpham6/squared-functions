@@ -22,7 +22,7 @@ function loadPlugins(plugins: RollupPlugins, writeFail: ModuleWriteFailMethod) {
     return result;
 }
 
-export default async function transform(value: string, options: rollup.RollupOptions, output: Undef<rollup.OutputOptions>, input: SourceMapInput, writeFail: ModuleWriteFailMethod) {
+export default async function transform(value: string, options: rollup.RollupOptions, output: Undef<rollup.OutputOptions>, input: Undef<SourceMapInput>, writeFail: ModuleWriteFailMethod) {
     if (!output) {
         output = options.output as rollup.OutputOptions || { format: 'es' };
     }
@@ -38,7 +38,7 @@ export default async function transform(value: string, options: rollup.RollupOpt
         options.plugins = loadPlugins((options.plugins as unknown) as RollupPlugins, writeFail);
     }
     const bundle = await rollup.rollup(options);
-    if (!output.sourcemap && input.sourceMap) {
+    if (input && input.sourceMap && !output.sourcemap) {
         output.sourcemap = true;
     }
     if (output.sourcemapExcludeSources) {
@@ -60,7 +60,7 @@ export default async function transform(value: string, options: rollup.RollupOpt
         }
     }
     if (result) {
-        if (mappings) {
+        if (input && mappings) {
             input.nextMap('rollup', mappings, result, includeSources);
         }
         return result;
