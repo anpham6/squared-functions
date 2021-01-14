@@ -320,7 +320,7 @@ Custom plugins can be installed from NPM or copied into your local workspace. Ex
     },
     "js": { // custom function (chrome -> eval_function: true)
       "terser": {
-        "minify-example": "function(context, value, output) { return context.minify(value, output).code; }", // "minify-example-output" creates scoped variable "output"
+        "minify-example": "function (context, value, output) { return context.minify(value, output).code; }", // "minify-example-output" creates scoped variable "output"
         "minify-example-output": {
           "keep_classnames": true
         }
@@ -350,7 +350,7 @@ Custom plugins can be installed from NPM or copied into your local workspace. Ex
         }
       },
       "node-sass": { // npm i node-sass
-        "sass-example": "function(context, value) { return context.renderSync({ data: value }, functions: {}); }" // first transpiler in chain
+        "sass-example": "function (context, value) { return context.renderSync({ data: value }, functions: {}); }" // first transpiler in chain
       }
     }
   }
@@ -362,7 +362,7 @@ Custom plugins can be installed from NPM or copied into your local workspace. Ex
 
 function (context, value, output /* optional: "@babel/core-output" */) {
     const options = { presets: ['@babel/preset-env'] }; // <https://babeljs.io/docs/en/options>
-    return context.transformSync(value, output).code;
+    return context.transformSync(value, output || options).code;
 }
 ```
 

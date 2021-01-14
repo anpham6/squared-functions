@@ -91,7 +91,7 @@ declare namespace functions {
 
             type Transformer = FunctionType<Undef<string>>;
             type ConfigOrTransformer = StandardMap | Transformer;
-            type PluginConfig = [string, Undef<ConfigOrTransformer>, Undef<StandardMap>] | [];
+            type PluginConfig = [string, Optional<ConfigOrTransformer>, Optional<StandardMap>] | [];
         }
 
         namespace Cloud {
@@ -289,9 +289,8 @@ declare namespace functions {
         internalAssignUUID: string;
         templateMap?: StandardMap;
         readonly moduleName: string;
-        findPluginData(type: string, name: string, settings: ObjectMap<StandardMap>): Internal.Document.PluginConfig;
-        loadOptions(value: ConfigOrTransformer | string): Undef<ConfigOrTransformer>;
-        loadConfig(value: string): Undef<StandardMap | string>;
+        findConfig(settings: ObjectMap<StandardMap>, name: string, type?: string): Internal.Document.PluginConfig;
+        loadConfig(data: StandardMap, name: string): Optional<ConfigOrTransformer>;
         transform(type: string, format: string, value: string, input?: SourceMapInput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>>;
         formatContent?(manager: IFileManager, file: ExternalAsset, content: string): Promise<[string, boolean]>;
         imageQueue?: FileManagerQueueImageMethod;

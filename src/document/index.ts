@@ -30,26 +30,28 @@ abstract class Document extends Module implements IDocument {
         this.templateMap = body.templateMap;
     }
 
-    findPluginData(type: string, value: string, settings: ObjectMap<StandardMap>): PluginConfig {
-        if (this.templateMap && this.module.eval_template) {
-            const data = this.templateMap[type];
-            for (const plugin in data) {
-                const item = data[plugin][value];
-                if (item) {
-                    const options = this.loadOptions(item);
-                    if (options) {
-                        return [plugin, options, this.loadConfig(data[plugin][value + '-output'])];
+    findConfig(settings: ObjectMap<PlainObject>, name: string, type?: string): PluginConfig {
+        if (this.module.eval_template && this.templateMap && type) {
+            const data = this.templateMap[type] as Undef<PlainObject>;
+            if (data) {
+                for (const attr in data) {
+                    const item = data[attr] as Undef<StandardMap>;
+                    if (item && item[name]) {
+                        const options = this.loadConfig(item, name);
+                        if (options) {
+                            return [attr, options, this.loadConfig(item, name + '-output')];
+                        }
+                        break;
                     }
-                    break;
                 }
             }
         }
         for (const plugin in settings) {
             const data = settings[plugin];
-            for (const name in data) {
-                if (name === value) {
-                    const options = this.loadOptions(data[name]);
-                    const config = this.loadConfig(data[name + '-output']);
+            for (const attr in data) {
+                if (attr === name) {
+                    const options = this.loadConfig(data, attr);
+                    const config = this.loadConfig(data, attr + '-output');
                     if (options || config) {
                         return [plugin, options, config];
                     }
@@ -58,45 +60,65 @@ abstract class Document extends Module implements IDocument {
         }
         return [];
     }
-    loadOptions(value: ConfigOrTransformer | string): Undef<ConfigOrTransformer> {
-        if (typeof value === 'string' && this.module.eval_function) {
-            const transformer = this.parseFunction(value);
-            if (transformer) {
-                return transformer;
+    loadConfig(data: StandardMap, name: string): Optional<ConfigOrTransformer> {
+        let value: Undef<PlainObject | Transformer | string> = data[name];
+        switch (typeof value) {
+            case 'function':
+                return value;
+            case 'string': {
+                const evaluate = this.module.eval_function && !name.endsWith('-output');
+                if (Module.isLocalPath(value = value.trim())) {
+                    try {
+                        const contents = fs.readFileSync(path.resolve(value), 'utf8').trim();
+                        const transformer = this.parseFunction(contents);
+                        if (transformer) {
+                            if (evaluate) {
+                                data[name] = transformer;
+                                return transformer;
+                            }
+                        }
+                        else {
+                            const result = JSON.parse(contents);
+                            if (result && typeof result === 'object') {
+                                data[name] = result as PlainObject;
+                                return JSON.parse(JSON.stringify(result));
+                            }
+                        }
+                    }
+                    catch (err) {
+                        this.writeFail(['Could not load config', value], err);
+                    }
+                }
+                else if (path.isAbsolute(value)) {
+                    this.writeFail('Only relative paths are supported', new Error(`Unknown config <${value}>`));
+                }
+                else if (evaluate) {
+                    const transformer = this.parseFunction(value);
+                    if (transformer) {
+                        data[name] = transformer;
+                        return transformer;
+                    }
+                }
+                break;
             }
-        }
-        return this.loadConfig(value);
-    }
-    loadConfig(value: Undef<StandardMap | string>): Undef<StandardMap> {
-        if (typeof value ==='string') {
-            if (Module.isLocalPath(value = value.trim())) {
+            case 'object':
                 try {
-                    return JSON.parse(fs.readFileSync(path.resolve(value), 'utf8').trim()) as StandardMap;
+                    return JSON.parse(JSON.stringify(value));
                 }
                 catch (err) {
-                    this.writeFail(['Could not load config', value], err);
+                    this.writeFail('Could not load config', err);
                 }
-            }
-            else {
-                this.writeFail('Only relative paths are supported', new Error(`Unknown config <${value}>`));
-            }
+                break;
         }
-        else if (typeof value === 'object') {
-            try {
-                return JSON.parse(JSON.stringify(value));
-            }
-            catch (err) {
-                this.writeFail(['Could not parse config', 'JSON invalid'], err);
-            }
-        }
+        delete data[name];
     }
     async transform(type: string, format: string, value: string, input?: SourceMapInput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>> {
-        const settings = this.module.settings?.[type] as ObjectMap<StandardMap>;
+        const settings = this.module.settings?.[type] as ObjectMap<PlainObject>;
         if (settings) {
             const writeFail = this.writeFail.bind(this);
             let valid: Undef<boolean>;
             for (let name of format.split('+')) {
-                const [plugin, options, output] = this.findPluginData(type, name = name.trim(), settings);
+                const [plugin, options, output] = this.findConfig(settings, name = name.trim(), type);
                 if (plugin) {
                     if (!options) {
                         this.writeFail('Unable to load configuration', new Error(`Incomplete plugin <${this.moduleName}:${name}>`));

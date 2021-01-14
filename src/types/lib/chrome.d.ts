@@ -9,7 +9,7 @@ export interface ChromeAsset {
     exclude?: boolean;
     outerHTML?: string;
     inlineContent?: string;
-    attributes?: ObjectMap<Undef<Null<string>>>;
+    attributes?: ObjectMap<Optional<string>>;
 }
 
 export interface TemplateMap {
