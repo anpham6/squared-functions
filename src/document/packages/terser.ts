@@ -1,22 +1,25 @@
 const context = require('terser');
 
-type SourceMapInput = functions.Internal.Document.SourceMapInput;
+type TransformOutput = functions.Internal.Document.TransformOutput;
 
-export default async function transform(value: string, options: StandardMap, output?: PlainObject, input?: SourceMapInput) {
+export default async function transform(value: string, options: StandardMap, output: TransformOutput) {
+    const sourceMap = output.sourceMap;
     let includeSources = true;
-    if (input && (options.sourceMap && typeof options.sourceMap === 'object' || input.map && (options.sourceMap = {}))) {
-        const sourceMap = options.sourceMap;
-        sourceMap.content = input.map;
-        sourceMap.asObject = true;
-        sourceMap.url = '';
-        if (sourceMap.includeSources === false) {
+    if (sourceMap && (options.sourceMap && typeof options.sourceMap === 'object' || sourceMap.map && (options.sourceMap = {}))) {
+        const map = options.sourceMap as PlainObject;
+        map.content = sourceMap.map;
+        map.asObject = true;
+        if (map.url !== 'inline') {
+            map.url = '';
+        }
+        if (map.includeSources === false) {
             includeSources = false;
         }
     }
     const result = await context.minify(value, options);
     if (result) {
-        if (input && result.map) {
-            input.nextMap('terser', result.map, result.code, includeSources);
+        if (sourceMap && result.map) {
+            sourceMap.nextMap('terser', result.map, result.code, includeSources);
         }
         return result.code;
     }

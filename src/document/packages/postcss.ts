@@ -1,25 +1,26 @@
 const context = require('postcss');
 
-type SourceMapInput = functions.Internal.Document.SourceMapInput;
+type TransformOutput = functions.Internal.Document.TransformOutput;
 
-export default async function transform(value: string, options: PlainObject, output?: PlainObject, input?: SourceMapInput) {
+export default async function transform(value: string, options: PlainObject, output: TransformOutput) {
+    const sourceMap = output.sourceMap;
     let includeSources = true,
         localUri: Undef<string>;
-    if (input) {
-        const { map: sourceMap, file } = input;
+    if (sourceMap) {
+        const { map, file } = sourceMap;
         localUri = file.localUri;
-        if (options.map || sourceMap && (options.map = {})) {
-            const map = options.map as StandardMap;
-            map.prev = sourceMap;
-            if (map.soucesContent === false) {
+        if (options.map || map && (options.map = {})) {
+            const optionsMap = options.map as StandardMap;
+            optionsMap.prev = map;
+            if (optionsMap.soucesContent === false) {
                 includeSources = false;
             }
         }
     }
     const result = await context((options.plugins as string[] || []).map(item => require(item))).process(value, { from: localUri, to: localUri });
     if (result) {
-        if (input && result.map) {
-            input.nextMap('postcss', result.map, result.css, includeSources);
+        if (sourceMap && result.map) {
+            sourceMap.nextMap('postcss', result.map, result.css, includeSources);
         }
         return result.css;
     }

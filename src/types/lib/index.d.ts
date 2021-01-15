@@ -64,10 +64,22 @@ declare namespace functions {
         }
 
         namespace Document {
+            interface TransformOptions {
+                sourceFile?: string;
+                sourceMap?: SourceMapInput;
+                external?: PlainObject;
+            }
+
+            interface TransformOutput extends TransformOptions {
+                config?: StandardMap;
+                sourceDir?: string;
+                writeFail?: ModuleWriteFailMethod;
+            }
+
             interface SourceMapInput {
                 file: ExternalAsset;
                 sourcesContent: Null<string>;
-                sourceMap: Map<string, SourceMapOutput>;
+                output: Map<string, SourceMapOutput>;
                 map?: SourceMap;
                 nextMap: (name: string, map: SourceMap | string, value: string, includeSources?: boolean) => boolean;
             }
@@ -91,7 +103,7 @@ declare namespace functions {
 
             type Transformer = FunctionType<Undef<string>>;
             type ConfigOrTransformer = StandardMap | Transformer;
-            type PluginConfig = [string, Optional<ConfigOrTransformer>, Optional<StandardMap>] | [];
+            type PluginConfig = [string, Undef<ConfigOrTransformer>, Undef<StandardMap>] | [];
         }
 
         namespace Cloud {
@@ -291,7 +303,7 @@ declare namespace functions {
         readonly moduleName: string;
         findConfig(settings: ObjectMap<StandardMap>, name: string, type?: string): Internal.Document.PluginConfig;
         loadConfig(data: StandardMap, name: string): Optional<ConfigOrTransformer>;
-        transform(type: string, format: string, value: string, input?: SourceMapInput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>>;
+        transform(type: string, format: string, value: string, options?: Internal.Document.TransformOptions): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>>;
         formatContent?(manager: IFileManager, file: ExternalAsset, content: string): Promise<[string, boolean]>;
         imageQueue?: FileManagerQueueImageMethod;
         imageFinalize?: FileManagerFinalizeImageCallback<boolean>;
@@ -404,7 +416,7 @@ declare namespace functions {
         readonly errors: string[];
         readonly moduleName?: string;
         supported(major: number, minor: number, patch?: number): boolean;
-        parseFunction(value: string): Null<FunctionType<string>>;
+        parseFunction(value: string): Undef<FunctionType<string>>;
         getTempDir(subDir?: boolean, filename?: string): string;
         formatMessage: ModuleFormatMessageMethod;
         formatFail(type: Internal.LOG_TYPE, title: string, value: string | [string, string], message?: Null<Error>): void;

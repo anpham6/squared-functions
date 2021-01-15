@@ -293,17 +293,19 @@ abstract class Module implements IModule {
         }
         return true;
     }
-    parseFunction(value: string): Null<FunctionType<string>> {
+    parseFunction(value: string): Undef<FunctionType<string>> {
         if (Module.isLocalPath(value = value.trim())) {
             try {
                 value = fs.readFileSync(path.resolve(value), 'utf8').trim();
             }
             catch (err) {
                 this.writeFail(['Could not load function', value], err);
-                return null;
+                return;
             }
         }
-        return value.startsWith('function') ? eval(`(${value})`) as FunctionType<string> : null;
+        if (value.startsWith('function')) {
+            return eval(`(${value})`);
+        }
     }
     getTempDir(subDir?: boolean, filename = '') {
         return process.cwd() + path.sep + this.tempDir + path.sep + (subDir ? uuid.v4() + path.sep : '') + (filename.startsWith('.') ? uuid.v4() : '') + filename;

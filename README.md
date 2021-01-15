@@ -320,7 +320,7 @@ Custom plugins can be installed from NPM or copied into your local workspace. Ex
     },
     "js": { // custom function (chrome -> eval_function: true)
       "terser": {
-        "minify-example": "function (context, value, output) { return context.minify(value, output).code; }", // "minify-example-output" creates scoped variable "output"
+        "minify-example": "function (context, value, output) { return context.minify(value, output.settings).code; }", // "minify-example-output" creates scoped variable "output"
         "minify-example-output": {
           "keep_classnames": true
         }
@@ -359,10 +359,17 @@ Custom plugins can be installed from NPM or copied into your local workspace. Ex
 
 ```javascript
 // es5.js
+interface TransformOutput {
+    settings?: StandardMap;
+    sourceDir?: string;
+    sourceFile?: string;
+    sourceMap?: SourceMapInput;
+    external?: PlainObject;
+    writeFail?: ModuleWriteFailMethod;
+}
 
-function (context, value, output /* optional: "@babel/core-output" */) {
-    const options = { presets: ['@babel/preset-env'] }; // <https://babeljs.io/docs/en/options>
-    return context.transformSync(value, output || options).code;
+function (context, value, output) {
+    return context.transformSync(value, output.config || options).code;
 }
 ```
 
@@ -372,12 +379,13 @@ The same concept can be used inline anywhere using a &lt;script&gt; tag with the
 // "es5-example" is a custom name (chrome -> eval_template: true)
 
 <script type="text/template" data-chrome-template="js::@babel/core::es5-example">
-function (context, value, output /* optional */, input /* optional */) {
-    const options = { ...output, presets: ['@babel/preset-env'], sourceMaps: true };
+function (context, value, output) {
+    const { sourceMap, config } = output;
+    const options = { ...config, presets: ['@babel/preset-env'], sourceMaps: true }; // <https://babeljs.io/docs/en/options>
     const result = context.transformSync(value, options);
     if (result) {
-        if (result.map) {
-            input.nextMap('babel', result.map, result.code);
+        if (sourceMap && result.map) {
+            sourceMap.nextMap('babel', result.map, result.code);
         }
         return result.code;
     }

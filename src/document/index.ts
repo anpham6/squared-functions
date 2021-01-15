@@ -7,11 +7,13 @@ import Module from '../module';
 
 type DocumentModule = ExtendedSettings.DocumentModule;
 
-type SourceMapInput = Internal.Document.SourceMapInput;
+type TransformOptions = Internal.Document.TransformOptions;
+type TransformOutput = Internal.Document.TransformOutput;
 type SourceMapOutput = Internal.Document.SourceMapOutput;
 type PluginConfig = Internal.Document.PluginConfig;
 type Transformer = Internal.Document.Transformer;
 type ConfigOrTransformer = Internal.Document.ConfigOrTransformer;
+
 
 abstract class Document extends Module implements IDocument {
     public static init(this: IFileManager, instance: IDocument) {}
@@ -60,7 +62,7 @@ abstract class Document extends Module implements IDocument {
         }
         return [];
     }
-    loadConfig(data: StandardMap, name: string): Optional<ConfigOrTransformer> {
+    loadConfig(data: StandardMap, name: string): Undef<ConfigOrTransformer> {
         let value: Undef<PlainObject | Transformer | string> = data[name];
         switch (typeof value) {
             case 'function':
@@ -112,24 +114,28 @@ abstract class Document extends Module implements IDocument {
         }
         delete data[name];
     }
-    async transform(type: string, format: string, value: string, input?: SourceMapInput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>> {
-        const settings = this.module.settings?.[type] as ObjectMap<PlainObject>;
-        if (settings) {
+    async transform(type: string, format: string, value: string, options: TransformOptions = {}): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>> {
+        const data = this.module.settings?.[type] as ObjectMap<PlainObject>;
+        if (data) {
+            const { sourceFile, sourceMap, external } = options;
             const writeFail = this.writeFail.bind(this);
             let valid: Undef<boolean>;
             for (let name of format.split('+')) {
-                const [plugin, options, output] = this.findConfig(settings, name = name.trim(), type);
+                const [plugin, settings, config] = this.findConfig(data, name = name.trim(), type);
                 if (plugin) {
-                    if (!options) {
+                    if (!settings) {
                         this.writeFail('Unable to load configuration', new Error(`Incomplete plugin <${this.moduleName}:${name}>`));
                     }
                     else {
                         this.formatMessage(this.logType.PROCESS, type, ['Transforming source...', plugin], name, { hintColor: 'cyan' });
                         const time = Date.now();
                         const success = () => this.writeTimeElapsed(type, plugin + ': ' + name, time);
-                        if (typeof options === 'function') {
+                        let sourceDir = options.sourceFile || sourceMap && sourceMap.file.localUri;
+                        sourceDir &&= path.dirname(sourceDir);
+                        const output: TransformOutput = { config, sourceDir, sourceFile, sourceMap, external, writeFail };
+                        if (typeof settings === 'function') {
                             try {
-                                const result = options(require(plugin), value, output, input, writeFail);
+                                const result = settings(require(plugin), value, output);
                                 if (result && typeof result === 'string') {
                                     value = result;
                                     valid = true;
@@ -147,7 +153,7 @@ abstract class Document extends Module implements IDocument {
                                     const filepath = path.join(__dirname, 'packages', plugin + '.js');
                                     transformer = require(fs.existsSync(filepath) ? filepath : plugin);
                                 }
-                                const result = await transformer.call(this, value, options, output, input, writeFail);
+                                const result = await transformer.call(this, value, settings, output);
                                 if (result) {
                                     value = result;
                                     valid = true;
@@ -165,7 +171,7 @@ abstract class Document extends Module implements IDocument {
                 }
             }
             if (valid) {
-                return [value, input && input.sourceMap];
+                return [value, sourceMap && sourceMap.output];
             }
         }
     }

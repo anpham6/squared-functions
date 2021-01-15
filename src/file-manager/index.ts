@@ -433,7 +433,7 @@ class FileManager extends Module implements IFileManager {
         return Object.create({
             file,
             sourcesContent,
-            sourceMap: new Map<string, SourceMapOutput>(),
+            output: new Map<string, SourceMapOutput>(),
             "nextMap": function(this: SourceMapInput, name: string, map: SourceMap | string, value: string, includeContent = true) {
                 if (typeof map === 'string') {
                     try {
@@ -445,7 +445,7 @@ class FileManager extends Module implements IFileManager {
                 }
                 if (typeof map === 'object' && map.mappings) {
                     this.map = map;
-                    this.sourceMap.set(name, { value, map, sourcesContent: includeContent ? this.sourcesContent : null });
+                    this.output.set(name, { value, map, sourcesContent: includeContent ? this.sourcesContent : null });
                     return true;
                 }
                 return false;

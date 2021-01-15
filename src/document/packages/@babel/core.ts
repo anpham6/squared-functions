@@ -1,19 +1,19 @@
 const context = require('@babel/core');
 
-type SourceMapInput = functions.Internal.Document.SourceMapInput;
+type TransformOutput = functions.Internal.Document.TransformOutput;
 
-export default async function transform(value: string, options: PlainObject, output?: PlainObject, input?: SourceMapInput) {
-    if (input) {
-        const sourceMap = input.map;
-        if (options.sourceMaps === true || sourceMap) {
+export default async function transform(value: string, options: PlainObject, output: TransformOutput) {
+    const sourceMap = output.sourceMap;
+    if (sourceMap) {
+        if (options.sourceMaps === true || sourceMap.map) {
             options.sourceMaps = true;
-            options.inputSourceMap = sourceMap;
+            options.inputSourceMap = sourceMap.map;
         }
     }
     const result = await context.transform(value, options);
     if (result) {
-        if (input && result.map) {
-            input.nextMap('babel', result.map, result.code);
+        if (sourceMap && result.map) {
+            sourceMap.nextMap('babel', result.map, result.code);
         }
         return result.code;
     }
