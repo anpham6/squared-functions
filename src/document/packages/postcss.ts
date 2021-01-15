@@ -3,12 +3,14 @@ const context = require('postcss');
 type TransformOutput = functions.Internal.Document.TransformOutput;
 
 export default async function transform(value: string, options: PlainObject, output: TransformOutput) {
-    const sourceMap = output.sourceMap;
+    const { sourceMap, external } = output;
     let includeSources = true,
         localUri: Undef<string>;
     if (sourceMap) {
         const { map, file } = sourceMap;
-        localUri = file.localUri;
+        if (file) {
+            localUri = file.localUri;
+        }
         if (options.map || map && (options.map = {})) {
             const optionsMap = options.map as StandardMap;
             optionsMap.prev = map;
@@ -17,7 +19,11 @@ export default async function transform(value: string, options: PlainObject, out
             }
         }
     }
-    const result = await context((options.plugins as string[] || []).map(item => require(item))).process(value, { from: localUri, to: localUri });
+    const config: PlainObject = Object.assign(output.config || {}, { from: localUri, to: localUri });
+    if (external) {
+        Object.assign(config, external);
+    }
+    const result = await context((options.plugins as string[] || []).map(item => require(item))).process(value, config);
     if (result) {
         if (sourceMap && result.map) {
             sourceMap.nextMap('postcss', result.map, result.css, includeSources);

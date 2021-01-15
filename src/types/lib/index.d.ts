@@ -64,29 +64,27 @@ declare namespace functions {
         }
 
         namespace Document {
-            interface TransformOptions {
-                sourceFile?: string;
-                sourceMap?: SourceMapInput;
-                external?: PlainObject;
-            }
-
-            interface TransformOutput extends TransformOptions {
+            interface TransformOutput {
                 config?: StandardMap;
                 sourceDir?: string;
+                sourceFile?: string;
+                sourceMap?: SourceMapInput;
+                sourcesRelativeTo?: string;
+                external?: PlainObject;
                 writeFail?: ModuleWriteFailMethod;
             }
 
             interface SourceMapInput {
-                file: ExternalAsset;
                 sourcesContent: Null<string>;
                 output: Map<string, SourceMapOutput>;
+                file?: ExternalAsset;
                 map?: SourceMap;
-                nextMap: (name: string, map: SourceMap | string, value: string, includeSources?: boolean) => boolean;
+                nextMap: (name: string, map: SourceMap | string, code: string, includeSources?: boolean) => boolean;
             }
 
             interface SourceMapOutput {
-                value: string;
                 map: SourceMap;
+                code: string;
                 sourcesContent: Null<string>;
                 url?: string;
             }
@@ -303,7 +301,7 @@ declare namespace functions {
         readonly moduleName: string;
         findConfig(settings: ObjectMap<StandardMap>, name: string, type?: string): Internal.Document.PluginConfig;
         loadConfig(data: StandardMap, name: string): Optional<ConfigOrTransformer>;
-        transform(type: string, format: string, value: string, options?: Internal.Document.TransformOptions): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>>;
+        transform(type: string, format: string, value: string, options?: Internal.Document.TransformOutput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>>;
         formatContent?(manager: IFileManager, file: ExternalAsset, content: string): Promise<[string, boolean]>;
         imageQueue?: FileManagerQueueImageMethod;
         imageFinalize?: FileManagerFinalizeImageCallback<boolean>;
@@ -317,6 +315,7 @@ declare namespace functions {
         init(this: IFileManager, instance: IDocument): boolean;
         using(this: IFileManager, instance: IDocument, file: ExternalAsset): Promise<void>;
         finalize(this: IFileManager, instance: IDocument, assets: ExternalAsset[]): Promise<void>;
+        createSourceMap(sourcesContent: string, file?: ExternalAsset): SourceMapInput;
         new(body: RequestBody, module: ExtendedSettings.DocumentModule, ...args: unknown[]): IDocument;
     }
 
@@ -388,7 +387,6 @@ declare namespace functions {
         appendContent(file: ExternalAsset, localUri: string, content: string, bundleIndex?: number): Promise<string>;
         getTrailingContent(file: ExternalAsset): Undef<string>;
         getBundleContent(localUri: string): Undef<string>;
-        createSourceMap(file: ExternalAsset, sourcesContent: string): SourceMapInput;
         writeSourceMap(file: ExternalAsset, output: [string, Undef<Map<string, SourceMapOutput>>], modified?: boolean): void;
         compressFile(file: ExternalAsset): Promise<unknown>;
         queueImage: FileManagerQueueImageMethod;

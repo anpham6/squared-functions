@@ -25,8 +25,6 @@ type FileOutput = Internal.FileOutput;
 type OutputData = Internal.Image.OutputData;
 type DocumentInstallData = Internal.InstallData<IDocument, DocumentConstructor>;
 type TaskInstallData = Internal.InstallData<ITask, TaskConstructor>;
-type SourceMap = Internal.Document.SourceMap;
-type SourceMapInput = Internal.Document.SourceMapInput;
 type SourceMapOutput = Internal.Document.SourceMapOutput;
 
 function parseSizeRange(value: string): [number, number] {
@@ -428,29 +426,6 @@ class FileManager extends Module implements IFileManager {
         if (content) {
             return content.reduce((a, b) => b ? a + '\n' + b : a, '');
         }
-    }
-    createSourceMap(file: ExternalAsset, sourcesContent: string) {
-        return Object.create({
-            file,
-            sourcesContent,
-            output: new Map<string, SourceMapOutput>(),
-            "nextMap": function(this: SourceMapInput, name: string, map: SourceMap | string, value: string, includeContent = true) {
-                if (typeof map === 'string') {
-                    try {
-                        map = JSON.parse(map) as SourceMap;
-                    }
-                    catch {
-                        return false;
-                    }
-                }
-                if (typeof map === 'object' && map.mappings) {
-                    this.map = map;
-                    this.output.set(name, { value, map, sourcesContent: includeContent ? this.sourcesContent : null });
-                    return true;
-                }
-                return false;
-            }
-        }) as SourceMapInput;
     }
     writeSourceMap(file: ExternalAsset, output: [string, Undef<Map<string, SourceMapOutput>>], modified?: boolean) {
         const sourceMap = output[1];

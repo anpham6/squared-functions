@@ -3,7 +3,7 @@ const context = require('terser');
 type TransformOutput = functions.Internal.Document.TransformOutput;
 
 export default async function transform(value: string, options: StandardMap, output: TransformOutput) {
-    const sourceMap = output.sourceMap;
+    const { sourceMap, external } = output;
     let includeSources = true;
     if (sourceMap && (options.sourceMap && typeof options.sourceMap === 'object' || sourceMap.map && (options.sourceMap = {}))) {
         const map = options.sourceMap as PlainObject;
@@ -15,6 +15,9 @@ export default async function transform(value: string, options: StandardMap, out
         if (map.includeSources === false) {
             includeSources = false;
         }
+    }
+    if (external) {
+        Object.assign(options, external);
     }
     const result = await context.minify(value, options);
     if (result) {

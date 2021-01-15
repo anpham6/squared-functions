@@ -1,6 +1,11 @@
 const context = require('prettier');
 
-export default async function transform(value: string, options: PlainObject) {
+type TransformOutput = functions.Internal.Document.TransformOutput;
+
+export default async function transform(value: string, options: PlainObject, output: TransformOutput) {
+    if (output.external) {
+        Object.assign(options, output.external);
+    }
     switch (options.parser) {
         case 'babel':
         case 'babel-flow':

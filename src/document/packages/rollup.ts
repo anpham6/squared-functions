@@ -25,7 +25,7 @@ function loadPlugins(plugins: RollupPlugins, writeFail?: ModuleWriteFailMethod) 
 }
 
 export default async function transform(value: string, options: rollup.RollupOptions, output: TransformOutput) {
-    const { sourceMap, external, writeFail } = output;
+    const { sourceMap, sourcesRelativeTo, external, writeFail } = output;
     const outputOptions = Object.assign(options.output || { format: 'es' }, output.config) as rollup.OutputOptions;
     let sourceFile = output.sourceFile,
         result = '',
@@ -38,8 +38,9 @@ export default async function transform(value: string, options: rollup.RollupOpt
         fs.writeFileSync(sourceFile, value);
     }
     options.input = sourceFile;
-    if (Array.isArray(options.plugins)) {
-        options.plugins = loadPlugins((options.plugins as unknown) as RollupPlugins, writeFail);
+    let plugins = (options.plugins as unknown) as RollupPlugins;
+    if (Array.isArray(plugins)) {
+        options.plugins = loadPlugins(plugins, writeFail);
     }
     const bundle = await rollup.rollup(options);
     if (!outputOptions.sourcemap && sourceMap && sourceMap.output.size) {
@@ -48,11 +49,16 @@ export default async function transform(value: string, options: rollup.RollupOpt
     if (outputOptions.sourcemapExcludeSources) {
         includeSources = false;
     }
-    if (Array.isArray(outputOptions.plugins)) {
-        outputOptions.plugins = loadPlugins((options.plugins as unknown) as RollupPlugins, writeFail);
+    plugins = (outputOptions.plugins as unknown) as RollupPlugins;
+    if (Array.isArray(plugins)) {
+        outputOptions.plugins = loadPlugins(plugins, writeFail);
     }
     if (external) {
+        delete external.plugins;
         Object.assign(outputOptions, external);
+    }
+    if (sourcesRelativeTo) {
+        outputOptions.sourcemapPathTransform = (relativeSourcePath, sourcemapPath) => path.resolve(path.dirname(sourcemapPath), relativeSourcePath);
     }
     delete outputOptions.manualChunks;
     delete outputOptions.chunkFileNames;
@@ -62,11 +68,11 @@ export default async function transform(value: string, options: rollup.RollupOpt
         if (item.type === 'chunk') {
             result += item.code;
             if (item.map) {
-                if (sourceMap) {
-                    mappings += item.map;
-                }
-                else if (external && outputOptions.sourcemap === 'inline') {
+                if (external && outputOptions.sourcemap === 'inline') {
                     result += `\n//# sourceMappingURL=${item.map.toUrl()}\n`;
+                }
+                else if (sourceMap) {
+                    mappings += item.map;
                 }
             }
         }

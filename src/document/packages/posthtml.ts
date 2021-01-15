@@ -21,10 +21,13 @@ function loadPlugins(plugins: [string, Undef<PlainObject>][], writeFail?: Module
 }
 
 export default async function transform(value: string, options: PlainObject, output: TransformOutput) {
-    const { config, writeFail } = output;
+    const { config = {}, external, writeFail } = output;
     if (Array.isArray(options.plugins)) {
         const plugins = loadPlugins(options.plugins, writeFail);
         if (plugins.length) {
+            if (external) {
+                Object.assign(config, external);
+            }
             const result = await context(plugins).process(value, config);
             if (result) {
                 return result.html;

@@ -7,18 +7,44 @@ import Module from '../module';
 
 type DocumentModule = ExtendedSettings.DocumentModule;
 
-type TransformOptions = Internal.Document.TransformOptions;
 type TransformOutput = Internal.Document.TransformOutput;
+type SourceMap = Internal.Document.SourceMap;
+type SourceMapInput = Internal.Document.SourceMapInput;
 type SourceMapOutput = Internal.Document.SourceMapOutput;
 type PluginConfig = Internal.Document.PluginConfig;
 type Transformer = Internal.Document.Transformer;
 type ConfigOrTransformer = Internal.Document.ConfigOrTransformer;
 
+const isString = (value: any): value is string => !!value && typeof value === 'string';
 
 abstract class Document extends Module implements IDocument {
     public static init(this: IFileManager, instance: IDocument) {}
     public static async using(this: IFileManager, instance: IDocument, file: ExternalAsset) {}
     public static async finalize(this: IFileManager, instance: IDocument, assets: ExternalAsset[]) {}
+
+    public static createSourceMap(sourcesContent: string, file?: ExternalAsset) {
+        return Object.create({
+            file,
+            sourcesContent,
+            output: new Map<string, SourceMapOutput>(),
+            "nextMap": function(this: SourceMapInput, name: string, map: SourceMap | string, code: string, includeContent = true) {
+                if (typeof map === 'string') {
+                    try {
+                        map = JSON.parse(map) as SourceMap;
+                    }
+                    catch {
+                        return false;
+                    }
+                }
+                if (typeof map === 'object' && map.mappings) {
+                    this.map = map;
+                    this.output.set(name, { code, map, sourcesContent: includeContent ? this.sourcesContent : null });
+                    return true;
+                }
+                return false;
+            }
+        }) as SourceMapInput;
+    }
 
     public internalAssignUUID = '__assign__';
     public templateMap?: StandardMap;
@@ -114,47 +140,62 @@ abstract class Document extends Module implements IDocument {
         }
         delete data[name];
     }
-    async transform(type: string, format: string, value: string, options: TransformOptions = {}): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>> {
+    async transform(type: string, format: string, value: string, options: TransformOutput = {}): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>> {
         const data = this.module.settings?.[type] as ObjectMap<PlainObject>;
         if (data) {
-            const { sourceFile, sourceMap, external } = options;
+            const sourceMap = options.sourceMap;
             const writeFail = this.writeFail.bind(this);
             let valid: Undef<boolean>;
             for (let name of format.split('+')) {
-                const [plugin, settings, config] = this.findConfig(data, name = name.trim(), type);
+                const [plugin, baseConfig, config] = this.findConfig(data, name = name.trim(), type);
                 if (plugin) {
-                    if (!settings) {
+                    if (!baseConfig) {
                         this.writeFail('Unable to load configuration', new Error(`Incomplete plugin <${this.moduleName}:${name}>`));
                     }
                     else {
                         this.formatMessage(this.logType.PROCESS, type, ['Transforming source...', plugin], name, { hintColor: 'cyan' });
                         const time = Date.now();
                         const success = () => this.writeTimeElapsed(type, plugin + ': ' + name, time);
-                        let sourceDir = options.sourceFile || sourceMap && sourceMap.file.localUri;
-                        sourceDir &&= path.dirname(sourceDir);
-                        const output: TransformOutput = { config, sourceDir, sourceFile, sourceMap, external, writeFail };
-                        if (typeof settings === 'function') {
+                        const output: TransformOutput = { ...options, config, writeFail };
+                        let transformer: Undef<Transformer>;
+                        const tryPlugin = () => {
                             try {
-                                const result = settings(require(plugin), value, output);
-                                if (result && typeof result === 'string') {
-                                    value = result;
-                                    valid = true;
-                                    success();
-                                }
+                                transformer = require(plugin);
                             }
                             catch (err) {
                                 this.writeFail([`Install required? <npm i ${plugin}>`, this.moduleName], err);
+                                return false;
+                            }
+                            return true;
+                        };
+                        if (typeof baseConfig === 'function') {
+                            if (tryPlugin()) {
+                                try {
+                                    const result = await new Promise<Undef<string>>(resolve => baseConfig(transformer, value, output, resolve));
+                                    if (isString(result)){
+                                        value = result;
+                                        valid = true;
+                                        success();
+                                    }
+                                }
+                                catch (err) {
+                                    this.writeFail(['Unable to transform source', plugin], err);
+                                }
                             }
                         }
                         else {
-                            try {
-                                let transformer = this._packageMap[plugin];
-                                if (!transformer) {
-                                    const filepath = path.join(__dirname, 'packages', plugin + '.js');
-                                    transformer = require(fs.existsSync(filepath) ? filepath : plugin);
+                            if (!(transformer = this._packageMap[plugin])) {
+                                const filepath = path.join(__dirname, 'packages', plugin + '.js');
+                                if (fs.existsSync(filepath)) {
+                                    transformer = require(filepath);
                                 }
-                                const result = await transformer.call(this, value, settings, output);
-                                if (result) {
+                                else if (!tryPlugin()) {
+                                    continue;
+                                }
+                            }
+                            try {
+                                const result = await transformer!.call(this, value, baseConfig, output);
+                                if (isString(result)) {
                                     value = result;
                                     valid = true;
                                     success();

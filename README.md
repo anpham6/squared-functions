@@ -320,7 +320,7 @@ Custom plugins can be installed from NPM or copied into your local workspace. Ex
     },
     "js": { // custom function (chrome -> eval_function: true)
       "terser": {
-        "minify-example": "function (context, value, output) { return context.minify(value, output.settings).code; }", // "minify-example-output" creates scoped variable "output"
+        "minify-example": "function (context, value, output, resolve) { resolve(context.minify(value, output.settings).code); }", // "minify-example-output" creates variable "output.config"
         "minify-example-output": {
           "keep_classnames": true
         }
@@ -350,7 +350,7 @@ Custom plugins can be installed from NPM or copied into your local workspace. Ex
         }
       },
       "node-sass": { // npm i node-sass
-        "sass-example": "function (context, value) { return context.renderSync({ data: value }, functions: {}); }" // first transpiler in chain
+        "sass-example": "function (context, value, output, resolve) { resolve(context.renderSync({ data: value }, functions: {})); }" // first transpiler in chain
       }
     }
   }
@@ -360,16 +360,25 @@ Custom plugins can be installed from NPM or copied into your local workspace. Ex
 ```javascript
 // es5.js
 interface TransformOutput {
-    settings?: StandardMap;
-    sourceDir?: string;
+    config?: StandardMap; // "transformer-output"
     sourceFile?: string;
     sourceMap?: SourceMapInput;
-    external?: PlainObject;
+    sourcesRelativeTo?: string;
+    external?: PlainObject; // query params from workspaces
     writeFail?: ModuleWriteFailMethod;
 }
 
-function (context, value, output) {
-    return context.transformSync(value, output.config || options).code;
+// Custom inline and template functions use Promise "resolve" callbacks
+
+function (context, value, output, resolve) {
+    context.transform(value, output.config, function(err, result) {
+        if (!err && result) {
+            resolve(result.code);
+        }
+        else {
+            resolve();
+        }
+    });
 }
 ```
 
@@ -379,15 +388,17 @@ The same concept can be used inline anywhere using a &lt;script&gt; tag with the
 // "es5-example" is a custom name (chrome -> eval_template: true)
 
 <script type="text/template" data-chrome-template="js::@babel/core::es5-example">
-function (context, value, output) {
-    const { sourceMap, config } = output;
-    const options = { ...config, presets: ['@babel/preset-env'], sourceMaps: true }; // <https://babeljs.io/docs/en/options>
+function (context, value, output, resolve) {
+    const options = { ...output.config, presets: ['@babel/preset-env'], sourceMaps: true }; // <https://babeljs.io/docs/en/options>
     const result = context.transformSync(value, options);
     if (result) {
-        if (sourceMap && result.map) {
-            sourceMap.nextMap('babel', result.map, result.code);
+        if (output.sourceMap && result.map) {
+            output.sourceMap.nextMap('babel', result.map, result.code);
         }
-        return result.code;
+        resolve(result.code);
+    }
+    else {
+        resolve();
     }
 }
 </script>
