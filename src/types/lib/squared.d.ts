@@ -118,6 +118,7 @@ export interface ResponseData {
     data?: unknown;
     filename?: string;
     downloadKey?: string;
+    downloadUrl?: string;
     bytes?: number;
     files?: string[];
     error?: ResponseError;

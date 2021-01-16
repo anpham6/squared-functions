@@ -1,34 +1,20 @@
-const context = require('posthtml');
+import { loadPlugins } from '../util';
 
 type TransformOutput = functions.Internal.Document.TransformOutput;
-type ModuleWriteFailMethod = functions.ModuleWriteFailMethod;
 
-function loadPlugins(plugins: [string, Undef<PlainObject>][], writeFail?: ModuleWriteFailMethod) {
-    const result: unknown[] = [];
-    for (const plugin of plugins.map(item => typeof item === 'string' ? [item] : Array.isArray(item) && item.length ? item : null)) {
-        if (plugin) {
-            try {
-                result.push(require(plugin[0])(plugin[1]));
-            }
-            catch (err) {
-                if (writeFail) {
-                    writeFail([`Install required? <npm i ${plugin[0]}>`, 'posthtml'], err);
-                }
-            }
-        }
-    }
-    return result;
-}
-
-export default async function transform(value: string, options: PlainObject, output: TransformOutput) {
-    const { config = {}, external, writeFail } = output;
-    if (Array.isArray(options.plugins)) {
-        const plugins = loadPlugins(options.plugins, writeFail);
+export default async function transform(context: any, value: string, output: TransformOutput) {
+    const { baseConfig = {}, outputConfig = {}, external, writeFail } = output;
+    let plugins: Undef<any[]> = baseConfig.plugins || outputConfig.plugins;
+    if (Array.isArray(plugins)) {
+        plugins = loadPlugins('posthtml', baseConfig.plugins, writeFail);
         if (plugins.length) {
+            delete baseConfig.plugins;
+            delete outputConfig.plugins;
+            Object.assign(baseConfig, outputConfig);
             if (external) {
-                Object.assign(config, external);
+                Object.assign(baseConfig, external);
             }
-            const result = await context(plugins).process(value, config);
+            const result = await context(plugins).process(value, baseConfig);
             if (result) {
                 return result.html;
             }

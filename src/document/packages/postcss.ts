@@ -1,9 +1,9 @@
-const context = require('postcss');
+import { loadPlugins } from '../util';
 
 type TransformOutput = functions.Internal.Document.TransformOutput;
 
-export default async function transform(value: string, options: PlainObject, output: TransformOutput) {
-    const { sourceMap, external } = output;
+export default async function transform(context: any, value: string, output: TransformOutput) {
+    const { baseConfig = {}, outputConfig = {}, sourceMap, external, writeFail } = output;
     let includeSources = true,
         localUri: Undef<string>;
     if (sourceMap) {
@@ -11,24 +11,32 @@ export default async function transform(value: string, options: PlainObject, out
         if (file) {
             localUri = file.localUri;
         }
-        if (options.map || map && (options.map = {})) {
-            const optionsMap = options.map as StandardMap;
+        if (baseConfig.map || map && (baseConfig.map = {})) {
+            const optionsMap = baseConfig.map as StandardMap;
             optionsMap.prev = map;
             if (optionsMap.soucesContent === false) {
                 includeSources = false;
             }
         }
     }
-    const config: PlainObject = Object.assign(output.config || {}, { from: localUri, to: localUri });
-    if (external) {
-        Object.assign(config, external);
-    }
-    const result = await context((options.plugins as string[] || []).map(item => require(item))).process(value, config);
-    if (result) {
-        if (sourceMap && result.map) {
-            sourceMap.nextMap('postcss', result.map, result.css, includeSources);
+    let plugins: Undef<any[]> = baseConfig.plugins || outputConfig.plugins;
+    if (Array.isArray(plugins)) {
+        plugins = loadPlugins('postcss', plugins, writeFail);
+        if (plugins.length) {
+            delete baseConfig.plugins;
+            delete outputConfig.plugins;
+            Object.assign(baseConfig, outputConfig, { from: localUri, to: localUri });
+            if (external) {
+                Object.assign(baseConfig, external);
+            }
+            const result = await context().process(value, baseConfig);
+            if (result) {
+                if (sourceMap && result.map) {
+                    sourceMap.nextMap('postcss', result.map, result.css, includeSources);
+                }
+                return result.css;
+            }
         }
-        return result.css;
     }
 }
 

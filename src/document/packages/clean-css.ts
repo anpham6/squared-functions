@@ -1,21 +1,18 @@
-const context = require('clean-css');
-
 type TransformOutput = functions.Internal.Document.TransformOutput;
 type SourceMap = functions.Internal.Document.SourceMap;
 
-export default async function transform(value: string, options: PlainObject, output: TransformOutput) {
-    const { sourceMap, external } = output;
+export default async function transform(context: any, value: string, output: TransformOutput) {
+    const { baseConfig = {}, outputConfig = {}, sourceMap, external } = output;
     let map: Undef<SourceMap>;
-    if (sourceMap) {
+    if (sourceMap && sourceMap.map) {
         map = sourceMap.map;
-        if (map) {
-            options.sourceMap = true;
-        }
+        baseConfig.sourceMap = true;
     }
+    Object.assign(baseConfig, outputConfig);
     if (external) {
-        Object.assign(options, external);
+        Object.assign(baseConfig, external);
     }
-    const result = new context(options).minify(value, map);
+    const result = new context(baseConfig).minify(value, map);
     if (result) {
         if (sourceMap && result.sourceMap) {
             sourceMap.nextMap('clean-css', result.sourceMap, result.styles);

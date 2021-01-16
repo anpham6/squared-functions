@@ -281,7 +281,7 @@ You can also define your own optimizations in squared.settings.json:
 
 These particular plugins can be configured using a plain object literal. Manual installation is required when using any of these packages [<b>npm run install-chrome</b>]. Transpiling with Babel is also configurable with a .babelrc file in the base folder for any presets and additional settings. Other non-builtin minifiers can similarly be applied and chained by defining a custom string-based synchronous function.
 
-Custom plugins can be installed from NPM or copied into your local workspace. Examples can be found in the "chrome/packages" folder.
+Custom plugins can be installed from NPM or copied into your local workspace. Examples can be found in the "chrome/packages" folder. The custom asynchronous function has to be named "transform" for validation purposes with the only difference being the context object is set to the Document module.
 
 ```xml
 {workspace}/node_modules/@squared-functions/chrome/packages

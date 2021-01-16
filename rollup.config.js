@@ -7,8 +7,16 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/document ${require('./publish/document/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
+    },
+    {
+        input: './build/document/util.js',
+        treeshake: false,
+        output: {
+            file: './publish/document/util.js',
+            format: 'cjs',
+            strict: false
+        }
     },
     {
         input: './build/document/chrome/index.js',
@@ -18,8 +26,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/document/chrome ${require('./publish/document/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/task/index.js',
@@ -29,8 +36,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/task ${require('./publish/task/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/task/gulp/index.js',
@@ -40,8 +46,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/task/gulp ${require('./publish/task/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/cloud/index.js',
@@ -51,8 +56,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/cloud ${require('./publish/cloud/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/compress/index.js',
@@ -62,8 +66,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/compress ${require('./publish/compress/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/file-manager/index.js',
@@ -73,8 +76,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/file-manager ${require('./publish/file-manager/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/image/index.js',
@@ -84,8 +86,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/image ${require('./publish/image/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/image/jimp/index.js',
@@ -95,8 +96,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/image/jimp ${require('./publish/image/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/module/index.js',
@@ -106,8 +106,7 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/module ${require('./publish/module/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     },
     {
         input: './build/watch/index.js',
@@ -117,7 +116,6 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/watch ${require('./publish/watch/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
-        },
-        plugins: []
+        }
     }
 ];

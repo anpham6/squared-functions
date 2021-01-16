@@ -1,22 +1,29 @@
-const context = require('uglify-js');
+type TransformOutput = functions.Internal.Document.TransformOutput;
 
-type SourceMapInput = functions.Internal.Document.SourceMapInput;
-
-export default async function transform(value: string, options: StandardMap, output?: PlainObject, input?: SourceMapInput) {
+export default async function transform(context: any, value: string, output: TransformOutput) {
+    const { baseConfig = {}, outputConfig = {}, sourceMap, external } = output;
+    Object.assign(baseConfig, outputConfig);
     let includeSources = true;
-    if (input && (options.sourceMap && typeof options.sourceMap === 'object' || input.map && (options.sourceMap = {}))) {
-        const sourceMap = options.sourceMap;
-        sourceMap.content = input.map;
-        sourceMap.asObject = true;
-        sourceMap.url = '';
-        if (sourceMap.includeSources === false) {
+    if (baseConfig.sourceMap && typeof baseConfig.sourceMap === 'object' || sourceMap && sourceMap.map && (baseConfig.sourceMap = {})) {
+        const mapConfig = baseConfig.sourceMap as PlainObject;
+        if (sourceMap) {
+            mapConfig.content = sourceMap.map;
+        }
+        mapConfig.asObject = true;
+        if (mapConfig.url !== 'inline') {
+            mapConfig.url = '';
+        }
+        if (mapConfig.includeSources === false) {
             includeSources = false;
         }
     }
-    const result = context.minify(value, options);
+    if (external) {
+        Object.assign(baseConfig, external);
+    }
+    const result = context.minify(value, baseConfig);
     if (result) {
-        if (input && result.map) {
-            input.nextMap('uglify-js', result.map, result.code, includeSources);
+        if (sourceMap && result.map) {
+            sourceMap.nextMap('uglify-js', result.map, result.code, includeSources);
         }
         return result.code;
     }

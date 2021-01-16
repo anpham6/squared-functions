@@ -1,12 +1,12 @@
-const context = require('html-minifier');
-
 type TransformOutput = functions.Internal.Document.TransformOutput;
 
-export default async function transform(value: string, options: PlainObject, output: TransformOutput) {
-    if (output.external) {
-        Object.assign(options, output.external);
+export default async function transform(context: any, value: string, output: TransformOutput) {
+    const { baseConfig = {}, outputConfig = {}, external } = output;
+    Object.assign(baseConfig, outputConfig);
+    if (external) {
+        Object.assign(baseConfig, external);
     }
-    return context.minify(value, options);
+    return context.minify(value, baseConfig);
 }
 
 if (typeof module !== 'undefined' && module.exports) {

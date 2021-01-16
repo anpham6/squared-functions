@@ -8,6 +8,7 @@ import Module from '../module';
 type DocumentModule = ExtendedSettings.DocumentModule;
 
 type TransformOutput = Internal.Document.TransformOutput;
+type TransformResult = Internal.Document.TransformResult;
 type SourceMap = Internal.Document.SourceMap;
 type SourceMapInput = Internal.Document.SourceMapInput;
 type SourceMapOutput = Internal.Document.SourceMapOutput;
@@ -140,75 +141,69 @@ abstract class Document extends Module implements IDocument {
         }
         delete data[name];
     }
-    async transform(type: string, format: string, value: string, options: TransformOutput = {}): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>> {
+    async transform(type: string, format: string, value: string, options: TransformOutput = {}): TransformResult {
         const data = this.module.settings?.[type] as ObjectMap<PlainObject>;
         if (data) {
             const sourceMap = options.sourceMap;
             const writeFail = this.writeFail.bind(this);
+            const errorMessage = (name: string, message: string) => new Error(message + ` <${this.moduleName}:${name}>`);
             let valid: Undef<boolean>;
             for (let name of format.split('+')) {
-                const [plugin, baseConfig, config] = this.findConfig(data, name = name.trim(), type);
+                const [plugin, baseConfig, outputConfig] = this.findConfig(data, name = name.trim(), type);
                 if (plugin) {
                     if (!baseConfig) {
-                        this.writeFail('Unable to load configuration', new Error(`Incomplete plugin <${this.moduleName}:${name}>`));
+                        this.writeFail('Unable to load configuration', errorMessage(name, 'Invalid config'));
                     }
                     else {
-                        this.formatMessage(this.logType.PROCESS, type, ['Transforming source...', plugin], name, { hintColor: 'cyan' });
+                        const output: TransformOutput = { ...options, baseConfig, outputConfig, writeFail };
                         const time = Date.now();
-                        const success = () => this.writeTimeElapsed(type, plugin + ': ' + name, time);
-                        const output: TransformOutput = { ...options, config, writeFail };
-                        let transformer: Undef<Transformer>;
-                        const tryPlugin = () => {
-                            try {
-                                transformer = require(plugin);
+                        const next = (result: Undef<string>) => {
+                            if (isString(result)) {
+                                value = result;
+                                valid = true;
+                                this.writeTimeElapsed(type, plugin + ': ' + name, time);
                             }
-                            catch (err) {
-                                this.writeFail([`Install required? <npm i ${plugin}>`, this.moduleName], err);
-                                return false;
+                            else {
+                                this.writeFail(['Transform returned empty result', plugin], errorMessage(name, 'Empty result'));
                             }
-                            return true;
                         };
-                        if (typeof baseConfig === 'function') {
-                            if (tryPlugin()) {
-                                try {
-                                    const result = await new Promise<Undef<string>>(resolve => baseConfig(transformer, value, output, resolve));
-                                    if (isString(result)){
-                                        value = result;
-                                        valid = true;
-                                        success();
-                                    }
-                                }
-                                catch (err) {
-                                    this.writeFail(['Unable to transform source', plugin], err);
-                                }
-                            }
-                        }
-                        else {
-                            if (!(transformer = this._packageMap[plugin])) {
-                                const filepath = path.join(__dirname, 'packages', plugin + '.js');
-                                if (fs.existsSync(filepath)) {
-                                    transformer = require(filepath);
-                                }
-                                else if (!tryPlugin()) {
-                                    continue;
-                                }
-                            }
+                        this.formatMessage(this.logType.PROCESS, type, ['Transforming source...', plugin], name, { hintColor: 'cyan' });
+                        try {
+                            let context = require(plugin);
                             try {
-                                const result = await transformer!.call(this, value, baseConfig, output);
-                                if (isString(result)) {
-                                    value = result;
-                                    valid = true;
-                                    success();
+                                if (typeof baseConfig === 'function') {
+                                    next(await new Promise<Undef<string>>(resolve => baseConfig(context, value, output, resolve)));
+                                }
+                                else {
+                                    let transformer = this._packageMap[plugin];
+                                    if (!transformer) {
+                                        const filepath = path.join(__dirname, 'packages', plugin + '.js');
+                                        if (fs.existsSync(filepath)) {
+                                            transformer = require(filepath);
+                                            this._packageMap[plugin] = transformer;
+                                        }
+                                        else if (typeof context === 'function' && context.name === 'transform') {
+                                            transformer = context;
+                                            context = this;
+                                        }
+                                        else {
+                                            continue;
+                                        }
+                                    }
+                                    next(await transformer(context, value, output));
                                 }
                             }
                             catch (err) {
                                 this.writeFail(['Unable to transform source', plugin], err);
                             }
                         }
+                        catch (err) {
+                            this.writeFail([`Install required? <npm i ${plugin}>`, this.moduleName], err);
+                        }
                     }
                 }
                 else {
-                    this.writeFail('Process method not found', new Error(`Unknown plugin <${this.moduleName}:${name}>`));
+                    this.writeFail('Process format method not found', errorMessage(name, 'Unknown plugin'));
                 }
             }
             if (valid) {

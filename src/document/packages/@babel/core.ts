@@ -1,19 +1,18 @@
-const context = require('@babel/core');
-
 type TransformOutput = functions.Internal.Document.TransformOutput;
 
-export default async function transform(value: string, options: PlainObject, output: TransformOutput) {
-    const { sourceMap, external } = output;
+export default async function transform(context: any, value: string, output: TransformOutput) {
+    const { baseConfig = {}, outputConfig = {}, sourceMap, external } = output;
     if (sourceMap) {
-        if (options.sourceMaps === true || sourceMap.map) {
-            options.sourceMaps = true;
-            options.inputSourceMap = sourceMap.map;
+        if (baseConfig.sourceMaps === true || sourceMap.map) {
+            baseConfig.sourceMaps = true;
+            baseConfig.inputSourceMap = sourceMap.map;
         }
     }
+    Object.assign(baseConfig, outputConfig);
     if (external) {
-        Object.assign(options, external);
+        Object.assign(baseConfig, external);
     }
-    const result = await context.transform(value, options);
+    const result = await context.transform(value, baseConfig);
     if (result) {
         if (sourceMap && result.map) {
             sourceMap.nextMap('babel', result.map, result.code);

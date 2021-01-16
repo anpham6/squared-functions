@@ -64,8 +64,9 @@ declare namespace functions {
         }
 
         namespace Document {
-            interface TransformOutput {
-                config?: StandardMap;
+            interface TransformOutput<T = StandardMap, U = StandardMap> {
+                baseConfig?: T;
+                outputConfig?: U;
                 sourceDir?: string;
                 sourceFile?: string;
                 sourceMap?: SourceMapInput;
@@ -102,6 +103,7 @@ declare namespace functions {
             type Transformer = FunctionType<Undef<string>>;
             type ConfigOrTransformer = StandardMap | Transformer;
             type PluginConfig = [string, Undef<ConfigOrTransformer>, Undef<StandardMap>] | [];
+            type TransformResult = Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>>;
         }
 
         namespace Cloud {
@@ -301,7 +303,7 @@ declare namespace functions {
         readonly moduleName: string;
         findConfig(settings: ObjectMap<StandardMap>, name: string, type?: string): Internal.Document.PluginConfig;
         loadConfig(data: StandardMap, name: string): Optional<ConfigOrTransformer>;
-        transform(type: string, format: string, value: string, options?: Internal.Document.TransformOutput): Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>>;
+        transform(type: string, format: string, value: string, options?: Internal.Document.TransformOutput): Internal.Document.TransformResult;
         formatContent?(manager: IFileManager, file: ExternalAsset, content: string): Promise<[string, boolean]>;
         imageQueue?: FileManagerQueueImageMethod;
         imageFinalize?: FileManagerFinalizeImageCallback<boolean>;

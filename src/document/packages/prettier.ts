@@ -1,50 +1,50 @@
-const context = require('prettier');
-
 type TransformOutput = functions.Internal.Document.TransformOutput;
 
-export default async function transform(value: string, options: PlainObject, output: TransformOutput) {
-    if (output.external) {
-        Object.assign(options, output.external);
+export default async function transform(context: any, value: string, output: TransformOutput) {
+    const { baseConfig = {}, outputConfig = {}, external } = output;
+    Object.assign(baseConfig, outputConfig);
+    if (external) {
+        Object.assign(baseConfig, external);
     }
-    switch (options.parser) {
+    switch (baseConfig.parser) {
         case 'babel':
         case 'babel-flow':
         case 'babel-ts':
         case 'json':
         case 'json-5':
         case 'json-stringify':
-            options.plugins = [require('prettier/parser-babel')];
+            baseConfig.plugins = [require('prettier/parser-babel')];
             break;
         case 'css':
         case 'scss':
         case 'less':
-            options.plugins = [require('prettier/parser-postcss')];
+            baseConfig.plugins = [require('prettier/parser-postcss')];
             break;
         case 'flow':
-            options.plugins = [require('prettier/parser-flow')];
+            baseConfig.plugins = [require('prettier/parser-flow')];
             break;
         case 'html':
         case 'angular':
         case 'lwc':
         case 'vue':
-            options.plugins = [require('prettier/parser-html')];
+            baseConfig.plugins = [require('prettier/parser-html')];
             break;
         case 'graphql':
-            options.plugins = [require('prettier/parser-graphql')];
+            baseConfig.plugins = [require('prettier/parser-graphql')];
             break;
         case 'markdown':
-            options.plugins = [require('prettier/parser-markdown')];
+            baseConfig.plugins = [require('prettier/parser-markdown')];
             break;
         case 'typescript':
-            options.plugins = [require('prettier/parser-typescript')];
+            baseConfig.plugins = [require('prettier/parser-typescript')];
             break;
         case 'yaml':
-            options.plugins = [require('prettier/parser-yaml')];
+            baseConfig.plugins = [require('prettier/parser-yaml')];
             break;
         default:
             return;
     }
-    return context.format(value, options);
+    return context.format(value, baseConfig);
 }
 
 if (typeof module !== 'undefined' && module.exports) {
