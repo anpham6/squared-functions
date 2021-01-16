@@ -10,8 +10,9 @@ type NumString = number | string;
 type StandardMap = Record<string, any>;
 type PlainObject = Record<string | number | symbol, unknown>;
 type StringMap = Record<string, Undef<string>>;
-
 type ObjectMap<T> = Record<string, T>;
+
+type JsonData = Optional<string | number | boolean | unknown[] | StandardMap>;
 
 interface Point {
     x: number;

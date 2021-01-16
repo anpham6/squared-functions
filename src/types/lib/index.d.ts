@@ -18,7 +18,7 @@ type CropData = functions.Internal.Image.CropData;
 type RotateData = functions.Internal.Image.RotateData;
 type QualityData = functions.Internal.Image.QualityData;
 type SourceMapInput = functions.Internal.Document.SourceMapInput;
-type SourceMapOutput = functions.Internal.Document.SourceMapOutput;
+type TransformResult = functions.Internal.Document.TransformResult;
 type ConfigOrTransformer = functions.Internal.Document.ConfigOrTransformer
 
 declare namespace functions {
@@ -75,6 +75,12 @@ declare namespace functions {
                 writeFail?: ModuleWriteFailMethod;
             }
 
+            interface TransformResult {
+                code: string;
+                map?: SourceMap;
+                output?: Map<string, SourceMapOutput>;
+            }
+
             interface SourceMapInput {
                 sourcesContent: Null<string>;
                 output: Map<string, SourceMapOutput>;
@@ -103,7 +109,6 @@ declare namespace functions {
             type Transformer = FunctionType<Undef<string>>;
             type ConfigOrTransformer = StandardMap | Transformer;
             type PluginConfig = [string, Undef<ConfigOrTransformer>, Undef<StandardMap>] | [];
-            type TransformResult = Promise<Void<[string, Undef<Map<string, SourceMapOutput>>]>>;
         }
 
         namespace Cloud {
@@ -298,12 +303,12 @@ declare namespace functions {
 
     interface IDocument extends IModule {
         module: ExtendedSettings.DocumentModule;
-        internalAssignUUID: string;
         templateMap?: StandardMap;
         readonly moduleName: string;
-        findConfig(settings: ObjectMap<StandardMap>, name: string, type?: string): Internal.Document.PluginConfig;
+        readonly internalAssignUUID: string;
+        findConfig(settings: StandardMap, name: string, type?: string): Internal.Document.PluginConfig;
         loadConfig(data: StandardMap, name: string): Optional<ConfigOrTransformer>;
-        transform(type: string, format: string, value: string, options?: Internal.Document.TransformOutput): Internal.Document.TransformResult;
+        transform(type: string, code: string, format: string, options?: Internal.Document.TransformOutput): Promise<Void<TransformResult>>;
         formatContent?(manager: IFileManager, file: ExternalAsset, content: string): Promise<[string, boolean]>;
         imageQueue?: FileManagerQueueImageMethod;
         imageFinalize?: FileManagerFinalizeImageCallback<boolean>;
@@ -314,11 +319,11 @@ declare namespace functions {
     }
 
     interface DocumentConstructor extends ModuleConstructor {
-        init(this: IFileManager, instance: IDocument): boolean;
+        init(this: IFileManager, instance: IDocument, body: RequestBody): boolean;
         using(this: IFileManager, instance: IDocument, file: ExternalAsset): Promise<void>;
         finalize(this: IFileManager, instance: IDocument, assets: ExternalAsset[]): Promise<void>;
         createSourceMap(sourcesContent: string, file?: ExternalAsset): SourceMapInput;
-        new(body: RequestBody, module: ExtendedSettings.DocumentModule, ...args: unknown[]): IDocument;
+        new(module: ExtendedSettings.DocumentModule, templateMap?: Undef<StandardMap>, ...args: unknown[]): IDocument;
     }
 
     const Document: DocumentConstructor;
@@ -380,7 +385,6 @@ declare namespace functions {
         completeAsyncTask: FileManagerCompleteAsyncTaskCallback;
         performFinalize(): void;
         setLocalUri(file: ExternalAsset): Internal.FileOutput;
-        writeLocalUri(file: ExternalAsset): boolean;
         getRelativeUri(file: ExternalAsset, filename?: string): string;
         assignUUID(data: Internal.DocumentData, attr: string, target?: any): Undef<string>;
         findAsset(uri: string): Undef<ExternalAsset>;
@@ -389,7 +393,8 @@ declare namespace functions {
         appendContent(file: ExternalAsset, localUri: string, content: string, bundleIndex?: number): Promise<string>;
         getTrailingContent(file: ExternalAsset): Undef<string>;
         getBundleContent(localUri: string): Undef<string>;
-        writeSourceMap(file: ExternalAsset, output: [string, Undef<Map<string, SourceMapOutput>>], modified?: boolean): void;
+        writeSourceMap(file: ExternalAsset, data: TransformResult, modified?: boolean): void;
+        writeBuffer(file: ExternalAsset): Null<Buffer>;
         compressFile(file: ExternalAsset): Promise<unknown>;
         queueImage: FileManagerQueueImageMethod;
         finalizeImage: FileManagerFinalizeImageCallback;

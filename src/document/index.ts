@@ -19,7 +19,7 @@ type ConfigOrTransformer = Internal.Document.ConfigOrTransformer;
 const isString = (value: any): value is string => !!value && typeof value === 'string';
 
 abstract class Document extends Module implements IDocument {
-    public static init(this: IFileManager, instance: IDocument) {}
+    public static init(this: IFileManager, instance: IDocument, body: RequestBody) {}
     public static async using(this: IFileManager, instance: IDocument, file: ExternalAsset) {}
     public static async finalize(this: IFileManager, instance: IDocument, assets: ExternalAsset[]) {}
 
@@ -47,21 +47,19 @@ abstract class Document extends Module implements IDocument {
         }) as SourceMapInput;
     }
 
-    public internalAssignUUID = '__assign__';
-    public templateMap?: StandardMap;
+    public readonly internalAssignUUID = '__assign__';
 
     public abstract moduleName: string;
 
     private _packageMap: ObjectMap<Transformer> = {};
 
-    constructor(body: RequestBody, public module: DocumentModule) {
+    constructor(public module: DocumentModule, public templateMap?: Undef<StandardMap>) {
         super();
-        this.templateMap = body.templateMap;
     }
 
-    findConfig(settings: ObjectMap<PlainObject>, name: string, type?: string): PluginConfig {
+    findConfig(settings: StandardMap, name: string, type?: string): PluginConfig {
         if (this.module.eval_template && this.templateMap && type) {
-            const data = this.templateMap[type] as Undef<PlainObject>;
+            const data = this.templateMap[type] as Undef<StandardMap>;
             if (data) {
                 for (const attr in data) {
                     const item = data[attr] as Undef<StandardMap>;
@@ -90,7 +88,7 @@ abstract class Document extends Module implements IDocument {
         return [];
     }
     loadConfig(data: StandardMap, name: string): Undef<ConfigOrTransformer> {
-        let value: Undef<PlainObject | Transformer | string> = data[name];
+        let value: Undef<StandardMap | string | Transformer> = data[name];
         switch (typeof value) {
             case 'function':
                 return value;
@@ -109,7 +107,7 @@ abstract class Document extends Module implements IDocument {
                         else {
                             const result = JSON.parse(contents);
                             if (result && typeof result === 'object') {
-                                data[name] = result as PlainObject;
+                                data[name] = result as StandardMap;
                                 return JSON.parse(JSON.stringify(result));
                             }
                         }
@@ -119,7 +117,7 @@ abstract class Document extends Module implements IDocument {
                     }
                 }
                 else if (path.isAbsolute(value)) {
-                    this.writeFail('Only relative paths are supported', new Error(`Unknown config <${value}>`));
+                    this.writeFail('Only relative paths are supported', new Error(`Unknown config <${name}:${value}>`));
                 }
                 else if (evaluate) {
                     const transformer = this.parseFunction(value);
@@ -141,38 +139,38 @@ abstract class Document extends Module implements IDocument {
         }
         delete data[name];
     }
-    async transform(type: string, format: string, value: string, options: TransformOutput = {}): TransformResult {
-        const data = this.module.settings?.[type] as ObjectMap<PlainObject>;
+    async transform(type: string, code: string, format: string, options: TransformOutput = {}): Promise<Void<TransformResult>> {
+        const data = this.module.settings?.[type] as StandardMap;
         if (data) {
             const sourceMap = options.sourceMap;
             const writeFail = this.writeFail.bind(this);
-            const errorMessage = (name: string, message: string) => new Error(message + ` <${this.moduleName}:${name}>`);
+            const errorMessage = (plugin: string, process: string, message: string) => new Error(message + ` <${plugin}:${process}>`);
             let valid: Undef<boolean>;
-            for (let name of format.split('+')) {
-                const [plugin, baseConfig, outputConfig] = this.findConfig(data, name = name.trim(), type);
+            for (let process of format.split('+')) {
+                const [plugin, baseConfig, outputConfig] = this.findConfig(data, process = process.trim(), type);
                 if (plugin) {
                     if (!baseConfig) {
-                        this.writeFail('Unable to load configuration', errorMessage(name, 'Invalid config'));
+                        this.writeFail('Unable to load configuration', errorMessage(plugin, process, 'Invalid config'));
                     }
                     else {
                         const output: TransformOutput = { ...options, baseConfig, outputConfig, writeFail };
                         const time = Date.now();
                         const next = (result: Undef<string>) => {
                             if (isString(result)) {
-                                value = result;
+                                code = result;
                                 valid = true;
-                                this.writeTimeElapsed(type, plugin + ': ' + name, time);
+                                this.writeTimeElapsed(type, plugin + ': ' + process, time);
                             }
                             else {
-                                this.writeFail(['Transform returned empty result', plugin], errorMessage(name, 'Empty result'));
+                                this.writeFail(['Transform returned empty result', plugin], errorMessage(plugin, process, 'Empty result'));
                             }
                         };
-                        this.formatMessage(this.logType.PROCESS, type, ['Transforming source...', plugin], name, { hintColor: 'cyan' });
+                        this.formatMessage(this.logType.PROCESS, type, ['Transforming source...', plugin], process, { hintColor: 'cyan' });
                         try {
                             let context = require(plugin);
                             try {
                                 if (typeof baseConfig === 'function') {
-                                    next(await new Promise<Undef<string>>(resolve => baseConfig(context, value, output, resolve)));
+                                    next(await new Promise<Undef<string>>(resolve => baseConfig(context, code, output, resolve)));
                                 }
                                 else {
                                     let transformer = this._packageMap[plugin];
@@ -190,7 +188,7 @@ abstract class Document extends Module implements IDocument {
                                             continue;
                                         }
                                     }
-                                    next(await transformer(context, value, output));
+                                    next(await transformer(context, code, output));
                                 }
                             }
                             catch (err) {
@@ -203,11 +201,19 @@ abstract class Document extends Module implements IDocument {
                     }
                 }
                 else {
-                    this.writeFail('Process format method not found', errorMessage(name, 'Unknown plugin'));
+                    this.writeFail('Process format method not found', errorMessage(this.moduleName, process, 'Unknown plugin'));
                 }
             }
             if (valid) {
-                return [value, sourceMap && sourceMap.output];
+                let map: Undef<SourceMap>,
+                    output: Undef<Map<string, SourceMapOutput>>;
+                if (sourceMap) {
+                    output = sourceMap.output;
+                    if (output && output.size) {
+                        map = Array.from(output.values()).pop()!.map;
+                    }
+                }
+                return { code, map, output };
             }
         }
     }

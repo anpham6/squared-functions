@@ -291,9 +291,19 @@ const escapePosix = (value: string) => value.replace(/[\\/]/g, '[\\\\/]');
 const isObject = (value: unknown): value is PlainObject => typeof value === 'object' && value !== null;
 
 class ChromeDocument extends Document implements IChromeDocument {
-    public static init(this: IFileManager, instance: IChromeDocument) {
+    public static init(this: IFileManager, instance: IChromeDocument, body: RequestBody) {
+        const baseUrl = body.baseUrl;
+        if (baseUrl) {
+            try {
+                const { origin, pathname } = new URL(baseUrl);
+                instance.baseDirectory = origin + pathname.substring(0, pathname.lastIndexOf('/') + 1);
+                instance.baseUrl = baseUrl;
+            }
+            catch {
+            }
+        }
+        instance.unusedStyles = body.unusedStyles;
         const assets = this.assets as DocumentAsset[];
-        const baseUrl = instance.baseUrl;
         assets.sort((a, b) => {
             if (a.bundleId && a.bundleId === b.bundleId) {
                 return a.bundleIndex! - b.bundleIndex!;
@@ -672,10 +682,10 @@ class ChromeDocument extends Document implements IChromeDocument {
                     source += bundle;
                 }
                 if (format) {
-                    const result = await instance.transform('css', format, source, { sourceMap: Document.createSourceMap(source, file) });
+                    const result = await instance.transform('css', source, format, { sourceMap: Document.createSourceMap(source, file) });
                     if (result) {
                         this.writeSourceMap(file, result, modified);
-                        source = result[0];
+                        source = result.code;
                     }
                 }
                 file.sourceUTF8 = source;
@@ -697,10 +707,10 @@ class ChromeDocument extends Document implements IChromeDocument {
                     source += bundle;
                 }
                 if (format) {
-                    const result = await instance.transform('js', format, source, { sourceMap: Document.createSourceMap(source, file) });
+                    const result = await instance.transform('js', source, format, { sourceMap: Document.createSourceMap(source, file) });
                     if (result) {
                         this.writeSourceMap(file, result, modified);
-                        source = result[0];
+                        source = result.code;
                     }
                 }
                 file.sourceUTF8 = source;
@@ -782,9 +792,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
             }
             if (formatting) {
-                const result = await instance.transform('html', file.format!, source);
+                const result = await instance.transform('html', source, file.format!);
                 if (result) {
-                    source = result[0];
+                    source = result.code;
                 }
             }
             file.sourceUTF8 = source;
@@ -856,19 +866,8 @@ class ChromeDocument extends Document implements IChromeDocument {
     private _cloudEndpoint!: string;
     private _cloudModifiedCss: Undef<Set<DocumentAsset>>;
 
-    constructor(body: RequestBody, settings: DocumentModule, public productionRelease = false) {
-        super(body, settings);
-        const baseUrl = body.baseUrl;
-        if (baseUrl) {
-            try {
-                const { origin, pathname } = new URL(baseUrl);
-                this.baseDirectory = origin + pathname.substring(0, pathname.lastIndexOf('/') + 1);
-                this.baseUrl = baseUrl;
-            }
-            catch {
-            }
-        }
-        this.unusedStyles = body.unusedStyles;
+    constructor(settings: DocumentModule, templateMap?: StandardMap, public productionRelease = false) {
+        super(settings, templateMap);
     }
 
     async formatContent(manager: IFileManager, file: DocumentAsset, content: string): Promise<[string, boolean]> {

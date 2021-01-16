@@ -4,31 +4,36 @@ type TransformOutput = functions.Internal.Document.TransformOutput;
 
 export default async function transform(context: any, value: string, output: TransformOutput) {
     const { baseConfig = {}, outputConfig = {}, sourceMap, external, writeFail } = output;
-    let includeSources = true,
-        localUri: Undef<string>;
+    let plugins: Undef<unknown[]> = baseConfig.plugins || outputConfig.plugins,
+        includeSources = true,
+        sourceFile = output.sourceFile;
+    delete baseConfig.plugins;
+    delete outputConfig.plugins;
+    Object.assign(baseConfig, outputConfig);
+    if (external) {
+        delete external.plugins;
+        Object.assign(baseConfig, external);
+    }
     if (sourceMap) {
-        const { map, file } = sourceMap;
-        if (file) {
-            localUri = file.localUri;
+        if (baseConfig.map === false) {
+            sourceMap.output.clear();
         }
-        if (baseConfig.map || map && (baseConfig.map = {})) {
-            const optionsMap = baseConfig.map as StandardMap;
-            optionsMap.prev = map;
-            if (optionsMap.soucesContent === false) {
-                includeSources = false;
+        else {
+            const { map, file } = sourceMap;
+            sourceFile ||= file && file.localUri;
+            if (baseConfig.map || map && (baseConfig.map = {})) {
+                const optionsMap = baseConfig.map as StandardMap;
+                optionsMap.prev = map;
+                if (optionsMap.soucesContent === false) {
+                    includeSources = false;
+                }
             }
         }
     }
-    let plugins: Undef<any[]> = baseConfig.plugins || outputConfig.plugins;
     if (Array.isArray(plugins)) {
         plugins = loadPlugins('postcss', plugins, writeFail);
         if (plugins.length) {
-            delete baseConfig.plugins;
-            delete outputConfig.plugins;
-            Object.assign(baseConfig, outputConfig, { from: localUri, to: localUri });
-            if (external) {
-                Object.assign(baseConfig, external);
-            }
+            Object.assign(baseConfig, { from: sourceFile, to: sourceFile });
             const result = await context().process(value, baseConfig);
             if (result) {
                 if (sourceMap && result.map) {

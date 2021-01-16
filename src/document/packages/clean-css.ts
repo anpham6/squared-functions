@@ -3,14 +3,19 @@ type SourceMap = functions.Internal.Document.SourceMap;
 
 export default async function transform(context: any, value: string, output: TransformOutput) {
     const { baseConfig = {}, outputConfig = {}, sourceMap, external } = output;
-    let map: Undef<SourceMap>;
-    if (sourceMap && sourceMap.map) {
-        map = sourceMap.map;
-        baseConfig.sourceMap = true;
-    }
     Object.assign(baseConfig, outputConfig);
     if (external) {
         Object.assign(baseConfig, external);
+    }
+    let map: Undef<SourceMap>;
+    if (sourceMap) {
+        if (baseConfig.sourceMap === false) {
+            sourceMap.output.clear();
+        }
+        else if (sourceMap.map) {
+            map = sourceMap.map;
+            baseConfig.sourceMap = true;
+        }
     }
     const result = new context(baseConfig).minify(value, map);
     if (result) {

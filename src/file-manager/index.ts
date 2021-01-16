@@ -25,7 +25,7 @@ type FileOutput = Internal.FileOutput;
 type OutputData = Internal.Image.OutputData;
 type DocumentInstallData = Internal.InstallData<IDocument, DocumentConstructor>;
 type TaskInstallData = Internal.InstallData<ITask, TaskConstructor>;
-type SourceMapOutput = Internal.Document.SourceMapOutput;
+type TransformResult = Internal.Document.TransformResult;
 
 function parseSizeRange(value: string): [number, number] {
     const match = /\(\s*(\d+)\s*,\s*(\d+|\*)\s*\)/.exec(value);
@@ -176,8 +176,8 @@ class FileManager extends Module implements IFileManager {
         switch (name) {
             case 'document':
                 if (isFunction<DocumentConstructor>(target) && target.prototype instanceof Document) {
-                    const instance = new target(this.body, params[0] as DocumentModule, ...params.slice(1));
-                    target.init.call(this, instance);
+                    const instance = new target(params[0] as DocumentModule, this.body.templateMap, ...params.slice(1));
+                    target.init.call(this, instance, this.body);
                     this.Document.push({ instance, constructor: target, params });
                 }
                 break;
@@ -343,20 +343,6 @@ class FileManager extends Module implements IFileManager {
         file.mimeType ||= mime.lookup(uri || localUri) || '';
         return { pathname, localUri } as FileOutput;
     }
-    writeLocalUri(file: ExternalAsset) {
-        const buffer = file.sourceUTF8 ? Buffer.from(file.sourceUTF8, 'utf8') : file.buffer;
-        if (buffer) {
-            try {
-                fs.writeFileSync(file.localUri!, buffer);
-                file.buffer = buffer;
-                return true;
-            }
-            catch (err) {
-                this.writeFail(['Unable to write buffer', file.localUri!], err);
-            }
-        }
-        return false;
-    }
     getRelativeUri(file: ExternalAsset, filename = file.filename) {
         return Module.joinPosix(file.moveTo, file.pathname, filename);
     }
@@ -427,43 +413,69 @@ class FileManager extends Module implements IFileManager {
             return content.reduce((a, b) => b ? a + '\n' + b : a, '');
         }
     }
-    writeSourceMap(file: ExternalAsset, output: [string, Undef<Map<string, SourceMapOutput>>], modified?: boolean) {
-        const sourceMap = output[1];
+    writeSourceMap(file: ExternalAsset, data: TransformResult, modified?: boolean) {
+        const sourceMap = data.output;
         if (!sourceMap || sourceMap.size === 0) {
             return;
         }
         const localUri = file.localUri!;
         const items = Array.from(sourceMap);
-        const excludeSources = items.some(data => data[1].sourcesContent === null);
-        const [name, data] = items.pop()!;
+        const excludeSources = items.some(item => item[1].sourcesContent === null);
+        const [name, output] = items.pop()!;
         const filename = path.basename(localUri);
-        const map = data.map;
+        const map = output.map;
         const mapFile = filename + '.map';
+        const bundleRoot = file.bundleRoot;
         map.file = filename;
-        if (map.sourceRoot && file.bundleRoot && !modified) {
-            const bundleRoot = file.bundleRoot;
+        if (!modified && bundleRoot && map.sourceRoot) {
             map.sources = this.assets.filter(item => item.bundleId && item.bundleId === file.bundleId).sort((a, b) => a.bundleIndex! - b.bundleIndex!).map(item => item.uri!.replace(bundleRoot, ''));
+            map.sourceRoot = bundleRoot;
         }
         else {
             map.sources = ['unknown'];
         }
         if (!excludeSources) {
             if (!Array.isArray(map.sourcesContent) || map.sourcesContent.length < 1 || !map.sourcesContent[0]) {
-                map.sourcesContent = [data.sourcesContent];
+                map.sourcesContent = [output.sourcesContent];
             }
         }
         else {
             delete map.sourcesContent;
         }
-        output[0] = output[0].replace(/# sourceMappingURL=[\S\s]+$/, '# sourceMappingURL=' + mapFile);
-        try {
-            const mapUri = path.join(path.dirname(localUri), mapFile);
-            fs.writeFileSync(mapUri, JSON.stringify(map), 'utf8');
-            this.add(mapUri, file);
+        const getSourceMappingURL = () => `\n//# sourceMappingURL=${mapFile}\n`;
+        let inlineMap = false,
+            found = false;
+        data.code = data.code.replace(/\n?(\/\*)?\s*(\/\/)?[#@] sourceMappingURL=(['"])?([^\s'"]*)\3\s*?(\*\/)?\n?/, (...capture) => {
+            found = true;
+            inlineMap = capture[4].startsWith('data:application/json');
+            return !inlineMap && (capture[2] && !capture[1] && !capture[5] || capture[1] && capture[5]) ? getSourceMappingURL() : capture[0];
+        });
+        if (!inlineMap) {
+            if (!found) {
+                data.code += getSourceMappingURL();
+            }
+            try {
+                const mapUri = path.join(path.dirname(localUri), mapFile);
+                fs.writeFileSync(mapUri, JSON.stringify(map), 'utf8');
+                this.add(mapUri, file);
+            }
+            catch (err) {
+                this.writeFail(['Unable to generate source map', name], err);
+            }
         }
-        catch (err) {
-            this.writeFail(['Unable to generate source map', name], err);
+    }
+    writeBuffer(file: ExternalAsset) {
+        const buffer = file.sourceUTF8 ? Buffer.from(file.sourceUTF8, 'utf8') : file.buffer;
+        if (buffer) {
+            try {
+                fs.writeFileSync(file.localUri!, buffer);
+                return file.buffer = buffer;
+            }
+            catch (err) {
+                this.writeFail(['Unable to write buffer', file.localUri!], err);
+            }
         }
+        return null;
     }
     queueImage(data: FileData, outputType: string, saveAs: string, command = '') {
         const file = data.file;

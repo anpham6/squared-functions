@@ -4,14 +4,15 @@ type TransformOutput = functions.Internal.Document.TransformOutput;
 
 export default async function transform(context: any, value: string, output: TransformOutput) {
     const { baseConfig = {}, outputConfig = {}, external, writeFail } = output;
-    let plugins: Undef<any[]> = baseConfig.plugins || outputConfig.plugins;
+    let plugins: Undef<unknown[]> = baseConfig.plugins || outputConfig.plugins;
     if (Array.isArray(plugins)) {
-        plugins = loadPlugins('posthtml', baseConfig.plugins, writeFail);
+        plugins = loadPlugins('posthtml', plugins, writeFail);
         if (plugins.length) {
             delete baseConfig.plugins;
             delete outputConfig.plugins;
             Object.assign(baseConfig, outputConfig);
             if (external) {
+                delete external.plugins;
                 Object.assign(baseConfig, external);
             }
             const result = await context(plugins).process(value, baseConfig);

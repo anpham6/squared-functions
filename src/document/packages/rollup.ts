@@ -26,12 +26,6 @@ export default async function transform(context: any, value: string, output: fun
         baseConfig.plugins = loadPlugins<rollup.Plugin>('rollup', plugins, writeFail);
     }
     const bundle = await context.rollup(baseConfig) as rollup.RollupBuild;
-    if (!outputConfig.sourcemap && sourceMap && sourceMap.output.size) {
-        outputConfig.sourcemap = true;
-    }
-    if (outputConfig.sourcemapExcludeSources) {
-        includeSources = false;
-    }
     plugins = (outputConfig.plugins as unknown) as RollupPlugins;
     if (Array.isArray(plugins)) {
         outputConfig.plugins = loadPlugins<rollup.OutputPlugin>('rollup', plugins, writeFail);
@@ -42,6 +36,17 @@ export default async function transform(context: any, value: string, output: fun
     }
     if (sourcesRelativeTo) {
         outputConfig.sourcemapPathTransform = (relativeSourcePath, sourcemapPath) => path.resolve(path.dirname(sourcemapPath), relativeSourcePath);
+    }
+    if (sourceMap) {
+        if (outputConfig.sourcemap === false) {
+            sourceMap.output.clear();
+        }
+        else if (sourceMap.output.size) {
+            outputConfig.sourcemap = true;
+        }
+    }
+    if (outputConfig.sourcemapExcludeSources) {
+        includeSources = false;
     }
     delete outputConfig.manualChunks;
     delete outputConfig.chunkFileNames;

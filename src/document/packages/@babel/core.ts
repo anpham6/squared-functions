@@ -2,15 +2,18 @@ type TransformOutput = functions.Internal.Document.TransformOutput;
 
 export default async function transform(context: any, value: string, output: TransformOutput) {
     const { baseConfig = {}, outputConfig = {}, sourceMap, external } = output;
-    if (sourceMap) {
-        if (baseConfig.sourceMaps === true || sourceMap.map) {
-            baseConfig.sourceMaps = true;
-            baseConfig.inputSourceMap = sourceMap.map;
-        }
-    }
     Object.assign(baseConfig, outputConfig);
     if (external) {
         Object.assign(baseConfig, external);
+    }
+    if (sourceMap) {
+        if (baseConfig.sourceMaps === false) {
+            sourceMap.output.clear();
+        }
+        else if (sourceMap.map) {
+            baseConfig.sourceMaps = true;
+            baseConfig.inputSourceMap = sourceMap.map;
+        }
     }
     const result = await context.transform(value, baseConfig);
     if (result) {

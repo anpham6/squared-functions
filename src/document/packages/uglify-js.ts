@@ -3,8 +3,17 @@ type TransformOutput = functions.Internal.Document.TransformOutput;
 export default async function transform(context: any, value: string, output: TransformOutput) {
     const { baseConfig = {}, outputConfig = {}, sourceMap, external } = output;
     Object.assign(baseConfig, outputConfig);
+    if (external) {
+        Object.assign(baseConfig, external);
+    }
     let includeSources = true;
-    if (baseConfig.sourceMap && typeof baseConfig.sourceMap === 'object' || sourceMap && sourceMap.map && (baseConfig.sourceMap = {})) {
+    if (baseConfig.sourceMap === false) {
+        if (sourceMap) {
+            sourceMap.output.clear();
+        }
+        includeSources = false;
+    }
+    else if (baseConfig.sourceMap && typeof baseConfig.sourceMap === 'object' || sourceMap && sourceMap.map && (baseConfig.sourceMap = {})) {
         const mapConfig = baseConfig.sourceMap as PlainObject;
         if (sourceMap) {
             mapConfig.content = sourceMap.map;
@@ -16,9 +25,6 @@ export default async function transform(context: any, value: string, output: Tra
         if (mapConfig.includeSources === false) {
             includeSources = false;
         }
-    }
-    if (external) {
-        Object.assign(baseConfig, external);
     }
     const result = context.minify(value, baseConfig);
     if (result) {
