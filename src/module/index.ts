@@ -140,7 +140,12 @@ abstract class Module implements IModule {
     }
 
     public static hasSameOrigin(value: string, other: string) {
-        return new URL(value).origin === new URL(other).origin;
+        try {
+            return new URL(value).origin === new URL(other).origin;
+        }
+        catch {
+        }
+        return false;
     }
 
     public static isFileHTTP(value: string) {
@@ -167,7 +172,7 @@ abstract class Module implements IModule {
                     if (path.sep === '\\' && /^\/[A-Za-z]:\//.test(url)) {
                         url = url.substring(1);
                     }
-                    return path.resolve(value);
+                    return path.resolve(url);
                 }
             }
             catch {
@@ -179,32 +184,36 @@ abstract class Module implements IModule {
 
     public static resolvePath(value: string, href: string) {
         if (href.startsWith('http')) {
-            const url = new URL(href);
-            const origin = url.origin;
-            const pathname = url.pathname.split('/');
-            --pathname.length;
-            value = value.replace(/\\/g, '/');
-            if (value[0] === '/') {
-                return origin + value;
-            }
-            else if (value.startsWith('../')) {
-                const trailing: string[] = [];
-                for (const dir of value.split('/')) {
-                    if (dir === '..') {
-                        if (trailing.length === 0) {
-                            pathname.pop();
+            try {
+                const url = new URL(href);
+                const origin = url.origin;
+                const pathname = url.pathname.split('/');
+                --pathname.length;
+                value = value.replace(/\\/g, '/');
+                if (value[0] === '/') {
+                    return origin + value;
+                }
+                else if (value.startsWith('../')) {
+                    const trailing: string[] = [];
+                    for (const dir of value.split('/')) {
+                        if (dir === '..') {
+                            if (trailing.length === 0) {
+                                pathname.pop();
+                            }
+                            else {
+                                --trailing.length;
+                            }
                         }
                         else {
-                            --trailing.length;
+                            trailing.push(dir);
                         }
                     }
-                    else {
-                        trailing.push(dir);
-                    }
+                    value = trailing.join('/');
                 }
-                value = trailing.join('/');
+                return Module.joinPosix(origin, pathname.join('/'), value);
             }
-            return Module.joinPosix(origin, pathname.join('/'), value);
+            catch {
+            }
         }
         return '';
    }

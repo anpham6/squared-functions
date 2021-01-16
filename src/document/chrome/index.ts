@@ -195,30 +195,34 @@ function findRelativeUri(this: IFileManager, file: DocumentAsset, location: stri
         asset = this.findAsset(location);
     }
     if (asset) {
-        const baseDir = (file.rootDir || '') + file.pathname;
-        if (Document.hasSameOrigin(origin, asset.uri!)) {
-            const rootDir = asset.rootDir;
-            if (asset.moveTo) {
-                if (file.moveTo === asset.moveTo) {
-                    return Document.joinPosix(asset.pathname, asset.filename);
+        try {
+            const baseDir = (file.rootDir || '') + file.pathname;
+            if (Document.hasSameOrigin(origin, asset.uri!)) {
+                const rootDir = asset.rootDir;
+                if (asset.moveTo) {
+                    if (file.moveTo === asset.moveTo) {
+                        return Document.joinPosix(asset.pathname, asset.filename);
+                    }
+                }
+                else if (rootDir) {
+                    if (baseDir === rootDir + asset.pathname) {
+                        return asset.filename;
+                    }
+                    else if (baseDir === rootDir) {
+                        return Document.joinPosix(asset.pathname, asset.filename);
+                    }
+                }
+                else {
+                    const [originDir, uriDir] = getRootDirectory(new URL(origin).pathname, new URL(asset.uri!).pathname);
+                    return '../'.repeat(originDir.length - 1) + uriDir.join('/');
                 }
             }
-            else if (rootDir) {
-                if (baseDir === rootDir + asset.pathname) {
-                    return asset.filename;
-                }
-                else if (baseDir === rootDir) {
-                    return Document.joinPosix(asset.pathname, asset.filename);
-                }
-            }
-            else {
-                const [originDir, uriDir] = getRootDirectory(new URL(origin).pathname, new URL(asset.uri!).pathname);
-                return '../'.repeat(originDir.length - 1) + uriDir.join('/');
+            if (baseDirectory && Document.hasSameOrigin(origin, baseDirectory)) {
+                const [originDir] = getRootDirectory(Document.joinPosix(baseDir, file.filename), new URL(baseDirectory).pathname);
+                return '../'.repeat(originDir.length - 1) + asset.relativeUri;
             }
         }
-        if (baseDirectory && Document.hasSameOrigin(origin, baseDirectory)) {
-            const [originDir] = getRootDirectory(Document.joinPosix(baseDir, file.filename), new URL(baseDirectory).pathname);
-            return '../'.repeat(originDir.length - 1) + asset.relativeUri;
+        catch {
         }
     }
 }
@@ -856,9 +860,13 @@ class ChromeDocument extends Document implements IChromeDocument {
         super(body, settings);
         const baseUrl = body.baseUrl;
         if (baseUrl) {
-            const { origin, pathname } = new URL(baseUrl);
-            this.baseDirectory = origin + pathname.substring(0, pathname.lastIndexOf('/') + 1);
-            this.baseUrl = baseUrl;
+            try {
+                const { origin, pathname } = new URL(baseUrl);
+                this.baseDirectory = origin + pathname.substring(0, pathname.lastIndexOf('/') + 1);
+                this.baseUrl = baseUrl;
+            }
+            catch {
+            }
         }
         this.unusedStyles = body.unusedStyles;
     }
