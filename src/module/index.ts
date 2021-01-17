@@ -9,10 +9,7 @@ import chalk = require('chalk');
 type LoggerModule = ExtendedSettings.LoggerModule;
 
 type LogMessageOptions = Internal.LogMessageOptions;
-
-type LogValue = string | [string, string];
-
-let SETTINGS: LoggerModule = {};
+type LogValue = Internal.LogValue;
 
 // eslint-disable-next-line no-shadow
 export enum LOG_TYPE {
@@ -26,6 +23,9 @@ export enum LOG_TYPE {
     CLOUD_DATABASE = 64,
     TIME_ELAPSED = 128
 }
+
+const STYLE_FAIL: LogMessageOptions = { titleColor: 'white', titleBgColor: 'bgRed' };
+let SETTINGS: LoggerModule = {};
 
 function allSettled<T>(values: readonly (T | PromiseLike<T>)[]) {
     return Promise.all(values.map((promise: Promise<T>) => promise.then(value => ({ status: 'fulfilled', value })).catch(reason => ({ status: 'rejected', reason })) as Promise<PromiseSettledResult<T>>));
@@ -86,8 +86,8 @@ abstract class Module implements IModule {
                 break;
         }
         if (Array.isArray(value)) {
-            const length = value[1] ? value[1].length : 0;
-            if (length) {
+            let length = 0;
+            if (value[1] && (length = value[1].length)) {
                 const formatHint = (hint: string) => {
                     const { hintColor, hintBgColor } = options;
                     if (hintColor) {
@@ -124,6 +124,31 @@ abstract class Module implements IModule {
             message = ' ' + chalk.blackBright('(') + message + chalk.blackBright(')');
         }
         console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase().padEnd(6)) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
+    }
+
+    public static parseFunction(value: string, name?: string): Undef<FunctionType<string>> {
+        if (Module.isLocalPath(value = value.trim())) {
+            try {
+                value = fs.readFileSync(path.resolve(value), 'utf8').trim();
+            }
+            catch (err) {
+                this.formatMessage(LOG_TYPE.SYSTEM, 'FAIL', ['Could not load function', value], err, STYLE_FAIL);
+                return;
+            }
+        }
+        if (value.startsWith('function')) {
+            return eval(`(${value})`);
+        }
+        if (name) {
+            try {
+                const handler = require(value);
+                if (typeof handler === 'function' && handler.name === name) {
+                    return handler as FunctionType<string>;
+                }
+            }
+            catch {
+            }
+        }
     }
 
     public static toPosix(value: string, filename?: string) {
@@ -259,7 +284,7 @@ abstract class Module implements IModule {
             promise.then(result => {
                 for (const item of result) {
                     if (item.status === 'rejected' && item.reason) {
-                        this.formatMessage(LOG_TYPE.SYSTEM, 'FAIL', rejected, item.reason, { titleColor: 'white', titleBgColor: 'bgRed' });
+                        this.formatMessage(LOG_TYPE.SYSTEM, 'FAIL', rejected, item.reason, STYLE_FAIL);
                         if (errors) {
                             errors.push(item.reason.toString());
                         }
@@ -302,22 +327,8 @@ abstract class Module implements IModule {
         }
         return true;
     }
-    parseFunction(value: string): Undef<FunctionType<string>> {
-        if (Module.isLocalPath(value = value.trim())) {
-            try {
-                value = fs.readFileSync(path.resolve(value), 'utf8').trim();
-            }
-            catch (err) {
-                this.writeFail(['Could not load function', value], err);
-                return;
-            }
-        }
-        if (value.startsWith('function')) {
-            return eval(`(${value})`);
-        }
-    }
-    getTempDir(subDir?: boolean, filename = '') {
-        return process.cwd() + path.sep + this.tempDir + path.sep + (subDir ? uuid.v4() + path.sep : '') + (filename.startsWith('.') ? uuid.v4() : '') + filename;
+    getTempDir(uuidDir?: boolean, filename = '') {
+        return process.cwd() + path.sep + this.tempDir + path.sep + (uuidDir ? uuid.v4() + path.sep : '') + (filename.startsWith('.') ? uuid.v4() : '') + filename;
     }
     writeTimeElapsed(title: string, value: string, time: number, options: LogMessageOptions = {}) {
         Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Completed', (Date.now() - time) / 1000 + 's'], value, options);

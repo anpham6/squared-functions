@@ -70,7 +70,7 @@ abstract class Document extends Module implements IDocument {
             }
         }
         else {
-            items = [['', sourceMap]];
+            items = [['unknown', sourceMap]];
         }
         const basename = path.basename(localUri);
         let code = '';
@@ -168,7 +168,7 @@ abstract class Document extends Module implements IDocument {
                 if (Module.isLocalPath(value = value.trim())) {
                     try {
                         const contents = fs.readFileSync(path.resolve(value), 'utf8').trim();
-                        const transformer = this.parseFunction(contents);
+                        const transformer = Module.parseFunction(contents);
                         if (transformer) {
                             if (evaluate) {
                                 data[name] = transformer;
@@ -191,7 +191,7 @@ abstract class Document extends Module implements IDocument {
                     this.writeFail('Only relative paths are supported', new Error(`Unknown config <${name}:${value}>`));
                 }
                 else if (evaluate) {
-                    const transformer = this.parseFunction(value);
+                    const transformer = Module.parseFunction(value);
                     if (transformer) {
                         data[name] = transformer;
                         return transformer;
@@ -257,6 +257,7 @@ abstract class Document extends Module implements IDocument {
                                             context = this;
                                         }
                                         else {
+                                            this.writeFail(['Transformer was not executed', plugin], errorMessage(plugin, process, 'Invalid function'));
                                             continue;
                                         }
                                     }
@@ -278,15 +279,8 @@ abstract class Document extends Module implements IDocument {
                 }
             }
             if (valid) {
-                let map: Undef<SourceMap>,
-                    output: Undef<Map<string, SourceMapOutput>>;
-                if (sourceMap) {
-                    output = sourceMap.output;
-                    if (output && output.size) {
-                        map = Array.from(output.values()).pop()!.map;
-                    }
-                }
-                return { code, map };
+                let output: Undef<Map<string, SourceMapOutput>>;
+                return sourceMap && (output = sourceMap.output) && output.size ? { code, map: Array.from(output.values()).pop()!.map } : { code };
             }
         }
     }

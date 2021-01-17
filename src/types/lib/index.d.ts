@@ -19,7 +19,7 @@ type RotateData = functions.Internal.Image.RotateData;
 type QualityData = functions.Internal.Image.QualityData;
 type SourceMapInput = functions.Internal.Document.SourceMapInput;
 type TransformResult = functions.Internal.Document.TransformResult;
-type ConfigOrTransformer = functions.Internal.Document.ConfigOrTransformer
+type ConfigOrTransformer = functions.Internal.Document.ConfigOrTransformer;
 
 declare namespace functions {
     type CloudFeatures = "storage" | "database";
@@ -202,6 +202,8 @@ declare namespace functions {
             messageColor?: typeof ForegroundColor;
             messageBgColor?: typeof BackgroundColor;
         }
+
+        type LogValue = string | [string, Optional<string>];
     }
 
     interface ICompress extends IModule {
@@ -413,16 +415,16 @@ declare namespace functions {
         readonly errors: string[];
         readonly moduleName?: string;
         supported(major: number, minor: number, patch?: number): boolean;
-        parseFunction(value: string): Undef<FunctionType<string>>;
-        getTempDir(subDir?: boolean, filename?: string): string;
+        getTempDir(uuidDir?: boolean, filename?: string): string;
         formatMessage: ModuleFormatMessageMethod;
-        formatFail(type: Internal.LOG_TYPE, title: string, value: string | [string, string], message?: Null<Error>): void;
+        formatFail(type: Internal.LOG_TYPE, title: string, value: Internal.LogValue, message?: Null<Error>): void;
         writeFail: ModuleWriteFailMethod;
         writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions): void;
     }
 
     interface ModuleConstructor {
         formatMessage: ModuleFormatMessageMethod;
+        parseFunction(value: string, name?: string): Undef<FunctionType<string>>;
         toPosix(value: string, filename?: string): string;
         renameExt(value: string, ext: string): string;
         isLocalPath(value: string): string;
