@@ -6,12 +6,10 @@ export default async function transform(context: any, value: string, output: Tra
     if (external) {
         Object.assign(baseConfig, external);
     }
-    let includeSources = true;
     if (baseConfig.sourceMap === false) {
         if (sourceMap) {
             sourceMap.output.clear();
         }
-        includeSources = false;
     }
     else if (baseConfig.sourceMap && typeof baseConfig.sourceMap === 'object' || sourceMap && sourceMap.map && (baseConfig.sourceMap = {})) {
         const mapConfig = baseConfig.sourceMap as PlainObject;
@@ -22,14 +20,12 @@ export default async function transform(context: any, value: string, output: Tra
         if (mapConfig.url !== 'inline') {
             mapConfig.url = '';
         }
-        if (mapConfig.includeSources === false) {
-            includeSources = false;
-        }
     }
+    delete baseConfig.name;
     const result = await context.minify(value, baseConfig);
     if (result) {
         if (sourceMap && result.map) {
-            sourceMap.nextMap('terser', result.map, result.code, includeSources);
+            sourceMap.nextMap('terser', result.code, result.map);
         }
         return result.code;
     }

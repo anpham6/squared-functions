@@ -12,8 +12,7 @@ export default async function transform(context: any, value: string, output: fun
     const { baseConfig = {}, outputConfig = baseConfig.output as rollup.OutputOptions || { format: 'es' }, sourceMap, sourcesRelativeTo, external, writeFail } = output;
     let sourceFile = output.sourceFile,
         result = '',
-        mappings = '',
-        includeSources = true;
+        mappings = '';
     if (!sourceFile) {
         const rollupDir = path.join(process.cwd(), 'tmp' + path.sep + 'rollup');
         sourceFile = rollupDir + path.sep + uuid.v4();
@@ -41,12 +40,9 @@ export default async function transform(context: any, value: string, output: fun
         if (outputConfig.sourcemap === false) {
             sourceMap.output.clear();
         }
-        else if (sourceMap.output.size) {
+        else if (!outputConfig.sourcemap && sourceMap.output.size) {
             outputConfig.sourcemap = true;
         }
-    }
-    if (outputConfig.sourcemapExcludeSources) {
-        includeSources = false;
     }
     delete outputConfig.manualChunks;
     delete outputConfig.chunkFileNames;
@@ -59,7 +55,7 @@ export default async function transform(context: any, value: string, output: fun
                 if (external && outputConfig.sourcemap === 'inline') {
                     result += `\n//# sourceMappingURL=${item.map.toUrl()}\n`;
                 }
-                else if (sourceMap) {
+                if (sourceMap) {
                     mappings += item.map;
                 }
             }
@@ -67,7 +63,7 @@ export default async function transform(context: any, value: string, output: fun
     }
     if (result) {
         if (sourceMap && mappings) {
-            sourceMap.nextMap('rollup', mappings, result, includeSources);
+            sourceMap.nextMap('rollup', result, mappings);
         }
         return result;
     }

@@ -67,7 +67,6 @@ declare namespace functions {
             interface TransformOutput<T = StandardMap, U = StandardMap> {
                 baseConfig?: T;
                 outputConfig?: U;
-                sourceDir?: string;
                 sourceFile?: string;
                 sourceMap?: SourceMapInput;
                 sourcesRelativeTo?: string;
@@ -78,23 +77,16 @@ declare namespace functions {
             interface TransformResult {
                 code: string;
                 map?: SourceMap;
-                output?: Map<string, SourceMapOutput>;
             }
 
-            interface SourceMapInput {
-                sourcesContent: Null<string>;
+            interface SourceMapInput extends TransformResult {
                 output: Map<string, SourceMapOutput>;
                 file?: ExternalAsset;
-                map?: SourceMap;
-                nextMap: (name: string, map: SourceMap | string, code: string, includeSources?: boolean) => boolean;
+                streamingContent?: boolean;
+                nextMap: (name: string, code: string, map: SourceMap | string) => boolean;
             }
 
-            interface SourceMapOutput {
-                map: SourceMap;
-                code: string;
-                sourcesContent: Null<string>;
-                url?: string;
-            }
+            interface SourceMapOutput extends Required<TransformResult> {}
 
             interface SourceMap {
                 version: number;
@@ -309,7 +301,7 @@ declare namespace functions {
         findConfig(settings: StandardMap, name: string, type?: string): Internal.Document.PluginConfig;
         loadConfig(data: StandardMap, name: string): Optional<ConfigOrTransformer>;
         transform(type: string, code: string, format: string, options?: Internal.Document.TransformOutput): Promise<Void<TransformResult>>;
-        formatContent?(manager: IFileManager, file: ExternalAsset, content: string): Promise<[string, boolean]>;
+        formatContent?(manager: IFileManager, file: ExternalAsset, content: string): Promise<string>;
         imageQueue?: FileManagerQueueImageMethod;
         imageFinalize?: FileManagerFinalizeImageCallback<boolean>;
         cloudInit?(state: FinalizeState): void;
@@ -322,7 +314,8 @@ declare namespace functions {
         init(this: IFileManager, instance: IDocument, body: RequestBody): boolean;
         using(this: IFileManager, instance: IDocument, file: ExternalAsset): Promise<void>;
         finalize(this: IFileManager, instance: IDocument, assets: ExternalAsset[]): Promise<void>;
-        createSourceMap(sourcesContent: string, file?: ExternalAsset): SourceMapInput;
+        createSourceMap(code: string, file?: ExternalAsset): SourceMapInput;
+        writeSourceMap(localUri: string, data: SourceMapInput | Internal.Document.SourceMapOutput, manager?: IFileManager): string;
         new(module: ExtendedSettings.DocumentModule, templateMap?: Undef<StandardMap>, ...args: unknown[]): IDocument;
     }
 
@@ -376,7 +369,7 @@ declare namespace functions {
         readonly permission: IPermission;
         readonly postFinalize?: (errors: string[]) => void;
         install(name: string, ...params: unknown[]): void;
-        add(value: string): void;
+        add(value: string, parent?: ExternalAsset): void;
         delete(value: string, emptyDir?: boolean): void;
         has(value: Undef<string>): value is string;
         replace(file: ExternalAsset, replaceWith: string, mimeType?: string): void;
@@ -393,7 +386,6 @@ declare namespace functions {
         appendContent(file: ExternalAsset, localUri: string, content: string, bundleIndex?: number): Promise<string>;
         getTrailingContent(file: ExternalAsset): Undef<string>;
         getBundleContent(localUri: string): Undef<string>;
-        writeSourceMap(file: ExternalAsset, data: TransformResult, modified?: boolean): void;
         writeBuffer(file: ExternalAsset): Null<Buffer>;
         compressFile(file: ExternalAsset): Promise<unknown>;
         queueImage: FileManagerQueueImageMethod;

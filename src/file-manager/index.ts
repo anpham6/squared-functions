@@ -25,7 +25,6 @@ type FileOutput = Internal.FileOutput;
 type OutputData = Internal.Image.OutputData;
 type DocumentInstallData = Internal.InstallData<IDocument, DocumentConstructor>;
 type TaskInstallData = Internal.InstallData<ITask, TaskConstructor>;
-type TransformResult = Internal.Document.TransformResult;
 
 function parseSizeRange(value: string): [number, number] {
     const match = /\(\s*(\d+)\s*,\s*(\d+|\*)\s*\)/.exec(value);
@@ -390,7 +389,7 @@ class FileManager extends Module implements IFileManager {
         if (file.document) {
             for (const { instance } of this.Document) {
                 if (hasDocument(file.document, instance.moduleName) && instance.formatContent) {
-                    [content] = await instance.formatContent(this, file, content);
+                    content = await instance.formatContent(this, file, content);
                 }
             }
         }
@@ -411,57 +410,6 @@ class FileManager extends Module implements IFileManager {
         const content = this.contentToAppend.get(localUri);
         if (content) {
             return content.reduce((a, b) => b ? a + '\n' + b : a, '');
-        }
-    }
-    writeSourceMap(file: ExternalAsset, data: TransformResult, modified?: boolean) {
-        const sourceMap = data.output;
-        if (!sourceMap || sourceMap.size === 0) {
-            return;
-        }
-        const localUri = file.localUri!;
-        const items = Array.from(sourceMap);
-        const excludeSources = items.some(item => item[1].sourcesContent === null);
-        const [name, output] = items.pop()!;
-        const filename = path.basename(localUri);
-        const map = output.map;
-        const mapFile = filename + '.map';
-        const bundleRoot = file.bundleRoot;
-        map.file = filename;
-        if (!modified && bundleRoot && map.sourceRoot) {
-            map.sources = this.assets.filter(item => item.bundleId && item.bundleId === file.bundleId).sort((a, b) => a.bundleIndex! - b.bundleIndex!).map(item => item.uri!.replace(bundleRoot, ''));
-            map.sourceRoot = bundleRoot;
-        }
-        else {
-            map.sources = ['unknown'];
-        }
-        if (!excludeSources) {
-            if (!Array.isArray(map.sourcesContent) || map.sourcesContent.length < 1 || !map.sourcesContent[0]) {
-                map.sourcesContent = [output.sourcesContent];
-            }
-        }
-        else {
-            delete map.sourcesContent;
-        }
-        const getSourceMappingURL = () => `\n//# sourceMappingURL=${mapFile}\n`;
-        let inlineMap = false,
-            found = false;
-        data.code = data.code.replace(/\n?(\/\*)?\s*(\/\/)?[#@] sourceMappingURL=(['"])?([^\s'"]*)\3\s*?(\*\/)?\n?/, (...capture) => {
-            found = true;
-            inlineMap = capture[4].startsWith('data:application/json');
-            return !inlineMap && (capture[2] && !capture[1] && !capture[5] || capture[1] && capture[5]) ? getSourceMappingURL() : capture[0];
-        });
-        if (!inlineMap) {
-            if (!found) {
-                data.code += getSourceMappingURL();
-            }
-            try {
-                const mapUri = path.join(path.dirname(localUri), mapFile);
-                fs.writeFileSync(mapUri, JSON.stringify(map), 'utf8');
-                this.add(mapUri, file);
-            }
-            catch (err) {
-                this.writeFail(['Unable to generate source map', name], err);
-            }
         }
     }
     writeBuffer(file: ExternalAsset) {

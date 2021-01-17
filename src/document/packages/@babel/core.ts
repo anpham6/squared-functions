@@ -18,7 +18,7 @@ export default async function transform(context: any, value: string, output: Tra
     const result = await context.transform(value, baseConfig);
     if (result) {
         if (sourceMap && result.map) {
-            sourceMap.nextMap('babel', result.map, result.code);
+            sourceMap.nextMap('babel', result.code, result.map);
         }
         return result.code;
     }

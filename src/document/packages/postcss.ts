@@ -5,7 +5,6 @@ type TransformOutput = functions.Internal.Document.TransformOutput;
 export default async function transform(context: any, value: string, output: TransformOutput) {
     const { baseConfig = {}, outputConfig = {}, sourceMap, external, writeFail } = output;
     let plugins: Undef<unknown[]> = baseConfig.plugins || outputConfig.plugins,
-        includeSources = true,
         sourceFile = output.sourceFile;
     delete baseConfig.plugins;
     delete outputConfig.plugins;
@@ -24,9 +23,6 @@ export default async function transform(context: any, value: string, output: Tra
             if (baseConfig.map || map && (baseConfig.map = {})) {
                 const optionsMap = baseConfig.map as StandardMap;
                 optionsMap.prev = map;
-                if (optionsMap.soucesContent === false) {
-                    includeSources = false;
-                }
             }
         }
     }
@@ -37,7 +33,7 @@ export default async function transform(context: any, value: string, output: Tra
             const result = await context().process(value, baseConfig);
             if (result) {
                 if (sourceMap && result.map) {
-                    sourceMap.nextMap('postcss', result.map, result.css, includeSources);
+                    sourceMap.nextMap('postcss', result.css, result.map);
                 }
                 return result.css;
             }

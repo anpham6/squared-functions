@@ -673,19 +673,18 @@ class ChromeDocument extends Document implements IChromeDocument {
                 if (!unusedStyles && !transform && !trailing && !bundle && !format) {
                     break;
                 }
-                let [source, modified] = await instance.formatContent(this, file, this.getUTF8String(file, localUri));
+                let source = await instance.formatContent(this, file, this.getUTF8String(file, localUri));
                 if (trailing) {
                     source += trailing;
-                    modified = true;
                 }
                 if (bundle) {
                     source += bundle;
                 }
                 if (format) {
-                    const result = await instance.transform('css', source, format, { sourceMap: Document.createSourceMap(source, file) });
+                    const sourceMap = Document.createSourceMap(source, file);
+                    const result = await instance.transform('css', source, format, { sourceMap });
                     if (result) {
-                        this.writeSourceMap(file, result, modified);
-                        source = result.code;
+                        source = sourceMap.output.size && sourceMap.code === result.code ? Document.writeSourceMap(localUri!, sourceMap, this) : result.code;
                     }
                 }
                 file.sourceUTF8 = source;
@@ -697,20 +696,18 @@ class ChromeDocument extends Document implements IChromeDocument {
                 if (!trailing && !bundle && !format) {
                     break;
                 }
-                let source = this.getUTF8String(file, localUri),
-                    modified = false;
+                let source = this.getUTF8String(file, localUri);
                 if (trailing) {
                     source += trailing;
-                    modified = true;
                 }
                 if (bundle) {
                     source += bundle;
                 }
                 if (format) {
-                    const result = await instance.transform('js', source, format, { sourceMap: Document.createSourceMap(source, file) });
+                    const sourceMap = Document.createSourceMap(source, file);
+                    const result = await instance.transform('js', source, format, { sourceMap });
                     if (result) {
-                        this.writeSourceMap(file, result, modified);
-                        source = result.code;
+                        source = sourceMap.output.size && sourceMap.code === result.code ? Document.writeSourceMap(localUri!, sourceMap, this) : result.code;
                     }
                 }
                 file.sourceUTF8 = source;
@@ -870,24 +867,21 @@ class ChromeDocument extends Document implements IChromeDocument {
         super(settings, templateMap);
     }
 
-    async formatContent(manager: IFileManager, file: DocumentAsset, content: string): Promise<[string, boolean]> {
-        let modified = false;
+    async formatContent(manager: IFileManager, file: DocumentAsset, content: string): Promise<string> {
         if (file.mimeType === '@text/css') {
             const unusedStyles = this.unusedStyles;
             if (!file.preserve && unusedStyles) {
                 const result = removeCss(content, unusedStyles);
                 if (result) {
                     content = result;
-                    modified = true;
                 }
             }
             const result = transformCss.call(manager, this, file, content);
             if (result) {
                 content = result;
-                modified = true;
             }
         }
-        return [content, modified];
+        return content;
     }
     imageQueue(data: FileData, outputType: string, saveAs: string, command: string) {
         const match = REGEXP_SRCSETSIZE.exec(command);

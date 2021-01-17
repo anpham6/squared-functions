@@ -17,18 +17,19 @@ type Transformer = Internal.Document.Transformer;
 type ConfigOrTransformer = Internal.Document.ConfigOrTransformer;
 
 const isString = (value: any): value is string => !!value && typeof value === 'string';
+const isSourceMapInput = (value: SourceMapInput | SourceMapOutput): value is SourceMapInput => typeof (value as SourceMapInput).nextMap === 'function';
 
 abstract class Document extends Module implements IDocument {
     public static init(this: IFileManager, instance: IDocument, body: RequestBody) {}
     public static async using(this: IFileManager, instance: IDocument, file: ExternalAsset) {}
     public static async finalize(this: IFileManager, instance: IDocument, assets: ExternalAsset[]) {}
 
-    public static createSourceMap(sourcesContent: string, file?: ExternalAsset) {
+    public static createSourceMap(value: string, file?: ExternalAsset) {
         return Object.create({
             file,
-            sourcesContent,
+            code: value,
             output: new Map<string, SourceMapOutput>(),
-            "nextMap": function(this: SourceMapInput, name: string, map: SourceMap | string, code: string, includeContent = true) {
+            "nextMap": function(this: SourceMapInput, name: string, code: string, map: SourceMap | string) {
                 if (typeof map === 'string') {
                     try {
                         map = JSON.parse(map) as SourceMap;
@@ -38,13 +39,83 @@ abstract class Document extends Module implements IDocument {
                     }
                 }
                 if (typeof map === 'object' && map.mappings) {
+                    this.code = code;
                     this.map = map;
-                    this.output.set(name, { code, map, sourcesContent: includeContent ? this.sourcesContent : null });
+                    let mapName = name,
+                        i = 0;
+                    while (this.output.has(mapName)) {
+                        mapName = name + '_' + ++i;
+                    }
+                    this.output.set(mapName, { code, map });
                     return true;
                 }
                 return false;
             }
         }) as SourceMapInput;
+    }
+
+    public static writeSourceMap(localUri: string, sourceMap: SourceMapInput | SourceMapOutput, manager?: IFileManager) {
+        if (!sourceMap.map) {
+            return sourceMap.code;
+        }
+        let items: [string, SourceMapOutput][],
+            streamingContent: Undef<boolean>,
+            file: Undef<ExternalAsset>;
+        if (isSourceMapInput(sourceMap)) {
+            ({ file, streamingContent } = sourceMap);
+            const output = Array.from(sourceMap.output);
+            items = streamingContent ? output.slice(1) : [output.pop()!];
+            if (items.length === 1) {
+                streamingContent = false;
+            }
+        }
+        else {
+            items = [['', sourceMap]];
+        }
+        const basename = path.basename(localUri);
+        let code = '';
+        for (let i = 0, length = items.length; i < length; ++i) {
+            const [name, output] = items[i];
+            const last = i === length - 1;
+            const map = output.map;
+            const getSourceMappingURL = () => `\n//# sourceMappingURL=${mapFile}\n`;
+            const filename = (streamingContent ? name + '.' : '') + basename;
+            const mapFile = filename + '.map';
+            let found = false,
+                inlineMap = false;
+            if (last) {
+                map.file = basename;
+            }
+            if (code && (!map.sourcesContent || map.sourcesContent.length === 0 || !map.sourcesContent[0])) {
+                map.sourcesContent = [code];
+            }
+            code = output.code;
+            code = code.replace(/\n*(\/\*)?\s*(\/\/)?[#@] sourceMappingURL=(['"])?([^\s'"]*)\3\s*?(\*\/)?\n?/, (...capture) => {
+                found = true;
+                inlineMap = capture[4].startsWith('data:application/json');
+                return !inlineMap && (capture[2] && !capture[1] && !capture[5] || capture[1] && capture[5]) ? getSourceMappingURL() : capture[0];
+            });
+            if (!inlineMap && (last || streamingContent)) {
+                if (!found) {
+                    code += getSourceMappingURL();
+                }
+                try {
+                    const uri = path.join(path.dirname(localUri), mapFile);
+                    fs.writeFileSync(uri, JSON.stringify(map), 'utf8');
+                    if (manager) {
+                        manager.add(uri, file);
+                    }
+                }
+                catch (err) {
+                    if (manager) {
+                        manager.writeFail(['Unable to write source map', name], err);
+                    }
+                    continue;
+                }
+            }
+            output.code = code;
+        }
+        return code;
     }
 
     public readonly internalAssignUUID = '__assign__';
@@ -153,7 +224,7 @@ abstract class Document extends Module implements IDocument {
                         this.writeFail('Unable to load configuration', errorMessage(plugin, process, 'Invalid config'));
                     }
                     else {
-                        const output: TransformOutput = { ...options, baseConfig, outputConfig, writeFail };
+                        const output: TransformOutput = { ...options, outputConfig, writeFail };
                         const time = Date.now();
                         const next = (result: Undef<string>) => {
                             if (isString(result)) {
@@ -170,6 +241,7 @@ abstract class Document extends Module implements IDocument {
                             let context = require(plugin);
                             try {
                                 if (typeof baseConfig === 'function') {
+                                    output.baseConfig = outputConfig;
                                     next(await new Promise<Undef<string>>(resolve => baseConfig(context, code, output, resolve)));
                                 }
                                 else {
@@ -188,6 +260,7 @@ abstract class Document extends Module implements IDocument {
                                             continue;
                                         }
                                     }
+                                    output.baseConfig = baseConfig;
                                     next(await transformer(context, code, output));
                                 }
                             }
@@ -213,7 +286,7 @@ abstract class Document extends Module implements IDocument {
                         map = Array.from(output.values()).pop()!.map;
                     }
                 }
-                return { code, map, output };
+                return { code, map };
             }
         }
     }

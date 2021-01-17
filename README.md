@@ -360,7 +360,8 @@ Custom plugins can be installed from NPM or copied into your local workspace. Ex
 ```javascript
 // es5.js
 interface TransformOutput {
-    config?: StandardMap; // "transformer-output"
+    baseConfig?: StandardMap;
+    outputConfig?: StandardMap;
     sourceFile?: string;
     sourceMap?: SourceMapInput;
     sourcesRelativeTo?: string;
@@ -371,7 +372,7 @@ interface TransformOutput {
 // Custom inline and template functions use Promise "resolve" callbacks
 
 function (context, value, output, resolve) {
-    context.transform(value, output.config, function(err, result) {
+    context.transform(value, output.outputConfig, function(err, result) {
         if (!err && result) {
             resolve(result.code);
         }
@@ -389,11 +390,11 @@ The same concept can be used inline anywhere using a &lt;script&gt; tag with the
 
 <script type="text/template" data-chrome-template="js::@babel/core::es5-example">
 function (context, value, output, resolve) {
-    const options = { ...output.config, presets: ['@babel/preset-env'], sourceMaps: true }; // <https://babeljs.io/docs/en/options>
+    const options = { ...output.outputConfig, presets: ['@babel/preset-env'], sourceMaps: true }; // <https://babeljs.io/docs/en/options>
     const result = context.transformSync(value, options);
     if (result) {
         if (output.sourceMap && result.map) {
-            output.sourceMap.nextMap('babel', result.map, result.code);
+            output.sourceMap.nextMap('babel', result.code, result.map);
         }
         resolve(result.code);
     }

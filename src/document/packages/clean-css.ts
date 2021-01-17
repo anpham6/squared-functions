@@ -20,7 +20,7 @@ export default async function transform(context: any, value: string, output: Tra
     const result = new context(baseConfig).minify(value, map);
     if (result) {
         if (sourceMap && result.sourceMap) {
-            sourceMap.nextMap('clean-css', result.sourceMap, result.styles);
+            sourceMap.nextMap('clean-css', result.styles, result.sourceMap);
         }
         return result.styles;
     }
