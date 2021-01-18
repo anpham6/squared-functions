@@ -1,20 +1,13 @@
-import type { ExtendedSettings, ExternalAsset, IDocument, IFileManager, Internal, RequestBody } from '../types/lib';
+import type { IDocument, IFileManager } from '../types/lib';
+import type { ExternalAsset } from '../types/lib/asset';
+import type { ConfigOrTransformer, PluginConfig, SourceMap, SourceMapInput, SourceMapOutput, TransformOutput, TransformResult, Transformer } from '../types/lib/document';
+import type { DocumentModule } from '../types/lib/module';
+import type { RequestBody } from '../types/lib/node';
 
 import path = require('path');
 import fs = require('fs-extra');
 
 import Module from '../module';
-
-type DocumentModule = ExtendedSettings.DocumentModule;
-
-type TransformOutput = Internal.Document.TransformOutput;
-type TransformResult = Internal.Document.TransformResult;
-type SourceMap = Internal.Document.SourceMap;
-type SourceMapInput = Internal.Document.SourceMapInput;
-type SourceMapOutput = Internal.Document.SourceMapOutput;
-type PluginConfig = Internal.Document.PluginConfig;
-type Transformer = Internal.Document.Transformer;
-type ConfigOrTransformer = Internal.Document.ConfigOrTransformer;
 
 const isString = (value: any): value is string => !!value && typeof value === 'string';
 const isSourceMapInput = (value: SourceMapInput | SourceMapOutput): value is SourceMapInput => typeof (value as SourceMapInput).nextMap === 'function';
@@ -73,21 +66,30 @@ abstract class Document extends Module implements IDocument {
             items = [['unknown', sourceMap]];
         }
         const basename = path.basename(localUri);
-        let code = '';
+        let code = '',
+            sourcesContent: Null<Null<string>[]> = null;
         for (let i = 0, length = items.length; i < length; ++i) {
             const [name, output] = items[i];
             const last = i === length - 1;
             const map = output.map;
-            const getSourceMappingURL = () => `\n//# sourceMappingURL=${mapFile}\n`;
             const filename = (streamingContent ? name + '.' : '') + basename;
             const mapFile = filename + '.map';
+            const getSourceMappingURL = () => `\n//# sourceMappingURL=${mapFile}\n`;
             let found = false,
                 inlineMap = false;
             if (last) {
                 map.file = basename;
             }
-            if (code && (!map.sourcesContent || map.sourcesContent.length === 0 || !map.sourcesContent[0])) {
-                map.sourcesContent = [code];
+            if (streamingContent) {
+                const content = map.sourcesContent;
+                if (!content || content.length === 0 || !content[0]) {
+                    if (sourcesContent) {
+                        map.sourcesContent = sourcesContent;
+                    }
+                }
+                else {
+                    sourcesContent ||= content;
+                }
             }
             code = output.code;
             code = code.replace(/\n*(\/\*)?\s*(\/\/)?[#@] sourceMappingURL=(['"])?([^\s'"]*)\3\s*?(\*\/)?\n?/, (...capture) => {

@@ -1,5 +1,4 @@
-type TransformOutput = functions.Internal.Document.TransformOutput;
-type SourceMap = functions.Internal.Document.SourceMap;
+import type { SourceMap, TransformOutput } from '../../types/lib/document';
 
 export default async function transform(context: any, value: string, output: TransformOutput) {
     const { baseConfig = {}, outputConfig = {}, sourceMap, external } = output;

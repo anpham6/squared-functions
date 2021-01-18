@@ -1,10 +1,8 @@
-import type { IModule, Internal } from '../../../types/lib';
-import type { OCIStorageCredential } from '../index';
+import type { IModule } from '../../../types/lib';
 
-import { setStorageCredential } from '../index';
+import type { DownloadCallback, DownloadHost } from '../../index';
 
-type DownloadHost = Internal.Cloud.DownloadHost;
-type DownloadCallback = Internal.Cloud.DownloadCallback;
+import { OCIStorageCredential, setStorageCredential } from '../index';
 
 export default function download(this: IModule, credential: OCIStorageCredential, service = 'oci'): DownloadCallback {
     setStorageCredential(credential);

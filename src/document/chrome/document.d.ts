@@ -1,6 +1,10 @@
 
-import type { DocumentConstructor, ExtendedSettings, ExternalAsset, IDocument, RequestBody } from '../../types/lib';
 import type { ChromeAsset } from '../../types/lib/chrome';
+
+import type { DocumentConstructor, IDocument } from '../../types/lib';
+import type { ExternalAsset } from '../../types/lib/asset';
+import type { DocumentModule } from '../../types/lib/module';
+import type { RequestBody } from '../../types/lib/node';
 
 export interface DocumentAsset extends ExternalAsset, ChromeAsset {
     srcSet?: string[];
@@ -21,5 +25,5 @@ export interface IChromeDocument extends IDocument {
 }
 
 export interface ChromeDocumentConstructor extends DocumentConstructor {
-    new(body: RequestBody, settings?: ExtendedSettings.DocumentModule, productionRelease?: boolean): IChromeDocument;
+    new(body: RequestBody, settings?: DocumentModule, productionRelease?: boolean): IChromeDocument;
 }

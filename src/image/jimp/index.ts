@@ -1,4 +1,7 @@
-import type { ExternalAsset, FileManagerCompleteAsyncTaskCallback, FileManagerFinalizeImageCallback, FileManagerPerformAsyncTaskMethod, IFileManager, ImageHandler, Internal } from '../../types/lib';
+import type { IFileManager, ImageHandler } from '../../types/lib';
+import type { ExternalAsset, FileData } from '../../types/lib/asset';
+import type { CompleteAsyncTaskCallback, FinalizeImageCallback, PerformAsyncTaskMethod } from '../../types/lib/filemanager';
+import type { CropData, QualityData, ResizeData, RotateData } from '../../types/lib/image';
 
 import path = require('path');
 import fs = require('fs');
@@ -7,15 +10,9 @@ import jimp = require('jimp');
 
 import Image from '../index';
 
-type FileData = Internal.FileData;
-type ResizeData = Internal.Image.ResizeData;
-type CropData = Internal.Image.CropData;
-type RotateData = Internal.Image.RotateData;
-type QualityData = Internal.Image.QualityData;
-
 const getBuffer = (file: ExternalAsset) => (file.buffer as unknown) as string || file.localUri!;
 
-class Jimp extends Image implements ImageHandler<jimp> {
+class Jimp extends Image implements ImageHandler<IFileManager, jimp> {
     public static async resolveMime(this: IFileManager, data: FileData) {
         const file = data.file;
         const img = await jimp.read(getBuffer(file));
@@ -36,7 +33,7 @@ class Jimp extends Image implements ImageHandler<jimp> {
         return false;
     }
 
-    public static using(this: IFileManager, data: FileData, command: string, callback?: FileManagerFinalizeImageCallback) {
+    public static using(this: IFileManager, data: FileData, command: string, callback?: FinalizeImageCallback) {
         const file = data.file;
         const localUri = file.localUri!;
         const mimeType = data.mimeType || file.mimeType;
@@ -81,7 +78,7 @@ class Jimp extends Image implements ImageHandler<jimp> {
                         if (command.includes('@')) {
                             delete file.buffer;
                         }
-                        const proxy = new Jimp(img, data, command, finalAs);
+                        const proxy = new Jimp(this, img, data, command, finalAs);
                         proxy.method();
                         proxy.resize();
                         proxy.crop();
@@ -135,7 +132,7 @@ class Jimp extends Image implements ImageHandler<jimp> {
     public opacityValue = NaN;
     public readonly moduleName = 'jimp';
 
-    constructor(public instance: jimp, public data: FileData, public command: string, public finalAs?: string) {
+    constructor(public host: IFileManager, public instance: jimp, public data: FileData, public command: string, public finalAs?: string) {
         super();
         this.resizeData = this.parseResize(command);
         this.cropData = this.parseCrop(command);
@@ -243,7 +240,7 @@ class Jimp extends Image implements ImageHandler<jimp> {
             }
         }
     }
-    rotate(performAsyncTask?: FileManagerPerformAsyncTaskMethod, callback?: FileManagerCompleteAsyncTaskCallback) {
+    rotate(performAsyncTask?: PerformAsyncTaskMethod, callback?: CompleteAsyncTaskCallback) {
         if (this.rotateData) {
             const { values, color } = this.rotateData;
             if (!isNaN(color)) {
@@ -281,7 +278,7 @@ class Jimp extends Image implements ImageHandler<jimp> {
             }
         }
     }
-    write(output: string, startTime?: number, callback?: FileManagerFinalizeImageCallback) {
+    write(output: string, startTime?: number, callback?: FinalizeImageCallback) {
         this.instance.write(output, err => {
             if (!err) {
                 this.finalize(output, (error: Null<Error>, result: string) => {

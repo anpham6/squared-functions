@@ -1,5 +1,9 @@
-import type { CloudFeatures, CloudFunctions, ExtendedSettings, ExternalAsset, ICloud, IFileManager, Internal } from '../types/lib';
 import type { CloudDatabase, CloudService, CloudStorage, CloudStorageAction, CloudStorageDownload, CloudStorageUpload } from '../types/lib/squared';
+
+import type { ICloud, ICloudServiceClient, IFileManager, IModule, ScopeOrigin } from '../types/lib';
+import type { ExternalAsset } from '../types/lib/asset';
+import type { CacheTimeout, CloudFeatures, CloudFunctions, DownloadData, FinalizeResult, UploadData } from '../types/lib/cloud';
+import type { CloudModule } from '../types/lib/module';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -8,18 +12,19 @@ import uuid = require('uuid');
 
 import Module from '../module';
 
-type CloudModule = ExtendedSettings.CloudModule;
+export interface CloudScopeOrigin extends ScopeOrigin<IFileManager, ICloud> {
+    bucketGroup: string;
+    localStorage: Map<ExternalAsset, CloudStorageUpload>;
+    compressed: ExternalAsset[];
+}
 
-type ServiceClient = Internal.Cloud.ServiceClient;
-type UploadHost = Internal.Cloud.UploadHost;
-type UploadCallback = Internal.Cloud.UploadCallback;
-type DownloadHost = Internal.Cloud.DownloadHost;
-type DownloadCallback = Internal.Cloud.DownloadCallback;
-type FinalizeState = Internal.Cloud.FinalizeState;
-type FinalizeResult = Internal.Cloud.FinalizeResult;
-type CacheTimeout = Internal.Cloud.CacheTimeout;
+export type ServiceHost<T> = (this: IModule, credential: unknown, service?: string, sdk?: string) => T;
+export type UploadCallback = (data: UploadData, success: (value: string) => void) => Promise<void>;
+export type DownloadCallback = (data: DownloadData, success: (value: Null<Buffer | string>) => void) => Promise<void>;
+export type UploadHost = ServiceHost<UploadCallback>;
+export type DownloadHost = ServiceHost<DownloadCallback>;
 
-const CLOUD_SERVICE: ObjectMap<ServiceClient> = {};
+const CLOUD_SERVICE: ObjectMap<ICloudServiceClient> = {};
 const CLOUD_UPLOAD: ObjectMap<UploadHost> = {};
 const CLOUD_DOWNLOAD: ObjectMap<DownloadHost> = {};
 const CLOUD_USERCACHE: ObjectMap<ObjectMap<[number, any[]]>> = {};
@@ -61,19 +66,19 @@ function getFiles(cloud: ICloud, file: ExternalAsset, data: CloudStorageUpload) 
 const assignFilename = (value: string) => uuid.v4() + (path.extname(value) || '');
 
 class Cloud extends Module implements ICloud {
-    public static uploadAsset(this: IFileManager, state: FinalizeState, file: ExternalAsset, mimeType = file.mimeType, uploadDocument?: boolean) {
-        const { cloud, bucketGroup } = state;
+    public static uploadAsset(this: IFileManager, state: CloudScopeOrigin, file: ExternalAsset, mimeType = file.mimeType, uploadDocument?: boolean) {
+        const { instance, bucketGroup } = state;
         const tasks: Promise<void>[] = [];
         for (const storage of file.cloudStorage!) {
-            if (cloud.hasStorage('upload', storage)) {
+            if (instance.hasStorage('upload', storage)) {
                 const upload = storage.upload!;
-                const active = storage === cloud.getStorage('upload', file.cloudStorage);
+                const active = storage === instance.getStorage('upload', file.cloudStorage);
                 if (active && upload.localStorage === false) {
                     state.localStorage.set(file, upload);
                 }
                 let uploadHandler: UploadCallback;
                 try {
-                    uploadHandler = cloud.getUploadHandler(storage.service, cloud.getCredential(storage));
+                    uploadHandler = instance.getUploadHandler(storage.service, instance.getCredential(storage));
                 }
                 catch (err) {
                     this.writeFail(['Upload function not supported', storage.service], err);
@@ -82,7 +87,7 @@ class Cloud extends Module implements ICloud {
                 const bucket = storage.bucket;
                 tasks.push(new Promise<void>(resolve => {
                     const uploadTasks: Promise<string>[] = [];
-                    getFiles(cloud, file, upload).forEach((group, index) => {
+                    getFiles(instance, file, upload).forEach((group, index) => {
                         for (const localUri of group) {
                             if (index === 0 || this.has(localUri)) {
                                 const fileGroup: [Buffer | string, string][] = [];
@@ -132,8 +137,8 @@ class Cloud extends Module implements ICloud {
                             if (!uploadDocument) {
                                 for (const item of result) {
                                     if (item.status === 'fulfilled' && item.value) {
-                                        for (const { instance } of this.Document) {
-                                            if (instance.cloudUpload && await instance.cloudUpload(state, file, item.value, active)) {
+                                        for (const { instance: document } of this.Document) {
+                                            if (document.cloudUpload && await document.cloudUpload(state, file, item.value, active)) {
                                                 break;
                                             }
                                         }
@@ -153,7 +158,7 @@ class Cloud extends Module implements ICloud {
         const compressed: ExternalAsset[] = [];
         const localStorage = new Map<ExternalAsset, CloudStorageUpload>();
         const bucketGroup = uuid.v4();
-        const state: FinalizeState = { manager: this, cloud, bucketGroup, localStorage, compressed };
+        const state: CloudScopeOrigin = { host: this, instance: cloud, bucketGroup, localStorage, compressed };
         const bucketMap: ObjectMap<Map<string, PlainObject>> = {};
         const downloadMap: ObjectMap<Set<string>> = {};
         const rawFiles: ExternalAsset[] = [];
@@ -381,7 +386,7 @@ class Cloud extends Module implements ICloud {
         }
     }
     createBucket(service: string, credential: PlainObject, bucket: string, publicRead?: boolean): Promise<boolean> {
-        const createHandler = (CLOUD_SERVICE[service] ||= require('../cloud/' + service) as ServiceClient).createBucket?.bind(this);
+        const createHandler = (CLOUD_SERVICE[service] ||= require('../cloud/' + service) as ICloudServiceClient).createBucket?.bind(this);
         if (createHandler) {
             return createHandler.call(this, credential, bucket, publicRead);
         }
@@ -389,7 +394,7 @@ class Cloud extends Module implements ICloud {
         return Promise.resolve(false);
     }
     deleteObjects(service: string, credential: PlainObject, bucket: string): Promise<void> {
-        const deleteHandler = (CLOUD_SERVICE[service] ||= require('../cloud/' + service) as ServiceClient).deleteObjects?.bind(this);
+        const deleteHandler = (CLOUD_SERVICE[service] ||= require('../cloud/' + service) as ICloudServiceClient).deleteObjects?.bind(this);
         if (deleteHandler) {
             return deleteHandler.call(this, credential, bucket, service);
         }
@@ -476,7 +481,7 @@ class Cloud extends Module implements ICloud {
     }
     hasCredential(feature: CloudFeatures, data: CloudService) {
         try {
-            const client = CLOUD_SERVICE[data.service] ||= require('../cloud/' + data.service) as ServiceClient;
+            const client = CLOUD_SERVICE[data.service] ||= require('../cloud/' + data.service) as ICloudServiceClient;
             const credential = this.getCredential(data);
             switch (feature) {
                 case 'storage':

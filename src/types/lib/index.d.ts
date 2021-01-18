@@ -2,210 +2,21 @@
 
 /* eslint no-shadow: "off" */
 
-import type { BundleAction, CloudDatabase, CloudService, CloudStorage, CloudStorageAdmin, CloudStorageDownload, CloudStorageUpload, CompressFormat, FileAsset, RequestData, ResponseData } from './squared';
-import type * as chrome from './chrome';
+import type { CloudDatabase, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload, CompressFormat, ResponseData } from './squared';
+
+import type { ExternalAsset, FileData, FileOutput } from './asset';
+import type { CloudFeatures, CloudFunctions, FinalizeResult } from './cloud';
+import type { CompressTryFileMethod, CompressTryImageCallback } from './compress';
+import type { ConfigOrTransformer, DocumentData, PluginConfig, SourceMapInput, SourceMapOutput, TransformOutput, TransformResult } from './document';
+import type { CompleteAsyncTaskCallback, FinalizeImageCallback, InstallData, PerformAsyncTaskMethod, QueueImageMethod } from './filemanager';
+import type { CropData, QualityData, ResizeData, RotateData } from './image';
+import type { CloudModule, DocumentModule } from './module';
+import type { LOG_TYPE, LogMessageOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
+import type { PermissionSettings, RequestBody, Settings } from './node';
 
 import type { WriteStream } from 'fs';
-import type { BackgroundColor, ForegroundColor } from 'chalk';
-
-type BoolString = boolean | string;
-
-type FileData = functions.Internal.FileData;
-type LogMessageOptions = functions.Internal.LogMessageOptions;
-type FinalizeState = functions.Internal.Cloud.FinalizeState;
-type ResizeData = functions.Internal.Image.ResizeData;
-type CropData = functions.Internal.Image.CropData;
-type RotateData = functions.Internal.Image.RotateData;
-type QualityData = functions.Internal.Image.QualityData;
-type SourceMapInput = functions.Internal.Document.SourceMapInput;
-type TransformResult = functions.Internal.Document.TransformResult;
-type ConfigOrTransformer = functions.Internal.Document.ConfigOrTransformer;
 
 declare namespace functions {
-    type CloudFeatures = "storage" | "database";
-    type CloudFunctions = "upload" | "download";
-    type ModuleFormatMessageMethod = (type: Internal.LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options?: LogMessageOptions) => void;
-    type ModuleWriteFailMethod = (value: string | [string, string], message?: Null<Error>) => void;
-    type FileManagerPerformAsyncTaskMethod = () => void;
-    type FileManagerQueueImageMethod = (data: FileData, ouputType: string, saveAs: string, command?: string) => Undef<string>;
-    type FileManagerFinalizeImageCallback<T = void> = (err: Null<Error>, data: Internal.Image.OutputData) => T;
-    type FileManagerCompleteAsyncTaskCallback = (err?: Null<Error>, value?: unknown, parent?: ExternalAsset) => void;
-    type CompressTryFileMethod = (uri: string, data: CompressFormat, performAsyncTask?: Null<FileManagerPerformAsyncTaskMethod>, callback?: FileManagerCompleteAsyncTaskCallback) => void;
-    type CompressTryImageCallback = (value: unknown) => void;
-
-    namespace Internal {
-        namespace Image {
-            interface OutputData extends FileData {
-                output: string;
-                command: string;
-                baseDirectory?: string;
-                errors?: string[];
-            }
-
-            interface RotateData {
-                values: number[];
-                color: number;
-            }
-
-            interface ResizeData extends Dimension {
-                mode: string;
-                color: number;
-                align: Undef<string>[];
-                algorithm?: string;
-            }
-
-            interface CropData extends Point, Dimension {}
-
-            interface QualityData {
-                value: number;
-                nearLossless: number;
-                preset?: string;
-            }
-        }
-
-        namespace Document {
-            interface TransformOutput<T = StandardMap, U = StandardMap> {
-                baseConfig?: T;
-                outputConfig?: U;
-                sourceFile?: string;
-                sourceMap?: SourceMapInput;
-                sourcesRelativeTo?: string;
-                external?: PlainObject;
-                writeFail?: ModuleWriteFailMethod;
-            }
-
-            interface TransformResult {
-                code: string;
-                map?: SourceMap;
-            }
-
-            interface SourceMapInput extends TransformResult {
-                output: Map<string, SourceMapOutput>;
-                file?: ExternalAsset;
-                streamingContent?: boolean;
-                nextMap: (name: string, code: string, map: SourceMap | string) => boolean;
-            }
-
-            interface SourceMapOutput extends Required<TransformResult> {}
-
-            interface SourceMap {
-                version: number;
-                sources: string[];
-                names: string[];
-                mappings: string;
-                file?: string;
-                sourceRoot?: string;
-                sourcesContent?: Null<string>[];
-            }
-
-            type Transformer = FunctionType<Undef<string>>;
-            type ConfigOrTransformer = StandardMap | Transformer;
-            type PluginConfig = [string, Undef<ConfigOrTransformer>, Undef<StandardMap>] | [];
-        }
-
-        namespace Cloud {
-            interface CacheTimeout {
-                aws?: number;
-                azure?: number;
-                gcloud?: number;
-                ibm?: number;
-                oci?: number;
-            }
-
-            interface FunctionData {
-                admin?: CloudStorageAdmin;
-                bucket?: string;
-                bucketGroup?: string;
-            }
-
-            interface UploadData extends FunctionData {
-                upload: CloudStorageUpload;
-                buffer: Buffer;
-                localUri: string;
-                fileGroup: [Buffer | string, string][];
-                filename?: string;
-                mimeType?: string;
-            }
-
-            interface DownloadData extends FunctionData {
-                download: CloudStorageDownload;
-            }
-
-            interface FinalizeState {
-                manager: IFileManager;
-                cloud: ICloud;
-                bucketGroup: string;
-                localStorage: Map<ExternalAsset, CloudStorageUpload>;
-                compressed: ExternalAsset[];
-            }
-
-            interface ServiceClient {
-                validateStorage?(credential: PlainObject, data?: CloudService): boolean;
-                validateDatabase?(credential: PlainObject, data?: CloudService): boolean;
-                createStorageClient?<T>(this: IModule, credential: unknown, service?: string): T;
-                createDatabaseClient?<T>(this: IModule, credential: unknown, data?: CloudService): T;
-                createBucket?(this: IModule, credential: unknown, bucket: string, publicRead?: boolean, service?: string, sdk?: string): Promise<boolean>;
-                deleteObjects?(this: IModule, credential: unknown, bucket: string, service?: string, sdk?: string): Promise<void>;
-                executeQuery?(this: ICloud, credential: unknown, data: CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
-            }
-
-            interface FinalizeResult {
-                compressed: ExternalAsset[];
-            }
-
-            type ServiceHost<T> = (this: IModule, credential: unknown, service?: string, sdk?: string) => T;
-            type UploadHost = ServiceHost<UploadCallback>;
-            type DownloadHost = ServiceHost<DownloadCallback>;
-            type UploadCallback = (data: UploadData, success: (value: string) => void) => Promise<void>;
-            type DownloadCallback = (data: DownloadData, success: (value: Null<Buffer | string>) => void) => Promise<void>;
-        }
-
-        interface InstallData<T, U> {
-            instance: T;
-            constructor: U;
-            params: unknown[];
-        }
-
-        interface DocumentData {
-            document?: string | string[];
-        }
-
-        interface FileData {
-            file: ExternalAsset;
-            mimeType?: string | false;
-        }
-
-        interface FileOutput {
-            pathname: string;
-            localUri: string;
-        }
-
-        enum LOG_TYPE {
-            UNKNOWN = 0,
-            SYSTEM = 1,
-            NODE = 2,
-            PROCESS = 4,
-            COMPRESS = 8,
-            WATCH = 16,
-            CLOUD_STORAGE = 32,
-            CLOUD_DATABASE = 64,
-            TIME_ELAPSED = 128
-        }
-
-        interface LogMessageOptions {
-            titleColor?: typeof ForegroundColor;
-            titleBgColor?: typeof BackgroundColor;
-            valueColor?: typeof ForegroundColor;
-            valueBgColor?: typeof BackgroundColor;
-            hintColor?: typeof ForegroundColor;
-            hintBgColor?: typeof BackgroundColor;
-            messageColor?: typeof ForegroundColor;
-            messageBgColor?: typeof BackgroundColor;
-        }
-
-        type LogValue = string | [string, Optional<string>];
-    }
-
     interface ICompress extends IModule {
         gzipLevel: number;
         brotliQuality: number;
@@ -230,45 +41,26 @@ declare namespace functions {
 
     interface ImageConstructor extends ModuleConstructor {
         resolveMime(this: IFileManager, data: FileData): Promise<boolean>;
-        using(this: IFileManager, data: FileData, command: string, callback?: FileManagerFinalizeImageCallback): void;
+        using(this: IFileManager, data: FileData, command: string, callback?: FinalizeImageCallback): void;
         new(): IImage;
     }
 
     const Image: ImageConstructor;
 
-    class ImageHandler<T> {
-        instance: T;
-        command: string
-        resizeData?: ResizeData;
-        cropData?: CropData;
-        rotateData?: RotateData;
-        qualityData?: QualityData;
-        opacityValue: number;
-        method(): void;
-        resize(): void;
-        crop(): void;
-        opacity(): void;
-        quality(): void;
-        rotate(performAsyncTask?: FileManagerPerformAsyncTaskMethod, callback?: FileManagerCompleteAsyncTaskCallback): void;
-        write(output: string, startTime?: number, callback?: FileManagerFinalizeImageCallback): void;
-        finalize(output: string, callback: (err: Null<Error>, result: string) => void): void;
-        constructor(instance: T, data: FileData, command: string, finalAs?: string);
-    }
-
     interface ITask extends IModule {
-        module: ExtendedSettings.DocumentModule;
+        module: DocumentModule;
         execute?(manager: IFileManager, task: PlainObject, callback: (value?: unknown) => void): void;
     }
 
     interface TaskConstructor extends ModuleConstructor {
         using(this: IFileManager, task: ITask, assets: ExternalAsset[], beforeStage?: boolean): Promise<void>;
-        new(module: ExtendedSettings.DocumentModule): ITask;
+        new(module: DocumentModule): ITask;
     }
 
     const Task: TaskConstructor;
 
     interface ICloud extends IModule {
-        settings: ExtendedSettings.CloudModule;
+        settings: CloudModule;
         database: CloudDatabase[];
         compressFormat: Set<string>;
         cacheExpires: number;
@@ -283,33 +75,43 @@ declare namespace functions {
         setDatabaseResult(service: string, credential: unknown, queryString: string, result: any[], cacheKey?: string): void;
         hasCredential(feature: CloudFeatures, data: CloudService): boolean;
         getCredential(data: CloudService): PlainObject;
-        getUploadHandler(service: string, credential: unknown): Internal.Cloud.UploadCallback;
-        getDownloadHandler(service: string, credential: unknown): Internal.Cloud.DownloadCallback;
+        getUploadHandler(service: string, credential: unknown): FunctionType<Promise<void>>;
+        getDownloadHandler(service: string, credential: unknown): FunctionType<Promise<void>>;
     }
 
     interface CloudConstructor extends ModuleConstructor {
-        finalize(this: IFileManager, cloud: ICloud): Promise<Internal.Cloud.FinalizeResult>;
-        uploadAsset(this: IFileManager, cloud: ICloud, state: FinalizeState, file: ExternalAsset, mimeType?: string, uploadDocument?: boolean): Promise<void>;
-        new(settings: ExtendedSettings.CloudModule): ICloud;
+        finalize<T = IFileManager, U = ICloud>(this: T, cloud: U): Promise<FinalizeResult>;
+        uploadAsset<T = IFileManager, U = ICloud>(this: T, cloud: U, state: ScopeOrigin<T, U>, file: ExternalAsset, mimeType?: string, uploadDocument?: boolean): Promise<void>;
+        new(settings: CloudModule): ICloud;
     }
 
     const Cloud: CloudConstructor;
 
-    interface IDocument extends IModule {
-        module: ExtendedSettings.DocumentModule;
+    interface ICloudServiceClient {
+        validateStorage?(credential: PlainObject, data?: CloudService): boolean;
+        validateDatabase?(credential: PlainObject, data?: CloudService): boolean;
+        createStorageClient?<T>(this: IModule, credential: unknown, service?: string): T;
+        createDatabaseClient?<T>(this: IModule, credential: unknown, data?: CloudService): T;
+        createBucket?(this: IModule, credential: unknown, bucket: string, publicRead?: boolean, service?: string, sdk?: string): Promise<boolean>;
+        deleteObjects?(this: IModule, credential: unknown, bucket: string, service?: string, sdk?: string): Promise<void>;
+        executeQuery?(this: ICloud, credential: unknown, data: CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
+    }
+
+    interface IDocument<T = IFileManager, U = ICloud> extends IModule {
+        module: DocumentModule;
         templateMap?: StandardMap;
         readonly moduleName: string;
         readonly internalAssignUUID: string;
-        findConfig(settings: StandardMap, name: string, type?: string): Internal.Document.PluginConfig;
+        findConfig(settings: StandardMap, name: string, type?: string): PluginConfig;
         loadConfig(data: StandardMap, name: string): Optional<ConfigOrTransformer>;
-        transform(type: string, code: string, format: string, options?: Internal.Document.TransformOutput): Promise<Void<TransformResult>>;
+        transform(type: string, code: string, format: string, options?: TransformOutput): Promise<Void<TransformResult>>;
         formatContent?(manager: IFileManager, file: ExternalAsset, content: string): Promise<string>;
-        imageQueue?: FileManagerQueueImageMethod;
-        imageFinalize?: FileManagerFinalizeImageCallback<boolean>;
-        cloudInit?(state: FinalizeState): void;
-        cloudObject?(state: FinalizeState, file: ExternalAsset): boolean;
-        cloudUpload?(state: FinalizeState, file: ExternalAsset, url: string, active: boolean): Promise<boolean>;
-        cloudFinalize?(state: FinalizeState): Promise<void>;
+        imageQueue?: QueueImageMethod;
+        imageFinalize?: FinalizeImageCallback<boolean>;
+        cloudInit?(state: ScopeOrigin<T, U>): void;
+        cloudObject?(state: ScopeOrigin<T, U>, file: ExternalAsset): boolean;
+        cloudUpload?(state: ScopeOrigin<T, U>, file: ExternalAsset, url: string, active: boolean): Promise<boolean>;
+        cloudFinalize?(state: ScopeOrigin<T, U>): Promise<void>;
     }
 
     interface DocumentConstructor extends ModuleConstructor {
@@ -317,8 +119,8 @@ declare namespace functions {
         using(this: IFileManager, instance: IDocument, file: ExternalAsset): Promise<void>;
         finalize(this: IFileManager, instance: IDocument, assets: ExternalAsset[]): Promise<void>;
         createSourceMap(code: string, file?: ExternalAsset): SourceMapInput;
-        writeSourceMap(localUri: string, data: SourceMapInput | Internal.Document.SourceMapOutput, manager?: IFileManager): string;
-        new(module: ExtendedSettings.DocumentModule, templateMap?: Undef<StandardMap>, ...args: unknown[]): IDocument;
+        writeSourceMap(localUri: string, data: SourceMapInput | SourceMapOutput, manager?: IFileManager): string;
+        new(module: DocumentModule, templateMap?: Undef<StandardMap>, ...args: unknown[]): IDocument;
     }
 
     const Document: DocumentConstructor;
@@ -351,8 +153,8 @@ declare namespace functions {
     interface IFileManager extends IModule {
         delayed: number;
         cleared: boolean;
-        Document: Internal.InstallData<IDocument, DocumentConstructor>[];
-        Task: Internal.InstallData<ITask, TaskConstructor>[];
+        Document: InstallData<IDocument, DocumentConstructor>[];
+        Task: InstallData<ITask, TaskConstructor>[];
         Cloud: Null<ICloud>;
         Watch: Null<IWatch>;
         Image: Null<Map<string, ImageConstructor>>;
@@ -375,13 +177,13 @@ declare namespace functions {
         delete(value: string, emptyDir?: boolean): void;
         has(value: Undef<string>): value is string;
         replace(file: ExternalAsset, replaceWith: string, mimeType?: string): void;
-        performAsyncTask: FileManagerPerformAsyncTaskMethod;
+        performAsyncTask: PerformAsyncTaskMethod;
         removeAsyncTask(): void;
-        completeAsyncTask: FileManagerCompleteAsyncTaskCallback;
+        completeAsyncTask: CompleteAsyncTaskCallback;
         performFinalize(): void;
-        setLocalUri(file: ExternalAsset): Internal.FileOutput;
+        setLocalUri(file: ExternalAsset): FileOutput;
         getRelativeUri(file: ExternalAsset, filename?: string): string;
-        assignUUID(data: Internal.DocumentData, attr: string, target?: any): Undef<string>;
+        assignUUID(data: DocumentData, attr: string, target?: any): Undef<string>;
         findAsset(uri: string): Undef<ExternalAsset>;
         removeCwd(value: Undef<string>): string;
         getUTF8String(file: ExternalAsset, localUri?: string): string;
@@ -390,8 +192,8 @@ declare namespace functions {
         getBundleContent(localUri: string): Undef<string>;
         writeBuffer(file: ExternalAsset): Null<Buffer>;
         compressFile(file: ExternalAsset): Promise<unknown>;
-        queueImage: FileManagerQueueImageMethod;
-        finalizeImage: FileManagerFinalizeImageCallback;
+        queueImage: QueueImageMethod;
+        finalizeImage: FinalizeImageCallback;
         finalizeAsset(data: FileData, parent?: ExternalAsset): Promise<void>;
         processAssets(emptyDir?: boolean): void;
         finalize(): Promise<void>;
@@ -407,7 +209,7 @@ declare namespace functions {
     const FileManager: FileManagerConstructor;
 
     interface IModule {
-        logType: typeof Internal.LOG_TYPE;
+        logType: typeof LOG_TYPE;
         tempDir: string;
         readonly major: number;
         readonly minor: number;
@@ -417,7 +219,7 @@ declare namespace functions {
         supported(major: number, minor: number, patch?: number): boolean;
         getTempDir(uuidDir?: boolean, filename?: string): string;
         formatMessage: ModuleFormatMessageMethod;
-        formatFail(type: Internal.LOG_TYPE, title: string, value: Internal.LogValue, message?: Null<Error>): void;
+        formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: Null<Error>): void;
         writeFail: ModuleWriteFailMethod;
         writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions): void;
     }
@@ -445,88 +247,29 @@ declare namespace functions {
 
     const Module: ModuleConstructor;
 
-    interface PermissionSettings {
-        disk_read?: BoolString;
-        disk_write?: BoolString;
-        unc_read?: BoolString;
-        unc_write?: BoolString;
+    interface ScopeOrigin<T = IModule, U = IModule> {
+        host: T;
+        instance: U;
     }
 
-    interface Settings extends PermissionSettings {
-        apiVersion?: string;
-        compress?: ExtendedSettings.CompressModule;
-        image?: ExtendedSettings.ImageModule;
-        document?: ObjectMap<ExtendedSettings.DocumentModule>;
-        task?: ObjectMap<ExtendedSettings.TaskModule>;
-        watch?: ExtendedSettings.WatchModule;
-        cloud?: ExtendedSettings.CloudModule;
-        logger?: ExtendedSettings.LoggerModule;
-    }
-
-    namespace ExtendedSettings {
-        interface HandlerModule {
-            handler?: string;
-        }
-
-        interface DocumentModule extends HandlerModule {
-            eval_function?: boolean;
-            eval_template?: boolean;
-            settings?: PlainObject;
-        }
-
-        interface TaskModule extends HandlerModule {
-            settings?: PlainObject;
-        }
-
-        interface ImageModule extends HandlerModule, StringMap {}
-
-        interface CompressModule {
-            gzip_level?: NumString;
-            brotli_quality?: NumString;
-            chunk_size?: NumString;
-            tinify_api_key?: string;
-        }
-
-        interface CloudModule {
-            cache?: Partial<Internal.Cloud.CacheTimeout>;
-            aws?: ObjectMap<StringMap>;
-            azure?: ObjectMap<StringMap>;
-            gcloud?: ObjectMap<StringMap>;
-            ibm?: ObjectMap<StringMap>;
-            oci?: ObjectMap<StringMap>;
-        }
-
-        interface WatchModule {
-            interval?: number;
-        }
-
-        interface LoggerModule {
-            unknown?: boolean;
-            system?: boolean;
-            node?: boolean;
-            process?: boolean;
-            compress?: boolean;
-            watch?: boolean;
-            cloud_storage?: boolean;
-            cloud_database?: boolean;
-            time_elapsed?: boolean;
-        }
-    }
-
-    interface RequestBody extends RequestData, chrome.RequestData {
-        assets: ExternalAsset[];
-    }
-
-    interface ExternalAsset extends FileAsset, BundleAction {
-        localUri?: string;
-        relativeUri?: string;
-        cloudUri?: string;
-        buffer?: Buffer;
-        sourceUTF8?: string;
-        originalName?: string;
-        transforms?: string[];
-        etag?: string;
-        invalid?: boolean;
+    class ImageHandler<T, U> implements ScopeOrigin<T, U> {
+        host: T;
+        instance: U;
+        command: string
+        resizeData?: ResizeData;
+        cropData?: CropData;
+        rotateData?: RotateData;
+        qualityData?: QualityData;
+        opacityValue: number;
+        method(): void;
+        resize(): void;
+        crop(): void;
+        opacity(): void;
+        quality(): void;
+        rotate(performAsyncTask?: PerformAsyncTaskMethod, callback?: CompleteAsyncTaskCallback): void;
+        write(output: string, startTime?: number, callback?: FinalizeImageCallback): void;
+        finalize(output: string, callback: (err: Null<Error>, result: string) => void): void;
+        constructor(host: T, instance: U, data: FileData, command: string, finalAs?: string);
     }
 }
 

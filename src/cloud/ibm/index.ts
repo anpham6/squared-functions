@@ -1,8 +1,10 @@
-import type { ICloud, IModule } from '../../types/lib';
 import type { CloudDatabase } from '../../types/lib/squared';
+
+import type { ICloud, IModule } from '../../types/lib';
+
 import type { ConfigurationOptions } from 'ibm-cos-sdk/lib/config';
-import type { MangoQuery } from 'nano';
 import type { Configuration, ServerScope } from '@cloudant/cloudant';
+import type { MangoQuery } from 'nano';
 
 import { createBucket as createBucket_s3, deleteObjects as deleteObjects_s3 } from '../aws';
 

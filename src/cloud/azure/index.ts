@@ -1,5 +1,7 @@
-import type { ICloud, IModule } from '../../types/lib';
 import type { CloudDatabase } from '../../types/lib/squared';
+
+import type { ICloud, IModule } from '../../types/lib';
+
 import type * as storage from '@azure/storage-blob';
 import type * as db from '@azure/cosmos';
 

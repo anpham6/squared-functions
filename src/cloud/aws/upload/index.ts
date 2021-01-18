@@ -1,15 +1,14 @@
-import type { IModule, Internal } from '../../../types/lib';
-import type { AWSStorageCredential } from '../index';
+import type { IModule } from '../../../types/lib';
+import type { UploadData } from '../../../types/lib/cloud';
+
+import type { UploadCallback } from '../../index';
 
 import path = require('path');
 import uuid = require('uuid');
 
 import Module from '../../../module';
 
-import { createBucket, createStorageClient } from '../index';
-
-type UploadData = Internal.Cloud.UploadData;
-type UploadCallback = Internal.Cloud.UploadCallback;
+import { AWSStorageCredential, createBucket, createStorageClient } from '../index';
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 

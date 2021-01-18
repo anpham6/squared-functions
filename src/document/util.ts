@@ -1,4 +1,4 @@
-import type { ModuleWriteFailMethod } from '../types/lib';
+import type { ModuleWriteFailMethod } from '../types/lib/logger';
 
 export function loadPlugins<T = unknown>(name: string, plugins: unknown[], writeFail?: ModuleWriteFailMethod) {
     const result: T[] = [];

@@ -1,15 +1,14 @@
-import type { ExtendedSettings, IModule, Internal, Settings } from '../types/lib';
 import type { ResponseData } from '../types/lib/squared';
+
+import type { IModule } from '../types/lib';
+import type { LogMessageOptions, LogValue } from '../types/lib/logger';
+import type { LoggerModule } from '../types/lib/module';
+import type { Settings } from '../types/lib/node';
 
 import path = require('path');
 import fs = require('fs');
 import uuid = require('uuid');
 import chalk = require('chalk');
-
-type LoggerModule = ExtendedSettings.LoggerModule;
-
-type LogMessageOptions = Internal.LogMessageOptions;
-type LogValue = Internal.LogValue;
 
 // eslint-disable-next-line no-shadow
 export enum LOG_TYPE {

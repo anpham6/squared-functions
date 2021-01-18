@@ -1,5 +1,12 @@
-import type { DocumentConstructor, ExtendedSettings, ExternalAsset, ICloud, ICompress, IDocument, IFileManager, IPermission, ITask, IWatch, ImageConstructor, Internal, PermissionSettings, RequestBody, Settings, TaskConstructor } from '../types/lib';
 import type { CloudService, CompressFormat } from '../types/lib/squared';
+
+import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IPermission, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
+import type { ExternalAsset, FileData, FileOutput } from '../types/lib/asset';
+import type { DocumentData } from '../types/lib/document';
+import type { InstallData } from '../types/lib/filemanager';
+import type { OutputData } from '../types/lib/image';
+import type { CloudModule, DocumentModule } from '../types/lib/module';
+import type { PermissionSettings, RequestBody, Settings } from '../types/lib/node';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -15,16 +22,6 @@ import Cloud from '../cloud';
 import Watch from '../watch';
 
 import Compress from '../compress';
-
-type CloudModule = ExtendedSettings.CloudModule;
-type DocumentModule = ExtendedSettings.DocumentModule;
-
-type DocumentData = Internal.DocumentData;
-type FileData = Internal.FileData;
-type FileOutput = Internal.FileOutput;
-type OutputData = Internal.Image.OutputData;
-type DocumentInstallData = Internal.InstallData<IDocument, DocumentConstructor>;
-type TaskInstallData = Internal.InstallData<ITask, TaskConstructor>;
 
 function parseSizeRange(value: string): [number, number] {
     const match = /\(\s*(\d+)\s*,\s*(\d+|\*)\s*\)/.exec(value);
@@ -131,8 +128,8 @@ class FileManager extends Module implements IFileManager {
     public delayed = 0;
     public cleared = false;
     public Image: Null<Map<string, ImageConstructor>> = null;
-    public Document: DocumentInstallData[] = [];
-    public Task: TaskInstallData[] = [];
+    public Document: InstallData<IDocument, DocumentConstructor>[] = [];
+    public Task: InstallData<ITask, TaskConstructor>[] = [];
     public Cloud: Null<ICloud> = null;
     public Watch: Null<IWatch> = null;
     public Compress: Null<ICompress> = null;

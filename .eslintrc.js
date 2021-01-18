@@ -71,6 +71,7 @@ module.exports = {
             "memberSyntaxSortOrder": ["none", "single", "all", "multiple"]
         }],
         "@typescript-eslint/await-thenable": "off",
+        "@typescript-eslint/consistent-type-imports": "off",
         "@typescript-eslint/explicit-module-boundary-types": "off",
         "@typescript-eslint/no-empty-function": "off",
         "@typescript-eslint/no-empty-interface": "off",
@@ -89,7 +90,6 @@ module.exports = {
         "@typescript-eslint/triple-slash-reference": "off",
         "@typescript-eslint/consistent-type-assertions": "error",
         "@typescript-eslint/consistent-type-definitions": "error",
-        "@typescript-eslint/consistent-type-imports": "error",
         "@typescript-eslint/member-delimiter-style": "error",
         "@typescript-eslint/member-ordering": ["error", {
             "default": [

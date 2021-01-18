@@ -1,3 +1,5 @@
+import type { TransformOutput } from '../../types/lib/document';
+
 import type * as rollup from 'rollup';
 
 import path = require('path');
@@ -8,7 +10,7 @@ import { loadPlugins } from '../util';
 
 type RollupPlugins = [string, Undef<PlainObject>][];
 
-export default async function transform(context: any, value: string, output: functions.Internal.Document.TransformOutput<rollup.RollupOptions, rollup.OutputOptions>) {
+export default async function transform(context: any, value: string, output: TransformOutput<rollup.RollupOptions, rollup.OutputOptions>) {
     const { baseConfig = {}, outputConfig = baseConfig.output as rollup.OutputOptions || { format: 'es' }, sourceMap, sourcesRelativeTo, external, writeFail } = output;
     let sourceFile = output.sourceFile,
         result = '',

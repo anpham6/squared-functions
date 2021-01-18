@@ -1,13 +1,13 @@
-import type { IModule, Internal } from '../../../types/lib';
-import type { AWSStorageCredential } from '../index';
+import type { IModule } from '../../../types/lib';
+import type { DownloadData } from '../../../types/lib/cloud';
+
+import type { DownloadCallback } from '../../index';
+
 import type * as aws from 'aws-sdk';
 
 import Module from '../../../module';
 
-import { createStorageClient } from '../index';
-
-type DownloadData = Internal.Cloud.DownloadData;
-type DownloadCallback = Internal.Cloud.DownloadCallback;
+import { AWSStorageCredential, createStorageClient } from '../index';
 
 export default function download(this: IModule, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3'): DownloadCallback {
     const s3 = createStorageClient.call(this, credential, service, sdk);

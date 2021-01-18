@@ -1,9 +1,8 @@
-import type { IModule, Internal } from '../../../types/lib';
-import type { OCIStorageCredential } from '../index';
+import type { IModule } from '../../../types/lib';
 
-import { setStorageCredential } from '../index';
+import type { UploadHost } from '../../index';
 
-type UploadHost = Internal.Cloud.UploadHost;
+import { OCIStorageCredential, setStorageCredential } from '../index';
 
 export default function upload(this: IModule, credential: OCIStorageCredential, service = 'oci') {
     setStorageCredential(credential);

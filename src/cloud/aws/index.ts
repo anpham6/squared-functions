@@ -1,7 +1,9 @@
-import type { ICloud, IModule } from '../../types/lib';
 import type { CloudDatabase } from '../../types/lib/squared';
+
+import type { ICloud, IModule } from '../../types/lib';
 import type { ConfigurationOptions, SharedIniFileCredentials } from 'aws-sdk/lib/core';
 import type { ServiceConfigurationOptions } from 'aws-sdk/lib/service';
+
 import type * as aws from 'aws-sdk';
 
 export interface AWSStorageCredential extends ConfigurationOptions {

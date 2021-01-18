@@ -1,12 +1,10 @@
-import type { IModule, Internal } from '../../../types/lib';
-import type { AzureStorageCredential } from '../index';
+import type { IModule } from '../../../types/lib';
+import type { DownloadData } from '../../../types/lib/cloud';
+import type { DownloadCallback } from '../../index';
 
 import Module from '../../../module';
 
-import { createStorageClient } from '../index';
-
-type DownloadData = Internal.Cloud.DownloadData;
-type DownloadCallback = Internal.Cloud.DownloadCallback;
+import { AzureStorageCredential, createStorageClient } from '../index';
 
 export default function download(this: IModule, credential: AzureStorageCredential, service = 'azure'): DownloadCallback {
     const blobServiceClient = createStorageClient.call(this, credential);

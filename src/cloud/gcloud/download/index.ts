@@ -1,14 +1,13 @@
-import type { IModule, Internal } from '../../../types/lib';
-import type { GCloudStorageCredential } from '../index';
+import type { IModule } from '../../../types/lib';
+import type { DownloadData } from '../../../types/lib/cloud';
+
+import type { DownloadCallback } from '../../index';
 
 import fs = require('fs-extra');
 
 import Module from '../../../module';
 
-import { createStorageClient } from '../index';
-
-type DownloadData = Internal.Cloud.DownloadData;
-type DownloadCallback = Internal.Cloud.DownloadCallback;
+import { GCloudStorageCredential, createStorageClient } from '../index';
 
 export default function download(this: IModule, credential: GCloudStorageCredential, service = 'gcloud'): DownloadCallback {
     const storage = createStorageClient.call(this, credential);

@@ -1,4 +1,5 @@
-import type { ExternalAsset, IPermission, IWatch } from '../types/lib';
+import type { IPermission, IWatch } from '../types/lib';
+import type { ExternalAsset } from '../types/lib/asset';
 
 import Module from '../module';
 

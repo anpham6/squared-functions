@@ -1,5 +1,8 @@
-import type { CompressTryFileMethod, CompressTryImageCallback, FileManagerCompleteAsyncTaskCallback, FileManagerPerformAsyncTaskMethod, ICompress } from '../types/lib';
 import type { CompressFormat } from '../types/lib/squared';
+
+import type { ICompress } from '../types/lib';
+import type { CompressTryFileMethod, CompressTryImageCallback } from '../types/lib/compress';
+import type { CompleteAsyncTaskCallback, PerformAsyncTaskMethod } from '../types/lib/filemanager';
 
 import path = require('path');
 import fs = require('fs');
@@ -36,7 +39,7 @@ const Compress = new class extends Module implements ICompress {
             )
             .pipe(fs.createWriteStream(uri));
     }
-    tryFile(uri: string, data: CompressFormat, performAsyncTask?: Null<FileManagerPerformAsyncTaskMethod>, callback?: FileManagerCompleteAsyncTaskCallback) {
+    tryFile(uri: string, data: CompressFormat, performAsyncTask?: Null<PerformAsyncTaskMethod>, callback?: CompleteAsyncTaskCallback) {
         const { format, level } = data;
         switch (format) {
             case 'gz':

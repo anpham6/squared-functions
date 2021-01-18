@@ -1,12 +1,12 @@
-import type { ExtendedSettings, ExternalAsset, IFileManager } from '../../types/lib';
+import type { IFileManager } from '../../types/lib';
+import type { ExternalAsset } from '../../types/lib/asset';
+import type { TaskModule } from '../../types/lib/module';
 
 import path = require('path');
 import fs = require('fs-extra');
 import child_process = require('child_process');
 
 import Task from '../index';
-
-type TaskModule = ExtendedSettings.TaskModule;
 
 interface GulpData {
     gulpfile: string;

@@ -1,6 +1,6 @@
-import { loadPlugins } from '../util';
+import type { TransformOutput } from '../../types/lib/document';
 
-type TransformOutput = functions.Internal.Document.TransformOutput;
+import { loadPlugins } from '../util';
 
 export default async function transform(context: any, value: string, output: TransformOutput) {
     const { baseConfig = {}, outputConfig = {}, sourceMap, external, writeFail } = output;

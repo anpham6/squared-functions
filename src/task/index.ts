@@ -1,8 +1,8 @@
-import type { ExtendedSettings, ExternalAsset, IFileManager, ITask } from '../types/lib';
+import type { IFileManager, ITask } from '../types/lib';
+import type { ExternalAsset } from '../types/lib/asset';
+import type { TaskModule } from '../types/lib/module';
 
 import Module from '../module';
-
-type TaskModule = ExtendedSettings.TaskModule;
 
 abstract class Task extends Module implements ITask {
     public static async using(this: IFileManager, instance: ITask, assets: ExternalAsset[]): Promise<void> {}

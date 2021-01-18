@@ -1,4 +1,10 @@
-import type { ExtendedSettings, IFileManager, Internal, RequestBody } from '../../types/lib';
+import type { IFileManager } from '../../types/lib';
+import type { FileData } from '../../types/lib/asset';
+import type { OutputData } from '../../types/lib/image';
+import type { DocumentModule } from '../../types/lib/module';
+import type { RequestBody } from '../../types/lib/node';
+
+import type { CloudScopeOrigin } from '../../cloud';
 import type { DocumentAsset, IChromeDocument } from './document';
 
 import path = require('path');
@@ -8,12 +14,6 @@ import uuid = require('uuid');
 
 import Document from '../../document';
 import Cloud from '../../cloud';
-
-type DocumentModule = ExtendedSettings.DocumentModule;
-
-type FileData = Internal.FileData;
-type FinalizeState = Internal.Cloud.FinalizeState;
-type OutputData = Internal.Image.OutputData;
 
 const REGEXP_TAGSTART = /^(\s*<\s*[\w-]+)(\s*)/;
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
@@ -900,20 +900,20 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
         return false;
     }
-    cloudInit(state: FinalizeState) {
+    cloudInit(state: CloudScopeOrigin) {
         this._cloudMap = {};
         this._cloudCssMap = {};
         this._cloudModifiedHtml = false;
         this._cloudModifiedCss = undefined;
         this._cloudEndpoint = '';
         if (this.htmlFiles.length === 1) {
-            const upload = state.cloud.getStorage('upload', this.htmlFiles[0].cloudStorage)?.upload;
+            const upload = state.instance.getStorage('upload', this.htmlFiles[0].cloudStorage)?.upload;
             if (upload && upload.endpoint) {
                 this._cloudEndpoint = Document.toPosix(upload.endpoint) + '/';
             }
         }
     }
-    cloudObject(state: FinalizeState, file: DocumentAsset) {
+    cloudObject(state: CloudScopeOrigin, file: DocumentAsset) {
         if (file.inlineCloud) {
             this._cloudMap[file.inlineCloud] = file;
             this._cloudModifiedHtml = true;
@@ -924,9 +924,9 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
         return this.htmlFiles.includes(file) || this.cssFiles.includes(file);
     }
-    async cloudUpload(state: FinalizeState, file: DocumentAsset, url: string, active: boolean) {
+    async cloudUpload(state: CloudScopeOrigin, file: DocumentAsset, url: string, active: boolean) {
         if (active) {
-            const manager = state.manager;
+            const host = state.host;
             const endpoint = this._cloudEndpoint;
             let cloudUri = url;
             if (endpoint) {
@@ -934,21 +934,21 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
             if (file.inlineCloud) {
                 for (const content of this.htmlFiles) {
-                    content.sourceUTF8 = manager.getUTF8String(content).replace(file.inlineCloud, cloudUri);
+                    content.sourceUTF8 = host.getUTF8String(content).replace(file.inlineCloud, cloudUri);
                     delete this._cloudMap[file.inlineCloud];
                 }
             }
             else if (file.inlineCssCloud) {
                 const pattern = new RegExp(file.inlineCssCloud, 'g');
                 for (const content of this.htmlFiles) {
-                    content.sourceUTF8 = manager.getUTF8String(content).replace(pattern, cloudUri);
+                    content.sourceUTF8 = host.getUTF8String(content).replace(pattern, cloudUri);
                 }
                 if (endpoint && cloudUri.indexOf('/') !== -1) {
                     cloudUri = url;
                 }
                 for (const content of this.cssFiles) {
                     if (content.inlineCssMap) {
-                        content.sourceUTF8 = manager.getUTF8String(content).replace(pattern, cloudUri);
+                        content.sourceUTF8 = host.getUTF8String(content).replace(pattern, cloudUri);
                         this._cloudModifiedCss!.add(content);
                     }
                 }
@@ -958,8 +958,8 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
         return false;
     }
-    async cloudFinalize(state: FinalizeState) {
-        const { manager, localStorage, compressed } = state;
+    async cloudFinalize(state: CloudScopeOrigin) {
+        const { host, localStorage, compressed } = state;
         const modifiedCss = this._cloudModifiedCss;
         let tasks: Promise<unknown>[] = [];
         if (modifiedCss) {
@@ -968,7 +968,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 for (const item of this.cssFiles) {
                     const inlineCssMap = item.inlineCssMap;
                     if (inlineCssMap && inlineCssMap[id]) {
-                        item.sourceUTF8 = manager.getUTF8String(item).replace(new RegExp(id, 'g'), inlineCssMap[id]!);
+                        item.sourceUTF8 = host.getUTF8String(item).replace(new RegExp(id, 'g'), inlineCssMap[id]!);
                         modifiedCss.add(item);
                     }
                 }
@@ -978,27 +978,27 @@ class ChromeDocument extends Document implements IChromeDocument {
                 tasks.push(...Array.from(modifiedCss).map(item => fs.writeFile(item.localUri!, item.sourceUTF8, 'utf8')));
             }
             if (tasks.length) {
-                await Document.allSettled(tasks, ['Update "text/css" <cloud storage>', this.moduleName], manager.errors);
+                await Document.allSettled(tasks, ['Update "text/css" <cloud storage>', this.moduleName], host.errors);
                 tasks = [];
             }
         }
         for (const item of this.cssFiles) {
             if (item.cloudStorage) {
                 if (item.compress) {
-                    await manager.compressFile(item);
+                    await host.compressFile(item);
                     compressed.push(item);
                 }
-                tasks.push(...Cloud.uploadAsset.call(manager, state, item, 'text/css'));
+                tasks.push(...Cloud.uploadAsset.call(host, state, item, 'text/css'));
             }
         }
         if (tasks.length) {
-            await Document.allSettled(tasks, ['Upload "text/css" <cloud storage>', this.moduleName], manager.errors);
+            await Document.allSettled(tasks, ['Upload "text/css" <cloud storage>', this.moduleName], host.errors);
             tasks = [];
         }
         if (this._cloudModifiedHtml) {
             const cloudMap = this._cloudMap;
             for (const item of this.htmlFiles) {
-                let sourceUTF8 = manager.getUTF8String(item);
+                let sourceUTF8 = host.getUTF8String(item);
                 for (const id in cloudMap) {
                     const file = cloudMap[id];
                     sourceUTF8 = sourceUTF8.replace(id, file.relativeUri!);
@@ -1015,14 +1015,14 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
                 if (item.cloudStorage) {
                     if (item.compress) {
-                        await manager.compressFile(item);
+                        await host.compressFile(item);
                         compressed.push(item);
                     }
-                    tasks.push(...Cloud.uploadAsset.call(manager, state, item, 'text/html', true));
+                    tasks.push(...Cloud.uploadAsset.call(host, state, item, 'text/html', true));
                 }
             }
             if (tasks.length) {
-                await Document.allSettled(tasks, ['Upload "text/html" <cloud storage>', this.moduleName], manager.errors);
+                await Document.allSettled(tasks, ['Upload "text/html" <cloud storage>', this.moduleName], host.errors);
             }
         }
     }

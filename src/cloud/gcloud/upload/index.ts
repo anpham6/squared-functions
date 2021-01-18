@@ -1,5 +1,7 @@
-import type { IModule, Internal } from '../../../types/lib';
-import type { GCloudStorageCredential } from '../index';
+import type { IModule } from '../../../types/lib';
+import type { UploadData } from '../../../types/lib/cloud';
+
+import type { UploadCallback } from '../../index';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -7,10 +9,7 @@ import uuid = require('uuid');
 
 import Module from '../../../module';
 
-import { createBucket, createStorageClient, setPublicRead } from '../index';
-
-type UploadCallback = Internal.Cloud.UploadCallback;
-type UploadData = Internal.Cloud.UploadData;
+import { GCloudStorageCredential, createBucket, createStorageClient, setPublicRead } from '../index';
 
 const BUCKET_MAP: ObjectMap<boolean> = {};
 
