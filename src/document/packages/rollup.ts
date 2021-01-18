@@ -38,12 +38,18 @@ export default async function transform(context: any, value: string, output: Tra
     if (sourcesRelativeTo) {
         outputConfig.sourcemapPathTransform = (relativeSourcePath, sourcemapPath) => path.resolve(path.dirname(sourcemapPath), relativeSourcePath);
     }
+    let url: Undef<string>;
     if (sourceMap) {
         if (outputConfig.sourcemap === false) {
-            sourceMap.output.clear();
+            sourceMap.reset();
         }
-        else if (!outputConfig.sourcemap && sourceMap.output.size) {
-            outputConfig.sourcemap = true;
+        else {
+            if (sourceMap.output.size) {
+                outputConfig.sourcemap = true;
+            }
+            if (outputConfig.sourcemap && outputConfig.sourcemapFile) {
+                url = path.basename(outputConfig.sourcemapFile);
+            }
         }
     }
     delete outputConfig.manualChunks;
@@ -65,7 +71,7 @@ export default async function transform(context: any, value: string, output: Tra
     }
     if (result) {
         if (sourceMap && mappings) {
-            sourceMap.nextMap('rollup', result, mappings);
+            sourceMap.nextMap('rollup', result, mappings, url);
         }
         return result;
     }

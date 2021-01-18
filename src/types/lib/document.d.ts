@@ -6,6 +6,7 @@ export interface DocumentData {
 }
 
 export interface TransformOutput<T = StandardMap, U = StandardMap> {
+    file?: ExternalAsset;
     baseConfig?: T;
     outputConfig?: U;
     sourceFile?: string;
@@ -18,13 +19,19 @@ export interface TransformOutput<T = StandardMap, U = StandardMap> {
 export interface TransformResult {
     code: string;
     map?: SourceMap;
+    sourceMappingURL?: string;
+}
+
+export interface SourceMapOptions {
+    file?: string;
+    sourceRoot?: string;
+    sourceMappingURL?: string;
 }
 
 export interface SourceMapInput extends TransformResult {
     output: Map<string, SourceMapOutput>;
-    file?: ExternalAsset;
-    streamingContent?: boolean;
-    nextMap: (name: string, code: string, map: SourceMap | string) => boolean;
+    reset: () => void;
+    nextMap: (name: string, code: string, map: SourceMap | string, sourceMappingURL?: string) => boolean;
 }
 
 export interface SourceMapOutput extends Required<TransformResult> {}

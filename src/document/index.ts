@@ -1,6 +1,6 @@
 import type { IDocument, IFileManager } from '../types/lib';
 import type { ExternalAsset } from '../types/lib/asset';
-import type { ConfigOrTransformer, PluginConfig, SourceMap, SourceMapInput, SourceMapOutput, TransformOutput, TransformResult, Transformer } from '../types/lib/document';
+import type { ConfigOrTransformer, PluginConfig, SourceMap, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult, Transformer } from '../types/lib/document';
 import type { DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
 
@@ -10,19 +10,23 @@ import fs = require('fs-extra');
 import Module from '../module';
 
 const isString = (value: any): value is string => !!value && typeof value === 'string';
-const isSourceMapInput = (value: SourceMapInput | SourceMapOutput): value is SourceMapInput => typeof (value as SourceMapInput).nextMap === 'function';
+const getSourceMappingURL = (value: string) => `\n//# sourceMappingURL=${value}\n`;
 
 abstract class Document extends Module implements IDocument {
     public static init(this: IFileManager, instance: IDocument, body: RequestBody) {}
     public static async using(this: IFileManager, instance: IDocument, file: ExternalAsset) {}
     public static async finalize(this: IFileManager, instance: IDocument, assets: ExternalAsset[]) {}
 
-    public static createSourceMap(value: string, file?: ExternalAsset) {
+    public static createSourceMap(value: string) {
         return Object.create({
-            file,
             code: value,
             output: new Map<string, SourceMapOutput>(),
-            "nextMap": function(this: SourceMapInput, name: string, code: string, map: SourceMap | string) {
+            "reset": function(this: SourceMapInput) {
+                delete this.map;
+                delete this.sourceMappingURL;
+                this.output.clear();
+            },
+            "nextMap": function(this: SourceMapInput, name: string, code: string, map: SourceMap | string, sourceMappingURL = '') {
                 if (typeof map === 'string') {
                     try {
                         map = JSON.parse(map) as SourceMap;
@@ -34,12 +38,18 @@ abstract class Document extends Module implements IDocument {
                 if (typeof map === 'object' && map.mappings) {
                     this.code = code;
                     this.map = map;
+                    if (sourceMappingURL) {
+                        this.sourceMappingURL = sourceMappingURL;
+                    }
+                    else {
+                        delete this.sourceMappingURL;
+                    }
                     let mapName = name,
                         i = 0;
                     while (this.output.has(mapName)) {
                         mapName = name + '_' + ++i;
                     }
-                    this.output.set(mapName, { code, map });
+                    this.output.set(mapName, { code, map, sourceMappingURL });
                     return true;
                 }
                 return false;
@@ -47,77 +57,53 @@ abstract class Document extends Module implements IDocument {
         }) as SourceMapInput;
     }
 
-    public static writeSourceMap(localUri: string, sourceMap: SourceMapInput | SourceMapOutput, manager?: IFileManager) {
-        if (!sourceMap.map) {
-            return sourceMap.code;
+    public static writeSourceMap(localUri: string, sourceMap: SourceMapOutput, options?: SourceMapOptions) {
+        const map = sourceMap.map;
+        if (!map) {
+            return;
         }
-        let items: [string, SourceMapOutput][],
-            streamingContent: Undef<boolean>,
-            file: Undef<ExternalAsset>;
-        if (isSourceMapInput(sourceMap)) {
-            ({ file, streamingContent } = sourceMap);
-            const output = Array.from(sourceMap.output);
-            items = streamingContent ? output.slice(1) : [output.pop()!];
-            if (items.length === 1) {
-                streamingContent = false;
+        let file: Undef<string>,
+            sourceRoot: Undef<string>,
+            sourceMappingURL: Undef<string>;
+        if (options) {
+            ({ file, sourceRoot, sourceMappingURL } = options);
+        }
+        file ||= path.basename(localUri);
+        if (!sourceMappingURL) {
+            sourceMappingURL = sourceMap.sourceMappingURL || file;
+        }
+        if (!sourceMappingURL.endsWith('.map')) {
+            sourceMappingURL += '.map';
+        }
+        let uri: Undef<string>,
+            code = sourceMap.code,
+            found = false,
+            inlineMap = false;
+        code = code.replace(/\n*(\/\*)?\s*(\/\/)?[#@] sourceMappingURL=(['"])?([^\s'"]*)\3\s*?(\*\/)?\n?/, (...capture) => {
+            found = true;
+            inlineMap = capture[4].startsWith('data:application/json');
+            return !inlineMap && (capture[2] && !capture[1] && !capture[5] || capture[1] && capture[5]) ? getSourceMappingURL(sourceMappingURL!) : capture[0];
+        });
+        map.file = file;
+        if (sourceRoot) {
+            map.sourceRoot = sourceRoot;
+        }
+        if (!inlineMap) {
+            if (!found) {
+                code += getSourceMappingURL(sourceMappingURL);
+            }
+            try {
+                uri = path.join(path.dirname(localUri), sourceMappingURL);
+                fs.writeFileSync(uri, JSON.stringify(map), 'utf8');
+            }
+            catch (err) {
+                this.writeFail('Unable to write source map', err);
             }
         }
-        else {
-            items = [['unknown', sourceMap]];
+        if (uri) {
+            sourceMap.code = code;
         }
-        const basename = path.basename(localUri);
-        let code = '',
-            sourcesContent: Null<Null<string>[]> = null;
-        for (let i = 0, length = items.length; i < length; ++i) {
-            const [name, output] = items[i];
-            const last = i === length - 1;
-            const map = output.map;
-            const filename = (streamingContent ? name + '.' : '') + basename;
-            const mapFile = filename + '.map';
-            const getSourceMappingURL = () => `\n//# sourceMappingURL=${mapFile}\n`;
-            let found = false,
-                inlineMap = false;
-            if (last) {
-                map.file = basename;
-            }
-            if (streamingContent) {
-                const content = map.sourcesContent;
-                if (!content || content.length === 0 || !content[0]) {
-                    if (sourcesContent) {
-                        map.sourcesContent = sourcesContent;
-                    }
-                }
-                else {
-                    sourcesContent ||= content;
-                }
-            }
-            code = output.code;
-            code = code.replace(/\n*(\/\*)?\s*(\/\/)?[#@] sourceMappingURL=(['"])?([^\s'"]*)\3\s*?(\*\/)?\n?/, (...capture) => {
-                found = true;
-                inlineMap = capture[4].startsWith('data:application/json');
-                return !inlineMap && (capture[2] && !capture[1] && !capture[5] || capture[1] && capture[5]) ? getSourceMappingURL() : capture[0];
-            });
-            if (!inlineMap && (last || streamingContent)) {
-                if (!found) {
-                    code += getSourceMappingURL();
-                }
-                try {
-                    const uri = path.join(path.dirname(localUri), mapFile);
-                    fs.writeFileSync(uri, JSON.stringify(map), 'utf8');
-                    if (manager) {
-                        manager.add(uri, file);
-                    }
-                }
-                catch (err) {
-                    if (manager) {
-                        manager.writeFail(['Unable to write source map', name], err);
-                    }
-                    continue;
-                }
-            }
-            output.code = code;
-        }
-        return code;
+        return uri;
     }
 
     public readonly internalAssignUUID = '__assign__';
@@ -215,7 +201,7 @@ abstract class Document extends Module implements IDocument {
     async transform(type: string, code: string, format: string, options: TransformOutput = {}): Promise<Void<TransformResult>> {
         const data = this.module.settings?.[type] as StandardMap;
         if (data) {
-            const sourceMap = options.sourceMap;
+            const sourceMap = options.sourceMap ||= Document.createSourceMap(code);
             const writeFail = this.writeFail.bind(this);
             const errorMessage = (plugin: string, process: string, message: string) => new Error(message + ` <${plugin}:${process}>`);
             let valid: Undef<boolean>;
@@ -281,8 +267,7 @@ abstract class Document extends Module implements IDocument {
                 }
             }
             if (valid) {
-                let output: Undef<Map<string, SourceMapOutput>>;
-                return sourceMap && (output = sourceMap.output) && output.size ? { code, map: Array.from(output.values()).pop()!.map } : { code };
+                return { code, map: sourceMap && sourceMap.map };
             }
         }
     }

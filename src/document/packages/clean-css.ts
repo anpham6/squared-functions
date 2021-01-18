@@ -9,10 +9,9 @@ export default async function transform(context: any, value: string, output: Tra
     let map: Undef<SourceMap>;
     if (sourceMap) {
         if (baseConfig.sourceMap === false) {
-            sourceMap.output.clear();
+            sourceMap.reset();
         }
-        else if (sourceMap.map) {
-            map = sourceMap.map;
+        else if (map = sourceMap.map) {
             baseConfig.sourceMap = true;
         }
     }

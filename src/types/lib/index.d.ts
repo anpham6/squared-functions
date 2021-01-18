@@ -7,7 +7,7 @@ import type { CloudDatabase, CloudService, CloudStorage, CloudStorageDownload, C
 import type { ExternalAsset, FileData, FileOutput } from './asset';
 import type { CloudFeatures, CloudFunctions, FinalizeResult } from './cloud';
 import type { CompressTryFileMethod, CompressTryImageCallback } from './compress';
-import type { ConfigOrTransformer, DocumentData, PluginConfig, SourceMapInput, SourceMapOutput, TransformOutput, TransformResult } from './document';
+import type { ConfigOrTransformer, DocumentData, PluginConfig, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
 import type { CompleteAsyncTaskCallback, FinalizeImageCallback, InstallData, PerformAsyncTaskMethod, QueueImageMethod } from './filemanager';
 import type { CropData, QualityData, ResizeData, RotateData } from './image';
 import type { CloudModule, DocumentModule } from './module';
@@ -119,7 +119,7 @@ declare namespace functions {
         using(this: IFileManager, instance: IDocument, file: ExternalAsset): Promise<void>;
         finalize(this: IFileManager, instance: IDocument, assets: ExternalAsset[]): Promise<void>;
         createSourceMap(code: string, file?: ExternalAsset): SourceMapInput;
-        writeSourceMap(localUri: string, data: SourceMapInput | SourceMapOutput, manager?: IFileManager): string;
+        writeSourceMap(localUri: string, sourceMap: SourceMapOutput, options?: SourceMapOptions): Undef<string>;
         new(module: DocumentModule, templateMap?: Undef<StandardMap>, ...args: unknown[]): IDocument;
     }
 
@@ -225,7 +225,10 @@ declare namespace functions {
     }
 
     interface ModuleConstructor {
+        LOG_TYPE: typeof LOG_TYPE;
+        LOG_STYLE_FAIL: LogMessageOptions;
         formatMessage: ModuleFormatMessageMethod;
+        writeFail: ModuleWriteFailMethod;
         parseFunction(value: string, name?: string): Undef<FunctionType<string>>;
         toPosix(value: string, filename?: string): string;
         renameExt(value: string, ext: string): string;

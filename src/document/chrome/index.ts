@@ -1,5 +1,6 @@
 import type { IFileManager } from '../../types/lib';
 import type { FileData } from '../../types/lib/asset';
+import type { SourceMapOutput } from '../../types/lib/document';
 import type { OutputData } from '../../types/lib/image';
 import type { DocumentModule } from '../../types/lib/module';
 import type { RequestBody } from '../../types/lib/node';
@@ -681,10 +682,15 @@ class ChromeDocument extends Document implements IChromeDocument {
                     source += bundle;
                 }
                 if (format) {
-                    const sourceMap = Document.createSourceMap(source, file);
-                    const result = await instance.transform('css', source, format, { sourceMap });
+                    const result = await instance.transform('css', source, format);
                     if (result) {
-                        source = sourceMap.output.size && sourceMap.code === result.code ? Document.writeSourceMap(localUri!, sourceMap, this) : result.code;
+                        if (result.map) {
+                            const uri = Document.writeSourceMap(localUri!, result as SourceMapOutput);
+                            if (uri) {
+                                this.add(uri, file);
+                            }
+                        }
+                        source = result.code;
                     }
                 }
                 file.sourceUTF8 = source;
@@ -704,10 +710,15 @@ class ChromeDocument extends Document implements IChromeDocument {
                     source += bundle;
                 }
                 if (format) {
-                    const sourceMap = Document.createSourceMap(source, file);
-                    const result = await instance.transform('js', source, format, { sourceMap });
+                    const result = await instance.transform('js', source, format);
                     if (result) {
-                        source = sourceMap.output.size && sourceMap.code === result.code ? Document.writeSourceMap(localUri!, sourceMap, this) : result.code;
+                        if (result.map) {
+                            const uri = Document.writeSourceMap(localUri!, result as SourceMapOutput);
+                            if (uri) {
+                                this.add(uri, file);
+                            }
+                        }
+                        source = result.code;
                     }
                 }
                 file.sourceUTF8 = source;

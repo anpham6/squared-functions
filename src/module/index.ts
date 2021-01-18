@@ -23,14 +23,24 @@ export enum LOG_TYPE {
     TIME_ELAPSED = 128
 }
 
-const STYLE_FAIL: LogMessageOptions = { titleColor: 'white', titleBgColor: 'bgRed' };
 let SETTINGS: LoggerModule = {};
 
 function allSettled<T>(values: readonly (T | PromiseLike<T>)[]) {
     return Promise.all(values.map((promise: Promise<T>) => promise.then(value => ({ status: 'fulfilled', value })).catch(reason => ({ status: 'rejected', reason })) as Promise<PromiseSettledResult<T>>));
 }
 
+function applyFailStyle(options: LogMessageOptions) {
+    for (const attr in Module.LOG_STYLE_FAIL) {
+        if (!(attr in options)) {
+            options[attr] ||= Module.LOG_STYLE_FAIL[attr];
+        }
+    }
+}
+
 abstract class Module implements IModule {
+    public static LOG_TYPE = LOG_TYPE;
+    public static LOG_STYLE_FAIL: LogMessageOptions = { titleColor: 'white', titleBgColor: 'bgRed' };
+
     public static formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
         switch (type) {
             case LOG_TYPE.SYSTEM:
@@ -125,13 +135,19 @@ abstract class Module implements IModule {
         console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase().padEnd(6)) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
     }
 
+    public static writeFail(value: LogValue, message?: Null<Error>) {
+        const options: LogMessageOptions = {};
+        applyFailStyle(options);
+        this.formatMessage(LOG_TYPE.SYSTEM, 'FAIL', value, message, options);
+    }
+
     public static parseFunction(value: string, name?: string): Undef<FunctionType<string>> {
         if (Module.isLocalPath(value = value.trim())) {
             try {
                 value = fs.readFileSync(path.resolve(value), 'utf8').trim();
             }
             catch (err) {
-                this.formatMessage(LOG_TYPE.SYSTEM, 'FAIL', ['Could not load function', value], err, STYLE_FAIL);
+                this.writeFail(['Could not load function', value], err);
                 return;
             }
         }
@@ -283,7 +299,7 @@ abstract class Module implements IModule {
             promise.then(result => {
                 for (const item of result) {
                     if (item.status === 'rejected' && item.reason) {
-                        this.formatMessage(LOG_TYPE.SYSTEM, 'FAIL', rejected, item.reason, STYLE_FAIL);
+                        this.writeFail(rejected, item.reason);
                         if (errors) {
                             errors.push(item.reason.toString());
                         }
@@ -336,8 +352,7 @@ abstract class Module implements IModule {
         this.formatFail(LOG_TYPE.SYSTEM, 'FAIL', value, message);
     }
     formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: Null<Error>, options: LogMessageOptions = {}) {
-        options.titleColor ||= 'white';
-        options.titleBgColor ||= 'bgRed';
+        applyFailStyle(options);
         Module.formatMessage(type, title, value, message, options);
         if (message) {
             this.errors.push(message instanceof Error ? message.message : (message as string).toString());

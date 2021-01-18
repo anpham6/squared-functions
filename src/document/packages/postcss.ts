@@ -15,14 +15,12 @@ export default async function transform(context: any, value: string, output: Tra
     }
     if (sourceMap) {
         if (baseConfig.map === false) {
-            sourceMap.output.clear();
+            sourceMap.reset();
         }
         else {
-            const { map, file } = sourceMap;
-            sourceFile ||= file && file.localUri;
-            if (baseConfig.map || map && (baseConfig.map = {})) {
-                const optionsMap = baseConfig.map as StandardMap;
-                optionsMap.prev = map;
+            sourceFile ||= output.file?.localUri;
+            if (baseConfig.map && typeof baseConfig.map === 'object' || sourceMap.map && (baseConfig.map = {})) {
+                baseConfig.map.prev = sourceMap.map;
             }
         }
     }

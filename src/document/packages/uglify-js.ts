@@ -6,9 +6,10 @@ export default async function transform(context: any, value: string, output: Tra
     if (external) {
         Object.assign(baseConfig, external);
     }
+    let url: Undef<string>;
     if (baseConfig.sourceMap === false) {
         if (sourceMap) {
-            sourceMap.output.clear();
+            sourceMap.reset();
         }
     }
     else if (baseConfig.sourceMap && typeof baseConfig.sourceMap === 'object' || sourceMap && sourceMap.map && (baseConfig.sourceMap = {})) {
@@ -18,14 +19,14 @@ export default async function transform(context: any, value: string, output: Tra
         }
         mapConfig.asObject = true;
         if (mapConfig.url !== 'inline') {
-            mapConfig.url = '';
+            url = mapConfig.url as Undef<string>;
         }
     }
     delete baseConfig.name;
     const result = context.minify(value, baseConfig);
     if (result) {
         if (sourceMap && result.map) {
-            sourceMap.nextMap('uglify-js', result.code, result.map);
+            sourceMap.nextMap('uglify-js', result.code, result.map, url);
         }
         return result.code;
     }
