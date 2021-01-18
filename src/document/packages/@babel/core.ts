@@ -1,31 +1,29 @@
 import path = require('path');
 
-import type { TransformOutput } from '../../../types/lib/document';
+import type { TransformOptions } from '../../../types/lib/document';
 
-export default async function transform(context: any, value: string, output: TransformOutput) {
-    const { baseConfig = {}, outputConfig = {}, sourceMap, external } = output;
+export default async function transform(context: any, value: string, options: TransformOptions) {
+    const { baseConfig, outputConfig, sourceMap, external } = options;
     Object.assign(baseConfig, outputConfig);
     if (external) {
         Object.assign(baseConfig, external);
     }
     let url: Undef<string>;
-    if (sourceMap) {
-        if (baseConfig.sourceMaps === false) {
-            sourceMap.reset();
+    if (baseConfig.sourceMaps === false) {
+        sourceMap.reset();
+    }
+    else {
+        if (sourceMap.map) {
+            baseConfig.sourceMaps = true;
+            baseConfig.inputSourceMap = sourceMap.map;
         }
-        else {
-            if (sourceMap.map) {
-                baseConfig.sourceMaps = true;
-                baseConfig.inputSourceMap = sourceMap.map;
-            }
-            if (baseConfig.sourceMaps && baseConfig.sourceFileName) {
-                url = path.basename(baseConfig.sourceFileName);
-            }
+        if (baseConfig.sourceMaps && baseConfig.sourceFileName) {
+            url = path.basename(baseConfig.sourceFileName);
         }
     }
     const result = await context.transform(value, baseConfig);
     if (result) {
-        if (sourceMap && result.map) {
+        if (result.map) {
             sourceMap.nextMap('babel', result.code, result.map, url);
         }
         return result.code;

@@ -1,6 +1,6 @@
 import type { IDocument, IFileManager } from '../types/lib';
 import type { ExternalAsset } from '../types/lib/asset';
-import type { ConfigOrTransformer, PluginConfig, SourceMap, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult, Transformer } from '../types/lib/document';
+import type { ConfigOrTransformer, PluginConfig, SourceMap, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOptions, TransformOutput, TransformResult, Transformer } from '../types/lib/document';
 import type { DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
 
@@ -40,9 +40,6 @@ abstract class Document extends Module implements IDocument {
                     this.map = map;
                     if (sourceMappingURL) {
                         this.sourceMappingURL = sourceMappingURL;
-                    }
-                    else {
-                        delete this.sourceMappingURL;
                     }
                     let mapName = name,
                         i = 0;
@@ -206,13 +203,13 @@ abstract class Document extends Module implements IDocument {
             const errorMessage = (plugin: string, process: string, message: string) => new Error(message + ` <${plugin}:${process}>`);
             let valid: Undef<boolean>;
             for (let process of format.split('+')) {
-                const [plugin, baseConfig, outputConfig] = this.findConfig(data, process = process.trim(), type);
+                const [plugin, baseConfig, outputConfig = {}] = this.findConfig(data, process = process.trim(), type);
                 if (plugin) {
                     if (!baseConfig) {
                         this.writeFail('Unable to load configuration', errorMessage(plugin, process, 'Invalid config'));
                     }
                     else {
-                        const output: TransformOutput = { ...options, outputConfig, writeFail };
+                        const output = { ...options, sourceMap, outputConfig, writeFail } as TransformOptions;
                         const time = Date.now();
                         const next = (result: Undef<string>) => {
                             if (isString(result)) {
@@ -267,7 +264,7 @@ abstract class Document extends Module implements IDocument {
                 }
             }
             if (valid) {
-                return { code, map: sourceMap && sourceMap.map };
+                return { code, map: sourceMap.code === code ? sourceMap.map : undefined };
             }
         }
     }

@@ -281,11 +281,7 @@ You can also define your own optimizations in squared.settings.json:
 
 These particular plugins can be configured using a plain object literal. Manual installation is required when using any of these packages [<b>npm run install-chrome</b>]. Transpiling with Babel is also configurable with a .babelrc file in the base folder for any presets and additional settings. Other non-builtin minifiers can similarly be applied and chained by defining a custom string-based synchronous function.
 
-Custom plugins can be installed from NPM or copied into your local workspace. Examples can be found in the "chrome/packages" folder. The custom asynchronous function has to be named "transform" for validation purposes with the only difference being the context object is set to the Document module.
-
-```xml
-{workspace}/node_modules/@squared-functions/chrome/packages
-```
+Custom plugins can also be installed from NPM. The asynchronous function has to be named "transform" for validation purposes. The only difference is the context object is set to the Document module. Examples can be found in the "chrome/packages" folder.
 
 * Function object
 * file relative to serve.js
@@ -320,7 +316,7 @@ Custom plugins can be installed from NPM or copied into your local workspace. Ex
     },
     "js": { // custom function (chrome -> eval_function: true)
       "terser": {
-        "minify-example": "function (context, value, output, resolve) { resolve(context.minify(value, output.settings).code); }", // "minify-example-output" creates variable "output.config"
+        "minify-example": "function (context, value, options, resolve) { resolve(context.minify(value, options.outputConfig).code); }", // "minify-example-output" creates variable "options.outputConfig"
         "minify-example-output": {
           "keep_classnames": true
         }
@@ -349,8 +345,8 @@ Custom plugins can be installed from NPM or copied into your local workspace. Ex
           "plugins": ["autoprefixer", "cssnano"] // Plugins have be installed with NPM manually
         }
       },
-      "node-sass": { // npm i node-sass
-        "sass-example": "function (context, value, output, resolve) { resolve(context.renderSync({ data: value }, functions: {})); }" // first transpiler in chain
+      "sass": { // npm i sass
+        "sass-example": "function (context, value, options, resolve) { resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css); }"
       }
     }
   }
@@ -359,20 +355,26 @@ Custom plugins can be installed from NPM or copied into your local workspace. Ex
 
 ```javascript
 // es5.js
+
 interface TransformOutput {
-    baseConfig?: StandardMap;
-    outputConfig?: StandardMap;
+    file?: ExternalAsset;
     sourceFile?: string;
-    sourceMap?: SourceMapInput;
     sourcesRelativeTo?: string;
-    external?: PlainObject; // query params from workspaces
-    writeFail?: ModuleWriteFailMethod;
+    sourceMap?: SourceMapInput;
+    external?: PlainObject;
+}
+
+interface TransformOptions extends TransformOutput {
+    baseConfig: StandardMap;
+    outputConfig: StandardMap;
+    sourceMap: SourceMapInput;
+    writeFail: ModuleWriteFailMethod;
 }
 
 // Custom inline and template functions use Promise "resolve" callbacks
 
-function (context, value, output, resolve) {
-    context.transform(value, output.outputConfig, function(err, result) {
+function (context, value, options, resolve) {
+    context.transform(value, options.outputConfig, function(err, result) {
         if (!err && result) {
             resolve(result.code);
         }
@@ -389,12 +391,12 @@ The same concept can be used inline anywhere using a &lt;script&gt; tag with the
 // "es5-example" is a custom name (chrome -> eval_template: true)
 
 <script type="text/template" data-chrome-template="js::@babel/core::es5-example">
-function (context, value, output, resolve) {
-    const options = { ...output.outputConfig, presets: ['@babel/preset-env'], sourceMaps: true }; // <https://babeljs.io/docs/en/options>
+function (context, value, options, resolve) {
+    const options = { ...options.outputConfig, presets: ['@babel/preset-env'], sourceMaps: true }; // <https://babeljs.io/docs/en/options>
     const result = context.transformSync(value, options);
     if (result) {
-        if (output.sourceMap && result.map) {
-            output.sourceMap.nextMap('babel', result.code, result.map);
+        if (result.map) {
+            options.sourceMap.nextMap('babel', result.code, result.map);
         }
         resolve(result.code);
     }

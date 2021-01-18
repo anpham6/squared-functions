@@ -5,15 +5,19 @@ export interface DocumentData {
     document?: string | string[];
 }
 
-export interface TransformOutput<T = StandardMap, U = StandardMap> {
+export interface TransformOutput {
     file?: ExternalAsset;
-    baseConfig?: T;
-    outputConfig?: U;
     sourceFile?: string;
-    sourceMap?: SourceMapInput;
     sourcesRelativeTo?: string;
+    sourceMap?: SourceMapInput;
     external?: PlainObject;
-    writeFail?: ModuleWriteFailMethod;
+}
+
+export interface TransformOptions<T = StandardMap, U = StandardMap> extends TransformOutput {
+    baseConfig: T;
+    outputConfig: U;
+    sourceMap: SourceMapInput;
+    writeFail: ModuleWriteFailMethod;
 }
 
 export interface TransformResult {

@@ -1,4 +1,4 @@
-import type { TransformOutput } from '../../types/lib/document';
+import type { TransformOptions } from '../../types/lib/document';
 
 import type * as rollup from 'rollup';
 
@@ -8,11 +8,10 @@ import uuid = require('uuid');
 
 import { loadPlugins } from '../util';
 
-type RollupPlugins = [string, Undef<PlainObject>][];
-
-export default async function transform(context: any, value: string, output: TransformOutput<rollup.RollupOptions, rollup.OutputOptions>) {
-    const { baseConfig = {}, outputConfig = baseConfig.output as rollup.OutputOptions || { format: 'es' }, sourceMap, sourcesRelativeTo, external, writeFail } = output;
-    let sourceFile = output.sourceFile,
+export default async function transform(context: any, value: string, options: TransformOptions<rollup.RollupOptions, rollup.OutputOptions>) {
+    const { baseConfig, sourceMap, sourcesRelativeTo, external, writeFail } = options;
+    let sourceFile = options.sourceFile,
+        outputConfig = options.outputConfig,
         result = '',
         mappings = '';
     if (!sourceFile) {
@@ -21,15 +20,16 @@ export default async function transform(context: any, value: string, output: Tra
         fs.mkdirpSync(rollupDir);
         fs.writeFileSync(sourceFile, value);
     }
+    if (Object.keys(outputConfig).length === 0) {
+        outputConfig = baseConfig.output as rollup.OutputOptions || { format: 'es' };
+    }
     baseConfig.input = sourceFile;
-    let plugins = (baseConfig.plugins as unknown) as RollupPlugins;
-    if (Array.isArray(plugins)) {
-        baseConfig.plugins = loadPlugins<rollup.Plugin>('rollup', plugins, writeFail);
+    if (Array.isArray(baseConfig.plugins)) {
+        baseConfig.plugins = loadPlugins<rollup.Plugin>('rollup', baseConfig.plugins, writeFail);
     }
     const bundle = await context.rollup(baseConfig) as rollup.RollupBuild;
-    plugins = (outputConfig.plugins as unknown) as RollupPlugins;
-    if (Array.isArray(plugins)) {
-        outputConfig.plugins = loadPlugins<rollup.OutputPlugin>('rollup', plugins, writeFail);
+    if (Array.isArray(outputConfig.plugins)) {
+        outputConfig.plugins = loadPlugins<rollup.OutputPlugin>('rollup', outputConfig.plugins, writeFail);
     }
     if (external) {
         delete external.plugins;
@@ -39,17 +39,15 @@ export default async function transform(context: any, value: string, output: Tra
         outputConfig.sourcemapPathTransform = (relativeSourcePath, sourcemapPath) => path.resolve(path.dirname(sourcemapPath), relativeSourcePath);
     }
     let url: Undef<string>;
-    if (sourceMap) {
-        if (outputConfig.sourcemap === false) {
-            sourceMap.reset();
+    if (outputConfig.sourcemap === false) {
+        sourceMap.reset();
+    }
+    else {
+        if (sourceMap.output.size) {
+            outputConfig.sourcemap = true;
         }
-        else {
-            if (sourceMap.output.size) {
-                outputConfig.sourcemap = true;
-            }
-            if (outputConfig.sourcemap && outputConfig.sourcemapFile) {
-                url = path.basename(outputConfig.sourcemapFile);
-            }
+        if (outputConfig.sourcemap && outputConfig.sourcemapFile) {
+            url = path.basename(outputConfig.sourcemapFile);
         }
     }
     delete outputConfig.manualChunks;
@@ -63,14 +61,12 @@ export default async function transform(context: any, value: string, output: Tra
                 if (external && outputConfig.sourcemap === 'inline') {
                     result += `\n//# sourceMappingURL=${item.map.toUrl()}\n`;
                 }
-                if (sourceMap) {
-                    mappings += item.map;
-                }
+                mappings += item.map;
             }
         }
     }
     if (result) {
-        if (sourceMap && mappings) {
+        if (mappings) {
             sourceMap.nextMap('rollup', result, mappings, url);
         }
         return result;

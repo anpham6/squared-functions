@@ -1,9 +1,9 @@
-import type { TransformOutput } from '../../types/lib/document';
+import type { TransformOptions } from '../../types/lib/document';
 
 import { loadPlugins } from '../util';
 
-export default async function transform(context: any, value: string, output: TransformOutput) {
-    const { baseConfig = {}, outputConfig = {}, external, writeFail } = output;
+export default async function transform(context: any, value: string, options: TransformOptions) {
+    const { baseConfig, outputConfig, external, writeFail } = options;
     let plugins: Undef<unknown[]> = baseConfig.plugins || outputConfig.plugins;
     if (Array.isArray(plugins)) {
         plugins = loadPlugins('posthtml', plugins, writeFail);

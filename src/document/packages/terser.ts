@@ -1,20 +1,18 @@
-import type { TransformOutput } from '../../types/lib/document';
+import type { TransformOptions } from '../../types/lib/document';
 
-export default async function transform(context: any, value: string, output: TransformOutput) {
-    const { baseConfig = {}, outputConfig = {}, sourceMap, external } = output;
+export default async function transform(context: any, value: string, options: TransformOptions) {
+    const { baseConfig, outputConfig, sourceMap, external } = options;
     Object.assign(baseConfig, outputConfig);
     if (external) {
         Object.assign(baseConfig, external);
     }
     let url: Undef<string>;
     if (baseConfig.sourceMap === false) {
-        if (sourceMap) {
-            sourceMap.reset();
-        }
+        sourceMap.reset();
     }
-    else if (baseConfig.sourceMap && typeof baseConfig.sourceMap === 'object' || sourceMap && sourceMap.map && (baseConfig.sourceMap = {})) {
+    else if (baseConfig.sourceMap && typeof baseConfig.sourceMap === 'object' || sourceMap.map && (baseConfig.sourceMap = {})) {
         const mapConfig = baseConfig.sourceMap as PlainObject;
-        if (sourceMap) {
+        if (sourceMap.map) {
             mapConfig.content = sourceMap.map;
         }
         mapConfig.asObject = true;
@@ -25,7 +23,7 @@ export default async function transform(context: any, value: string, output: Tra
     delete baseConfig.name;
     const result = await context.minify(value, baseConfig);
     if (result) {
-        if (sourceMap && result.map) {
+        if (result.map) {
             sourceMap.nextMap('terser', result.code, result.map, url);
         }
         return result.code;
