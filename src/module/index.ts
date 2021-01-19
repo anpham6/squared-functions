@@ -282,12 +282,12 @@ abstract class Module implements IModule {
         return 0;
     }
 
-    public static responseError(message: Error | string, hint?: string) {
+    public static responseError(err: Error | string, hint?: string) {
         return {
             success: false,
             error: {
                 hint,
-                message: message.toString()
+                message: err instanceof Error ? err.message : err.toString()
             }
         } as ResponseData;
     }

@@ -182,6 +182,7 @@ declare namespace functions {
         removeAsyncTask(): void;
         completeAsyncTask: CompleteAsyncTaskCallback;
         performFinalize(): void;
+        hasDocument(instance: IModule, document: Undef<string | string[]>): boolean;
         setLocalUri(file: ExternalAsset): FileOutput;
         getRelativeUri(file: ExternalAsset, filename?: string): string;
         assignUUID(data: DocumentData, attr: string, target?: any): Undef<string>;
@@ -244,7 +245,7 @@ declare namespace functions {
         joinPosix(...paths: Undef<string>[]): string;
         getFileSize(localUri: string): number;
         loadSettings(value: Settings): void;
-        responseError(message: Error | string, hint?: string): ResponseData;
+        responseError(err: Error | string, hint?: string): ResponseData;
         allSettled<T>(values: readonly (T | PromiseLike<T>)[], rejected?: string | [string, string]): Promise<PromiseSettledResult<T>[]>;
         new(): IModule;
     }

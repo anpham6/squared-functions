@@ -28,6 +28,24 @@ export interface TaskAction {
     preceding?: boolean;
 }
 
+export interface BundleAction {
+    bundleId?: number;
+    bundleIndex?: number;
+    bundleRoot?: string;
+    trailingContent?: string[];
+}
+
+export interface ElementAction {
+    element?: ElementIndex;
+}
+
+export interface ElementIndex {
+    outerHTML: string;
+    outerIndex?: number;
+    tagName?: string;
+    tagIndex?: number;
+}
+
 export interface LocationUri {
     pathname: string;
     filename: string;
@@ -35,13 +53,6 @@ export interface LocationUri {
 
 export interface FileAsset extends TextAsset, OutputAction {
     base64?: string;
-}
-
-export interface BundleAction {
-    bundleId?: number;
-    bundleIndex?: number;
-    bundleRoot?: string;
-    trailingContent?: string[];
 }
 
 export interface CompressFormat {
@@ -57,7 +68,7 @@ export interface CloudService extends ObjectMap<unknown> {
     credential: string | PlainObject;
 }
 
-export interface CloudDatabase<T = string | PlainObject | any[]> extends CloudService {
+export interface CloudDatabase<T = string | PlainObject | any[]> extends CloudService, ElementAction {
     value: string | ObjectMap<string | string[]>;
     table?: string;
     name?: string;
@@ -66,9 +77,7 @@ export interface CloudDatabase<T = string | PlainObject | any[]> extends CloudSe
     limit?: number;
     params?: unknown[];
     options?: PlainObject;
-    element?: {
-        outerHTML?: string;
-    };
+    document?: string | string[];
 }
 
 export interface CloudStorage extends CloudService {

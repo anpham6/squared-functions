@@ -1,6 +1,6 @@
 import type { CloudService, CompressFormat } from '../types/lib/squared';
 
-import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IPermission, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
+import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, IPermission, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput } from '../types/lib/asset';
 import type { DocumentData } from '../types/lib/document';
 import type { InstallData } from '../types/lib/filemanager';
@@ -41,11 +41,10 @@ function withinSizeRange(uri: string, value: Undef<string>) {
     return true;
 }
 
-const findFormat = (compress: Undef<CompressFormat[]>, format: string) => compress && compress.find(item => item.format === format);
+const findFormat = (compress: Undef<CompressFormat[]>, format: string) => compress ? compress.filter(item => item.format === format) : [];
 const isObject = <T = PlainObject>(value: unknown): value is T => typeof value === 'object' && value !== null;
 const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
 const isTrue = (value: unknown): value is true => value ? value === true || value === 'true' || +(value as string) === 1 : false;
-const hasDocument = (document: string | string[], moduleName: string) => Array.isArray(document) && document.includes(moduleName) || document === moduleName;
 
 class Permission implements IPermission {
     private _disk_read: boolean;
@@ -319,6 +318,10 @@ class FileManager extends Module implements IFileManager {
             });
         }
     }
+    hasDocument(instance: IModule, document: Undef<string | string[]>) {
+        const moduleName = instance.moduleName;
+        return moduleName && document ? Array.isArray(document) && document.includes(moduleName) || document === moduleName : false;
+    }
     setLocalUri(file: ExternalAsset) {
         const uri = file.uri;
         if (uri) {
@@ -348,7 +351,7 @@ class FileManager extends Module implements IFileManager {
             const value: unknown = data[attr];
             if (typeof value === 'string') {
                 for (const { instance } of this.Document) {
-                    if (hasDocument(document, instance.moduleName) && value.includes(instance.internalAssignUUID)) {
+                    if (this.hasDocument(instance, document) && value.includes(instance.internalAssignUUID)) {
                         return target[attr] = value.replace(instance.internalAssignUUID, uuid.v4());
                     }
                 }
@@ -385,7 +388,7 @@ class FileManager extends Module implements IFileManager {
         }
         if (file.document) {
             for (const { instance } of this.Document) {
-                if (hasDocument(file.document, instance.moduleName) && instance.formatContent) {
+                if (this.hasDocument(instance, file.document) && instance.formatContent) {
                     content = await instance.formatContent(this, file, content);
                 }
             }
@@ -428,7 +431,7 @@ class FileManager extends Module implements IFileManager {
         let output: Undef<string>;
         if (file.document) {
             for (const { instance } of this.Document) {
-                if (hasDocument(file.document, instance.moduleName) && instance.imageQueue && (output = instance.imageQueue(data, outputType, saveAs, command))) {
+                if (this.hasDocument(instance, file.document) && instance.imageQueue && (output = instance.imageQueue(data, outputType, saveAs, command))) {
                     this.filesQueued.add(output);
                     return output;
                 }
@@ -470,7 +473,7 @@ class FileManager extends Module implements IFileManager {
         if (file.document) {
             data.baseDirectory = this.baseDirectory;
             for (const { instance } of this.Document) {
-                if (hasDocument(file.document, instance.moduleName) && instance.imageFinalize && instance.imageFinalize(err, data)) {
+                if (this.hasDocument(instance, file.document) && instance.imageFinalize && instance.imageFinalize(err, data)) {
                     if (err || !output) {
                         this.completeAsyncTask();
                         return;
@@ -610,7 +613,7 @@ class FileManager extends Module implements IFileManager {
         }
         if (file.document) {
             for (const { instance, constructor } of this.Document) {
-                if (hasDocument(file.document, instance.moduleName)) {
+                if (this.hasDocument(instance, file.document)) {
                     await constructor.using.call(this, instance, file);
                 }
             }
@@ -936,17 +939,18 @@ class FileManager extends Module implements IFileManager {
                     for (const file of files) {
                         const mimeType = mime.lookup(file);
                         if (mimeType && mimeType.startsWith('image/')) {
-                            const image = findFormat(item.compress, mimeType.split('/')[1]);
-                            if (image && withinSizeRange(file, image.condition)) {
-                                tasks.push(new Promise(resolve => {
-                                    try {
-                                        Compress.tryImage(file, image, resolve);
-                                    }
-                                    catch (err) {
-                                        this.writeFail(['Unable to compress image', path.basename(file)], err);
-                                        resolve(null);
-                                    }
-                                }));
+                            for (const image of findFormat(item.compress, mimeType.split('/')[1])) {
+                                if (withinSizeRange(file, image.condition)) {
+                                    tasks.push(new Promise(resolve => {
+                                        try {
+                                            Compress.tryImage(file, image, resolve);
+                                        }
+                                        catch (err) {
+                                            this.writeFail(['Unable to compress image', path.basename(file)], err);
+                                            resolve(null);
+                                        }
+                                    }));
+                                }
                             }
                         }
                     }

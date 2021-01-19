@@ -423,7 +423,9 @@ There are possible scenarios when a transformation may cause an asset type to ch
 <link id="sass-example" rel="alternate" type="text/plain" href="css/dev.sass" />
 ```
 
-Using element "id" is recommended when there are multiple elements with identical structure and content. Similar to JSON use only double quotes (or &amp;quot;) and do not use unnecessary extra spaces. Tags that are not well-formed may fail to be replaced.
+Similar to JSON use only double quotes (or &amp;quot;) and do not use unnecessary extra spaces. Tags that are not well-formed may fail to be replaced.
+
+NOTE: Using element "id" can sometimes fix replacement errors when there are multiple elements with identical structure and content.
 
 ```javascript
 {
@@ -696,6 +698,7 @@ interface CloudDatabase {
     limit?: number;
     params?: unknown[];
     options?: PlainObject;
+    document?: string | string[];
 }
 
 /* AWS: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GettingStarted.NodeJs.html */

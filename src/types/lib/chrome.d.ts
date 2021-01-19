@@ -1,15 +1,16 @@
 /// <reference path="type.d.ts" />
 
+import type { ElementAction } from './squared';
+
 export type UnusedStyles = string[];
 
-export interface ChromeAsset {
+export interface ChromeAsset extends ElementAction {
     rootDir?: string;
     format?: string;
     preserve?: boolean;
     exclude?: boolean;
-    outerHTML?: string;
     inlineContent?: string;
-    attributes?: ObjectMap<Optional<string>>;
+    attributes?: AttributeMap;
 }
 
 export interface TemplateMap {
@@ -23,3 +24,5 @@ export interface RequestData {
     templateMap?: TemplateMap;
     unusedStyles?: string[];
 }
+
+export type AttributeMap = ObjectMap<Optional<string>>;

@@ -87,16 +87,23 @@ const Compress = new class extends Module implements ICompress {
                 }
             });
         };
-        const loadBuffer = (buffer: Buffer) => {
-            tinify.fromBuffer(buffer).toBuffer((err, result) => {
-                if (result && !err) {
-                    writeFile(result);
+        const loadBuffer = () => {
+            fs.readFile(uri, (err, buffer) => {
+                if (!err) {
+                    tinify.fromBuffer(buffer).toBuffer((error, result) => {
+                        if (result && !error) {
+                            writeFile(result);
+                        }
+                        else {
+                            delete tinify['_key'];
+                            if (error) {
+                                throw error;
+                            }
+                        }
+                    });
                 }
                 else {
-                    delete tinify['_key'];
-                    if (err) {
-                        throw err;
-                    }
+                    throw err;
                 }
             });
         };
@@ -111,36 +118,36 @@ const Compress = new class extends Module implements ICompress {
         }
         this.formatMessage(this.logType.COMPRESS, ext, ['Compressing image...', data.plugin], uri, { titleColor: 'magenta' });
         const time = Date.now();
-        fs.readFile(uri, async (err, buffer) => {
-            if (!err) {
-                if (apiKey) {
-                    if (tinify['_key'] !== apiKey) {
-                        tinify.key = apiKey;
-                        tinify.validate(error => {
-                            if (!error) {
-                                loadBuffer(buffer);
-                            }
-                            else {
-                                throw error;
-                            }
-                        });
+        if (apiKey) {
+            if (tinify['_key'] !== apiKey) {
+                tinify.key = apiKey;
+                tinify.validate(error => {
+                    if (!error) {
+                        loadBuffer();
                     }
                     else {
-                        loadBuffer(buffer);
+                        throw error;
                     }
-                }
-                else if (data.plugin) {
-                    const plugin = require(data.plugin);
+                });
+            }
+            else {
+                loadBuffer();
+            }
+        }
+        else if (data.plugin) {
+            const plugin = require(data.plugin);
+            fs.readFile(uri, async (err, buffer) => {
+                if (!err) {
                     writeFile(await plugin(data.options)(buffer));
                 }
                 else {
-                    throw new Error('Plugin not found');
+                    throw err;
                 }
-            }
-            else {
-                throw err;
-            }
-        });
+            });
+        }
+        else {
+            throw new Error('Plugin not found');
+        }
     }
 }();
 
