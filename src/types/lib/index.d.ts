@@ -42,6 +42,7 @@ declare namespace functions {
     interface ImageConstructor extends ModuleConstructor {
         resolveMime(this: IFileManager, data: FileData): Promise<boolean>;
         using(this: IFileManager, data: FileData, command: string, callback?: FinalizeImageCallback): void;
+        clamp(value: Undef<string>, min?: number, max?: number): number;
         new(): IImage;
     }
 

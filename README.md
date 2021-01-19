@@ -207,7 +207,9 @@ These are the available option modifiers:
 * inline
     - js: Rendered inline with <script>
     - css: Rendered inline with <style>
-    - image: Rendered inline with base64 encoding as data url
+    - image: Rendered as base64 from file
+* blob
+    - image: Rendered as file from base64
 * compress
     - png: TinyPNG service for PNG or JPEG
     - gz: Gzip
@@ -456,6 +458,7 @@ JSON (json/js) configuration is optional and is provided for those who prefer to
 ```javascript
 interface OutputModifiers {
     inline?: boolean; // type: js | css | image (base64)
+    blob?: boolean; // type: image (base64)
     preserve?: boolean; // type: css
     ignore?: boolean;
     exclude?: boolean

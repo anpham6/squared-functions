@@ -1,4 +1,6 @@
-import type { IImage } from '../types/lib';
+import type { IFileManager, IImage } from '../types/lib';
+import type { FileData } from '../types/lib/asset';
+import type { FinalizeImageCallback } from '../types/lib/filemanager';
 import type { CropData, QualityData, ResizeData, RotateData } from '../types/lib/image';
 
 import Module from '../module';
@@ -6,6 +8,13 @@ import Module from '../module';
 const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : NaN;
 
 abstract class Image extends Module implements IImage {
+    public static async resolveMime(this: IFileManager, data: FileData) { return false; }
+    public static using(this: IFileManager, data: FileData, command: string, callback?: FinalizeImageCallback) {}
+
+    public static clamp(value: Undef<string>, min = 0, max = 1) {
+        return value ? Math.min(Math.max(min, +value), max) : NaN;
+    }
+
     public abstract readonly moduleName: string;
 
     parseCrop(value: string) {
@@ -16,29 +25,12 @@ abstract class Image extends Module implements IImage {
     }
     parseOpacity(value: string) {
         const match = /\|\s*(\d*\.\d+)\s*\|/.exec(value);
-        if (match) {
-            const opacity = +match[1];
-            if (opacity >= 0 && opacity < 1) {
-                return opacity;
-            }
-        }
-        return NaN;
+        return match ? Image.clamp(match[1]) : NaN;
     }
     parseQuality(value: string) {
         const match = /\|\s*(\d+)(?:\s*\[\s*(photo|picture|drawing|icon|text)\s*\])?(?:\s*\[\s*(\d+)\s*\])?\s*\|/.exec(value);
         if (match) {
-            const result: QualityData = { value: NaN, preset: match[2], nearLossless: NaN };
-            const quality = +match[1];
-            if (quality >= 0 && quality <= 100) {
-                result.value = quality;
-            }
-            if (match[3]) {
-                const nearLossless = +match[3];
-                if (nearLossless >= 0 && nearLossless <= 100) {
-                    result.nearLossless = nearLossless;
-                }
-            }
-            return result;
+            return { value: Image.clamp(match[1], 0, 100), preset: match[2], nearLossless: Image.clamp(match[3], 0, 100) } as QualityData;
         }
     }
     parseResize(value: string) {

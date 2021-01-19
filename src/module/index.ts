@@ -29,12 +29,13 @@ function allSettled<T>(values: readonly (T | PromiseLike<T>)[]) {
     return Promise.all(values.map((promise: Promise<T>) => promise.then(value => ({ status: 'fulfilled', value })).catch(reason => ({ status: 'rejected', reason })) as Promise<PromiseSettledResult<T>>));
 }
 
-function applyFailStyle(options: LogMessageOptions) {
+function applyFailStyle(options: LogMessageOptions = {}) {
     for (const attr in Module.LOG_STYLE_FAIL) {
         if (!(attr in options)) {
             options[attr] ||= Module.LOG_STYLE_FAIL[attr];
         }
     }
+    return options;
 }
 
 abstract class Module implements IModule {
@@ -136,9 +137,7 @@ abstract class Module implements IModule {
     }
 
     public static writeFail(value: LogValue, message?: Null<Error>) {
-        const options: LogMessageOptions = {};
-        applyFailStyle(options);
-        this.formatMessage(LOG_TYPE.SYSTEM, 'FAIL', value, message, options);
+        this.formatMessage(LOG_TYPE.SYSTEM, 'FAIL', value, message, applyFailStyle());
     }
 
     public static parseFunction(value: string, name?: string): Undef<FunctionType<string>> {
@@ -152,7 +151,7 @@ abstract class Module implements IModule {
             }
         }
         if (value.startsWith('function')) {
-            return eval(`(${value})`);
+            return (0, eval)(`(${value})`);
         }
         if (name) {
             try {
@@ -345,15 +344,14 @@ abstract class Module implements IModule {
     getTempDir(uuidDir?: boolean, filename = '') {
         return process.cwd() + path.sep + this.tempDir + path.sep + (uuidDir ? uuid.v4() + path.sep : '') + (filename.startsWith('.') ? uuid.v4() : '') + filename;
     }
-    writeTimeElapsed(title: string, value: string, time: number, options: LogMessageOptions = {}) {
-        Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Completed', (Date.now() - time) / 1000 + 's'], value, options);
-    }
     writeFail(value: LogValue, message?: Null<Error>) {
         this.formatFail(LOG_TYPE.SYSTEM, 'FAIL', value, message);
     }
-    formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: Null<Error>, options: LogMessageOptions = {}) {
-        applyFailStyle(options);
-        Module.formatMessage(type, title, value, message, options);
+    writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions) {
+        Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Completed', (Date.now() - time) / 1000 + 's'], value, options);
+    }
+    formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: Null<Error>, options?: LogMessageOptions) {
+        Module.formatMessage(type, title, value, message, applyFailStyle(options));
         if (message) {
             this.errors.push(message instanceof Error ? message.message : (message as string).toString());
         }

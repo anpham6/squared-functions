@@ -125,10 +125,10 @@ function findClosingTag(outerHTML: string): [string, string, string] {
     return ['', '', ''];
 }
 
-function replaceUri(source: string, segments: string[], value: string, matchSingle = true, base64?: boolean) {
+function replaceUri(source: string, segments: [string, boolean][], value: string, matchSingle?: boolean) {
     let output: Undef<string>;
-    for (let segment of segments) {
-        segment = !base64 ? escapePosix(segment) : `[^"',]+,\\s*` + segment;
+    for (const [src, base64] of segments) {
+        const segment = !base64 ? escapePosix(src) : matchSingle ? src : `[^"',]+,\\s*` + src;
         const pattern = new RegExp(`(src|href|data|poster=)?(["'])?(\\s*)${segment}(\\s*)\\2?`, 'g');
         let match: Null<RegExpExecArray>;
         while (match = pattern.exec(source)) {
@@ -245,7 +245,7 @@ function transformCss(this: IFileManager, document: IChromeDocument, file: Docum
         if (item.base64 && !item.outerHTML && item.uri && Document.hasSameOrigin(cssUri, item.uri)) {
             const url = findRelativeUri.call(this, file, item.uri, document.baseDirectory);
             if (url) {
-                const replaced = replaceUri(output || content, [item.base64.replace(/\+/g, '\\+')], getCssUrlOrCloudUUID.call(this, file, item, url), false, true);
+                const replaced = replaceUri(output || content, [[item.base64.replace(/\+/g, '\\+'), true]], getCssUrlOrCloudUUID.call(this, file, item, url));
                 if (replaced) {
                     output = replaced;
                 }
@@ -589,7 +589,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         const { uri, outerHTML } = item;
                         current = source;
                         if (outerHTML) {
-                            const segments = [uri];
+                            const segments: [string, boolean][] = [[uri, false]];
                             let value = item.relativeUri!,
                                 relativeUri: Undef<string>,
                                 ascending: Undef<boolean>;
@@ -604,19 +604,29 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 ascending = true;
                             }
                             if (relativeUri) {
-                                segments.push(relativeUri);
+                                segments.push([relativeUri, false]);
                             }
-                            if (cloud && cloud.getStorage('upload', item.cloudStorage)) {
+                            if (item.mimeType?.startsWith('image/')) {
+                                switch (item.format) {
+                                    case 'base64':
+                                        value = uuid.v4();
+                                        item.inlineBase64 = value;
+                                        item.watch = false;
+                                        break;
+                                    case 'blob':
+                                        match = /src="([^"]+)"/.exec(outerHTML);
+                                        if (match) {
+                                            segments.unshift([escapeRegexp(match[1]), true]);
+                                        }
+                                        break;
+                                }
+                            }
+                            if (cloud && cloud.getStorage('upload', item.cloudStorage) && !item.inlineBase64) {
                                 value = uuid.v4();
                                 item.inlineCloud = value;
                             }
-                            else if (item.mimeType?.startsWith('image/') && item.format === 'base64') {
-                                value = uuid.v4();
-                                item.inlineBase64 = value;
-                                item.watch = false;
-                            }
                             const innerContent = outerHTML.replace(/^\s*<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/[\s\w]+>)?\s*$/, '');
-                            const replaced = replaceUri(innerContent, segments, value);
+                            const replaced = replaceUri(innerContent, segments, value, true);
                             if (replaced) {
                                 source = source.replace(innerContent, replaced);
                                 if (current === source) {
@@ -651,7 +661,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 value = uuid.v4();
                                 item.inlineCloud = value;
                             }
-                            const result = replaceUri(source, [item.base64.replace(/\+/g, '\\+')], value, false, true);
+                            const result = replaceUri(source, [[item.base64.replace(/\+/g, '\\+'), true]], value);
                             if (result) {
                                 source = result;
                                 html = source;
