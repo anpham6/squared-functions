@@ -41,9 +41,9 @@ export interface ElementAction {
 
 export interface ElementIndex {
     outerHTML: string;
-    outerIndex?: number;
-    tagName?: string;
-    tagIndex?: number;
+    outerIndex: number;
+    tagName: string;
+    tagIndex: number;
 }
 
 export interface LocationUri {
