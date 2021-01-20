@@ -39,13 +39,13 @@ const Compress = new class extends Module implements ICompress {
             )
             .pipe(fs.createWriteStream(uri));
     }
-    tryFile(uri: string, data: CompressFormat, performAsyncTask?: Null<PerformAsyncTaskMethod>, callback?: CompleteAsyncTaskCallback) {
+    tryFile(uri: string, data: CompressFormat, beforeAsync?: Null<PerformAsyncTaskMethod>, callback?: CompleteAsyncTaskCallback) {
         const { format, level } = data;
         switch (format) {
             case 'gz':
             case 'br': {
-                if (performAsyncTask) {
-                    performAsyncTask();
+                if (beforeAsync) {
+                    beforeAsync();
                 }
                 const output = uri + '.' + format;
                 this.formatMessage(this.logType.COMPRESS, format, 'Compressing file...', output, { titleColor: 'magenta' });
@@ -65,7 +65,7 @@ const Compress = new class extends Module implements ICompress {
             default: {
                 const compressor = this.compressorProxy[format]?.bind(this);
                 if (typeof compressor === 'function') {
-                    compressor.call(this, uri, data, performAsyncTask, callback);
+                    compressor.call(this, uri, data, beforeAsync, callback);
                 }
                 else if (callback) {
                     callback();

@@ -1030,10 +1030,13 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
         return content;
     }
-    imageQueue(data: FileData, outputType: string, saveAs: string, command: string) {
-        const match = REGEXP_SRCSETSIZE.exec(command);
-        if (match) {
-            return Document.renameExt(data.file.localUri!, match[1] + match[2].toLowerCase() + '.' + saveAs);
+    imageQueue(data: FileData, saveAs: string, command: string) {
+        const localUri = data.localUri || data.file?.localUri;
+        if (localUri) {
+            const match = REGEXP_SRCSETSIZE.exec(command);
+            if (match) {
+                return Document.renameExt(localUri, match[1] + match[2].toLowerCase() + '.' + saveAs);
+            }
         }
     }
     imageFinalize(err: Null<Error>, data: OutputData) {
@@ -1061,52 +1064,59 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
     }
     cloudObject(state: CloudScopeOrigin, file: DocumentAsset) {
-        if (file.inlineCloud) {
-            this._cloudMap[file.inlineCloud] = file;
-            this._cloudModifiedHtml = true;
+        if (state.host) {
+            if (file.inlineCloud) {
+                this._cloudMap[file.inlineCloud] = file;
+                this._cloudModifiedHtml = true;
+            }
+            else if (file.inlineCssCloud) {
+                this._cloudCssMap[file.inlineCssCloud] = file;
+                this._cloudModifiedCss = new Set();
+            }
+            return this.htmlFiles.includes(file) || this.cssFiles.includes(file);
         }
-        else if (file.inlineCssCloud) {
-            this._cloudCssMap[file.inlineCssCloud] = file;
-            this._cloudModifiedCss = new Set();
-        }
-        return this.htmlFiles.includes(file) || this.cssFiles.includes(file);
+        return false;
     }
     async cloudUpload(state: CloudScopeOrigin, file: DocumentAsset, url: string, active: boolean) {
-        if (active) {
-            const host = state.host;
+        const host = state.host;
+        if (host && active) {
             const endpoint = this._cloudEndpoint;
-            let cloudUri = url;
+            let cloudUrl = url;
             if (endpoint) {
-                cloudUri = cloudUri.replace(new RegExp(escapeRegexp(endpoint), 'g'), '');
+                cloudUrl = cloudUrl.replace(new RegExp(escapeRegexp(endpoint), 'g'), '');
             }
             if (file.inlineCloud) {
                 for (const content of this.htmlFiles) {
-                    content.sourceUTF8 = host.getUTF8String(content).replace(file.inlineCloud, cloudUri);
+                    content.sourceUTF8 = host.getUTF8String(content).replace(file.inlineCloud, cloudUrl);
                     delete this._cloudMap[file.inlineCloud];
                 }
             }
             else if (file.inlineCssCloud) {
                 const pattern = new RegExp(file.inlineCssCloud, 'g');
                 for (const content of this.htmlFiles) {
-                    content.sourceUTF8 = host.getUTF8String(content).replace(pattern, cloudUri);
+                    content.sourceUTF8 = host.getUTF8String(content).replace(pattern, cloudUrl);
                 }
-                if (endpoint && cloudUri.indexOf('/') !== -1) {
-                    cloudUri = url;
+                if (endpoint && cloudUrl.indexOf('/') !== -1) {
+                    cloudUrl = url;
                 }
                 for (const content of this.cssFiles) {
                     if (content.inlineCssMap) {
-                        content.sourceUTF8 = host.getUTF8String(content).replace(pattern, cloudUri);
+                        content.sourceUTF8 = host.getUTF8String(content).replace(pattern, cloudUrl);
                         this._cloudModifiedCss!.add(content);
                     }
                 }
                 delete this._cloudCssMap[file.inlineCssCloud];
             }
-            file.cloudUri = cloudUri;
+            file.cloudUrl = cloudUrl;
         }
         return false;
     }
     async cloudFinalize(state: CloudScopeOrigin) {
-        const { host, localStorage, compressed } = state;
+        const host = state.host;
+        if (!host) {
+            return;
+        }
+        const { localStorage, compressed } = state;
         const modifiedCss = this._cloudModifiedCss;
         let tasks: Promise<unknown>[] = [];
         if (modifiedCss) {

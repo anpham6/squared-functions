@@ -8,6 +8,6 @@ export interface InstallData<T, U> {
 }
 
 export type PerformAsyncTaskMethod = () => void;
-export type QueueImageMethod = (data: FileData, ouputType: string, saveAs: string, command?: string) => Undef<string>;
+export type QueueImageMethod = (data: FileData, saveAs: string, command?: string) => Undef<string>;
 export type CompleteAsyncTaskCallback = (err?: Null<Error>, value?: unknown, parent?: ExternalAsset) => void;
-export type FinalizeImageCallback<T = void> = (err: Null<Error>, data: OutputData) => T;
+export type FinalizeImageCallback<T = unknown, U = void> = (err: Null<Error>, result: T) => U;

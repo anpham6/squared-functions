@@ -1,6 +1,5 @@
 import type { IFileManager, IImage } from '../types/lib';
 import type { FileData } from '../types/lib/asset';
-import type { FinalizeImageCallback } from '../types/lib/filemanager';
 import type { CropData, QualityData, ResizeData, RotateData } from '../types/lib/image';
 
 import Module from '../module';
@@ -8,15 +7,53 @@ import Module from '../module';
 const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : NaN;
 
 abstract class Image extends Module implements IImage {
+    public static readonly INPUT_MIME: Set<string>;
+    public static readonly OUTPUT_MIME: Set<string>;
+
+    public static parseFormat(value: string) {
+        value = value.trim();
+        for (const mime of this.OUTPUT_MIME) {
+            const format = mime.split('/')[1];
+            if (value.startsWith(format)) {
+                return [mime, format];
+            }
+        }
+        return ['', ''];
+    }
+
     public static async resolveMime(this: IFileManager, data: FileData) { return false; }
-    public static using(this: IFileManager, data: FileData, command: string, callback?: FinalizeImageCallback) {}
+    public static using(this: IFileManager, data: FileData, command: string) {}
 
     public static clamp(value: Undef<string>, min = 0, max = 1) {
         return value ? Math.min(Math.max(min, +value), max) : NaN;
     }
 
+    public resizeData?: ResizeData;
+    public cropData?: CropData;
+    public rotateData?: RotateData;
+    public qualityData?: QualityData;
+    public methodData?: string[];
+    public opacityValue = NaN;
+
     public abstract readonly moduleName: string;
 
+    private _command = '';
+
+    reset() {
+        this.setCommand('');
+    }
+    setCommand(value: string) {
+        this.resizeData = this.parseResize(value ||= '');
+        this.cropData = this.parseCrop(value);
+        this.rotateData = this.parseRotate(value);
+        this.qualityData = this.parseQuality(value);
+        this.opacityValue = this.parseOpacity(value);
+        this.methodData = this.parseMethod(value);
+        this._command = value;
+    }
+    getCommand() {
+        return this._command;
+    }
     parseCrop(value: string) {
         const match = /\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*\|\s*(\d+)\s*x\s*(\d+)\s*\)/.exec(value);
         if (match) {
@@ -62,7 +99,7 @@ abstract class Image extends Module implements IImage {
             return result;
         }
     }
-}
+ }
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = Image;

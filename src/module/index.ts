@@ -342,7 +342,7 @@ abstract class Module implements IModule {
         return true;
     }
     getTempDir(uuidDir?: boolean, filename = '') {
-        return process.cwd() + path.sep + this.tempDir + path.sep + (uuidDir ? uuid.v4() + path.sep : '') + (filename.startsWith('.') ? uuid.v4() : '') + filename;
+        return process.cwd() + path.sep + this.tempDir + path.sep + (uuidDir ? uuid.v4() + path.sep : '') + (filename[0] === '.' ? uuid.v4() : '') + filename;
     }
     writeFail(value: LogValue, message?: Null<Error>) {
         this.formatFail(LOG_TYPE.SYSTEM, 'FAIL', value, message);

@@ -1,8 +1,10 @@
 import type { BundleAction, FileAsset } from './squared';
 
 export interface FileData {
-    file: ExternalAsset;
+    file?: ExternalAsset;
+    localUri?: string;
     mimeType?: string | false;
+    outputType?: string;
 }
 
 export interface FileOutput {
@@ -13,7 +15,7 @@ export interface FileOutput {
 export interface ExternalAsset extends FileAsset, BundleAction {
     localUri?: string;
     relativeUri?: string;
-    cloudUri?: string;
+    cloudUrl?: string;
     buffer?: Buffer;
     sourceUTF8?: string;
     originalName?: string;

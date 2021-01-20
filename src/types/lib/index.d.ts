@@ -9,7 +9,7 @@ import type { CloudFeatures, CloudFunctions, FinalizeResult } from './cloud';
 import type { CompressTryFileMethod, CompressTryImageCallback } from './compress';
 import type { ConfigOrTransformer, DocumentData, PluginConfig, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
 import type { CompleteAsyncTaskCallback, FinalizeImageCallback, InstallData, PerformAsyncTaskMethod, QueueImageMethod } from './filemanager';
-import type { CropData, QualityData, ResizeData, RotateData } from './image';
+import type { CropData, OutputData, QualityData, ResizeData, RotateData } from './image';
 import type { CloudModule, DocumentModule } from './module';
 import type { LOG_TYPE, LogMessageOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
 import type { PermissionSettings, RequestBody, Settings } from './node';
@@ -30,7 +30,15 @@ declare namespace functions {
     }
 
     interface IImage extends IModule {
+        resizeData?: ResizeData;
+        cropData?: CropData;
+        rotateData?: RotateData;
+        qualityData?: QualityData;
+        opacityValue: number;
         readonly moduleName: string;
+        reset(): void;
+        setCommand(value: string): void;
+        getCommand(): string;
         parseMethod(value: string): Undef<string[]>;
         parseResize(value: string): Undef<ResizeData>;
         parseCrop(value: string): Undef<CropData>;
@@ -40,8 +48,11 @@ declare namespace functions {
     }
 
     interface ImageConstructor extends ModuleConstructor {
+        readonly INPUT_MIME: Set<string>;
+        readonly OUTPUT_MIME: Set<string>;
+        parseFormat(value: string): string[];
         resolveMime(this: IFileManager, data: FileData): Promise<boolean>;
-        using(this: IFileManager, data: FileData, command: string, callback?: FinalizeImageCallback): void;
+        using(this: IFileManager, data: FileData, command: string): void;
         clamp(value: Undef<string>, min?: number, max?: number): number;
         new(): IImage;
     }
@@ -108,7 +119,7 @@ declare namespace functions {
         transform(type: string, code: string, format: string, options?: TransformOutput): Promise<Void<TransformResult>>;
         formatContent?(manager: IFileManager, file: ExternalAsset, content: string): Promise<string>;
         imageQueue?: QueueImageMethod;
-        imageFinalize?: FinalizeImageCallback<boolean>;
+        imageFinalize?: FinalizeImageCallback<OutputData, boolean>;
         cloudInit?(state: ScopeOrigin<T, U>): void;
         cloudObject?(state: ScopeOrigin<T, U>, file: ExternalAsset): boolean;
         cloudUpload?(state: ScopeOrigin<T, U>, file: ExternalAsset, url: string, active: boolean): Promise<boolean>;
@@ -184,6 +195,7 @@ declare namespace functions {
         performFinalize(): void;
         hasDocument(instance: IModule, document: Undef<string | string[]>): boolean;
         setLocalUri(file: ExternalAsset): FileOutput;
+        getLocalUri(data: FileData): Undef<string>;
         getRelativeUri(file: ExternalAsset, filename?: string): string;
         assignUUID(data: DocumentData, attr: string, target?: any): Undef<string>;
         findAsset(uri: string): Undef<ExternalAsset>;
@@ -195,7 +207,7 @@ declare namespace functions {
         writeBuffer(file: ExternalAsset): Null<Buffer>;
         compressFile(file: ExternalAsset): Promise<unknown>;
         queueImage: QueueImageMethod;
-        finalizeImage: FinalizeImageCallback;
+        finalizeImage: FinalizeImageCallback<OutputData>;
         finalizeAsset(data: FileData, parent?: ExternalAsset): Promise<void>;
         processAssets(emptyDir?: boolean): void;
         finalize(): Promise<void>;
@@ -253,28 +265,24 @@ declare namespace functions {
     const Module: ModuleConstructor;
 
     interface ScopeOrigin<T = IModule, U = IModule> {
-        host: T;
+        host?: T;
         instance: U;
     }
 
     class ImageHandler<T, U> implements ScopeOrigin<T, U> {
-        host: T;
+        host?: T;
         instance: U;
-        command: string
-        resizeData?: ResizeData;
-        cropData?: CropData;
-        rotateData?: RotateData;
-        qualityData?: QualityData;
-        opacityValue: number;
+        data?: FileData;
         method(): void;
         resize(): void;
         crop(): void;
         opacity(): void;
         quality(): void;
-        rotate(performAsyncTask?: PerformAsyncTaskMethod, callback?: CompleteAsyncTaskCallback): void;
-        write(output: string, startTime?: number, callback?: FinalizeImageCallback): void;
+        rotate(): void;
+        write(output: string, callback?: FinalizeImageCallback): void;
+        getBuffer(saveAs?: string): Promise<Null<Buffer>>;
         finalize(output: string, callback: (err: Null<Error>, result: string) => void): void;
-        constructor(host: T, instance: U, data: FileData, command: string, finalAs?: string);
+        constructor(instance: U, data: FileData, host: T);
     }
 }
 

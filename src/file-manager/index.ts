@@ -342,6 +342,9 @@ class FileManager extends Module implements IFileManager {
         file.mimeType ||= mime.lookup(uri || localUri) || '';
         return { pathname, localUri } as FileOutput;
     }
+    getLocalUri(data: FileData) {
+        return data.localUri || data.file && data.file.localUri;
+    }
     getRelativeUri(file: ExternalAsset, filename = file.filename) {
         return Module.joinPosix(file.moveTo, file.pathname, filename);
     }
@@ -425,19 +428,22 @@ class FileManager extends Module implements IFileManager {
         }
         return null;
     }
-    queueImage(data: FileData, outputType: string, saveAs: string, command = '') {
+    queueImage(data: FileData, saveAs: string, command = '') {
+        const localUri = this.getLocalUri(data);
+        if (!localUri) {
+            return;
+        }
         const file = data.file;
-        const localUri = file.localUri!;
         let output: Undef<string>;
-        if (file.document) {
+        if (file?.document) {
             for (const { instance } of this.Document) {
-                if (this.hasDocument(instance, file.document) && instance.imageQueue && (output = instance.imageQueue(data, outputType, saveAs, command))) {
+                if (this.hasDocument(instance, file.document) && instance.imageQueue && (output = instance.imageQueue(data, saveAs, command))) {
                     this.filesQueued.add(output);
                     return output;
                 }
             }
         }
-        if (file.mimeType === outputType) {
+        if (file?.mimeType === data.outputType) {
             if (!command.includes('@') || this.filesQueued.has(localUri)) {
                 let i = 1;
                 do {
@@ -470,7 +476,7 @@ class FileManager extends Module implements IFileManager {
         }
         let output = data.output,
             parent: Undef<ExternalAsset>;
-        if (file.document) {
+        if (file?.document) {
             data.baseDirectory = this.baseDirectory;
             for (const { instance } of this.Document) {
                 if (this.hasDocument(instance, file.document) && instance.imageFinalize && instance.imageFinalize(err, data)) {
@@ -484,23 +490,26 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (!err && output) {
-            const original = file.localUri === output;
-            if (!parent && !original) {
-                if (command.includes('%')) {
-                    if (this.filesToCompare.has(file)) {
-                        this.filesToCompare.get(file)!.push(output);
+            let original = true;
+            if (file) {
+                original = file.localUri === output;
+                if (!parent && !original) {
+                    if (command.includes('%')) {
+                        if (this.filesToCompare.has(file)) {
+                            this.filesToCompare.get(file)!.push(output);
+                        }
+                        else {
+                            this.filesToCompare.set(file, [output]);
+                        }
+                        output = '';
+                    }
+                    else if (command.includes('@')) {
+                        this.replace(file, output);
+                        output = '';
                     }
                     else {
-                        this.filesToCompare.set(file, [output]);
+                        parent = file;
                     }
-                    output = '';
-                }
-                else if (command.includes('@')) {
-                    this.replace(file, output);
-                    output = '';
-                }
-                else {
-                    parent = file;
                 }
             }
             this.completeAsyncTask(null, output, !original ? parent : undefined);
@@ -565,72 +574,77 @@ class FileManager extends Module implements IFileManager {
     }
     async finalizeAsset(data: FileData, parent?: ExternalAsset) {
         const file = data.file;
-        const localUri = file.localUri!;
-        if (file.tasks) {
-            const taskName = new Set<string>();
-            for (const task of file.tasks) {
-                if (task.preceding && !taskName.has(task.handler)) {
-                    const handler = this.Task.find(item => task.handler === item.instance.moduleName);
-                    if (handler) {
-                        await handler.constructor.using.call(this, handler.instance, [file], true);
-                        taskName.add(task.handler);
+        const localUri = this.getLocalUri(data);
+        if (file && localUri) {
+            if (file.tasks) {
+                const taskName = new Set<string>();
+                for (const task of file.tasks) {
+                    if (task.preceding && !taskName.has(task.handler)) {
+                        const handler = this.Task.find(item => task.handler === item.instance.moduleName);
+                        if (handler) {
+                            await handler.constructor.using.call(this, handler.instance, [file], true);
+                            taskName.add(task.handler);
+                        }
                     }
                 }
             }
-        }
-        if (this.Image) {
-            const mimeType = file.mimeType;
-            if (mimeType && mimeType.startsWith('image/')) {
-                let valid = true;
-                if (mimeType === 'image/unknown') {
-                    try {
-                        const handler = this.Image.get('unknown') || this.Image.get('handler');
-                        valid = handler ? await handler.resolveMime.call(this, data) : false;
+            if (this.Image) {
+                const mimeType = data.mimeType || file.mimeType;
+                if (mimeType && mimeType.startsWith('image/')) {
+                    let valid = true;
+                    if (mimeType === 'image/unknown') {
+                        try {
+                            const handler = this.Image.get('unknown') || this.Image.get('handler');
+                            valid = handler ? await handler.resolveMime.call(this, data) : false;
+                        }
+                        catch (err) {
+                            this.writeFail(['Unable to read image buffer', path.basename(localUri)], err);
+                            valid = false;
+                        }
+                        if (!valid) {
+                            file.invalid = true;
+                        }
                     }
-                    catch (err) {
-                        this.writeFail(['Unable to read image buffer', path.basename(localUri)], err);
-                        valid = false;
+                    else {
+                        data.mimeType = mimeType;
                     }
-                    if (!valid) {
-                        file.invalid = true;
-                    }
-                }
-                else {
-                    data.mimeType = mimeType;
-                }
-                if (valid && file.commands) {
-                    const ext = mimeType.split('/')[1];
-                    for (const command of file.commands) {
-                        if (withinSizeRange(localUri, command)) {
-                            const handler = this.Image.get(ext) || this.Image.get('handler');
-                            if (handler) {
-                                handler.using.call(this, data, command, this.finalizeImage.bind(this));
+                    if (valid && file.commands) {
+                        const ext = mimeType.split('/')[1];
+                        for (const command of file.commands) {
+                            if (withinSizeRange(localUri, command)) {
+                                const handler = this.Image.get(ext) || this.Image.get('handler');
+                                if (handler) {
+                                    handler.using.call(this, data, command);
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-        if (file.document) {
-            for (const { instance, constructor } of this.Document) {
-                if (this.hasDocument(instance, file.document)) {
-                    await constructor.using.call(this, instance, file);
+            if (file.document) {
+                for (const { instance, constructor } of this.Document) {
+                    if (this.hasDocument(instance, file.document)) {
+                        await constructor.using.call(this, instance, file);
+                    }
                 }
             }
-        }
-        if (file.invalid) {
-            if (!file.bundleId) {
-                try {
-                    fs.unlinkSync(localUri);
+            if (file.invalid) {
+                if (!file.bundleId) {
+                    try {
+                        fs.unlinkSync(localUri);
+                    }
+                    catch (err) {
+                        this.writeFail(['Unable to delete file', path.basename(localUri)], err);
+                    }
                 }
-                catch (err) {
-                    this.writeFail(['Unable to delete file', path.basename(localUri)], err);
-                }
+                this.completeAsyncTask();
             }
-            this.completeAsyncTask();
+            else {
+                this.completeAsyncTask(null, localUri, parent);
+            }
         }
         else {
-            this.completeAsyncTask(null, localUri, parent);
+            this.completeAsyncTask(null, localUri);
         }
     }
     processAssets(emptyDir?: boolean) {

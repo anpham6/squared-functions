@@ -2,6 +2,7 @@ build/
 node_modules/
 publish/**/*.js
 publish/document/**/document.d.ts
+publish/image/**/image.d.ts
 publish/types/**/*.d.ts
 *.code-workspace
 package-lock.json

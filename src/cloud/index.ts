@@ -55,7 +55,7 @@ function getFiles(cloud: ICloud, file: ExternalAsset, data: CloudStorageUpload) 
             if (cloud.compressFormat.has(ext) && value === files[0] + ext) {
                 files.push(value);
             }
-            else if (!file.cloudUri) {
+            else if (!file.cloudUrl) {
                 transforms.push(value);
             }
         }
@@ -107,8 +107,8 @@ class Cloud extends Module implements ICloud {
                                             if (!err) {
                                                 let filename: Undef<string>;
                                                 if (index === 0) {
-                                                    if (file.cloudUri) {
-                                                        filename = path.basename(file.cloudUri);
+                                                    if (file.cloudUrl) {
+                                                        filename = path.basename(file.cloudUrl);
                                                     }
                                                     else if (upload.filename) {
                                                         filename = this.assignUUID(file, 'filename', upload);
