@@ -10,7 +10,6 @@ import type { RequestBody } from '../../types/lib/node';
 import type { CloudScopeOrigin } from '../../cloud';
 import type { DocumentAsset, IChromeDocument } from './document';
 
-import path = require('path');
 import fs = require('fs-extra');
 import escapeRegexp = require('escape-string-regexp');
 import uuid = require('uuid');
@@ -22,9 +21,9 @@ const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
 
 function removeFileCommands(value: string) {
     return value
-        .replace(/\s*<(script|link|style).+?data-chrome-file\s*=\s*["']exclude["'][\s\S]*?<\/\1>\n*/ig, '')
-        .replace(/\s*<(script|link).+?data-chrome-file\s*=\s*["']exclude["'][^>]*>\n*/ig, '')
-        .replace(/\s*<script.+?data-chrome-template\s*=\s*(?:"[^"]*"|'[^']*')[\s\S]*?<\/script>\n*/ig, '')
+        .replace(/\s*<\s*(script|link|style).+?data-chrome-file\s*=\s*["']exclude["'][\s\S]*?<\/\1>\n*/ig, '')
+        .replace(/\s*<\s*(script|link).+?data-chrome-file\s*=\s*["']exclude["'][^>]*>\n*/ig, '')
+        .replace(/\s*<\s*script.+?data-chrome-template\s*=\s*(?:"[^"]*"|'[^']*')[\s\S]*?<\/script>\n*/ig, '')
         .replace(/\s+data-(?:use|chrome-[\w-]+)\s*=\s*(?:"[^"]*"|'[^']*')/g, '');
 }
 
@@ -151,24 +150,52 @@ function findClosingTag(tagName: string, outerHTML: string, closed = true): [str
         }
         if (opening) {
             const index = outerHTML.lastIndexOf('<');
-            return [opening, outerHTML.substring(index), outerHTML.substring(opening.length + 1, index)];
+            return [opening, outerHTML.substring(index), outerHTML.substring(opening.length, index)];
         }
     }
     return ['', '', ''];
 }
 
-function replaceUri(source: string, segments: [string, boolean][], value: string, matchSingle?: boolean) {
-    let output: Undef<string>;
-    for (const [src, base64] of segments) {
-        const segment = !base64 ? escapePosix(src) : matchSingle ? src : `[^"',]+,\\s*` + src;
-        const pattern = new RegExp(`(?:([Ss][Rr][Cc]|[Hh][Rr][Ee][Ff]|[Dd][Aa][Tt][Aa]|[Pp][Oo][Ss][Tt][Ee][Rr])\\s*=\\s*)?(["'])?(\\s*)${segment}(\\s*)\\2`, 'g');
-        let match: Null<RegExpExecArray>;
-        while (match = pattern.exec(source)) {
-            output = (output || source).replace(match[0], match[1] ? match[1].toLowerCase() + `="${value}"` : (match[2] || '') + match[3] + value + match[4] + (match[2] || ''));
-            if (matchSingle && output !== source) {
-                break;
+function replaceSrc(outerHTML: string, src: string[], value: string, base64: boolean, baseUri?: string[]) {
+    let html = outerHTML,
+        result: Undef<string>;
+    for (const item of src) {
+        let match = new RegExp(`(src|href|data|poster)\\s*=\\s*(["'])?\\s*${!base64 ? escapePosix(item) : escapeRegexp(item)}\\s*\\2`, 'i').exec(html);
+        if (match) {
+            result = (result || html).replace(match[0], match[1].toLowerCase() + `="${value}"`);
+            html = result;
+        }
+        if (!base64) {
+            match = /srcset\s*=\s*(["'])([\S\s]+?)\1/i.exec(html);
+            if (match) {
+                const current = match[2];
+                const ascending = baseUri && /[.\\/]/.test(item[0]);
+                let source = current,
+                    found: Undef<boolean>;
+                const pattern = new RegExp(`(${(ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + escapePosix(item)})([^,]*)`, 'g');
+                while (match = pattern.exec(current)) {
+                    if (!ascending || baseUri![1] === Document.resolvePath(match[1], baseUri![0])) {
+                        source = source.replace(match[0], value + match[2]);
+                        found = true;
+                    }
+                }
+                if (found) {
+                    result = (result || html).replace(current, source);
+                    html = result;
+                }
             }
         }
+    }
+    return result;
+}
+
+function replaceUrl(css: string, src: string, value: string, base64: boolean) {
+    const pattern = new RegExp(`\burl\\(\\s*(["'])?\\s*${!base64 ? escapePosix(src) : `[^"',]+,\\s*` + src.replace(/\+/g, '\\+')}\\s*\\1\\s*\\)`, 'g');
+    let output: Undef<string>,
+        match: Null<RegExpExecArray>;
+    while (match = pattern.exec(css)) {
+        match[1] ||= '"';
+        output = (output || css).replace(match[0], 'url(' + match[1] + value + match[1] + ')');
     }
     return output;
 }
@@ -277,7 +304,7 @@ function transformCss(this: IFileManager, document: IChromeDocument, file: Docum
         if (item.base64 && !item.element && item.uri && Document.hasSameOrigin(cssUri, item.uri)) {
             const url = findRelativeUri.call(this, file, item.uri, document.baseDirectory);
             if (url) {
-                const replaced = replaceUri(output || content, [[item.base64.replace(/\+/g, '\\+'), true]], getCssUrlOrCloudUUID.call(this, file, item, url));
+                const replaced = replaceUrl(output || content, item.base64, getCssUrlOrCloudUUID.call(this, file, item, url), true);
                 if (replaced) {
                     output = replaced;
                 }
@@ -623,13 +650,14 @@ class ChromeDocument extends Document implements IChromeDocument {
                     if (item.invalid && !item.exclude && item.bundleIndex === undefined) {
                         continue;
                     }
-                    const { element, trailingContent } = item;
+                    const { trailingContent, element } = item;
                     if (trailingContent) {
-                        const pattern = /(\s*)<(script|style)[^>]*>([\s\S]*?)<\/\2>\n*/g;
-                        const content = trailingContent.map(value => minifySpace(value));
-                        const html = source;
-                        while (match = pattern.exec(html)) {
-                            if (content.includes(minifySpace(match[3]))) {
+                        const pattern = /\s*<\s*(script|style)\b[\s\S]+?<\/\s*\1\s*>\n*/ig;
+                        const value = trailingContent.map(content => minifySpace(content));
+                        current = source;
+                        while (match = pattern.exec(current)) {
+                            const content = findClosingTag(match[1].toUpperCase(), match[0].trim())[2];
+                            if (content && value.includes(minifySpace(content))) {
                                 source = source.replace(match[0], '');
                             }
                         }
@@ -722,33 +750,13 @@ class ChromeDocument extends Document implements IChromeDocument {
                     if (item === file || item.content || item.bundleIndex !== undefined || item.inlineContent || !item.uri || item.invalid) {
                         continue;
                     }
-                    const { uri, element } = item;
-                    if (element) {
+                    if (item.element) {
+                        const { uri, element } = item;
                         const { outerHTML, outerIndex } = element;
-                        const segments: [string, boolean][] = [[uri, false]];
-                        let value = item.relativeUri!,
-                            relativeUri: Undef<string>,
-                            ascending: Undef<boolean>;
-                        if (baseDirectory) {
-                            relativeUri = uri.replace(baseDirectory, '');
-                            if (relativeUri === uri) {
-                                relativeUri = '';
-                            }
-                        }
-                        if (!relativeUri && Document.hasSameOrigin(baseUri, uri)) {
-                            relativeUri = path.join(item.pathname, path.basename(uri));
-                            ascending = true;
-                        }
-                        if (relativeUri) {
-                            segments.push([relativeUri, false]);
-                            match = new RegExp(`=\\s*["']?\\s*(${(ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + escapePosix(relativeUri)})`).exec(outerHTML);
-                            if (match) {
-                                const url = match[1];
-                                if (uri === Document.resolvePath(url, baseUri) && !segments.find(seg => seg[0] === url)) {
-                                    segments.push([url, false]);
-                                }
-                            }
-                        }
+                        const sameOrigin = Document.hasSameOrigin(baseUri, uri);
+                        const src = [uri];
+                        let base64 = false,
+                            value: Undef<string>;
                         if (item.mimeType?.startsWith('image/')) {
                             switch (item.format) {
                                 case 'base64':
@@ -757,21 +765,32 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     item.watch = false;
                                     break;
                                 case 'blob':
-                                    match = /src\s*=\s*(?:"([^"]+)":'([^']+)')/.exec(outerHTML);
+                                    match = /src\s*=\s*(?:"([^"]+)"|'([^']+)')/i.exec(outerHTML);
                                     if (match) {
-                                        segments.unshift([escapeRegexp(match[1] || match[2]), true]);
+                                        src[0] = (match[1] || match[2]).trim();
+                                        base64 = true;
                                     }
                                     break;
+                            }
+                        }
+                        if (!base64 && sameOrigin) {
+                            match = /(?:src|href|data|poster)\s*=\s*(["'])?(.+?)\1/i.exec(outerHTML);
+                            if (match && uri === Document.resolvePath(match[2], baseUri)) {
+                                src.push(match[2].trim());
+                            }
+                            const url = uri.startsWith(baseDirectory) ? uri.substring(baseDirectory.length) : uri.replace(new URL(baseUri).origin, '');
+                            if (!src.includes(url)) {
+                                src.push(url);
                             }
                         }
                         if (cloud && cloud.getStorage('upload', item.cloudStorage) && !item.inlineBase64) {
                             value = uuid.v4();
                             item.inlineCloud = value;
                         }
-                        const innerContent = outerHTML.replace(/^<\s*/, '').replace(/\s*\/?\s*>([\S\s]*<\/[\s\w]+>)?$/, '');
-                        const replaced = replaceUri(innerContent, segments, value, true);
+                        const opening = outerHTML.replace(/\s*\/?\s*>([\S\s]*<\/[^>]+>)?$/, '');
+                        const replaced = replaceSrc(opening, src, value || item.relativeUri!, base64, sameOrigin ? [baseUri, uri] : undefined);
                         if (replaced) {
-                            const replaceWith = outerHTML.replace(innerContent, replaced);
+                            const replaceWith = outerHTML.replace(opening, replaced);
                             if (replaceIndex(outerHTML, replaceWith, outerIndex) || replaceIndex(outerHTML, replaceWith, outerIndex, true) || replaceMinify(element.tagName, outerHTML, replaceWith)) {
                                 setOuterIndex(replaceWith, element.tagName, element.tagIndex, item);
                                 continue;
@@ -786,7 +805,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             value = uuid.v4();
                             item.inlineCloud = value;
                         }
-                        const result = replaceUri(source, [[item.base64.replace(/\+/g, '\\+'), true]], value);
+                        const result = replaceUrl(source, item.base64, value, true);
                         if (result) {
                             source = result;
                         }

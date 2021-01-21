@@ -222,6 +222,9 @@ abstract class Module implements IModule {
     }
 
     public static resolvePath(value: string, href: string) {
+        if ((value = value.trim()).startsWith('http')) {
+            return value;
+        }
         if (href.startsWith('http')) {
             try {
                 const url = new URL(href);
