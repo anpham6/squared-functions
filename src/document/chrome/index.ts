@@ -105,7 +105,7 @@ function findClosingTag(tagName: string, outerHTML: string, closed = true): [str
             break;
         }
     }
-    else if (opposing.length === 2 && forward.length === 2 && /^<\s*([^\s/>]+)[\S\s]+?<\/\s*\1\s*>$/.test(outerHTML)) {
+    else if (opposing.length === 2 && forward.length === 2 && /^<\s*([^\s/>]+)[\S\s]+?<\/\s*\1\s*>$/i.test(outerHTML)) {
         return [forward[0] + '>', '<' + opposing[1], forward[1] + opposing[0]];
     }
     else {
@@ -160,7 +160,7 @@ function replaceSrc(outerHTML: string, src: string[], value: string, base64: boo
     let html = outerHTML,
         result: Undef<string>;
     for (const item of src) {
-        let match = new RegExp(`(src|href|data|poster)\\s*=\\s*(["'])?\\s*${!base64 ? escapePosix(item) : escapeRegexp(item)}\\s*\\2`, 'i').exec(html);
+        let match = new RegExp(`\\b(src|href|data|poster)\\s*=\\s*(["'])?\\s*${!base64 ? escapePosix(item) : escapeRegexp(item)}\\s*\\2`, 'i').exec(html);
         if (match) {
             result = (result || html).replace(match[0], match[1].toLowerCase() + `="${value}"`);
             html = result;
@@ -190,11 +190,10 @@ function replaceSrc(outerHTML: string, src: string[], value: string, base64: boo
 }
 
 function replaceUrl(css: string, src: string, value: string, base64: boolean) {
-    const pattern = new RegExp(`\burl\\(\\s*(["'])?\\s*${!base64 ? escapePosix(src) : `[^"',]+,\\s*` + src.replace(/\+/g, '\\+')}\\s*\\1\\s*\\)`, 'g');
+    const pattern = new RegExp(`\\b[Uu][Rr][Ll]\\(\\s*(["']*)\\s*${!base64 ? escapePosix(src) : `[^"',]+,\\s*` + src.replace(/\+/g, '\\+')}\\s*\\1\\s*\\)`, 'g');
     let output: Undef<string>,
         match: Null<RegExpExecArray>;
     while (match = pattern.exec(css)) {
-        match[1] ||= '"';
         output = (output || css).replace(match[0], 'url(' + match[1] + value + match[1] + ')');
     }
     return output;
@@ -438,6 +437,8 @@ class ChromeDocument extends Document implements IChromeDocument {
         const baseDirectory = instance.baseDirectory;
         switch (mimeType) {
             case '@text/html': {
+                const cloud = this.Cloud;
+                const baseUri = file.uri!;
                 let source = this.getUTF8String(file, localUri),
                     current = '',
                     database: Undef<CloudDatabase[]>,
@@ -561,7 +562,6 @@ class ChromeDocument extends Document implements IChromeDocument {
                         target.element!.outerIndex = -1;
                     }
                 };
-                const cloud = this.Cloud;
                 if (cloud && cloud.database) {
                     const cacheKey = uuid.v4();
                     database = cloud.database.filter(item => this.hasDocument(instance, item.document) && item.element);
@@ -575,9 +575,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 return [];
                             });
                         })
-                    )).forEach((result, i) => {
+                    )).forEach((result, index) => {
                         if (result.length) {
-                            const item = database![i];
+                            const item = database![index];
                             const { tagName, tagIndex, outerHTML, outerIndex } = item.element!;
                             const template = item.value;
                             let replaceWith: Undef<string>;
@@ -633,7 +633,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             }
                         }
                         else {
-                            const { service, table, id, query } = database![i];
+                            const { service, table, id, query } = database![index];
                             let queryString = '';
                             if (id) {
                                 queryString = 'id: ' + id;
@@ -645,7 +645,6 @@ class ChromeDocument extends Document implements IChromeDocument {
                         }
                     });
                 }
-                const baseUri = file.uri!;
                 for (const item of this.assets as DocumentAsset[]) {
                     if (item.invalid && !item.exclude && item.bundleIndex === undefined) {
                         continue;
@@ -677,8 +676,8 @@ class ChromeDocument extends Document implements IChromeDocument {
                         };
                         if (inlineContent) {
                             const id = `<!-- ${uuid.v4()} -->`;
-                            replaceWith = '<' + inlineContent;
                             parseAttributes(tagName, outerHTML, attributes, ['src', 'href']);
+                            replaceWith = '<' + inlineContent;
                             writeAttributes();
                             replaceWith += `>${id}</${inlineContent}>`;
                             if (replaceIndex(outerHTML, replaceWith, outerIndex) || replaceMinify('', outerHTML, replaceWith, content)) {

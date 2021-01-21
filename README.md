@@ -41,7 +41,7 @@ npm i dwebp-bin && npm i cwebp-bin
 Placing an @ symbol (png@) after the format will remove the original file from the package. Using the % symbol (png%) instead will choose the smaller of the two files. You can also use these commands with the setting "convertImages" in the Android framework.
 
 ```javascript
-// Multiple transformations use the "::" as the separator with "data-chrome-commands"
+// data-chrome-commands: Multiple transformations use the "::" as the separator
 
 webp(50000,*)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,135,215,315#FFFFFF}|0.5||100[photo][75]|!opaque!greyscale
 
@@ -416,14 +416,12 @@ Here is the equivalent configuration in YAML and when available has higher prece
 
 ### Modifying content attributes
 
-There are possible scenarios when a transformation may cause an asset type to change into another format.
+There are possible scenarios when a transformation may cause an asset type to change into another format. Similar to JSON it is better to use double quotes (or &amp;quot;). Tags that are not well-formed may fail to be replaced.
 
 ```xml
 <!-- before -->
 <link id="sass-example" rel="alternate" type="text/plain" href="css/dev.sass" />
 ```
-
-Similar to JSON use only double quotes (or &amp;quot;) and do not use unnecessary extra spaces. Tags that are not well-formed may fail to be replaced.
 
 NOTE: Using element "id" can sometimes fix replacement errors when there are multiple elements with identical structure and content.
 

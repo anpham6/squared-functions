@@ -648,11 +648,12 @@ class FileManager extends Module implements IFileManager {
         }
     }
     processAssets(emptyDir?: boolean) {
-        const emptied = new Set<string>();
-        const notFound: ObjectMap<boolean> = {};
         const processing: ObjectMap<ExternalAsset[]> = {};
+        const downloading: ObjectMap<ExternalAsset[]> = {};
         const appending: ObjectMap<ExternalAsset[]> = {};
         const completed: string[] = [];
+        const emptied = new Set<string>();
+        const notFound: ObjectMap<boolean> = {};
         const checkQueue = (file: ExternalAsset, localUri: string, content?: boolean) => {
             const bundleIndex = file.bundleIndex;
             if (bundleIndex !== undefined && bundleIndex !== -1) {
@@ -669,7 +670,6 @@ class FileManager extends Module implements IFileManager {
                 }
                 const queue = processing[localUri];
                 if (queue) {
-                    this.performAsyncTask();
                     queue.push(file);
                     return true;
                 }
@@ -747,21 +747,77 @@ class FileManager extends Module implements IFileManager {
                 }
                 delete appending[localUri];
             }
-            else if (Array.isArray(processing[localUri])) {
-                completed.push(localUri);
-                for (const item of processing[localUri]) {
-                    if (!item.invalid) {
-                        this.finalizeAsset({ file: item });
+            else {
+                const uri = file.uri!;
+                const copying = downloading[uri];
+                const ready = processing[localUri];
+                if (file.invalid) {
+                    if (copying && copying.length) {
+                        for (const item of copying) {
+                            item.invalid = true;
+                        }
+                    }
+                    if (ready) {
+                        for (const item of ready) {
+                            item.invalid = true;
+                        }
                     }
                 }
+                else {
+                    completed.push(localUri);
+                    if (copying && copying.length) {
+                        const tasks: Promise<void>[] = [];
+                        const uriMap = new Map<string, ExternalAsset[]>();
+                        for (const item of copying) {
+                            const copyUri = item.localUri!;
+                            if (!uriMap.has(copyUri)) {
+                                tasks.push(
+                                    fs.copyFile(localUri, copyUri)
+                                        .then(() => {
+                                            for (const queue of uriMap.get(copyUri)!) {
+                                                this.performAsyncTask();
+                                                this.finalizeAsset({ file: queue });
+                                            }
+                                        })
+                                        .catch(err => {
+                                            for (const queue of uriMap.get(copyUri)!) {
+                                                queue.invalid = true;
+                                            }
+                                            this.writeFail(['Unable to copy downloaded file', localUri], err);
+                                        })
+                                );
+                            }
+                            const items = uriMap.get(copyUri) || [];
+                            items.push(item);
+                            uriMap.set(copyUri, items);
+                        }
+                        await Promise.all(tasks);
+                    }
+                    if (ready) {
+                        for (const item of ready) {
+                            if (item !== file) {
+                                this.performAsyncTask();
+                            }
+                            this.finalizeAsset({ file: item });
+                        }
+                    }
+                    else {
+                        this.finalizeAsset({ file });
+                    }
+                }
+                delete downloading[uri];
                 delete processing[localUri];
-            }
-            else {
-                this.finalizeAsset({ file });
             }
         };
         const errorRequest = (file: ExternalAsset, uri: string, localUri: string, err: Error, stream?: fs.WriteStream) => {
             file.invalid = true;
+            if (downloading[uri]) {
+                for (const item of downloading[uri]) {
+                    item.invalid = true;
+                }
+                delete downloading[uri];
+            }
+            delete processing[localUri];
             if (!notFound[uri]) {
                 if (appending[localUri]) {
                     processQueue(file, localUri);
@@ -780,7 +836,6 @@ class FileManager extends Module implements IFileManager {
                 }
             }
             this.writeFail(['Unable to download file', uri], err);
-            delete processing[localUri];
         };
         for (const item of this.assets) {
             if (!item.filename) {
@@ -845,6 +900,10 @@ class FileManager extends Module implements IFileManager {
                 try {
                     if (Module.isFileHTTP(uri)) {
                         if (!checkQueue(item, localUri)) {
+                            if (downloading[uri]) {
+                                downloading[uri].push(item);
+                                continue;
+                            }
                             const stream = fs.createWriteStream(localUri);
                             stream.on('finish', () => {
                                 if (!notFound[uri]) {
@@ -852,6 +911,7 @@ class FileManager extends Module implements IFileManager {
                                 }
                             });
                             this.performAsyncTask();
+                            downloading[uri] = [];
                             request(uri)
                                 .on('response', response => {
                                     if (this.Watch) {
@@ -869,7 +929,7 @@ class FileManager extends Module implements IFileManager {
                                 })
                                 .on('error', err => errorRequest(item, uri, localUri, err, stream))
                                 .pipe(stream);
-                            }
+                        }
                     }
                     else if (this.permission.hasUNCRead() && Module.isFileUNC(uri) || this.permission.hasDiskRead() && path.isAbsolute(uri)) {
                         if (!checkQueue(item, localUri)) {
