@@ -1,5 +1,4 @@
 import type { ExternalAsset, FileData } from './asset';
-import type { OutputData } from './image';
 
 export interface InstallData<T, U> {
     instance: T;

@@ -10,8 +10,7 @@ import fs = require('fs');
 import uuid = require('uuid');
 import chalk = require('chalk');
 
-// eslint-disable-next-line no-shadow
-export enum LOG_TYPE {
+export enum LOG_TYPE { // eslint-disable-line no-shadow
     UNKNOWN = 0,
     SYSTEM = 1,
     NODE = 2,
@@ -141,9 +140,10 @@ abstract class Module implements IModule {
     }
 
     public static parseFunction(value: string, name?: string): Undef<FunctionType<string>> {
-        if (Module.isLocalPath(value = value.trim())) {
+        const uri = Module.fromLocalPath(value = value.trim());
+        if (uri) {
             try {
-                value = fs.readFileSync(path.resolve(value), 'utf8').trim();
+                value = fs.readFileSync(uri, 'utf8').trim();
             }
             catch (err) {
                 this.writeFail(['Could not load function', value], err);
@@ -171,11 +171,11 @@ abstract class Module implements IModule {
 
     public static renameExt(value: string, ext: string) {
         const index = value.lastIndexOf('.');
-        return (index !== -1 ?value.substring(0, index) : value) + '.' + ext;
+        return (index !== -1 ? value.substring(0, index) : value) + (ext[0] === ':' ? ext + path.extname(value) : '.' + ext);
     }
 
-    public static isLocalPath(value: string) {
-        return /^\.?\.[\\/]/.test(value);
+    public static fromLocalPath(value: string) {
+        return /^\.?\.?[\\/]/.test(value = value.trim()) ? value[0] !== '.' ? path.join(process.cwd(), value) : path.resolve(value) : '';
     }
 
     public static hasSameOrigin(value: string, other: string) {
@@ -200,7 +200,7 @@ abstract class Module implements IModule {
     }
 
     public static isUUID(value: string) {
-        return /[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}/.test(value);
+        return /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/.test(value);
     }
 
     public static resolveUri(value: string) {
@@ -260,25 +260,25 @@ abstract class Module implements IModule {
         return '';
    }
 
-   public static joinPosix(...paths: Undef<string>[]) {
-        paths = paths.filter(value => value && value.trim());
+   public static joinPosix(...values: Undef<string>[]) {
+        values = values.filter(value => value && value.trim());
         let result = '';
-        for (let i = 0; i < paths.length; ++i) {
-            const trailing = paths[i]!.replace(/\\+/g, '/');
+        for (let i = 0; i < values.length; ++i) {
+            const trailing = values[i]!.replace(/\\+/g, '/');
             if (i === 0) {
                 result = trailing;
             }
             else {
-                const leading = paths[i - 1];
+                const leading = values[i - 1];
                 result += (leading && trailing && !leading.endsWith('/') && !trailing.startsWith('/') ? '/' : '') + trailing;
             }
         }
         return result;
     }
 
-    public static getFileSize(localUri: string) {
+    public static getFileSize(value: fs.PathLike) {
         try {
-            return fs.statSync(localUri).size;
+            return fs.statSync(value).size;
         }
         catch {
         }

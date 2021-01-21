@@ -40,7 +40,7 @@ export async function createDatabaseClient(this: IModule, credential: OCIDatabas
         return await oracledb.getConnection(credential) as Connection;
     }
     catch (err) {
-        this.writeFail([`Install Oracle DB?`, 'npm i oracledb']);
+        this.writeFail(['Install Oracle DB?', 'npm i oracledb']);
         throw err;
     }
 }

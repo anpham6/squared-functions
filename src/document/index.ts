@@ -150,9 +150,10 @@ abstract class Document extends Module implements IDocument {
                 return value;
             case 'string': {
                 const evaluate = this.module.eval_function && !name.endsWith('-output');
-                if (Module.isLocalPath(value = value.trim())) {
+                const uri = Module.fromLocalPath(value = value.trim());
+                if (uri) {
                     try {
-                        const contents = fs.readFileSync(path.resolve(value), 'utf8').trim();
+                        const contents = fs.readFileSync(uri, 'utf8').trim();
                         const transformer = Module.parseFunction(contents);
                         if (transformer) {
                             if (evaluate) {

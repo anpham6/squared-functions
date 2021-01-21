@@ -108,7 +108,7 @@ export function createDatabaseClient(this: IModule, credential: AWSDatabaseCrede
         return new AWS.DynamoDB.DocumentClient(options) as aws.DynamoDB.DocumentClient;
     }
     catch (err) {
-        this.writeFail([`Install AWS SDK?`, 'npm i aws-sdk']);
+        this.writeFail(['Install AWS SDK?', 'npm i aws-sdk']);
         throw err;
     }
 }

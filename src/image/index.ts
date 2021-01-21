@@ -7,12 +7,12 @@ import Module from '../module';
 const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : NaN;
 
 abstract class Image extends Module implements IImage {
-    public static readonly INPUT_MIME: Set<string>;
-    public static readonly OUTPUT_MIME: Set<string>;
+    public static readonly MIME_INPUT: Set<string>;
+    public static readonly MIME_OUTPUT: Set<string>;
 
     public static parseFormat(value: string) {
         value = value.trim();
-        for (const mime of this.OUTPUT_MIME) {
+        for (const mime of this.MIME_OUTPUT) {
             const format = mime.split('/')[1];
             if (value.startsWith(format)) {
                 return [mime, format];

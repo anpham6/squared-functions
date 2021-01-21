@@ -19,12 +19,22 @@ import Cloud from '../../cloud';
 
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
 
+function getElementSrc(outerHTML: string) {
+    const match = /(?:src|href|data|poster)\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s]+))/i.exec(outerHTML);
+    if (match) {
+        return (match[1] || match[2] || match[3]).trim();
+    }
+}
+
 function removeFileCommands(value: string) {
-    return value
-        .replace(/\s*<\s*(script|link|style).+?data-chrome-file\s*=\s*["']exclude["'][\s\S]*?<\/\1>\n*/ig, '')
-        .replace(/\s*<\s*(script|link).+?data-chrome-file\s*=\s*["']exclude["'][^>]*>\n*/ig, '')
-        .replace(/\s*<\s*script.+?data-chrome-template\s*=\s*(?:"[^"]*"|'[^']*')[\s\S]*?<\/script>\n*/ig, '')
-        .replace(/\s+data-(?:use|chrome-[\w-]+)\s*=\s*(?:"[^"]*"|'[^']*')/g, '');
+    if (value.includes('data-chrome')) {
+        return value
+            .replace(/\s*<\s*(script|link|style).+?data-chrome-file\s*=\s*(["'])?exclude\2[\S\s]*?<\/\s*\1\s*>[ \t]*((?:\r?\n){2})?/ig, (...capture) => getNewlineString(capture[3]))
+            .replace(/\s*<\s*(?:script|link).+?data-chrome-file\s*=\s*(["'])?exclude\1[^>]*>[ \t]*((?:\r?\n){2})?/ig, (...capture) => getNewlineString(capture[2]))
+            .replace(/\s*<\s*script.+?data-chrome-template\s*=\s*(?:"[^"]*"|'[^']*')[\S\s]*?<\/\s*script\s*>[ \t]*((?:\r?\n){2})?/ig, (...capture) => getNewlineString(capture[1]))
+            .replace(/\s+data-chrome-[a-z-]+\s*=\s*(?:"[^"]*"|'[^']*')/g, '');
+    }
+    return value;
 }
 
 function getObjectValue(data: unknown, key: string, joinString = ' ') {
@@ -392,6 +402,7 @@ function getTagName(tagName: string, outerHTML: string): [string, string] {
 }
 
 const escapePosix = (value: string) => value.split(/[\\/]/).map(seg => escapeRegexp(seg)).join('[\\\\/]');
+const getNewlineString = (value: Undef<string>) => value ? (value.includes('\r') ? '\r' : '') + '\n' : '';
 const isObject = (value: unknown): value is PlainObject => typeof value === 'object' && value !== null;
 
 class ChromeDocument extends Document implements IChromeDocument {
@@ -651,7 +662,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                     const { trailingContent, element } = item;
                     if (trailingContent) {
-                        const pattern = /\s*<\s*(script|style)\b[\s\S]+?<\/\s*\1\s*>\n*/ig;
+                        const pattern = /\s*<\s*(script|style)\b[\S\s]+?<\/\s*\1\s*>\n*/ig;
                         const value = trailingContent.map(content => minifySpace(content));
                         current = source;
                         while (match = pattern.exec(current)) {
@@ -763,21 +774,22 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     item.inlineBase64 = value;
                                     item.watch = false;
                                     break;
-                                case 'blob':
-                                    match = /src\s*=\s*(?:"([^"]+)"|'([^']+)')/i.exec(outerHTML);
-                                    if (match) {
-                                        src[0] = (match[1] || match[2]).trim();
+                                case 'blob': {
+                                    const url = getElementSrc(outerHTML);
+                                    if (url) {
+                                        src[0] = url;
                                         base64 = true;
                                     }
                                     break;
+                                }
                             }
                         }
-                        if (!base64 && sameOrigin) {
-                            match = /(?:src|href|data|poster)\s*=\s*(["'])?(.+?)\1/i.exec(outerHTML);
-                            if (match && uri === Document.resolvePath(match[2], baseUri)) {
-                                src.push(match[2].trim());
+                        if (sameOrigin && !base64) {
+                            let url = getElementSrc(outerHTML);
+                            if (url && uri === Document.resolvePath(url, baseUri)) {
+                                src.push(url);
                             }
-                            const url = uri.startsWith(baseDirectory) ? uri.substring(baseDirectory.length) : uri.replace(new URL(baseUri).origin, '');
+                            url = uri.startsWith(baseDirectory) ? uri.substring(baseDirectory.length) : uri.replace(new URL(baseUri).origin, '');
                             if (!src.includes(url)) {
                                 src.push(url);
                             }
@@ -1049,7 +1061,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         return content;
     }
     imageQueue(data: FileData, saveAs: string, command: string) {
-        const localUri = data.localUri || data.file?.localUri;
+        const localUri = data.file.localUri;
         if (localUri) {
             const match = REGEXP_SRCSETSIZE.exec(command);
             if (match) {

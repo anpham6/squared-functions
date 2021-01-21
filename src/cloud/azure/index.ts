@@ -43,7 +43,7 @@ export function createStorageClient(this: IModule, credential: AzureStorageCrede
         return new BlobServiceClient(`https://${credential.accountName!}.blob.core.windows.net`, sharedKeyCredential);
     }
     catch (err) {
-        this.writeFail([`Install Azure Storage Blob?`, 'npm i @azure/storage-blob']);
+        this.writeFail(['Install Azure Storage Blob?', 'npm i @azure/storage-blob']);
         throw err;
     }
 }
@@ -54,7 +54,7 @@ export function createDatabaseClient(this: IModule, credential: AzureDatabaseCre
         return new CosmosClient(credential);
     }
     catch (err) {
-        this.writeFail([`Install Azure Cosmos DB?`, 'npm i @azure/cosmos']);
+        this.writeFail(['Install Azure Cosmos DB?', 'npm i @azure/cosmos']);
         throw err;
     }
 }

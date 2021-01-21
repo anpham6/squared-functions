@@ -1,9 +1,9 @@
 import type { BundleAction, FileAsset } from './squared';
 
 export interface FileData {
-    file?: ExternalAsset;
-    localUri?: string;
-    mimeType?: string | false;
+    file: ExternalAsset;
+    tempUri?: string;
+    mimeType?: string;
     outputType?: string;
 }
 

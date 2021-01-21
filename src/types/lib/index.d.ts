@@ -14,7 +14,7 @@ import type { CloudModule, DocumentModule } from './module';
 import type { LOG_TYPE, LogMessageOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
 import type { PermissionSettings, RequestBody, Settings } from './node';
 
-import type { WriteStream } from 'fs';
+import type { PathLike, WriteStream } from 'fs';
 
 declare namespace functions {
     interface ICompress extends IModule {
@@ -48,9 +48,10 @@ declare namespace functions {
     }
 
     interface ImageConstructor extends ModuleConstructor {
-        readonly INPUT_MIME: Set<string>;
-        readonly OUTPUT_MIME: Set<string>;
-        parseFormat(value: string): string[];
+        readonly MIME_INPUT: Set<string>;
+        readonly MIME_OUTPUT: Set<string>;
+        parseFormat(command: string): string[];
+        transform(uri: string, command: string, mimeType?: string, tempFile?: boolean): Promise<Null<Buffer> | string>;
         resolveMime(this: IFileManager, data: FileData): Promise<boolean>;
         using(this: IFileManager, data: FileData, command: string): void;
         clamp(value: Undef<string>, min?: number, max?: number): number;
@@ -195,7 +196,8 @@ declare namespace functions {
         performFinalize(): void;
         hasDocument(instance: IModule, document: Undef<string | string[]>): boolean;
         setLocalUri(file: ExternalAsset): FileOutput;
-        getLocalUri(data: FileData): Undef<string>;
+        getLocalUri(data: FileData): string;
+        getMimeType(data: FileData): Undef<string>;
         getRelativeUri(file: ExternalAsset, filename?: string): string;
         assignUUID(data: DocumentData, attr: string, target?: any): Undef<string>;
         findAsset(uri: string): Undef<ExternalAsset>;
@@ -246,7 +248,7 @@ declare namespace functions {
         parseFunction(value: string, name?: string): Undef<FunctionType<string>>;
         toPosix(value: string, filename?: string): string;
         renameExt(value: string, ext: string): string;
-        isLocalPath(value: string): string;
+        fromLocalPath(value: string): string;
         hasSameOrigin(value: string, other: string): boolean;
         isFileHTTP(value: string): boolean;
         isFileUNC(value: string): boolean;
@@ -254,8 +256,8 @@ declare namespace functions {
         isUUID(value: string): boolean;
         resolveUri(value: string): string;
         resolvePath(value: string, href: string): string;
-        joinPosix(...paths: Undef<string>[]): string;
-        getFileSize(localUri: string): number;
+        joinPosix(...values: Undef<string>[]): string;
+        getFileSize(value: PathLike): number;
         loadSettings(value: Settings): void;
         responseError(err: Error | string, hint?: string): ResponseData;
         allSettled<T>(values: readonly (T | PromiseLike<T>)[], rejected?: string | [string, string]): Promise<PromiseSettledResult<T>[]>;
@@ -270,7 +272,6 @@ declare namespace functions {
     }
 
     class ImageHandler<T, U> implements ScopeOrigin<T, U> {
-        host?: T;
         instance: U;
         data?: FileData;
         method(): void;
@@ -280,9 +281,10 @@ declare namespace functions {
         quality(): void;
         rotate(): void;
         write(output: string, callback?: FinalizeImageCallback): void;
-        getBuffer(saveAs?: string): Promise<Null<Buffer>>;
+        getBuffer(tempFile?: boolean, saveAs?: string): Promise<Null<Buffer | string>>;
         finalize(output: string, callback: (err: Null<Error>, result: string) => void): void;
-        constructor(instance: U, data: FileData, host: T);
+        get rotateCount(): number;
+        constructor(instance: U, data: FileData);
     }
 }
 

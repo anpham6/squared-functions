@@ -39,7 +39,7 @@ export function createDatabaseClient(this: IModule, credential: IBMDatabaseCrede
         return new Cloudant(credential) as ServerScope;
     }
     catch (err) {
-        this.writeFail([`Install IBM Cloudant?`, 'npm i @cloudant/cloudant']);
+        this.writeFail(['Install IBM Cloudant?', 'npm i @cloudant/cloudant']);
         throw err;
     }
 }

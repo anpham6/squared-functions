@@ -38,7 +38,7 @@ export function createStorageClient(this: IModule, credential: GCloudStorageCred
         return new Storage(credential) as gcs.Storage;
     }
     catch (err) {
-        this.writeFail([`Install Google Cloud Storage`, 'npm i @google-cloud/storage']);
+        this.writeFail(['Install Google Cloud Storage?', 'npm i @google-cloud/storage']);
         throw err;
     }
 }
@@ -54,7 +54,7 @@ export function createDatabaseClient(this: IModule, credential: GCloudDatabaseCr
         return new Firestore(credential) as gcf.Firestore;
     }
     catch (err) {
-        this.writeFail([`Install Google Cloud Firestore`, 'npm i @google-cloud/firestore']);
+        this.writeFail(['Install Google Cloud Firestore?', 'npm i @google-cloud/firestore']);
         throw err;
     }
 }
