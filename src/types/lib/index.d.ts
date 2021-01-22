@@ -268,4 +268,3 @@ declare namespace functions {
 }
 
 export = functions;
-export as namespace functions;
