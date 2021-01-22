@@ -29,9 +29,9 @@ function getElementSrc(outerHTML: string) {
 function removeFileCommands(value: string) {
     if (value.includes('data-chrome')) {
         return value
-            .replace(/\s*<\s*(script|link|style).+?data-chrome-file\s*=\s*(["'])?exclude\2[\S\s]*?<\/\s*\1\s*>[ \t]*((?:\r?\n){2})?/ig, (...capture) => getNewlineString(capture[3]))
-            .replace(/\s*<\s*(?:script|link).+?data-chrome-file\s*=\s*(["'])?exclude\1[^>]*>[ \t]*((?:\r?\n){2})?/ig, (...capture) => getNewlineString(capture[2]))
-            .replace(/\s*<\s*script.+?data-chrome-template\s*=\s*(?:"[^"]*"|'[^']*')[\S\s]*?<\/\s*script\s*>[ \t]*((?:\r?\n){2})?/ig, (...capture) => getNewlineString(capture[1]))
+            .replace(/(\s*)<\s*(script|link|style).+?data-chrome-file\s*=\s*(["'])?exclude\3[\S\s]*?<\/\s*\2\s*>[ \t]*((?:\r?\n)*)/ig, (...capture) => getNewlineString(capture[1], capture[4]))
+            .replace(/(\s*)<\s*(?:script|link).+?data-chrome-file\s*=\s*(["'])?exclude\2[^>]*>[ \t]*((?:\r?\n)*)/ig, (...capture) => getNewlineString(capture[1], capture[3]))
+            .replace(/(\s*)<\s*script.+?data-chrome-template\s*=\s*(?:"[^"]*"|'[^']*')[\S\s]*?<\/\s*script\s*>[ \t]*((?:\r?\n)*)/ig, (...capture) => getNewlineString(capture[1], capture[2]))
             .replace(/\s+data-chrome-[a-z-]+\s*=\s*(?:"[^"]*"|'[^']*')/g, '');
     }
     return value;
@@ -356,24 +356,32 @@ function transformCss(this: IFileManager, document: IChromeDocument, file: Docum
     return output;
 }
 
-function hasAttribute(attributes: PlainObject, name: string) {
-    for (const key in attributes) {
-        if (key.toLowerCase() === name) {
+function hasAttribute(data: StandardMap, value: string) {
+    for (const key in data) {
+        if (key.toLowerCase() === value) {
             return true;
         }
     }
     return false;
 }
 
-function parseAttributes(tagName: string, outerHTML: string, attributes: StandardMap, exclusions: string[] = []) {
+function deleteAttribute(data: StandardMap, ...values: string[]) {
+    for (const key in data) {
+        if (values.includes(key.toLowerCase())) {
+            delete data[key];
+        }
+    }
+}
+
+function parseAttributes(tagName: string, outerHTML: string, data: StandardMap) {
     const [opening] = findClosingTag(tagName, outerHTML);
-    const hasValue = (attr: string) => !hasAttribute(attributes, attr = attr.toLowerCase()) && !exclusions.includes(attr);
+    const hasValue = (attr: string) => !attr.startsWith('data-chrome-') && !hasAttribute(data, attr = attr.toLowerCase());
     let tag = /([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]*))/g,
         source = opening,
         match: Null<RegExpExecArray>;
     while (match = tag.exec(opening)) {
         if (hasValue(match[1])) {
-            attributes[match[1]] = (match[2] || match[3] || match[4]).replace(/"/g, '&quot;');
+            data[match[1]] = (match[2] || match[3] || match[4]).replace(/"/g, '&quot;');
         }
         source = source.replace(match[0], '');
     }
@@ -383,26 +391,38 @@ function parseAttributes(tagName: string, outerHTML: string, attributes: Standar
             continue;
         }
         else if (hasValue(match[2])) {
-            attributes[match[2]] = null;
+            data[match[2]] = null;
         }
     }
     return opening;
 }
 
-function getTagName(tagName: string, outerHTML: string): [string, string] {
+function writeAttributes(data: StandardMap) {
+    let result = '';
+    for (const key in data) {
+        const value = data[key];
+        if (value !== undefined) {
+            result += formatAttr(key, value);
+        }
+    }
+    return result;
+}
+
+function getTagName(tagName: string, outerHTML: string) {
     let match: Null<RegExpExecArray>;
     if (tagName) {
         match = new RegExp(`^<\\s*(${escapeRegexp(tagName)})`, 'i').exec(outerHTML);
         if (match) {
-            return [match[0], match[1]];
+            return match[1];
         }
     }
     match = /^<\s*([^\s/>]+)/i.exec(outerHTML);
-    return match ? [match[0], match[1]] : ['', ''];
+    return match ? match[1] : '';
 }
 
+const formatAttr = (key: string, value: Null<string>) => ' ' + key + (value !== null ? `="${value}"` : '');
+const getNewlineString = (leading: string, trailing: string) => leading.includes('\n') || /(?:\r?\n){2,}$/.test(trailing) ? (leading + trailing).includes('\r') ? '\r\n' : '\n' : '';
 const escapePosix = (value: string) => value.split(/[\\/]/).map(seg => escapeRegexp(seg)).join('[\\\\/]');
-const getNewlineString = (value: Undef<string>) => value ? (value.includes('\r') ? '\r' : '') + '\n' : '';
 const isObject = (value: unknown): value is PlainObject => typeof value === 'object' && value !== null;
 
 class ChromeDocument extends Document implements IChromeDocument {
@@ -456,20 +476,25 @@ class ChromeDocument extends Document implements IChromeDocument {
                     match: Null<RegExpExecArray>;
                 const replaceMap: ObjectMap<number[]> = {};
                 const minifySpace = (value: string) => value.replace(/[\s/]+/g, '');
-                const formatAttr = (key: string, value: Null<string>) => ' ' + key + (value !== null ? `="${value}"` : '');
                 const escapeSpace = (value: string, attribute?: boolean) => attribute ? value.replace(/\s+/g, '\\s+') : value;
                 const replaceIndex = (outerHTML: string, replaceWith: string, outerIndex: number, attribute?: boolean) => {
                     current = source;
                     const otherHTML = outerHTML.replace(/"\s*>$/, '" />');
-                    const pattern = otherHTML !== outerHTML ? `(?:${escapeSpace(escapeRegexp(outerHTML), attribute)}|${escapeSpace(escapeRegexp(otherHTML), attribute)})` : escapeSpace(escapeRegexp(outerHTML), attribute);
-                    if (outerIndex > 0) {
+                    let pattern = otherHTML !== outerHTML ? `(?:${escapeSpace(escapeRegexp(outerHTML), attribute)}|${escapeSpace(escapeRegexp(otherHTML), attribute)})` : escapeSpace(escapeRegexp(outerHTML), attribute);
+                    if (outerIndex > 0 || !replaceWith) {
                         if (replaceMap[outerHTML]) {
                             outerIndex -= replaceMap[outerHTML].filter(value => value < outerIndex).length;
+                        }
+                        if (!replaceWith) {
+                            pattern = '(\\s*)' + pattern + '[ \\t]*((?:\\r?\\n)*)';
                         }
                         const tag = new RegExp(pattern, 'g');
                         let i = 0;
                         while (match = tag.exec(source)) {
                             if (i++ === outerIndex) {
+                                if (!replaceWith) {
+                                    replaceWith = getNewlineString(match[1], match[2]);
+                                }
                                 source = source.substring(0, match.index) + replaceWith + source.substring(match.index + match[0].length);
                                 (replaceMap[outerHTML] ||= []).push(outerIndex);
                                 return true;
@@ -488,17 +513,16 @@ class ChromeDocument extends Document implements IChromeDocument {
                     return false;
                 };
                 const replaceMinify = (tagName: string, outerHTML: string, replaceWith: string, content?: string) => {
-                    const [opening, closing] = getTagName(tagName, outerHTML);
-                    if (opening) {
+                    if (tagName = getTagName(tagName, outerHTML)) {
                         const openTag: number[] = [];
-                        let index = 0;
-                        while ((index = source.indexOf(opening, index)) !== -1) {
-                            openTag.push(index++);
+                        let tag = new RegExp(`<\\s*${escapeRegexp(tagName)}\\b`, 'ig');
+                        while (match = tag.exec(source)) {
+                            openTag.push(match.index);
                         }
                         const open = openTag.length;
                         if (open) {
                             const closeTag: number[] = [];
-                            const tag = new RegExp(`</\\s*${escapeRegexp(closing)}\\s*>`, 'ig');
+                            tag = new RegExp(`</\\s*${escapeRegexp(tagName)}\\s*>`, 'ig');
                             while (match = tag.exec(source)) {
                                 closeTag.push(match.index + match[0].length);
                             }
@@ -538,7 +562,37 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     if (valid) {
                                         const outerText = source.substring(openTag[i], closeTag[j]);
                                         if (outerHTML === minifySpace(outerText) || content && content === minifySpace(findClosingTag(tagName, outerText)[2])) {
-                                            source = source.replace(outerText, replaceWith);
+                                            let leading = '',
+                                                trailing = '',
+                                                k = closeTag[j];
+                                            newline: {
+                                                let found: Undef<boolean>;
+                                                while (isSpace(source[k])) {
+                                                    const ch = source[k++];
+                                                    switch (ch.charCodeAt(0)) {
+                                                        case 10:
+                                                            found = true;
+                                                        case 13:
+                                                            break;
+                                                        default:
+                                                            if (found) {
+                                                                break newline;
+                                                            }
+                                                            break;
+                                                    }
+                                                    trailing += ch;
+                                                }
+                                            }
+                                            if (!replaceWith) {
+                                                k = openTag[i] - 1;
+                                                while (isSpace(source[k])) {
+                                                    leading = source[k--] + leading;
+                                                }
+                                                source = source.replace(leading + outerText + trailing, getNewlineString(leading, trailing));
+                                            }
+                                            else {
+                                                source = source.replace(outerText, replaceWith);
+                                            }
                                             break;
                                         }
                                     }
@@ -662,13 +716,13 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                     const { trailingContent, element } = item;
                     if (trailingContent) {
-                        const pattern = /\s*<\s*(script|style)\b[\S\s]+?<\/\s*\1\s*>\n*/ig;
+                        const pattern = /(\s*)<\s*(script|style)\b[\S\s]+?<\/\s*\2\s*>[ \t]*((?:\r?\n)*)/ig;
                         const value = trailingContent.map(content => minifySpace(content));
                         current = source;
                         while (match = pattern.exec(current)) {
-                            const content = findClosingTag(match[1].toUpperCase(), match[0].trim())[2];
+                            const content = findClosingTag(match[2].toUpperCase(), match[0].trim())[2];
                             if (content && value.includes(minifySpace(content))) {
-                                source = source.replace(match[0], '');
+                                source = source.replace(match[0], getNewlineString(match[1], match[3]));
                             }
                         }
                         pattern.lastIndex = 0;
@@ -676,21 +730,11 @@ class ChromeDocument extends Document implements IChromeDocument {
                     if (element) {
                         const { content, bundleIndex, inlineContent, attributes = {} } = item;
                         const { tagName, outerHTML, outerIndex } = element;
-                        let replaceWith: string;
-                        const writeAttributes = () => {
-                            for (const key in attributes) {
-                                const value = attributes[key];
-                                if (value !== undefined) {
-                                    replaceWith += formatAttr(key, value);
-                                }
-                            }
-                        };
                         if (inlineContent) {
                             const id = `<!-- ${uuid.v4()} -->`;
-                            parseAttributes(tagName, outerHTML, attributes, ['src', 'href']);
-                            replaceWith = '<' + inlineContent;
-                            writeAttributes();
-                            replaceWith += `>${id}</${inlineContent}>`;
+                            parseAttributes(tagName, outerHTML, attributes);
+                            deleteAttribute(attributes, 'src', 'href');
+                            const replaceWith = `<${inlineContent + writeAttributes(attributes)}>${id}</${inlineContent}>`;
                             if (replaceIndex(outerHTML, replaceWith, outerIndex) || replaceMinify('', outerHTML, replaceWith, content)) {
                                 item.inlineContent = id;
                                 item.watch = false;
@@ -708,20 +752,20 @@ class ChromeDocument extends Document implements IChromeDocument {
                             else {
                                 value = item.relativeUri!;
                             }
-                            const css = tagName === 'LINK' || tagName === 'STYLE';
-                            if (css) {
+                            let replaceWith: string;
+                            if (tagName === 'LINK' || tagName === 'STYLE') {
                                 if (!hasAttribute(attributes, 'rel')) {
                                     attributes.rel = 'stylesheet';
                                 }
-                                parseAttributes(tagName, outerHTML, attributes, ['href']);
-                                replaceWith = `<link href="${value}"`;
+                                parseAttributes(tagName, outerHTML, attributes);
+                                deleteAttribute(attributes, 'href');
+                                replaceWith = `<link${writeAttributes(attributes)} href="${value}" />`;
                             }
                             else {
-                                parseAttributes(tagName, outerHTML, attributes, ['src']);
-                                replaceWith = `<script src="${value}"`;
+                                parseAttributes(tagName, outerHTML, attributes);
+                                deleteAttribute(attributes, 'src');
+                                replaceWith = `<script${writeAttributes(attributes)} src="${value}"></script>`;
                             }
-                            writeAttributes();
-                            replaceWith += css ? ' />' : '></script>';
                             if (!replaceIndex(outerHTML, replaceWith, outerIndex) && !replaceMinify('', outerHTML, replaceWith, content)) {
                                 delete item.inlineCloud;
                             }
@@ -735,8 +779,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         }
                         if (Object.keys(attributes).length) {
                             const opening = parseAttributes(tagName, outerHTML, attributes);
-                            replaceWith = '<' + (getTagName(tagName, outerHTML)[1] || tagName);
-                            writeAttributes();
+                            let replaceWith = '<' + (getTagName(tagName, outerHTML) || tagName) + writeAttributes(attributes);
                             if (opening === outerHTML) {
                                 switch (tagName) {
                                     case 'HTML':

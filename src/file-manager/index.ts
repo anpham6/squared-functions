@@ -493,8 +493,7 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (!err && output) {
-            let original = true;
-            original = this.getLocalUri(data) === output;
+            const original = this.getLocalUri(data) === output;
             if (!parent && !original) {
                 if (command.includes('%')) {
                     if (this.filesToCompare.has(file)) {

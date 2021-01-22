@@ -318,7 +318,7 @@ class Jimp extends Image implements IJimpImageHandler {
                         this._startTime = 0;
                     }
                     if (callback) {
-                        callback(error, output);
+                        callback(error, error ? '' : result);
                     }
                 });
             }
