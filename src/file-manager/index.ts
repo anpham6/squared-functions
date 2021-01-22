@@ -12,6 +12,7 @@ import fs = require('fs-extra');
 import request = require('request');
 import uuid = require('uuid');
 import mime = require('mime-types');
+import fileType = require('file-type');
 
 import Module from '../module';
 import Document from '../document';
@@ -94,6 +95,10 @@ class FileManager extends Module implements IFileManager {
             return Module.responseError(err, 'DIRECTORY: ' + dirname);
         }
         return true;
+    }
+
+    public static resolveMime(data: Buffer | string) {
+        return data instanceof Buffer ? fileType.fromBuffer(data) : fileType.fromFile(data);
     }
 
     public delayed = 0;
@@ -403,7 +408,7 @@ class FileManager extends Module implements IFileManager {
         }
         return null;
     }
-    addCopy(data: FileData, replacing = true) {
+    addCopy(data: FileData, replace = true) {
         const localUri = this.getLocalUri(data);
         if (!localUri) {
             return;
@@ -415,14 +420,14 @@ class FileManager extends Module implements IFileManager {
         let output: Undef<string>;
         if (document) {
             for (const { instance } of this.Document) {
-                if (this.hasDocument(instance, document) && instance.addCopy && (output = instance.addCopy(this, data, replacing))) {
+                if (this.hasDocument(instance, document) && instance.addCopy && (output = instance.addCopy(this, data, replace))) {
                     this.filesQueued.add(output);
                     return output;
                 }
             }
         }
         if (this.getMimeType(data) === data.outputType || ext === saveAs) {
-            if (!replacing || this.filesQueued.has(localUri)) {
+            if (!replace || this.filesQueued.has(localUri)) {
                 let i = 1;
                 do {
                     output = Module.renameExt(localUri, '__copy__.' + (i > 1 ? `(${i}).` : '') + saveAs);
@@ -446,6 +451,40 @@ class FileManager extends Module implements IFileManager {
         }
         this.filesQueued.add(output ||= localUri);
         return output;
+    }
+    async findMime(data: FileData, rename?: boolean) {
+        const file = data.file;
+        const localUri = this.getLocalUri(data);
+        let mimeType = '',
+            ext: Undef<string>;
+        try {
+            const result = await FileManager.resolveMime(file.buffer || localUri);
+            if (result) {
+                ({ mime: mimeType, ext } = result);
+            }
+        }
+        catch (err) {
+            this.writeFail(['Unable to read buffer', path.basename(localUri)], err);
+        }
+        if (rename) {
+            if (!ext) {
+                file.invalid = true;
+            }
+            else {
+                const output = Image.renameExt(localUri, ext);
+                if (localUri !== output) {
+                    fs.renameSync(localUri, output);
+                    this.replace(data.file, output, mimeType);
+                }
+                else {
+                    file.mimeType = mimeType;
+                }
+            }
+        }
+        if (mimeType) {
+            data.mimeType = mimeType;
+        }
+        return mimeType;
     }
     async compressFile(file: ExternalAsset) {
         const { localUri, compress } = file;
@@ -516,30 +555,17 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (this.Image) {
-            let valid = true;
-            if (file.mimeType === 'image/unknown') {
-                try {
-                    const handler = this.Image.get('unknown') || this.Image.get('handler');
-                    valid = handler ? await handler.resolveMime.call(this, data) : false;
-                }
-                catch (err) {
-                    this.writeFail(['Unable to read image buffer', path.basename(localUri)], err);
-                    valid = false;
-                }
-                if (!valid) {
-                    file.invalid = true;
-                }
+            let mimeType = file.mimeType || '';
+            if (!mimeType && file.commands || mimeType === 'image/unknown') {
+                mimeType = await this.findMime(data, true);
             }
-            if (valid && file.commands) {
-                const mimeType = this.getMimeType(data);
-                if (mimeType?.startsWith('image/')) {
-                    const ext = mimeType.split('/')[1];
+            if (file.commands && mimeType.startsWith('image/')) {
+                const ext = mimeType.split('/')[1];
+                const handler = this.Image.get(ext) || this.Image.get('handler');
+                if (handler) {
                     for (const command of file.commands) {
                         if (withinSizeRange(localUri, command)) {
-                            const handler = this.Image.get(ext) || this.Image.get('handler');
-                            if (handler) {
-                                handler.using.call(this, data, command);
-                            }
+                            handler.using.call(this, data, command);
                         }
                     }
                 }

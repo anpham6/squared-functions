@@ -81,21 +81,6 @@ class Jimp extends Image implements IJimpImageHandler {
         return tempFile ? '' : null;
     }
 
-    public static async resolveMime(this: IFileManager, data: FileData) {
-        const localUri = this.getLocalUri(data);
-        if (localUri) {
-            const img = await jimp.read(getBuffer(data));
-            const mimeType = img.getMIME();
-            if (Jimp.MIME_INPUT.has(mimeType)) {
-                const output = Image.renameExt(localUri, mimeType.split('/')[1]);
-                fs.renameSync(localUri, output);
-                this.replace(data.file, output, mimeType);
-                return true;
-            }
-        }
-        return false;
-    }
-
     public static using(this: IFileManager, data: FileData, command: string) {
         const localUri = this.getLocalUri(data);
         const mimeType = this.getMimeType(data);

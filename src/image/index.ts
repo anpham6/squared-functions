@@ -21,7 +21,6 @@ abstract class Image extends Module implements IImage {
         return ['', ''];
     }
 
-    public static async resolveMime(this: IFileManager, data: FileData) { return false; }
     public static using(this: IFileManager, data: FileData, command: string) {}
     public static finalize(this: IFileManager, err: Null<Error>, data: OutputData) {}
 

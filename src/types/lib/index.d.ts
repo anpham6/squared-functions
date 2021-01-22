@@ -15,6 +15,7 @@ import type { CloudModule, DocumentModule } from './module';
 import type { PermissionSettings, RequestBody, Settings } from './node';
 
 import type { PathLike, WriteStream } from 'fs';
+import type { FileTypeResult } from 'file-type';
 
 declare namespace functions {
     interface IScopeOrigin<T = IModule, U = IModule> {
@@ -57,7 +58,6 @@ declare namespace functions {
         readonly MIME_OUTPUT: Set<string>;
         parseFormat(command: string): string[];
         transform(uri: string, command: string, mimeType?: string, tempFile?: boolean): Promise<Null<Buffer> | string>;
-        resolveMime(this: IFileManager, data: FileData): Promise<boolean>;
         using(this: IFileManager, data: FileData, command: string): void;
         finalize: FinalizeImageCallback<OutputData>;
         clamp(value: Undef<string>, min?: number, max?: number): number;
@@ -119,7 +119,7 @@ declare namespace functions {
         loadConfig(data: StandardMap, name: string): Optional<ConfigOrTransformer>;
         transform(type: string, code: string, format: string, options?: TransformOutput): Promise<Void<TransformResult>>;
         formatContent?(manager: IFileManager, file: ExternalAsset, content: string): Promise<string>;
-        addCopy?(manager: IFileManager, data: FileData, replacing?: boolean): Undef<string>;
+        addCopy?(manager: IFileManager, data: FileData, replace?: boolean): Undef<string>;
         finalizeImage?: FinalizeImageCallback<OutputData, boolean>;
         cloudInit?(state: IScopeOrigin<T, U>): void;
         cloudObject?(state: IScopeOrigin<T, U>, file: ExternalAsset): boolean;
@@ -202,7 +202,8 @@ declare namespace functions {
         getBundleContent(localUri: string): Undef<string>;
         writeBuffer(file: ExternalAsset): Null<Buffer>;
         compressFile(file: ExternalAsset): Promise<unknown>;
-        addCopy(data: FileData, replacing?: boolean): Undef<string>;
+        addCopy(data: FileData, replace?: boolean): Undef<string>;
+        findMime(data: FileData, rename?: boolean): Promise<string>;
         finalizeAsset(data: FileData, parent?: ExternalAsset): Promise<void>;
         processAssets(emptyDir?: boolean): void;
         finalize(): Promise<void>;
@@ -212,6 +213,7 @@ declare namespace functions {
         getPermission(settings?: PermissionSettings): IPermission;
         hasPermission(dirname: string, permission: IPermission): true | ResponseData;
         moduleCompress(): ICompress;
+        resolveMime(data: Buffer | string): Promise<FileTypeResult>;
         new(baseDirectory: string, body: RequestBody, postFinalize?: (errors: string[]) => void, settings?: PermissionSettings): IFileManager;
     }
 
