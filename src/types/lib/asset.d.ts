@@ -3,16 +3,15 @@ import type { CloudStorage } from './cloud';
 
 export interface FileData {
     file: ExternalAsset;
-    saveAs?: string;
-    command?: string;
-    tempUri?: string;
     mimeType?: string;
+    command?: string;
     outputType?: string;
 }
 
-export interface FileCopy {
-    tempUri: string;
-    saveAs: string;
+export interface OutputData extends FileData {
+    output: string;
+    command: string;
+    baseDirectory: string;
 }
 
 export interface FileOutput {

@@ -1,7 +1,7 @@
 import type { CompressFormat } from '../types/lib/squared';
 
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, IPermission, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
-import type { ExternalAsset, FileData, FileOutput } from '../types/lib/asset';
+import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
 import type { CloudService } from '../types/lib/cloud';
 import type { DocumentData } from '../types/lib/document';
 import type { InstallData } from '../types/lib/filemanager';
@@ -207,7 +207,10 @@ class FileManager extends Module implements IFileManager {
         if (value) {
             this.files.add(this.removeCwd(value));
             if (parent) {
-                (parent.transforms ||= []).push(value);
+                const transforms = parent.transforms ||= [];
+                if (!transforms.includes(value)) {
+                    transforms.push(value);
+                }
             }
         }
     }
@@ -321,7 +324,7 @@ class FileManager extends Module implements IFileManager {
         return { pathname, localUri } as FileOutput;
     }
     getLocalUri(data: FileData) {
-        return data.tempUri || data.file.localUri || '';
+        return data.file.localUri || '';
     }
     getMimeType(data: FileData) {
         return data.mimeType || (data.mimeType = mime.lookup(this.getLocalUri(data)) || data.file.mimeType);
@@ -409,19 +412,26 @@ class FileManager extends Module implements IFileManager {
         }
         return null;
     }
-    addCopy(data: FileData, replace = true) {
+    writeImage(document: string | string[], data: OutputData) {
+        for (const { instance } of this.Document) {
+            if (this.hasDocument(instance, document) && instance.writeImage && instance.writeImage(this, data)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    addCopy(data: FileData, saveAs?: string, replace = true) {
         const localUri = this.getLocalUri(data);
         if (!localUri) {
             return;
         }
-        data.tempUri ||= localUri;
         const ext = path.extname(localUri).substring(1);
-        const saveAs = data.saveAs ||= ext;
+        saveAs ||= ext;
         const document = data.file.document;
         let output: Undef<string>;
         if (document) {
             for (const { instance } of this.Document) {
-                if (this.hasDocument(instance, document) && instance.addCopy && (output = instance.addCopy(this, data, replace))) {
+                if (this.hasDocument(instance, document) && instance.addCopy && (output = instance.addCopy(this, data, saveAs, replace))) {
                     this.filesQueued.add(output);
                     return output;
                 }

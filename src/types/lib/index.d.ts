@@ -4,12 +4,12 @@
 
 import type { CompressFormat, ResponseData } from './squared';
 
-import type { ExternalAsset, FileData, FileOutput } from './asset';
+import type { ExternalAsset, FileData, FileOutput, OutputData } from './asset';
 import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload, FinalizeResult } from './cloud';
 import type { CompressTryFileMethod, CompressTryImageCallback } from './compress';
 import type { ConfigOrTransformer, DocumentData, PluginConfig, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
 import type { CompleteAsyncTaskCallback, InstallData, PerformAsyncTaskMethod } from './filemanager';
-import type { CropData, FinalizeImageCallback, OutputData, QualityData, ResizeData, RotateData } from './image';
+import type { CropData, QualityData, ResizeData, RotateData } from './image';
 import type { LOG_TYPE, LogMessageOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
 import type { CloudModule, DocumentModule } from './module';
 import type { PermissionSettings, RequestBody, Settings } from './node';
@@ -59,7 +59,6 @@ declare namespace functions {
         parseFormat(command: string): string[];
         transform(uri: string, command: string, mimeType?: string, tempFile?: boolean): Promise<Null<Buffer> | string>;
         using(this: IFileManager, data: FileData, command: string): void;
-        finalize: FinalizeImageCallback<OutputData>;
         clamp(value: Undef<string>, min?: number, max?: number): number;
         new(): IImage;
     }
@@ -119,8 +118,8 @@ declare namespace functions {
         loadConfig(data: StandardMap, name: string): Optional<ConfigOrTransformer>;
         transform(type: string, code: string, format: string, options?: TransformOutput): Promise<Void<TransformResult>>;
         formatContent?(manager: IFileManager, file: ExternalAsset, content: string): Promise<string>;
-        addCopy?(manager: IFileManager, data: FileData, replace?: boolean): Undef<string>;
-        finalizeImage?: FinalizeImageCallback<OutputData, boolean>;
+        addCopy?(manager: IFileManager, data: FileData, saveAs: string, replace?: boolean): Undef<string>;
+        writeImage?(manager: IFileManager, data: OutputData): boolean;
         cloudInit?(state: IScopeOrigin<T, U>): void;
         cloudObject?(state: IScopeOrigin<T, U>, file: ExternalAsset): boolean;
         cloudUpload?(state: IScopeOrigin<T, U>, file: ExternalAsset, url: string, active: boolean): Promise<boolean>;
@@ -201,8 +200,9 @@ declare namespace functions {
         getTrailingContent(file: ExternalAsset): Undef<string>;
         getBundleContent(localUri: string): Undef<string>;
         writeBuffer(file: ExternalAsset): Null<Buffer>;
+        writeImage(document: string | string[], data: OutputData): boolean;
         compressFile(file: ExternalAsset): Promise<unknown>;
-        addCopy(data: FileData, replace?: boolean): Undef<string>;
+        addCopy(data: FileData, saveAs?: string, replace?: boolean): Undef<string>;
         findMime(data: FileData, rename?: boolean): Promise<string>;
         finalizeAsset(data: FileData, parent?: ExternalAsset): Promise<void>;
         processAssets(emptyDir?: boolean): void;
@@ -213,7 +213,7 @@ declare namespace functions {
         getPermission(settings?: PermissionSettings): IPermission;
         hasPermission(dirname: string, permission: IPermission): true | ResponseData;
         moduleCompress(): ICompress;
-        resolveMime(data: Buffer | string): Promise<FileTypeResult>;
+        resolveMime(data: Buffer | string): Promise<Undef<FileTypeResult>>;
         new(baseDirectory: string, body: RequestBody, postFinalize?: (errors: string[]) => void, settings?: PermissionSettings): IFileManager;
     }
 

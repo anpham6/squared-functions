@@ -1,10 +1,9 @@
 import type { ElementAction, ElementIndex } from '../../types/lib/squared';
 
 import type { IFileManager } from '../../types/lib';
-import type { FileCopy, FileData } from '../../types/lib/asset';
+import type { FileData, OutputData } from '../../types/lib/asset';
 import type { CloudDatabase } from '../../types/lib/cloud';
 import type { SourceMapOutput } from '../../types/lib/document';
-import type { OutputData } from '../../types/lib/image';
 import type { DocumentModule } from '../../types/lib/module';
 import type { RequestBody } from '../../types/lib/node';
 
@@ -1095,17 +1094,17 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
         return content;
     }
-    addCopy(manager: IFileManager, data: FileData & FileCopy) {
+    addCopy(manager: IFileManager, data: FileData, saveAs: string) {
         if (data.command) {
             const match = REGEXP_SRCSETSIZE.exec(data.command);
             if (match) {
-                return Document.renameExt(manager.getLocalUri(data), match[1] + match[2].toLowerCase() + '.' + data.saveAs);
+                return Document.renameExt(manager.getLocalUri(data), match[1] + match[2].toLowerCase() + '.' + saveAs);
             }
         }
     }
-    finalizeImage(err: Null<Error>, data: OutputData) {
+    writeImage(manager: IFileManager, data: OutputData) {
         const { file, output } = data;
-        if (!err && output) {
+        if (output) {
             const match = (file as DocumentAsset).element?.outerHTML && REGEXP_SRCSETSIZE.exec(data.command);
             if (match) {
                 ((file as DocumentAsset).srcSet ||= []).push(Document.toPosix(data.baseDirectory ? output.substring(data.baseDirectory.length + 1) : output), match[1] + match[2].toLowerCase());

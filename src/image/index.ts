@@ -1,6 +1,6 @@
 import type { IFileManager, IImage } from '../types/lib';
 import type { FileData } from '../types/lib/asset';
-import type { CropData, OutputData, QualityData, ResizeData, RotateData } from '../types/lib/image';
+import type { CropData, QualityData, ResizeData, RotateData } from '../types/lib/image';
 
 import Module from '../module';
 
@@ -21,12 +21,15 @@ abstract class Image extends Module implements IImage {
         return ['', ''];
     }
 
-    public static using(this: IFileManager, data: FileData, command: string) {}
-    public static finalize(this: IFileManager, err: Null<Error>, data: OutputData) {}
+    public static async transform(uri: string, command: string, mimeType?: string, tempFile?: boolean): Promise<Null<Buffer> | string> {
+        return tempFile ? '' : null;
+    }
 
     public static clamp(value: Undef<string>, min = 0, max = 1) {
         return value ? Math.min(Math.max(min, +value), max) : NaN;
     }
+
+    public static using(this: IFileManager, data: FileData, command: string) {}
 
     public resizeData?: ResizeData;
     public cropData?: CropData;

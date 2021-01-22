@@ -1,12 +1,3 @@
-import type { FileData } from './asset';
-
-export interface OutputData extends FileData {
-    output: string;
-    command: string;
-    baseDirectory?: string;
-    errors?: string[];
-}
-
 export interface RotateData {
     values: number[];
     color: number;
@@ -26,5 +17,3 @@ export interface QualityData {
     nearLossless: number;
     preset?: string;
 }
-
-export type FinalizeImageCallback<T = unknown, U = void> = (err: Null<Error>, result: T) => U;

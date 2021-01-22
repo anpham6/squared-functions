@@ -13,6 +13,7 @@ type StringMap = Record<string, Undef<string>>;
 type ObjectMap<T> = Record<string, T>;
 
 type JsonData = Optional<string | number | boolean | unknown[] | StandardMap>;
+type StandardCallback<T = unknown, U = void> = (err: Null<Error>, result: T) => U;
 
 interface Point {
     x: number;

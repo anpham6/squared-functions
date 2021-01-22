@@ -1,6 +1,5 @@
 import type { IFileManager } from '../../types/lib';
-import type { ExternalAsset, FileData } from '../../types/lib/asset';
-import type { FinalizeImageCallback, OutputData } from '../../types/lib/image';
+import type { ExternalAsset, FileData, OutputData } from '../../types/lib/asset';
 
 import type { IJimpImageHandler } from './image';
 
@@ -78,7 +77,7 @@ class Jimp extends Image implements IJimpImageHandler {
                 .then(handler => handler.getBuffer(tempFile, saveAs, finalAs))
                 .catch(() => tempFile ? '' : null);
         }
-        return tempFile ? '' : null;
+        return super.transform(uri, command, mimeType, tempFile);
     }
 
     public static using(this: IFileManager, data: FileData, command: string) {
@@ -92,15 +91,15 @@ class Jimp extends Image implements IJimpImageHandler {
             return;
         }
         data.command = command;
-        data.saveAs = saveAs;
         data.outputType = outputType;
-        const output = this.addCopy(data, command.includes('@'));
+        const output = this.addCopy(data, saveAs, command.includes('@'));
         if (!output) {
             return;
         }
         this.performAsyncTask();
         const transformBuffer = (tempFile?: string) => {
             this.formatMessage(this.logType.PROCESS, MODULE_NAME, ['Transforming image...', path.basename(localUri)], command);
+            const time = Date.now();
             performCommand(tempFile || getBuffer(data), command, outputType, finalAs, this, data)
                 .then(handler => {
                     if (handler) {
@@ -108,12 +107,40 @@ class Jimp extends Image implements IJimpImageHandler {
                             delete data.file.buffer;
                         }
                         handler.write(output, (err: Null<Error>, result: string) => {
-                            Jimp.finalize.call(this, err, {
-                                ...data,
-                                output: result,
-                                command,
-                                errors: handler.errors
-                            } as OutputData);
+                            if (handler.errors.length) {
+                                this.errors.push(...handler.errors);
+                            }
+                            let parent: Undef<ExternalAsset>;
+                            if (!err && result) {
+                                const file = data.file;
+                                if (file.document) {
+                                    this.writeImage(file.document, { ...data, command, output: result, baseDirectory: this.baseDirectory } as OutputData);
+                                }
+                                if (this.getLocalUri(data) !== result) {
+                                    if (command.includes('%')) {
+                                        if (this.filesToCompare.has(file)) {
+                                            this.filesToCompare.get(file)!.push(result);
+                                        }
+                                        else {
+                                            this.filesToCompare.set(file, [result]);
+                                        }
+                                        result = '';
+                                    }
+                                    else if (command.includes('@')) {
+                                        this.replace(file, result);
+                                        result = '';
+                                    }
+                                    else {
+                                        parent = file;
+                                    }
+                                }
+                                this.writeTimeElapsed(handler.moduleName, path.basename(result), time);
+                            }
+                            else {
+                                this.writeFail(['Unable to finalize image', path.basename(result)], err);
+                                result = '';
+                            }
+                            this.completeAsyncTask(null, result, parent);
                         });
                     }
                     else {
@@ -145,58 +172,9 @@ class Jimp extends Image implements IJimpImageHandler {
         }
     }
 
-    public static finalize(this: IFileManager, err: Null<Error>, data: OutputData) {
-        const { file, command, errors } = data;
-        let output = data.output,
-            parent: Undef<ExternalAsset>;
-        if (file.document) {
-            data.baseDirectory = this.baseDirectory;
-            for (const { instance } of this.Document) {
-                if (this.hasDocument(instance, file.document) && instance.finalizeImage && instance.finalizeImage(err, data)) {
-                    if (err || !output) {
-                        this.completeAsyncTask();
-                        return;
-                    }
-                    parent = file;
-                    break;
-                }
-            }
-        }
-        if (!err && output) {
-            const original = this.getLocalUri(data) === output;
-            if (!parent && !original) {
-                if (command.includes('%')) {
-                    if (this.filesToCompare.has(file)) {
-                        this.filesToCompare.get(file)!.push(output);
-                    }
-                    else {
-                        this.filesToCompare.set(file, [output]);
-                    }
-                    output = '';
-                }
-                else if (command.includes('@')) {
-                    this.replace(file, output);
-                    output = '';
-                }
-                else {
-                    parent = file;
-                }
-            }
-            this.completeAsyncTask(null, output, !original ? parent : undefined);
-        }
-        else {
-            this.writeFail(['Unable to finalize image', path.basename(output)]);
-            this.completeAsyncTask();
-        }
-        if (errors?.length) {
-            this.errors.push(...errors);
-        }
-    }
-
     public readonly moduleName = MODULE_NAME;
 
     private _finalAs: Undef<string> = '';
-    private _startTime = 0;
 
     constructor(public instance: jimp) {
         super();
@@ -205,12 +183,10 @@ class Jimp extends Image implements IJimpImageHandler {
     reset() {
         super.reset();
         this._finalAs = '';
-        this._startTime = 0;
     }
     setCommand(value: string, finalAs?: string) {
         super.setCommand(value);
         this._finalAs = finalAs;
-        this._startTime = Date.now();
     }
     method() {
         if (this.methodData) {
@@ -310,7 +286,7 @@ class Jimp extends Image implements IJimpImageHandler {
             }
         }
     }
-    rotate(pathFile?: string, callback?: FinalizeImageCallback<string>): Void<Promise<unknown>[]> {
+    rotate(pathFile?: string, callback?: StandardCallback<string>): Void<Promise<unknown>[]> {
         const tasks: Promise<unknown>[] = [];
         if (this.rotateData) {
             const { values, color } = this.rotateData;
@@ -346,16 +322,10 @@ class Jimp extends Image implements IJimpImageHandler {
             return tasks;
         }
     }
-    write(output: string, callback?: FinalizeImageCallback) {
+    write(output: string, callback?: StandardCallback<string>) {
         this.instance.write(output, err => {
             if (!err) {
                 this.finalize(output, (error: Null<Error>, result: string) => {
-                    if (this._startTime) {
-                        if (!error) {
-                            this.writeTimeElapsed(this.moduleName, path.basename(result), this._startTime);
-                        }
-                        this._startTime = 0;
-                    }
                     if (callback) {
                         callback(error, error ? '' : result);
                     }
