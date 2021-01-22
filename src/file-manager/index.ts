@@ -20,6 +20,7 @@ import Task from '../task';
 import Image from '../image';
 import Cloud from '../cloud';
 import Watch from '../watch';
+import Permission from './permission';
 
 import Compress from '../compress';
 
@@ -44,34 +45,6 @@ function withinSizeRange(uri: string, value: Undef<string>) {
 const findFormat = (compress: Undef<CompressFormat[]>, format: string) => compress ? compress.filter(item => item.format === format) : [];
 const isObject = <T = PlainObject>(value: unknown): value is T => typeof value === 'object' && value !== null;
 const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
-const isTrue = (value: unknown): value is true => value ? value === true || value === 'true' || +(value as string) === 1 : false;
-
-class Permission implements IPermission {
-    private _disk_read: boolean;
-    private _disk_write: boolean;
-    private _unc_read: boolean;
-    private _unc_write: boolean;
-
-    constructor(settings: PermissionSettings = {}) {
-        const { disk_read, disk_write, unc_read, unc_write } = settings;
-        this._disk_read = isTrue(disk_read);
-        this._disk_write = isTrue(disk_write);
-        this._unc_read = isTrue(unc_read);
-        this._unc_write = isTrue(unc_write);
-    }
-    hasDiskRead() {
-        return this._disk_read;
-    }
-    hasDiskWrite() {
-        return this._disk_write;
-    }
-    hasUNCRead() {
-        return this._unc_read;
-    }
-    hasUNCWrite() {
-        return this._unc_write;
-    }
-}
 
 class FileManager extends Module implements IFileManager {
     public static loadSettings(value: Settings) {

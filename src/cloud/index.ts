@@ -1,6 +1,6 @@
 import type { CloudDatabase, CloudService, CloudStorage, CloudStorageAction, CloudStorageDownload, CloudStorageUpload } from '../types/lib/squared';
 
-import type { ICloud, ICloudServiceClient, IFileManager, IModule, ScopeOrigin } from '../types/lib';
+import type { ICloud, ICloudServiceClient, IFileManager, IModule, IScopeOrigin } from '../types/lib';
 import type { ExternalAsset } from '../types/lib/asset';
 import type { CacheTimeout, CloudFeatures, CloudFunctions, DownloadData, FinalizeResult, UploadData } from '../types/lib/cloud';
 import type { CloudModule } from '../types/lib/module';
@@ -12,7 +12,7 @@ import uuid = require('uuid');
 
 import Module from '../module';
 
-export interface CloudScopeOrigin extends ScopeOrigin<IFileManager, ICloud> {
+export interface CloudIScopeOrigin extends Required<IScopeOrigin<IFileManager, ICloud>> {
     bucketGroup: string;
     localStorage: Map<ExternalAsset, CloudStorageUpload>;
     compressed: ExternalAsset[];
@@ -66,7 +66,7 @@ function getFiles(cloud: ICloud, file: ExternalAsset, data: CloudStorageUpload) 
 const assignFilename = (value: string) => uuid.v4() + (path.extname(value) || '');
 
 class Cloud extends Module implements ICloud {
-    public static uploadAsset(this: IFileManager, state: CloudScopeOrigin, file: ExternalAsset, mimeType = file.mimeType, uploadDocument?: boolean) {
+    public static uploadAsset(this: IFileManager, state: CloudIScopeOrigin, file: ExternalAsset, mimeType = file.mimeType, uploadDocument?: boolean) {
         const { instance, bucketGroup } = state;
         const tasks: Promise<void>[] = [];
         for (const storage of file.cloudStorage!) {
@@ -158,7 +158,7 @@ class Cloud extends Module implements ICloud {
         const compressed: ExternalAsset[] = [];
         const localStorage = new Map<ExternalAsset, CloudStorageUpload>();
         const bucketGroup = uuid.v4();
-        const state: CloudScopeOrigin = { host: this, instance: cloud, bucketGroup, localStorage, compressed };
+        const state: CloudIScopeOrigin = { host: this, instance: cloud, bucketGroup, localStorage, compressed };
         const bucketMap: ObjectMap<Map<string, PlainObject>> = {};
         const downloadMap: ObjectMap<Set<string>> = {};
         const rawFiles: ExternalAsset[] = [];

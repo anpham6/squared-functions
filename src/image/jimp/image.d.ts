@@ -1,5 +1,8 @@
-import type { IFileManager, ImageConstructor, ImageHandler } from '../../types/lib';
+import type { IFileManager, ImageConstructor } from '../../types/lib';
 import type { FinalizeImageCallback } from '../../types/lib/filemanager';
+
+import type { ImageHandler } from '../types';
+
 import type * as jimp from 'jimp';
 
 export interface IJimpImageHandler extends ImageHandler<IFileManager, jimp> {

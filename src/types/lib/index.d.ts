@@ -10,13 +10,18 @@ import type { CompressTryFileMethod, CompressTryImageCallback } from './compress
 import type { ConfigOrTransformer, DocumentData, PluginConfig, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
 import type { CompleteAsyncTaskCallback, FinalizeImageCallback, InstallData, PerformAsyncTaskMethod, QueueImageMethod } from './filemanager';
 import type { CropData, OutputData, QualityData, ResizeData, RotateData } from './image';
-import type { CloudModule, DocumentModule } from './module';
 import type { LOG_TYPE, LogMessageOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
+import type { CloudModule, DocumentModule } from './module';
 import type { PermissionSettings, RequestBody, Settings } from './node';
 
 import type { PathLike, WriteStream } from 'fs';
 
 declare namespace functions {
+    interface IScopeOrigin<T = IModule, U = IModule> {
+        host?: T;
+        instance: U;
+    }
+
     interface ICompress extends IModule {
         gzipLevel: number;
         brotliQuality: number;
@@ -58,8 +63,6 @@ declare namespace functions {
         new(): IImage;
     }
 
-    const Image: ImageConstructor;
-
     interface ITask extends IModule {
         module: DocumentModule;
         execute?(manager: IFileManager, task: PlainObject, callback: (value?: unknown) => void): void;
@@ -69,8 +72,6 @@ declare namespace functions {
         using(this: IFileManager, task: ITask, assets: ExternalAsset[], beforeStage?: boolean): Promise<void>;
         new(module: DocumentModule): ITask;
     }
-
-    const Task: TaskConstructor;
 
     interface ICloud extends IModule {
         settings: CloudModule;
@@ -94,11 +95,9 @@ declare namespace functions {
 
     interface CloudConstructor extends ModuleConstructor {
         finalize<T = IFileManager, U = ICloud>(this: T, cloud: U): Promise<FinalizeResult>;
-        uploadAsset<T = IFileManager, U = ICloud>(this: T, cloud: U, state: ScopeOrigin<T, U>, file: ExternalAsset, mimeType?: string, uploadDocument?: boolean): Promise<void>;
+        uploadAsset<T = IFileManager, U = ICloud>(this: T, cloud: U, state: IScopeOrigin<T, U>, file: ExternalAsset, mimeType?: string, uploadDocument?: boolean): Promise<void>;
         new(settings: CloudModule): ICloud;
     }
-
-    const Cloud: CloudConstructor;
 
     interface ICloudServiceClient {
         validateStorage?(credential: PlainObject, data?: CloudService): boolean;
@@ -121,10 +120,10 @@ declare namespace functions {
         formatContent?(manager: IFileManager, file: ExternalAsset, content: string): Promise<string>;
         imageQueue?: QueueImageMethod;
         imageFinalize?: FinalizeImageCallback<OutputData, boolean>;
-        cloudInit?(state: ScopeOrigin<T, U>): void;
-        cloudObject?(state: ScopeOrigin<T, U>, file: ExternalAsset): boolean;
-        cloudUpload?(state: ScopeOrigin<T, U>, file: ExternalAsset, url: string, active: boolean): Promise<boolean>;
-        cloudFinalize?(state: ScopeOrigin<T, U>): Promise<void>;
+        cloudInit?(state: IScopeOrigin<T, U>): void;
+        cloudObject?(state: IScopeOrigin<T, U>, file: ExternalAsset): boolean;
+        cloudUpload?(state: IScopeOrigin<T, U>, file: ExternalAsset, url: string, active: boolean): Promise<boolean>;
+        cloudFinalize?(state: IScopeOrigin<T, U>): Promise<void>;
     }
 
     interface DocumentConstructor extends ModuleConstructor {
@@ -136,8 +135,6 @@ declare namespace functions {
         new(module: DocumentModule, templateMap?: Undef<StandardMap>, ...args: unknown[]): IDocument;
     }
 
-    const Document: DocumentConstructor;
-
     interface IWatch extends IModule {
         interval: number;
         whenModified?: (assets: ExternalAsset[]) => void;
@@ -147,8 +144,6 @@ declare namespace functions {
     interface WatchConstructor extends ModuleConstructor {
         new(interval?: number): IWatch;
     }
-
-    const Watch: WatchConstructor;
 
     interface IPermission {
         hasDiskRead(): boolean;
@@ -160,8 +155,6 @@ declare namespace functions {
     interface PermissionConstructor {
         new(settings?: PermissionSettings): IFileManager;
     }
-
-    const Permission: PermissionConstructor;
 
     interface IFileManager extends IModule {
         delayed: number;
@@ -222,8 +215,6 @@ declare namespace functions {
         new(baseDirectory: string, body: RequestBody, postFinalize?: (errors: string[]) => void, settings?: PermissionSettings): IFileManager;
     }
 
-    const FileManager: FileManagerConstructor;
-
     interface IModule {
         logType: typeof LOG_TYPE;
         tempDir: string;
@@ -264,28 +255,14 @@ declare namespace functions {
         new(): IModule;
     }
 
+    const Image: ImageConstructor;
+    const Task: TaskConstructor;
+    const Cloud: CloudConstructor;
+    const Document: DocumentConstructor;
+    const Watch: WatchConstructor;
+    const Permission: PermissionConstructor;
+    const FileManager: FileManagerConstructor;
     const Module: ModuleConstructor;
-
-    interface ScopeOrigin<T = IModule, U = IModule> {
-        host?: T;
-        instance: U;
-    }
-
-    class ImageHandler<T, U> implements ScopeOrigin<T, U> {
-        instance: U;
-        data?: FileData;
-        method(): void;
-        resize(): void;
-        crop(): void;
-        opacity(): void;
-        quality(): void;
-        rotate(): void;
-        write(output: string, callback?: FinalizeImageCallback): void;
-        getBuffer(tempFile?: boolean, saveAs?: string): Promise<Null<Buffer | string>>;
-        finalize(output: string, callback: (err: Null<Error>, result: string) => void): void;
-        get rotateCount(): number;
-        constructor(instance: U, data: FileData);
-    }
 }
 
 export = functions;

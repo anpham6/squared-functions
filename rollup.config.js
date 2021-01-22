@@ -79,6 +79,16 @@ export default [
         }
     },
     {
+        input: './build/file-manager/permission/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/file-manager/permission/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/file-manager/permission ${require('./publish/file-manager/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
+        }
+    },
+    {
         input: './build/image/index.js',
         treeshake: false,
         output: {

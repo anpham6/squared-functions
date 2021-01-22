@@ -7,7 +7,7 @@ import type { OutputData } from '../../types/lib/image';
 import type { DocumentModule } from '../../types/lib/module';
 import type { RequestBody } from '../../types/lib/node';
 
-import type { CloudScopeOrigin } from '../../cloud';
+import type { CloudIScopeOrigin } from '../../cloud';
 import type { DocumentAsset, IChromeDocument } from './document';
 
 import fs = require('fs-extra');
@@ -20,7 +20,7 @@ import Cloud from '../../cloud';
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
 
 function getElementSrc(outerHTML: string) {
-    const match = /(?:src|href|data|poster)\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s]+))/i.exec(outerHTML);
+    const match = /\b(?:src|href|data|poster)\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s]+))/i.exec(outerHTML);
     if (match) {
         return (match[1] || match[2] || match[3]).trim();
     }
@@ -1123,7 +1123,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
         return false;
     }
-    cloudInit(state: CloudScopeOrigin) {
+    cloudInit(state: CloudIScopeOrigin) {
         this._cloudMap = {};
         this._cloudCssMap = {};
         this._cloudModifiedHtml = false;
@@ -1136,23 +1136,20 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
     }
-    cloudObject(state: CloudScopeOrigin, file: DocumentAsset) {
-        if (state.host) {
-            if (file.inlineCloud) {
-                this._cloudMap[file.inlineCloud] = file;
-                this._cloudModifiedHtml = true;
-            }
-            else if (file.inlineCssCloud) {
-                this._cloudCssMap[file.inlineCssCloud] = file;
-                this._cloudModifiedCss = new Set();
-            }
-            return this.htmlFiles.includes(file) || this.cssFiles.includes(file);
+    cloudObject(state: CloudIScopeOrigin, file: DocumentAsset) {
+        if (file.inlineCloud) {
+            this._cloudMap[file.inlineCloud] = file;
+            this._cloudModifiedHtml = true;
         }
-        return false;
+        else if (file.inlineCssCloud) {
+            this._cloudCssMap[file.inlineCssCloud] = file;
+            this._cloudModifiedCss = new Set();
+        }
+        return this.htmlFiles.includes(file) || this.cssFiles.includes(file);
     }
-    async cloudUpload(state: CloudScopeOrigin, file: DocumentAsset, url: string, active: boolean) {
-        const host = state.host;
-        if (host && active) {
+    async cloudUpload(state: CloudIScopeOrigin, file: DocumentAsset, url: string, active: boolean) {
+        if (active) {
+            const host = state.host;
             const endpoint = this._cloudEndpoint;
             let cloudUrl = url;
             if (endpoint) {
@@ -1184,12 +1181,8 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
         return false;
     }
-    async cloudFinalize(state: CloudScopeOrigin) {
-        const host = state.host;
-        if (!host) {
-            return;
-        }
-        const { localStorage, compressed } = state;
+    async cloudFinalize(state: CloudIScopeOrigin) {
+        const { host, localStorage, compressed } = state;
         const modifiedCss = this._cloudModifiedCss;
         let tasks: Promise<unknown>[] = [];
         if (modifiedCss) {
