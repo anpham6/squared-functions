@@ -132,7 +132,7 @@ abstract class Module implements IModule {
             }
             message = ' ' + chalk.blackBright('(') + message + chalk.blackBright(')');
         }
-        console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase().padEnd(6)) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
+        console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase().padEnd(7)) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
     }
 
     public static writeFail(value: LogValue, message?: Null<Error>) {
@@ -348,7 +348,7 @@ abstract class Module implements IModule {
         return process.cwd() + path.sep + this.tempDir + path.sep + (uuidDir ? uuid.v4() + path.sep : '') + (filename[0] === '.' ? uuid.v4() : '') + filename;
     }
     writeFail(value: LogValue, message?: Null<Error>) {
-        this.formatFail(LOG_TYPE.SYSTEM, 'FAIL', value, message);
+        this.formatFail(LOG_TYPE.SYSTEM, ' FAIL! ', value, message);
     }
     writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions) {
         Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Completed', (Date.now() - time) / 1000 + 's'], value, options);

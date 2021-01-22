@@ -40,10 +40,12 @@ export interface ElementAction {
 }
 
 export interface ElementIndex {
-    outerHTML: string;
-    outerIndex: number;
     tagName: string;
     tagIndex: number;
+    tagCount: number;
+    outerHTML: string;
+    outerIndex: number;
+    outerCount: number;
     srcSet?: boolean;
 }
 
