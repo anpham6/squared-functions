@@ -1,6 +1,6 @@
 import type { IFileManager, IImage } from '../types/lib';
 import type { FileData } from '../types/lib/asset';
-import type { CropData, QualityData, ResizeData, RotateData } from '../types/lib/image';
+import type { CropData, OutputData, QualityData, ResizeData, RotateData } from '../types/lib/image';
 
 import Module from '../module';
 
@@ -23,6 +23,7 @@ abstract class Image extends Module implements IImage {
 
     public static async resolveMime(this: IFileManager, data: FileData) { return false; }
     public static using(this: IFileManager, data: FileData, command: string) {}
+    public static finalize(this: IFileManager, err: Null<Error>, data: OutputData) {}
 
     public static clamp(value: Undef<string>, min = 0, max = 1) {
         return value ? Math.min(Math.max(min, +value), max) : NaN;

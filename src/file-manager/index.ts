@@ -4,7 +4,6 @@ import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, I
 import type { ExternalAsset, FileData, FileOutput } from '../types/lib/asset';
 import type { DocumentData } from '../types/lib/document';
 import type { InstallData } from '../types/lib/filemanager';
-import type { OutputData } from '../types/lib/image';
 import type { CloudModule, DocumentModule } from '../types/lib/module';
 import type { PermissionSettings, RequestBody, Settings } from '../types/lib/node';
 
@@ -404,23 +403,26 @@ class FileManager extends Module implements IFileManager {
         }
         return null;
     }
-    queueImage(data: FileData, saveAs: string, command = '') {
+    addCopy(data: FileData, replacing = true) {
         const localUri = this.getLocalUri(data);
         if (!localUri) {
             return;
         }
+        data.tempUri ||= localUri;
+        const ext = path.extname(localUri).substring(1);
+        const saveAs = data.saveAs ||= ext;
         const document = data.file.document;
         let output: Undef<string>;
         if (document) {
             for (const { instance } of this.Document) {
-                if (this.hasDocument(instance, document) && instance.imageQueue && (output = instance.imageQueue(data, saveAs, command))) {
+                if (this.hasDocument(instance, document) && instance.addCopy && (output = instance.addCopy(this, data, replacing))) {
                     this.filesQueued.add(output);
                     return output;
                 }
             }
         }
-        if (this.getMimeType(data) === data.outputType) {
-            if (!command.includes('@') || this.filesQueued.has(localUri)) {
+        if (this.getMimeType(data) === data.outputType || ext === saveAs) {
+            if (!replacing || this.filesQueued.has(localUri)) {
                 let i = 1;
                 do {
                     output = Module.renameExt(localUri, '__copy__.' + (i > 1 ? `(${i}).` : '') + saveAs);
@@ -444,53 +446,6 @@ class FileManager extends Module implements IFileManager {
         }
         this.filesQueued.add(output ||= localUri);
         return output;
-    }
-    finalizeImage(err: Null<Error>, data: OutputData) {
-        const { file, command, errors = [] } = data;
-        if (errors.length) {
-            this.errors.push(...errors);
-        }
-        let output = data.output,
-            parent: Undef<ExternalAsset>;
-        if (file.document) {
-            data.baseDirectory = this.baseDirectory;
-            for (const { instance } of this.Document) {
-                if (this.hasDocument(instance, file.document) && instance.imageFinalize && instance.imageFinalize(err, data)) {
-                    if (err || !output) {
-                        this.completeAsyncTask();
-                        return;
-                    }
-                    parent = file;
-                    break;
-                }
-            }
-        }
-        if (!err && output) {
-            const original = this.getLocalUri(data) === output;
-            if (!parent && !original) {
-                if (command.includes('%')) {
-                    if (this.filesToCompare.has(file)) {
-                        this.filesToCompare.get(file)!.push(output);
-                    }
-                    else {
-                        this.filesToCompare.set(file, [output]);
-                    }
-                    output = '';
-                }
-                else if (command.includes('@')) {
-                    this.replace(file, output);
-                    output = '';
-                }
-                else {
-                    parent = file;
-                }
-            }
-            this.completeAsyncTask(null, output, !original ? parent : undefined);
-        }
-        else {
-            this.writeFail(['Unable to finalize image', path.basename(output)]);
-            this.completeAsyncTask();
-        }
     }
     async compressFile(file: ExternalAsset) {
         const { localUri, compress } = file;

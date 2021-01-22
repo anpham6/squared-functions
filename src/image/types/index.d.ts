@@ -1,6 +1,6 @@
 import type { IScopeOrigin } from '../../types/lib';
 import type { FileData } from '../../types/lib/asset';
-import type { FinalizeImageCallback } from '../../types/lib/filemanager';
+import type { FinalizeImageCallback } from '../../types/lib/image';
 
 export class ImageHandler<T, U> implements IScopeOrigin<T, U> {
     instance: U;

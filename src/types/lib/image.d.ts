@@ -26,3 +26,5 @@ export interface QualityData {
     nearLossless: number;
     preset?: string;
 }
+
+export type FinalizeImageCallback<T = unknown, U = void> = (err: Null<Error>, result: T) => U;

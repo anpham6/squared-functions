@@ -2,9 +2,16 @@ import type { BundleAction, FileAsset } from './squared';
 
 export interface FileData {
     file: ExternalAsset;
+    saveAs?: string;
+    command?: string;
     tempUri?: string;
     mimeType?: string;
     outputType?: string;
+}
+
+export interface FileCopy {
+    tempUri: string;
+    saveAs: string;
 }
 
 export interface FileOutput {

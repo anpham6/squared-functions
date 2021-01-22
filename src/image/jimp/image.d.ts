@@ -1,5 +1,5 @@
 import type { IFileManager, ImageConstructor } from '../../types/lib';
-import type { FinalizeImageCallback } from '../../types/lib/filemanager';
+import type { FinalizeImageCallback } from '../../types/lib/image';
 
 import type { ImageHandler } from '../types';
 

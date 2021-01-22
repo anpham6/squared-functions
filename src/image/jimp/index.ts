@@ -1,7 +1,6 @@
 import type { IFileManager } from '../../types/lib';
-import type { FileData } from '../../types/lib/asset';
-import type { FinalizeImageCallback } from '../../types/lib/filemanager';
-import type { OutputData } from '../../types/lib/image';
+import type { ExternalAsset, FileData } from '../../types/lib/asset';
+import type { FinalizeImageCallback, OutputData } from '../../types/lib/image';
 
 import type { IJimpImageHandler } from './image';
 
@@ -98,20 +97,22 @@ class Jimp extends Image implements IJimpImageHandler {
     }
 
     public static using(this: IFileManager, data: FileData, command: string) {
+        const localUri = this.getLocalUri(data);
         const mimeType = this.getMimeType(data);
-        if (!mimeType || !Jimp.MIME_INPUT.has(mimeType)) {
+        if (!localUri || !mimeType || !Jimp.MIME_INPUT.has(mimeType)) {
             return;
         }
         const [outputType, saveAs, finalAs] = Jimp.parseFormat(command, mimeType);
         if (!outputType) {
             return;
         }
+        data.command = command;
+        data.saveAs = saveAs;
         data.outputType = outputType;
-        const output = this.queueImage(data, saveAs, command);
+        const output = this.addCopy(data, command.includes('@'));
         if (!output) {
             return;
         }
-        const localUri = this.getLocalUri(data);
         this.performAsyncTask();
         const transformBuffer = (tempFile?: string) => {
             this.formatMessage(this.logType.PROCESS, MODULE_NAME, ['Transforming image...', path.basename(localUri)], command);
@@ -122,7 +123,12 @@ class Jimp extends Image implements IJimpImageHandler {
                             delete data.file.buffer;
                         }
                         handler.write(output, (err: Null<Error>, result: string) => {
-                            this.finalizeImage(err, { ...data, output: result, command, errors: handler.errors } as OutputData);
+                            Jimp.finalize.call(this, err, {
+                                ...data,
+                                output: result,
+                                command,
+                                errors: handler.errors
+                            } as OutputData);
                         });
                     }
                     else {
@@ -151,6 +157,54 @@ class Jimp extends Image implements IJimpImageHandler {
         }
         else {
             transformBuffer();
+        }
+    }
+
+    public static finalize(this: IFileManager, err: Null<Error>, data: OutputData) {
+        const { file, command, errors } = data;
+        let output = data.output,
+            parent: Undef<ExternalAsset>;
+        if (file.document) {
+            data.baseDirectory = this.baseDirectory;
+            for (const { instance } of this.Document) {
+                if (this.hasDocument(instance, file.document) && instance.finalizeImage && instance.finalizeImage(err, data)) {
+                    if (err || !output) {
+                        this.completeAsyncTask();
+                        return;
+                    }
+                    parent = file;
+                    break;
+                }
+            }
+        }
+        if (!err && output) {
+            const original = this.getLocalUri(data) === output;
+            if (!parent && !original) {
+                if (command.includes('%')) {
+                    if (this.filesToCompare.has(file)) {
+                        this.filesToCompare.get(file)!.push(output);
+                    }
+                    else {
+                        this.filesToCompare.set(file, [output]);
+                    }
+                    output = '';
+                }
+                else if (command.includes('@')) {
+                    this.replace(file, output);
+                    output = '';
+                }
+                else {
+                    parent = file;
+                }
+            }
+            this.completeAsyncTask(null, output, !original ? parent : undefined);
+        }
+        else {
+            this.writeFail(['Unable to finalize image', path.basename(output)]);
+            this.completeAsyncTask();
+        }
+        if (errors?.length) {
+            this.errors.push(...errors);
         }
     }
 
