@@ -166,37 +166,30 @@ function findClosingTag(tagName: string, outerHTML: string, closed = true): [str
     return ['', '', ''];
 }
 
-function replaceSrc(outerHTML: string, src: string[], value: string, base64: boolean, baseUri?: string[]) {
-    let html = outerHTML,
-        result: Undef<string>;
+function replaceSrc(outerHTML: string, src: string[], value: string, base64: boolean, baseUri: Undef<string[]>, srcSet?: boolean) {
+    const srcsetHTML = !base64 && /srcset\s*=\s*((["'])[\S\s]+?\2)/i.exec(outerHTML)?.[1] || '';
+    let current = srcsetHTML,
+        result: Undef<string>,
+        found: Undef<boolean>,
+        match: Null<RegExpExecArray>;
     for (const item of src) {
-        let match = new RegExp(`\\b(src|href|data|poster)\\s*=\\s*(["'])?\\s*${!base64 ? escapePosix(item) : escapeRegexp(item)}\\s*\\2`, 'i').exec(html);
-        if (match) {
-            result = (result || html).replace(match[0], match[1].toLowerCase() + `="${value}"`);
-            html = result;
+        if (!found && !srcSet && (match = new RegExp(`\\b(src|href|data|poster)\\s*=\\s*(["'])?\\s*${!base64 ? escapePosix(item) : escapeRegexp(item)}\\s*\\2`, 'i').exec(outerHTML))) {
+            result = (result || outerHTML).replace(match[0], match[1].toLowerCase() + `="${value}"`);
+            found = true;
         }
-        if (!base64) {
-            match = /srcset\s*=\s*(["'])([\S\s]+?)\1/i.exec(html);
-            if (match) {
-                const current = match[2];
-                const ascending = baseUri && /[.\\/]/.test(item[0]);
-                let source = current,
-                    found: Undef<boolean>;
-                const pattern = new RegExp(`(${(ascending ? '(?:(?:\\.\\.)?(?:[\\\\/]\\.\\.|\\.\\.[\\\\/]|[\\\\/])*)?' : '') + escapePosix(item)})([^,]*)`, 'g');
-                while (match = pattern.exec(current)) {
-                    if (!ascending || baseUri![1] === Document.resolvePath(match[1], baseUri![0])) {
-                        source = source.replace(match[0], value + match[2]);
-                        found = true;
-                    }
-                }
-                if (found) {
-                    result = (result || html).replace(current, source);
-                    html = result;
+        if (srcsetHTML) {
+            const html = current;
+            const resolve = baseUri && /[.\\/]/.test(item[0]);
+            const pathname = escapePosix(item);
+            const pattern = new RegExp(`(["']\\s*|,\\s*)(${(resolve && item[0] !== '.' ? '(?:\\.\\.[\\\\/])*\\.\\.' + pathname + '|' : '') + pathname})([^,]*)`, 'g');
+            while (match = pattern.exec(html)) {
+                if (!resolve || baseUri![1] === Document.resolvePath(match[2], baseUri![0])) {
+                    current = current.replace(match[0], match[1] + value + match[3]);
                 }
             }
         }
     }
-    return result;
+    return current !== srcsetHTML ? (result || outerHTML).replace(srcsetHTML, current) : result;
 }
 
 function replaceUrl(css: string, src: string, value: string, base64: boolean) {
@@ -805,7 +798,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     let value = item.relativeUri!;
                     if (item.element) {
                         const { uri, element } = item;
-                        const { tagName, outerHTML, outerIndex } = element;
+                        const { tagName, outerHTML, outerIndex, srcSet } = element;
                         const sameOrigin = Document.hasSameOrigin(baseUri, uri);
                         const src = [uri];
                         let base64 = false;
@@ -841,7 +834,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             item.inlineCloud = value;
                         }
                         const [opening] = findClosingTag(tagName, outerHTML);
-                        const replaced = replaceSrc(opening, src, value, base64, sameOrigin ? [baseUri, uri] : undefined);
+                        const replaced = replaceSrc(opening, src, value, base64, sameOrigin ? [baseUri, uri] : undefined, srcSet);
                         if (replaced) {
                             const replaceWith = outerHTML.replace(opening, replaced);
                             if (replaceIndex(outerHTML, replaceWith, outerIndex) || replaceIndex(outerHTML, replaceWith, outerIndex, true) || replaceMinify(tagName, outerHTML, replaceWith)) {

@@ -44,6 +44,7 @@ export interface ElementIndex {
     outerIndex: number;
     tagName: string;
     tagIndex: number;
+    srcSet?: boolean;
 }
 
 export interface LocationUri {
