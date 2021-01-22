@@ -1,7 +1,8 @@
-import type { CloudDatabase, ElementAction, ElementIndex } from '../../types/lib/squared';
+import type { ElementAction, ElementIndex } from '../../types/lib/squared';
 
 import type { IFileManager } from '../../types/lib';
 import type { FileCopy, FileData } from '../../types/lib/asset';
+import type { CloudDatabase } from '../../types/lib/cloud';
 import type { SourceMapOutput } from '../../types/lib/document';
 import type { OutputData } from '../../types/lib/image';
 import type { DocumentModule } from '../../types/lib/module';

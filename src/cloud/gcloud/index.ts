@@ -1,6 +1,5 @@
-import type { CloudDatabase, CloudService } from '../../types/lib/squared';
-
 import type { ICloud, IModule } from '../../types/lib';
+import type { CloudDatabase, CloudService } from '../../types/lib/cloud';
 
 import type { GoogleAuthOptions } from 'google-auth-library';
 import type { Acl } from '@google-cloud/storage/build/src/acl';
@@ -129,7 +128,7 @@ export async function executeQuery(this: ICloud, credential: GCloudDatabaseCrede
                 let collection = (client as gcf.Firestore).collection(table) as gcf.Query<gcf.DocumentData>;
                 for (const where of query) {
                     if (where.length === 3) {
-                        collection = collection.where(where[0], where[1] as gcf.WhereFilterOp, where[2] as any);
+                        collection = collection.where(where[0], where[1] as gcf.WhereFilterOp, where[2] );
                     }
                 }
                 if (orderBy) {

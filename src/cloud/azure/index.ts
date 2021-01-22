@@ -1,6 +1,5 @@
-import type { CloudDatabase } from '../../types/lib/squared';
-
 import type { ICloud, IModule } from '../../types/lib';
+import type { CloudDatabase } from '../../types/lib/cloud';
 
 import type * as storage from '@azure/storage-blob';
 import type * as db from '@azure/cosmos';
@@ -112,9 +111,9 @@ export async function executeQuery(this: ICloud, credential: AzureDatabaseCreden
         queryString = '';
     try {
         const { name, table, id, query, storedProcedureId, params, partitionKey = '', limit = 0 } = data;
-        if (table) {
-            const container = client.database(name!).container(table);
-            queryString = name! + table + partitionKey + (data.options ? JSON.stringify(data.options) : '');
+        if (table && name) {
+            const container = client.database(name).container(table);
+            queryString = name + table + partitionKey + (data.options ? JSON.stringify(data.options) : '');
             if (storedProcedureId && params) {
                 queryString += storedProcedureId + JSON.stringify(params);
                 result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);

@@ -1,6 +1,5 @@
-import type { CloudDatabase } from '../../types/lib/squared';
-
 import type { ICloud, IModule } from '../../types/lib';
+import type { CloudDatabase } from '../../types/lib/cloud';
 
 import type { ConfigurationOptions } from 'aws-sdk/lib/core';
 import type { Connection, ConnectionAttributes } from 'oracledb';

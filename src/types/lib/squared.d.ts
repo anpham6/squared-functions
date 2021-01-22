@@ -14,12 +14,12 @@ interface TextAsset extends Asset, LocationUri {
     content?: string;
 }
 
-export interface OutputAction {
+export interface OutputAction<T = unknown> {
     moveTo?: string;
     commands?: string[];
     compress?: CompressFormat[];
     document?: string | string[];
-    cloudStorage?: CloudStorage[];
+    cloudStorage?: T[];
 }
 
 export interface TaskAction {
@@ -52,7 +52,7 @@ export interface LocationUri {
     filename: string;
 }
 
-export interface FileAsset extends TextAsset, OutputAction {
+export interface FileAsset<T = unknown> extends TextAsset, OutputAction<T> {
     base64?: string;
 }
 
@@ -64,61 +64,14 @@ export interface CompressFormat {
     options?: PlainObject;
 }
 
-export interface CloudService extends ObjectMap<unknown> {
-    service: string;
-    credential: string | PlainObject;
-}
-
-export interface CloudDatabase<T = string | PlainObject | any[]> extends CloudService, ElementAction {
-    value: string | ObjectMap<string | string[]>;
-    table?: string;
-    name?: string;
-    id?: string;
-    query?: T;
-    limit?: number;
-    params?: unknown[];
-    options?: PlainObject;
-    document?: string | string[];
-}
-
-export interface CloudStorage extends CloudService {
-    bucket?: string;
-    admin?: CloudStorageAdmin;
-    upload?: CloudStorageUpload;
-    download?: CloudStorageDownload;
-}
-
-export interface CloudStorageAdmin {
-    publicRead?: boolean;
-    emptyBucket?: boolean;
-    preservePath?: boolean;
-}
-
-export interface CloudStorageAction extends Partial<LocationUri> {
-    active?: boolean;
-    overwrite?: boolean;
-}
-
-export interface CloudStorageUpload extends CloudStorageAction {
-    localStorage?: boolean;
-    endpoint?: string;
-    all?: boolean;
-    publicRead?: boolean;
-}
-
-export interface CloudStorageDownload extends CloudStorageAction {
-    versionId?: string;
-    deleteObject?: string;
-}
-
 export interface WatchInterval {
     interval?: number;
     expires?: string;
 }
 
-export interface RequestData extends PlainObject {
+export interface RequestData<T = unknown> extends PlainObject {
     assets?: FileAsset[];
-    database?: CloudDatabase[];
+    database?: T[];
     document?: string[];
     task?: string[];
 }

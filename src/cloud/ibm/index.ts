@@ -1,6 +1,5 @@
-import type { CloudDatabase } from '../../types/lib/squared';
-
 import type { ICloud, IModule } from '../../types/lib';
+import type { CloudDatabase } from '../../types/lib/cloud';
 
 import type { ConfigurationOptions } from 'ibm-cos-sdk/lib/config';
 import type { Configuration, ServerScope } from '@cloudant/cloudant';

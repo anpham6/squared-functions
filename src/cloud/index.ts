@@ -1,8 +1,6 @@
-import type { CloudDatabase, CloudService, CloudStorage, CloudStorageAction, CloudStorageDownload, CloudStorageUpload } from '../types/lib/squared';
-
 import type { ICloud, ICloudServiceClient, IFileManager, IModule, IScopeOrigin } from '../types/lib';
 import type { ExternalAsset } from '../types/lib/asset';
-import type { CacheTimeout, CloudFeatures, CloudFunctions, DownloadData, FinalizeResult, UploadData } from '../types/lib/cloud';
+import type { CacheTimeout, CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageAction, CloudStorageDownload, CloudStorageUpload, DownloadData, FinalizeResult, UploadData } from '../types/lib/cloud';
 import type { CloudModule } from '../types/lib/module';
 
 import path = require('path');

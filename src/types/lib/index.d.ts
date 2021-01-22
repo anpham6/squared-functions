@@ -2,10 +2,10 @@
 
 /* eslint no-shadow: "off" */
 
-import type { CloudDatabase, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload, CompressFormat, ResponseData } from './squared';
+import type { CompressFormat, ResponseData } from './squared';
 
 import type { ExternalAsset, FileData, FileOutput } from './asset';
-import type { CloudFeatures, CloudFunctions, FinalizeResult } from './cloud';
+import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload, FinalizeResult } from './cloud';
 import type { CompressTryFileMethod, CompressTryImageCallback } from './compress';
 import type { ConfigOrTransformer, DocumentData, PluginConfig, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
 import type { CompleteAsyncTaskCallback, InstallData, PerformAsyncTaskMethod } from './filemanager';

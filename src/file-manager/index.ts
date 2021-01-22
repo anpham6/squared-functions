@@ -1,7 +1,8 @@
-import type { CloudService, CompressFormat } from '../types/lib/squared';
+import type { CompressFormat } from '../types/lib/squared';
 
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, IPermission, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput } from '../types/lib/asset';
+import type { CloudService } from '../types/lib/cloud';
 import type { DocumentData } from '../types/lib/document';
 import type { InstallData } from '../types/lib/filemanager';
 import type { CloudModule, DocumentModule } from '../types/lib/module';
