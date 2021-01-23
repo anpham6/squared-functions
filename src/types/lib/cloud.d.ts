@@ -8,7 +8,7 @@ export interface CloudService extends ObjectMap<unknown> {
 }
 
 export interface CloudDatabase<T = string | PlainObject | any[]> extends CloudService, ElementAction {
-    value: string | ObjectMap<string | string[]>;
+    value: string | ObjectMap<StringOfArray>;
     table?: string;
     name?: string;
     id?: string;
@@ -16,7 +16,7 @@ export interface CloudDatabase<T = string | PlainObject | any[]> extends CloudSe
     limit?: number;
     params?: unknown[];
     options?: PlainObject;
-    document?: string | string[];
+    document?: StringOfArray;
 }
 
 export interface CloudStorage extends CloudService {

@@ -187,7 +187,7 @@ declare namespace functions {
         removeAsyncTask(): void;
         completeAsyncTask: CompleteAsyncTaskCallback;
         performFinalize(): void;
-        hasDocument(instance: IModule, document: Undef<string | string[]>): boolean;
+        hasDocument(instance: IModule, document: Undef<StringOfArray>): boolean;
         setLocalUri(file: ExternalAsset): FileOutput;
         getLocalUri(data: FileData): string;
         getMimeType(data: FileData): Undef<string>;
@@ -200,7 +200,7 @@ declare namespace functions {
         getTrailingContent(file: ExternalAsset): Undef<string>;
         getBundleContent(localUri: string): Undef<string>;
         writeBuffer(file: ExternalAsset): Null<Buffer>;
-        writeImage(document: string | string[], data: OutputData): boolean;
+        writeImage(document: StringOfArray, data: OutputData): boolean;
         compressFile(file: ExternalAsset): Promise<unknown>;
         addCopy(data: FileData, saveAs?: string, replace?: boolean): Undef<string>;
         findMime(data: FileData, rename?: boolean): Promise<string>;

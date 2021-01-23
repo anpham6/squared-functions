@@ -6,6 +6,7 @@ type Constructor<T> = new(...args: any[]) => T;
 type FunctionType<T, U = unknown> = (...args: U[]) => T;
 
 type NumString = number | string;
+type StringOfArray = string | string[];
 
 type StandardMap = Record<string, any>;
 type PlainObject = Record<string | number | symbol, unknown>;

@@ -18,7 +18,7 @@ export interface OutputAction<T = unknown> {
     moveTo?: string;
     commands?: string[];
     compress?: CompressFormat[];
-    document?: string | string[];
+    document?: StringOfArray;
     cloudStorage?: T[];
 }
 
@@ -46,7 +46,7 @@ export interface ElementIndex {
     outerHTML: string;
     outerIndex: number;
     outerCount: number;
-    srcSet?: boolean;
+    attributes?: ObjectMap<unknown>;
 }
 
 export interface LocationUri {

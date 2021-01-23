@@ -2,7 +2,7 @@ import type { ExternalAsset } from './asset';
 import type { ModuleWriteFailMethod } from './logger';
 
 export interface DocumentData {
-    document?: string | string[];
+    document?: StringOfArray;
 }
 
 export interface TransformOutput {

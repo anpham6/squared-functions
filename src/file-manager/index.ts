@@ -299,7 +299,7 @@ class FileManager extends Module implements IFileManager {
             });
         }
     }
-    hasDocument(instance: IModule, document: Undef<string | string[]>) {
+    hasDocument(instance: IModule, document: Undef<StringOfArray>) {
         const moduleName = instance.moduleName;
         return moduleName && document ? Array.isArray(document) && document.includes(moduleName) || document === moduleName : false;
     }
@@ -412,7 +412,7 @@ class FileManager extends Module implements IFileManager {
         }
         return null;
     }
-    writeImage(document: string | string[], data: OutputData) {
+    writeImage(document: StringOfArray, data: OutputData) {
         for (const { instance } of this.Document) {
             if (this.hasDocument(instance, document) && instance.writeImage && instance.writeImage(this, data)) {
                 return true;
