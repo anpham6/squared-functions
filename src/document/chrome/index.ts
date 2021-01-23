@@ -462,30 +462,30 @@ class ChromeDocument extends Document implements IChromeDocument {
 
     public static async using(this: IFileManager, instance: ChromeDocument, file: DocumentAsset) {
         const { format, mimeType, localUri } = file;
-        const baseDirectory = instance.baseDirectory;
         switch (mimeType) {
             case '@text/html': {
                 this.formatMessage(this.logType.PROCESS, 'HTML', ['Rewriting content...', path.basename(localUri!)]);
                 const time = Date.now();
                 const cloud = this.Cloud;
+                const baseDirectory = instance.baseDirectory;
                 const baseUri = file.uri!;
                 let source = this.getUTF8String(file, localUri),
-                    current = '',
                     replaceCount = 0,
                     database: Undef<CloudDatabase[]>,
                     match: Null<RegExpExecArray>;
-                const replaceMap: ObjectMap<number[]> = {};
+                const replaceMap: ObjectMap<Null<number[]>> = {};
                 const minifySpace = (value: string) => value.replace(/[\s/]+/g, '');
                 const escapeSpace = (value: string, attribute?: boolean) => attribute ? value.replace(/\s+/g, '\\s+') : value;
+                const isRemoved = (item: DocumentAsset) => item.exclude || item.bundleIndex !== undefined;
+                const spliceSource = (replaceWith: string, index: [number, number, string?]) => source = source.substring(0, index[0]) + replaceWith + source.substring(index[1]);
                 const replaceIndex = (outerHTML: string, replaceWith: string, outerIndex: number, outerCount: number, attribute?: boolean): boolean => {
-                    current = source;
                     const otherHTML = outerHTML.replace(/"\s*>$/, '" />');
                     let pattern = otherHTML !== outerHTML ? `(?:${escapeSpace(escapeRegexp(outerHTML), attribute)}|${escapeSpace(escapeRegexp(otherHTML), attribute)})` : escapeSpace(escapeRegexp(outerHTML), attribute);
-                    if (outerCount > 1 || !replaceWith) {
+                    if (replaceMap[outerHTML] !== null && (outerCount > 1 || !replaceWith)) {
                         if (!replaceWith) {
                             pattern = '(\\s*)' + pattern + '[ \\t]*((?:\\r?\\n)*)';
                         }
-                        const matchOffset = outerCount > 1 && replaceMap[outerHTML] ? replaceMap[outerHTML].filter(value => value < outerIndex).length : 0;
+                        const matchOffset = outerCount > 1 && replaceMap[outerHTML] ? replaceMap[outerHTML]!.filter(value => value < outerIndex).length : 0;
                         const matchIndex = outerIndex - matchOffset;
                         const matchCount = outerCount - matchOffset;
                         const foundIndex: [number, number, string][] = [];
@@ -495,7 +495,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         }
                         if (foundIndex.length === matchCount) {
                             const index = foundIndex[matchIndex];
-                            source = source.substring(0, index[0]) + replaceWith + source.substring(index[1]);
+                            spliceSource(replaceWith, index);
                             if (outerCount > 1) {
                                 (replaceMap[outerHTML] ||= []).push(outerIndex);
                             }
@@ -503,27 +503,35 @@ class ChromeDocument extends Document implements IChromeDocument {
                             return true;
                         }
                     }
-                    else {
+                    else if (outerCount === 1 && replaceWith) {
+                        const current = source;
                         source = source.replace(new RegExp(pattern), replaceWith);
                         if (current !== source) {
                             ++replaceCount;
                             return true;
                         }
+                        if (!attribute) {
+                            return replaceIndex(outerHTML, replaceWith, outerIndex, 1, true);
+                        }
                     }
-                    return outerCount === 1 ? replaceIndex(outerHTML, replaceWith, outerIndex, Infinity, true) : false;
+                    return false;
                 };
-                const rebuildIndex = (replaceWith: string, tagName: string, tagIndex: number, target?: DocumentAsset) => {
+                const rebuildIndex = (tagName: string, tagIndex: number, replaceWith: string, target?: Null<DocumentAsset>, outerHTML?: string) => {
                     for (const { element } of (this.assets as ElementAction[]).concat(database || [])) {
                         if (element?.tagName === tagName && element.tagIndex === tagIndex) {
                             element.outerHTML = replaceWith;
                         }
                     }
-                    const related = this.assets.filter((item: DocumentAsset) => item === target || item.element && item.element.outerHTML === replaceWith).map((other: DocumentAsset) => other.element!);
+                    const related = this.assets.filter((item: DocumentAsset) => item.element && item.element.outerHTML === replaceWith).map((other: DocumentAsset) => other.element!);
                     if (database) {
                         related.push(...database.filter(item => item.element!.outerHTML === replaceWith).map(other => other.element!));
                     }
+                    const element = target && target.element!;
                     const outerCount = related.length;
                     if (outerCount) {
+                        if (element && !related.includes(element)) {
+                            related.push(element);
+                        }
                         const location: ElementIndex[][] = [];
                         for (const other of related) {
                             (location[other.tagIndex] ||= []).push(other);
@@ -537,10 +545,12 @@ class ChromeDocument extends Document implements IChromeDocument {
                         });
                         delete replaceMap[replaceWith];
                     }
-                    else if (target) {
-                        const element = target.element!;
+                    else if (element) {
                         element.outerIndex = 0;
                         element.outerCount = 1;
+                    }
+                    if (outerHTML && replaceMap[outerHTML]) {
+                        replaceMap[outerHTML] = null;
                     }
                 };
                 const reduceIndex = (tagName: string, tagIndex: number) => {
@@ -610,12 +620,24 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     }
                                 }
                             }
-                        }
-                    }
-                    if (foundIndex.length === tagCount) {
-                        const [startIndex, endIndex] = foundIndex[tagIndex];
-                        if (minHTML === minifySpace(source.substring(startIndex, endIndex))) {
-                            index = foundIndex[tagIndex];
+                            if (foundIndex.length === tagCount) {
+                                const [startIndex, endIndex] = foundIndex[tagIndex];
+                                if (minHTML === minifySpace(source.substring(startIndex, endIndex))) {
+                                    index = foundIndex[tagIndex];
+                                }
+                            }
+                            if (!index && content) {
+                                const minContent = minifySpace(content);
+                                const contentIndex: [number, number][] = [];
+                                for (const [startIndex, endIndex] of foundIndex) {
+                                    if (minContent === minifySpace(findClosingTag(tagName, source.substring(startIndex, endIndex))[2])) {
+                                        contentIndex.push([startIndex, endIndex]);
+                                    }
+                                }
+                                if (contentIndex.length === 1) {
+                                    index = contentIndex[0];
+                                }
+                            }
                         }
                     }
                     if (!index) {
@@ -630,20 +652,11 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     }
                                 }
                             }
+                            else {
+                                this.writeFail(['Unable to parse HTML DOM', 'htmlparser2'], err);
+                            }
                         }, { withStartIndices: true, withEndIndices: true }));
                         parser.end(source);
-                    }
-                    if (!index && content) {
-                        const minContent = minifySpace(content);
-                        const contentIndex: [number, number][] = [];
-                        for (const [startIndex, endIndex] of foundIndex) {
-                            if (minContent === minifySpace(findClosingTag(tagName, source.substring(startIndex, endIndex))[2])) {
-                                contentIndex.push([startIndex, endIndex]);
-                            }
-                        }
-                        if (contentIndex.length === 1) {
-                            index = contentIndex[0];
-                        }
                     }
                     if (index) {
                         let leading = '',
@@ -672,25 +685,25 @@ class ChromeDocument extends Document implements IChromeDocument {
                             while (isSpace(source[i])) {
                                 leading = source[i--] + leading;
                             }
-                            source = source.substring(0, index[0] - leading.length) + getNewlineString(leading, trailing) + source.substring(index[1] + trailing.length);
+                            replaceWith = getNewlineString(leading, trailing);
+                            index[0] -= leading.length;
+                            index[1] += trailing.length;
                         }
-                        else {
-                            source = source.substring(0, index[0]) + replaceWith + source.substring(index[1]);
-                        }
-                        if (outerCount > 1) {
+                        spliceSource(replaceWith, index);
+                        if (replaceMap[outerHTML] !== null && outerCount > 1) {
                             (replaceMap[outerHTML] ||= []).push(outerIndex);
                         }
                         ++replaceCount;
+                        return true;
                     }
-                    return current !== source;
+                    return false;
                 };
-                if (cloud && cloud.database) {
+                if ((database = cloud?.database.filter(item => this.hasDocument(instance, item.document) && item.element)) && database.length) {
                     const cacheKey = uuid.v4();
-                    database = cloud.database.filter(item => this.hasDocument(instance, item.document) && item.element);
                     const pattern = /\$\{\s*(\w+)\s*\}/g;
                     (await Promise.all(
                         database.map(item => {
-                            return cloud.getDatabaseRows(item, cacheKey).catch(err => {
+                            return cloud!.getDatabaseRows(item, cacheKey).catch(err => {
                                 if (err instanceof Error && err.message) {
                                     this.errors.push(err.message);
                                 }
@@ -751,7 +764,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 }
                             }
                             if (replaceWith && (replaceIndex(outerHTML, replaceWith, outerIndex, outerCount) || tryMinify(tagName, outerHTML, replaceWith, outerIndex, outerCount, tagIndex, tagCount))) {
-                                rebuildIndex(replaceWith, tagName, tagIndex);
+                                rebuildIndex(tagName, tagIndex, replaceWith);
                             }
                             else {
                                 this.writeFail(['Cloud text replacement', tagName], new Error(outerIndex + ': ' + outerHTML));
@@ -770,7 +783,6 @@ class ChromeDocument extends Document implements IChromeDocument {
                         }
                     });
                 }
-                const isRemoved = (item: DocumentAsset) => item.exclude || item.bundleIndex !== undefined;
                 for (const item of (this.assets as DocumentAsset[]).slice(0).sort((a, b) => isRemoved(a) ? -1 : isRemoved(b) ? 1 : 0)) {
                     if (item.invalid && !item.exclude && item.bundleIndex === undefined) {
                         continue;
@@ -785,11 +797,12 @@ class ChromeDocument extends Document implements IChromeDocument {
                             deleteAttribute(attributes, 'src', 'href');
                             const replaceWith = `<${inlineContent + writeAttributes(attributes)}>${id}</${inlineContent}>`;
                             if (replaceIndex(outerHTML, replaceWith, outerIndex, outerCount) || tryMinify('', outerHTML, replaceWith, outerIndex, outerCount, tagIndex, tagCount, content)) {
+                                rebuildIndex(tagName, tagIndex, replaceWith, item);
+                                if (tagName === 'LINK') {
+                                    reduceIndex(tagName, tagIndex);
+                                }
                                 item.inlineContent = id;
                                 item.watch = false;
-                                element.outerHTML = replaceWith;
-                                element.outerIndex = 0;
-                                element.outerCount = 1;
                                 continue;
                             }
                             else {
@@ -856,7 +869,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 replaceWith += outerHTML.substring(opening.length);
                             }
                             if (replaceIndex(outerHTML, replaceWith, outerIndex, outerCount) || tryMinify(tagName, outerHTML, replaceWith, outerIndex, outerCount, tagIndex, tagCount, content)) {
-                                rebuildIndex(replaceWith, tagName, element.tagIndex, item);
+                                rebuildIndex(tagName, element.tagIndex, replaceWith, item);
                             }
                             else {
                                 this.writeFail(['Attribute replacement', tagName], new Error(outerIndex + ': ' + outerHTML));
@@ -868,13 +881,13 @@ class ChromeDocument extends Document implements IChromeDocument {
                     if (item === file || item.content || item.bundleIndex !== undefined || item.inlineContent || !item.uri || item.invalid) {
                         continue;
                     }
+                    const { uri, element, base64 } = item;
                     let value = item.relativeUri!;
-                    if (item.element) {
-                        const { uri, element } = item;
+                    if (element) {
                         const { tagName, tagIndex, tagCount, outerHTML, outerIndex, outerCount, srcSet } = element;
                         const sameOrigin = Document.hasSameOrigin(baseUri, uri);
                         const src = [uri];
-                        let base64 = false;
+                        let blob = false;
                         if (item.mimeType?.startsWith('image/')) {
                             switch (item.format) {
                                 case 'base64':
@@ -886,13 +899,13 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     const url = getElementSrc(outerHTML);
                                     if (url) {
                                         src[0] = url;
-                                        base64 = true;
+                                        blob = true;
                                     }
                                     break;
                                 }
                             }
                         }
-                        if (sameOrigin && !base64) {
+                        if (sameOrigin && !blob) {
                             let url = getElementSrc(outerHTML);
                             if (url && uri === Document.resolvePath(url, baseUri)) {
                                 src.push(url);
@@ -907,14 +920,11 @@ class ChromeDocument extends Document implements IChromeDocument {
                             item.inlineCloud = value;
                         }
                         const [opening] = findClosingTag(tagName, outerHTML);
-                        const replaced = replaceSrc(opening, src, value, base64, sameOrigin ? [baseUri, uri] : undefined, srcSet);
+                        const replaced = replaceSrc(opening, src, value, blob, sameOrigin ? [baseUri, uri] : undefined, srcSet);
                         if (replaced) {
                             const replaceWith = outerHTML.replace(opening, replaced);
                             if (replaceIndex(outerHTML, replaceWith, outerIndex, outerCount) || tryMinify(tagName, outerHTML, replaceWith, outerIndex, outerCount, tagIndex, tagCount)) {
-                                rebuildIndex(replaceWith, tagName, tagIndex, item);
-                                if (srcSet) {
-                                    --replaceCount;
-                                }
+                                rebuildIndex(tagName, tagIndex, replaceWith, item);
                                 continue;
                             }
                         }
@@ -922,17 +932,46 @@ class ChromeDocument extends Document implements IChromeDocument {
                         delete item.inlineCloud;
                         delete item.inlineBase64;
                     }
-                    else if (item.base64) {
+                    else if (base64) {
                         if (cloud && cloud.getStorage('upload', item.cloudStorage)) {
                             value = uuid.v4();
                             item.inlineCloud = value;
                         }
-                        const result = replaceUrl(source, item.base64, value, true);
-                        if (result) {
-                            source = result;
-                            ++replaceCount;
-                        }
-                        else {
+                        let modified: Undef<boolean>;
+                        const parser = new htmlparser2.Parser(new domhandler.DomHandler((err, dom) => {
+                            if (!err) {
+                                const nodes = domutils.findAll(elem => {
+                                    if (elem.tagName === 'style') {
+                                        return !!elem.children.find((child: domhandler.DataNode) => child.type === 'text' && child.nodeValue.includes(base64));
+                                    }
+                                    else if (elem.attributes.find(child => child.name === 'style' && child.value.includes(base64))) {
+                                        return true;
+                                    }
+                                    return false;
+                                }, dom);
+                                if (nodes.length) {
+                                    for (const target of nodes.reverse()) {
+                                        const { startIndex, endIndex } = target;
+                                        const outerHTML = source.substring(startIndex!, endIndex! + 1);
+                                        const replaceWith = replaceUrl(outerHTML, base64, value, true);
+                                        if (replaceWith) {
+                                            const tagIndex = domutils.findAll(elem => elem.tagName === target.tagName, dom).findIndex(elem => elem === target);
+                                            if (tagIndex !== -1) {
+                                                spliceSource(replaceWith, [startIndex!, endIndex! + 1]);
+                                                rebuildIndex(target.tagName.toUpperCase(), tagIndex, replaceWith, null, outerHTML);
+                                                ++replaceCount;
+                                                modified = true;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            else {
+                                this.writeFail(['Unable to parse HTML DOM', 'htmlparser2'], err);
+                            }
+                        }, { withStartIndices: true, withEndIndices: true }));
+                        parser.end(source);
+                        if (!modified) {
                             delete item.inlineCloud;
                         }
                     }
@@ -941,7 +980,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     if (item.trailingContent && !item.invalid) {
                         const pattern = /(\s*)<(script|style)\b[\S\s]+?<\/\s*\2\s*>[ \t]*((?:\r?\n)*)/ig;
                         const value = item.trailingContent.map(content => minifySpace(content));
-                        current = source;
+                        const current = source;
                         while (match = pattern.exec(current)) {
                             const content = findClosingTag(match[2].toUpperCase(), match[0].trim())[2];
                             if (content && value.includes(minifySpace(content))) {

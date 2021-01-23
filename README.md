@@ -423,7 +423,7 @@ There are possible scenarios when a transformation may cause an asset type to ch
 <link id="sass-example" rel="alternate" type="text/plain" href="css/dev.sass" />
 ```
 
-NOTE: Using element "id" can sometimes fix replacement errors when there are multiple elements with identical structure and content.
+NOTE: Using element "id" can fix replacement errors when multiple elements share the same identical structure and content.
 
 ```javascript
 {
