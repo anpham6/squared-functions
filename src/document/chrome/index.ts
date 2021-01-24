@@ -177,7 +177,7 @@ function findClosingTag(tagName: string, outerHTML: string, startIndex = -1, clo
 }
 
 function replaceUrl(css: string, src: string, value: string, base64: boolean) {
-    const pattern = new RegExp(`\\b[Uu][Rr][Ll]\\(\\s*(["']{0,1})\\s*${!base64 ? escapePosix(src) : `[^"',]+,\\s*` + src.replace(/\+/g, '\\+')}\\s*\\1\\s*\\)`, 'g');
+    const pattern = new RegExp(`\\b[Uu][Rr][Ll]\\(\\s*(["'])?\\s*${!base64 ? escapePosix(src) : `[^"',]+,\\s*` + src.replace(/\+/g, '\\+')}\\s*\\1\\s*\\)`, 'g');
     let output: Undef<string>,
         match: Null<RegExpExecArray>;
     while (match = pattern.exec(css)) {
@@ -187,27 +187,37 @@ function replaceUrl(css: string, src: string, value: string, base64: boolean) {
 }
 
 function removeCss(source: string, styles: string[]) {
+    const leading = ['^', '}'];
     let output: Undef<string>,
         pattern: Undef<RegExp>,
         match: Null<RegExpExecArray>;
     for (let value of styles) {
-        value = value.replace(/\./g, '\\.');
-        pattern = new RegExp(`^\\s*${value}\\s*\\{[^}]*\\}\\n*`, 'gm');
-        while (match = pattern.exec(source)) {
-            output = (output || source).replace(match[0], '');
+        value = escapeRegexp(value);
+        const block = `(\\s*)${value}\\s*\\{[^}]*\\}[ \\t]*((?:\\r?\\n)*)`;
+        for (let i = 0; i < 2; ++i) {
+            pattern = new RegExp(leading[i] + block, i === 0 ? 'm' : 'g');
+            while (match = pattern.exec(source)) {
+                output = (output || source).replace(match[0], (i === 1 ? '}' : '') + getNewlineString(match[1], match[2]));
+                if (i === 0) {
+                    break;
+                }
+            }
+            if (output) {
+                source = output;
+            }
         }
-        if (output) {
-            source = output;
-        }
-        pattern = new RegExp(`^[^,]*(,?\\s*${value}\\s*[,{](\\s*)).*?\\{?`, 'gm');
+        pattern = new RegExp(`(}?[^,{}]*?)((,?\\s*)${value}\\s*[,{](\\s*)).*?\\{?`, 'g');
         while (match = pattern.exec(source)) {
-            const segment = match[1];
+            const segment = match[2];
             let replaceHTML = '';
             if (segment.trim().endsWith('{')) {
-                replaceHTML = ' {' + match[2];
+                replaceHTML = ' {' + match[4];
             }
             else if (segment[0] === ',') {
                 replaceHTML = ', ';
+            }
+            else if (match[1] === '}' && match[3] && !match[3].trim()) {
+                replaceHTML = match[3];
             }
             output = (output || source).replace(match[0], match[0].replace(segment, replaceHTML));
         }
@@ -228,17 +238,12 @@ function getRootDirectory(location: string, asset: string): [string[], string[]]
     return [locationDir.filter(value => value), assetDir];
 }
 
-function findRelativeUri(this: IFileManager, file: DocumentAsset, url: string, baseDirectory?: string, partial?: boolean) {
+function findRelativeUri(this: IFileManager, file: DocumentAsset, url: string, baseDirectory?: string) {
     const origin = file.uri!;
-    let asset: Undef<DocumentAsset>;
-    if (partial) {
-        if (url = Document.resolvePath(url, origin)) {
-            asset = this.findAsset(url);
-        }
+    if (/[.\\/]/.test(url[0])) {
+        url = Document.resolvePath(url, origin);
     }
-    else {
-        asset = this.findAsset(url);
-    }
+    const asset = this.findAsset(url) as DocumentAsset;
     if (asset) {
         try {
             const baseDir = (file.rootDir || '') + file.pathname;
@@ -303,20 +308,31 @@ function transformCss(this: IFileManager, document: IChromeDocument, file: Docum
     if (output) {
         content = output;
     }
-    const pattern = /url\(([^)]+)\)/g;
+    const writeURL = (value: string) => 'url("' + value.replace(/["()]/g, (...capture) => '\\' + capture[0]) + '")';
+    const length = content.length;
+    const pattern = /url\(/ig;
     let match: Null<RegExpExecArray>;
     while (match = pattern.exec(content)) {
-        const url = match[1].trim().replace(/^["']\s*/, '').replace(/\s*["']$/, '');
+        let url = '',
+            i = match.index + match[0].length;
+        for ( ; i < length; ++i) {
+            const ch = content[i];
+            if (ch === ')' && content[i - 1] !== '\\') {
+                break;
+            }
+            url += ch;
+        }
+        const segment = content.substring(match.index, i + 1);
+        url = url.replace(/^\s*["']?\s*/, '').replace(/\s*["']?\s*$/, '');
         if (!Document.isFileHTTP(url) || Document.hasSameOrigin(cssUri, url)) {
-            let location = findRelativeUri.call(this, file, url, baseDirectory, true);
+            let location = findRelativeUri.call(this, file, url, baseDirectory);
             if (location) {
-                const uri = Document.resolvePath(url, cssUri);
-                output = (output || content).replace(match[0], `url(${getCssUrlOrCloudUUID.call(this, file, uri ? this.findAsset(uri) : undefined, location)})`);
+                output = (output || content).replace(segment, writeURL(getCssUrlOrCloudUUID.call(this, file, this.findAsset(Document.resolvePath(url, cssUri)), location)));
             }
             else if (baseDirectory && (location = Document.resolvePath(url, baseDirectory))) {
                 const asset = this.findAsset(location);
                 if (asset && (location = findRelativeUri.call(this, file, location, baseDirectory))) {
-                    output = (output || content).replace(match[0], `url(${getCssUrlOrCloudUUID.call(this, file, asset, location)})`);
+                    output = (output || content).replace(segment, writeURL(getCssUrlOrCloudUUID.call(this, file, asset, location)));
                 }
             }
         }
@@ -325,7 +341,7 @@ function transformCss(this: IFileManager, document: IChromeDocument, file: Docum
             if (asset) {
                 const pathname = file.pathname;
                 const count = pathname && pathname !== '/' && file.uri !== document.baseUrl ? pathname.split(/[\\/]/).length : 0;
-                output = (output || content).replace(match[0], `url(${getCssUrlOrCloudUUID.call(this, file, asset, (count ? '../'.repeat(count) : '') + asset.relativeUri)})`);
+                output = (output || content).replace(segment, writeURL(getCssUrlOrCloudUUID.call(this, file, asset, (count ? '../'.repeat(count) : '') + asset.relativeUri)));
             }
         }
     }

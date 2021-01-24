@@ -347,7 +347,9 @@ class FileManager extends Module implements IFileManager {
         }
     }
     findAsset(uri: string) {
-        return this.assets.find(item => item.uri === uri && !item.invalid);
+        if (uri) {
+            return this.assets.find(item => item.uri === uri && !item.invalid);
+        }
     }
     removeCwd(value: Undef<string>) {
         return value ? value.substring(this.baseDirectory.length + 1) : '';
