@@ -15,10 +15,6 @@ function isSpace(ch: string) {
 }
 
 export class DomWriter {
-    public static removeTagEnd(outerHTML: string) {
-        return outerHTML.replace(/\s*\/>$/, '>');
-    }
-
     public static minifySpace(value: string) {
         return value.replace(/[\s/]+/g, '');
     }
@@ -271,7 +267,7 @@ export class DomWriter {
                                 for (let j = 0; j < elements.length; ++j) {
                                     const item = elements[j];
                                     const sourceHTML = this.source.substring(startIndex!, endIndex! + 1);
-                                    if (sourceHTML === item.outerHTML || DomWriter.removeTagEnd(sourceHTML) === item.outerHTML) {
+                                    if (sourceHTML === item.outerHTML || !HtmlElement.hasContent(tag) && sourceHTML.replace(/\s*\/?>$/, '>') === item.outerHTML) {
                                         item.tagIndex = i;
                                         item.tagCount = tagCount.size;
                                         foundIndex.add(i);
@@ -480,7 +476,7 @@ export class HtmlElement {
     getAttribute(name: string): Undef<string> {
         return this.attributes[name.toLowerCase()];
     }
-    deleteAttribute(...names: string[]) {
+    removeAttribute(...names: string[]) {
         const attrs = this.attributes;
         for (const key in attrs) {
             if (names.includes(key)) {
@@ -519,9 +515,6 @@ export class HtmlElement {
                 const tag = new RegExp(pattern, 'g');
                 while (match = tag.exec(source)) {
                     foundIndex.push([match.index, match.index + match[0].length, remove ? DomWriter.getNewlineString(match[1], match[2]) : '']);
-                    if (outerCount === 1) {
-                        break;
-                    }
                 }
                 if (foundIndex.length === outerCount) {
                     return [spliceSource(foundIndex[outerIndex]), replaceHTML];

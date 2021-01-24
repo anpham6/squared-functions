@@ -131,16 +131,6 @@ function removeCss(source: string, styles: string[]) {
     return output;
 }
 
-function getRootDirectory(location: string, asset: string): [string[], string[]] {
-    const locationDir = location.split(/[\\/]/);
-    const assetDir = asset.split(/[\\/]/);
-    while (locationDir.length && assetDir.length && locationDir[0] === assetDir[0]) {
-        locationDir.shift();
-        assetDir.shift();
-    }
-    return [locationDir.filter(value => value), assetDir];
-}
-
 function findRelativeUri(this: IFileManager, file: DocumentAsset, url: string, baseDirectory?: string) {
     const origin = file.uri!;
     if (/[.\\/]/.test(url[0])) {
@@ -149,6 +139,15 @@ function findRelativeUri(this: IFileManager, file: DocumentAsset, url: string, b
     const asset = this.findAsset(url) as DocumentAsset;
     if (asset) {
         try {
+            const getRootDirectory = (location: string, asset: string): [string[], string[]] => {
+                const locationDir = location.split(/[\\/]/);
+                const assetDir = asset.split(/[\\/]/);
+                while (locationDir.length && assetDir.length && locationDir[0] === assetDir[0]) {
+                    locationDir.shift();
+                    assetDir.shift();
+                }
+                return [locationDir.filter(value => value), assetDir];
+            };
             const baseDir = (file.rootDir || '') + file.pathname;
             if (Document.hasSameOrigin(origin, asset.uri!)) {
                 const rootDir = asset.rootDir;
@@ -190,17 +189,17 @@ function getUrlOrCloudUUID(this: IFileManager, file: DocumentAsset, image: Undef
     return url;
 }
 
-function transformCss(this: IFileManager, document: IChromeDocument, file: DocumentAsset, content: string, fromHTML?: boolean) {
+function transformCss(this: IFileManager, document: IChromeDocument, assets: DocumentAsset[], file: DocumentAsset, content: string, fromHTML?: boolean) {
     const baseDirectory = document.baseDirectory;
     const cssUri = file.uri!;
     let output: Undef<string>;
-    for (const item of this.assets as DocumentAsset[]) {
+    for (const item of assets) {
         if (item.base64 && !item.element && item.uri && Document.hasSameOrigin(cssUri, item.uri)) {
             const url = findRelativeUri.call(this, file, item.uri, baseDirectory);
             if (url) {
-                const replaced = replaceUrl(output || content, item.base64, getUrlOrCloudUUID.call(this, file, item, url), true);
-                if (replaced) {
-                    output = replaced;
+                const result = replaceUrl(output || content, item.base64, getUrlOrCloudUUID.call(this, file, item, url), true);
+                if (result) {
+                    output = result;
                 }
                 else {
                     delete item.inlineCloud;
@@ -305,8 +304,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                 const baseDirectory = instance.baseDirectory;
                 const baseUri = file.uri!;
                 const parserOptions: domhandler.DomHandlerOptions = { withStartIndices: true, withEndIndices: true };
+                const assets = this.assets.filter(item => this.hasDocument(instance, item.document)) || [];
                 const database = cloud?.database.filter(item => this.hasDocument(instance, item.document) && item.element) || [];
-                const domBase = new DomWriter(this.getUTF8String(file, localUri), (this.assets as ElementAction[]).concat(database).filter(item => item.element).map(item => item.element!));
+                const domBase = new DomWriter(this.getUTF8String(file, localUri), (assets as ElementAction[]).concat(database).filter(item => item.element).map(item => item.element!));
                 const isRemoved = (item: DocumentAsset) => item.exclude || item.bundleIndex !== undefined;
                 const getErrorDOM = (tagName: string, tagIndex: number) => new Error(`${tagName} ${tagIndex}: Unable to parse DOM`);
                 if (database.length) {
@@ -386,7 +386,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         }
                     });
                 }
-                for (const item of (this.assets as DocumentAsset[]).filter(asset => !(asset.invalid && !asset.exclude && asset.bundleIndex === undefined)).sort((a, b) => isRemoved(a) ? -1 : isRemoved(b) ? 1 : 0)) {
+                for (const item of (assets as DocumentAsset[]).filter(asset => !(asset.invalid && !asset.exclude && asset.bundleIndex === undefined)).sort((a, b) => isRemoved(a) ? -1 : isRemoved(b) ? 1 : 0)) {
                     const element = item.element;
                     if (element) {
                         const { bundleIndex, inlineContent, attributes } = item;
@@ -396,7 +396,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             const id = `<!-- ${uuid.v4()} -->`;
                             htmlElement.tagName = inlineContent;
                             htmlElement.innerHTML = id;
-                            htmlElement.deleteAttribute('src', 'href');
+                            htmlElement.removeAttribute('src', 'href');
                             if (domBase.write(htmlElement, { decrement: tagName === 'LINK' })) {
                                 item.inlineContent = id;
                                 item.watch = false;
@@ -435,7 +435,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         }
                     }
                 }
-                for (const item of this.assets as DocumentAsset[]) {
+                for (const item of assets as DocumentAsset[]) {
                     if (item === file || item.invalid || !item.uri && !item.attributes || item.bundleIndex !== undefined || item.inlineContent || item.content) {
                         continue;
                     }
@@ -561,22 +561,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         }
                     }
                 }
-                for (const item of this.assets as DocumentAsset[]) {
-                    if (item.trailingContent && !item.invalid) {
-                        const pattern = /(\s*)<(script|style)\b[\S\s]+?<\/\s*\2\s*>[ \t]*((?:\r?\n)*)/ig;
-                        const value = item.trailingContent.map(content => DomWriter.minifySpace(content));
-                        const current = domBase.source;
-                        let match: Null<RegExpExecArray>;
-                        while (match = pattern.exec(current)) {
-                            const content = HtmlElement.splitOuterHTML(match[0].trim())[2];
-                            if (content && value.includes(DomWriter.minifySpace(content))) {
-                                domBase.setRawString(match[0], DomWriter.getNewlineString(match[1], match[3]));
-                            }
-                        }
-                        pattern.lastIndex = 0;
-                    }
-                }
-                file.sourceUTF8 = removeFileCommands(transformCss.call(this, instance, file, domBase.source, true) || domBase.source);
+                file.sourceUTF8 = removeFileCommands(transformCss.call(this, instance, assets, file, domBase.source, true) || domBase.source);
                 this.writeTimeElapsed('HTML', `${path.basename(localUri!)}: ${domBase.modifyCount} element${domBase.modifyCount > 1 ? 's' : ''} modified`, time);
                 if (domBase.hasErrors()) {
                     this.errors.push(...domBase.errors.map(item => item.message));
@@ -808,7 +793,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     content = result;
                 }
             }
-            const result = transformCss.call(manager, this, file, content);
+            const result = transformCss.call(manager, this, manager.assets.filter((item: DocumentAsset) => manager.hasDocument(this, item.document)) as DocumentAsset[], file, content);
             if (result) {
                 content = result;
             }
