@@ -10,6 +10,15 @@ export default [
         }
     },
     {
+        input: './build/document/dom.js',
+        treeshake: false,
+        output: {
+            file: './publish/document/dom.js',
+            format: 'cjs',
+            strict: false
+        }
+    },
+    {
         input: './build/document/util.js',
         treeshake: false,
         output: {

@@ -46,6 +46,8 @@ export interface ElementIndex {
     outerHTML: string;
     outerIndex: number;
     outerCount: number;
+    startIndex?: number;
+    endIndex?: number;
     attributes?: ObjectMap<unknown>;
 }
 
