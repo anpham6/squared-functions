@@ -139,14 +139,14 @@ function findRelativeUri(this: IFileManager, file: DocumentAsset, url: string, b
     const asset = this.findAsset(url) as DocumentAsset;
     if (asset) {
         try {
-            const getRootDirectory = (location: string, asset: string): [string[], string[]] => {
-                const locationDir = location.split(/[\\/]/);
-                const assetDir = asset.split(/[\\/]/);
-                while (locationDir.length && assetDir.length && locationDir[0] === assetDir[0]) {
-                    locationDir.shift();
-                    assetDir.shift();
+            const getRootDir = (root: string, child: string): [string[], string[]] => {
+                const rootDir = root.split(/[\\/]/);
+                const childDir = child.split(/[\\/]/);
+                while (rootDir.length && childDir.length && rootDir[0] === childDir[0]) {
+                    rootDir.shift();
+                    childDir.shift();
                 }
-                return [locationDir.filter(value => value), assetDir];
+                return [rootDir.filter(value => value), childDir];
             };
             const baseDir = (file.rootDir || '') + file.pathname;
             if (Document.hasSameOrigin(origin, asset.uri!)) {
@@ -165,12 +165,12 @@ function findRelativeUri(this: IFileManager, file: DocumentAsset, url: string, b
                     }
                 }
                 else {
-                    const [originDir, uriDir] = getRootDirectory(new URL(origin).pathname, new URL(asset.uri!).pathname);
+                    const [originDir, uriDir] = getRootDir(new URL(origin).pathname, new URL(asset.uri!).pathname);
                     return '../'.repeat(originDir.length - 1) + uriDir.join('/');
                 }
             }
             if (baseDirectory && Document.hasSameOrigin(origin, baseDirectory)) {
-                const [originDir] = getRootDirectory(Document.joinPosix(baseDir, file.filename), new URL(baseDirectory).pathname);
+                const [originDir] = getRootDir(Document.joinPosix(baseDir, file.filename), new URL(baseDirectory).pathname);
                 return '../'.repeat(originDir.length - 1) + asset.relativeUri;
             }
         }
@@ -397,7 +397,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             htmlElement.tagName = inlineContent;
                             htmlElement.innerHTML = id;
                             htmlElement.removeAttribute('src', 'href');
-                            if (domBase.write(htmlElement, { decrement: tagName === 'LINK' })) {
+                            if (domBase.write(htmlElement, { rename: tagName === 'LINK' })) {
                                 item.inlineContent = id;
                                 item.watch = false;
                             }
@@ -423,15 +423,13 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 htmlElement.setAttribute('src', value);
                             }
                             htmlElement.innerHTML = '';
-                            if (!domBase.write(htmlElement, { decrement: tagName === 'STYLE' })) {
+                            if (!domBase.write(htmlElement, { rename: tagName === 'STYLE' })) {
                                 this.writeFail(['Bundle tag replacement', tagName], getErrorDOM(tagName, tagIndex));
                                 delete item.inlineCloud;
                             }
                         }
                         else if (isRemoved(item) && !domBase.write(htmlElement, { remove: true })) {
-                            if (item.exclude) {
-                                this.writeFail(['Excluded tag removal', tagName], getErrorDOM(tagName, tagIndex));
-                            }
+                            this.writeFail(['Exclude tag removal', tagName], getErrorDOM(tagName, tagIndex));
                         }
                     }
                 }
@@ -562,7 +560,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                 }
                 file.sourceUTF8 = removeFileCommands(transformCss.call(this, instance, assets, file, domBase.source, true) || domBase.source);
-                this.writeTimeElapsed('HTML', `${path.basename(localUri!)}: ${domBase.modifyCount} element${domBase.modifyCount > 1 ? 's' : ''} modified`, time);
+                this.writeTimeElapsed('HTML', `${path.basename(localUri!)}: ${domBase.modifyCount} modified | ${domBase.failCount} failed`, time);
                 if (domBase.hasErrors()) {
                     this.errors.push(...domBase.errors.map(item => item.message));
                 }

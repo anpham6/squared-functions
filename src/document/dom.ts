@@ -14,6 +14,11 @@ function isSpace(ch: string) {
     return n === 32 || n < 14 && n > 8;
 }
 
+interface WriteOptions {
+    remove?: boolean;
+    rename?: boolean;
+}
+
 export class DomWriter {
     public static minifySpace(value: string) {
         return value.replace(/[\s/]+/g, '');
@@ -24,6 +29,7 @@ export class DomWriter {
     }
 
     public errors: Error[] = [];
+    public failCount = 0;
     public modifyCount = 0;
 
     constructor(public source: string, public elements: ElementIndex[]) {
@@ -44,24 +50,24 @@ export class DomWriter {
         }, { withStartIndices: true, withEndIndices: true })).end(this.source);
         return result;
     }
-    write(element: HtmlElement, options?: { remove?: boolean; decrement?: boolean }) {
+    write(element: HtmlElement, options?: WriteOptions) {
         let remove: Undef<boolean>,
-            decrement: Undef<boolean>;
+            rename: Undef<boolean>;
         if (options) {
-            ({ remove, decrement } = options);
+            ({ remove, rename } = options);
         }
-        const [output, replaceHTML] = element.write(this.source, remove);
+        const [output, replaceHTML, error] = element.write(this.source, remove);
         if (output) {
             const position = element.position;
             this.source = output;
             ++this.modifyCount;
             if (remove) {
-                return this.decrement(position);
+                return this.decrement(position).length > 0;
             }
-            else if (decrement) {
+            else if (rename) {
                 const tagName = element.tagName.toUpperCase();
                 if (tagName !== position.tagName) {
-                    const result = this.decrement(position, tagName);
+                    const result = this.renameTag(position, tagName);
                     this.rebuild(position, replaceHTML, true);
                     return result;
                 }
@@ -69,6 +75,10 @@ export class DomWriter {
             this.rebuild(position, replaceHTML);
             return true;
         }
+        if (error) {
+            this.errors.push(error);
+        }
+        ++this.failCount;
         return false;
     }
     rebuild(index: ElementIndex, replaceHTML: string, data?: true | { nodes: domhandler.Element[]; sourceIndex: number }) {
@@ -198,20 +208,17 @@ export class DomWriter {
             }
         }
     }
-    decrement(index: ElementIndex, tagName?: string) {
+    decrement(index: ElementIndex) {
         const { tagName: tag, tagIndex, outerHTML, outerIndex, outerCount } = index;
-        const updated: ElementIndex[] = [];
+        const result: ElementIndex[] = [];
         for (const item of this.elements) {
             if (item.tagName === tag) {
                 if (item.tagIndex === tagIndex) {
-                    if (tagName) {
-                        item.tagName = tagName;
-                    }
                     item.tagIndex = -1;
                     item.tagCount = -1;
                     item.outerCount = 1;
                     item.outerIndex = 0;
-                    updated.push(item);
+                    result.push(item);
                     continue;
                 }
                 else if (item.tagIndex > tagIndex) {
@@ -226,9 +233,16 @@ export class DomWriter {
                 --item.tagCount;
             }
         }
-        return tagName ? this.insertTag(tagName, updated) : true;
+        return result;
     }
-    insertTag(tagName: string, updated: ElementIndex[] = []) {
+    renameTag(index: ElementIndex, tagName: string) {
+        const revised = this.decrement(index);
+        for (const item of revised) {
+            item.tagName = tagName;
+        }
+        return this.insertTag(tagName, revised);
+    }
+    insertTag(tagName: string, revised: ElementIndex[] = []) {
         const elements: ElementIndex[] = [];
         const tagCount = new Set<number>();
         let result = false;
@@ -251,12 +265,12 @@ export class DomWriter {
                         const foundIndex = new Set<number>();
                         for (let i = 0; i < length; ++i) {
                             const { startIndex, endIndex } = nodes[i];
-                            for (let j = 0; j < updated.length; ++j) {
-                                const item = updated[j];
+                            for (let j = 0; j < revised.length; ++j) {
+                                const item = revised[j];
                                 if (item.startIndex === startIndex && item.endIndex === endIndex) {
                                     item.tagIndex = i;
                                     item.tagCount = tagCount.size;
-                                    updated.splice(j--, 1);
+                                    revised.splice(j--, 1);
                                     foundIndex.add(i);
                                 }
                             }
@@ -286,7 +300,7 @@ export class DomWriter {
         }
         else {
             result = true;
-            for (const item of updated) {
+            for (const item of revised) {
                 item.tagIndex = 0;
                 item.tagCount = 1;
             }
@@ -494,7 +508,8 @@ export class HtmlElement {
         }
         return false;
     }
-    write(source: string, remove?: boolean): [string, string] {
+    write(source: string, remove?: boolean): [string, string, Error?] {
+        let error: Undef<Error>;
         if (this._modified || remove) {
             const { tagName, outerIndex, outerCount, outerHTML } = this.position;
             const replaceHTML = !remove ? this.outerHTML : '';
@@ -517,7 +532,7 @@ export class HtmlElement {
                     foundIndex.push([match.index, match.index + match[0].length, remove ? DomWriter.getNewlineString(match[1], match[2]) : '']);
                 }
                 if (foundIndex.length === outerCount) {
-                    return [spliceSource(foundIndex[outerIndex]), replaceHTML];
+                    return [spliceSource(foundIndex[outerIndex]), replaceHTML, error];
                 }
             }
             const { tagCount, tagIndex } = this.position;
@@ -604,6 +619,9 @@ export class HtmlElement {
                             }
                         }
                     }
+                    else {
+                        error = err;
+                    }
                 }, { withStartIndices: true, withEndIndices: true })).end(source);
             }
             if (index) {
@@ -640,7 +658,7 @@ export class HtmlElement {
                 return [spliceSource(index), replaceHTML];
             }
         }
-        return ['', ''];
+        return ['', '', error];
     }
     set tagName(value: string) {
         if (value.toLowerCase() !== this.tagName.toLowerCase()) {
