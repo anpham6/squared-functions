@@ -11,42 +11,85 @@ import domutils = require('domutils');
 const Parser = htmlparser2.Parser;
 const DomHandler = domhandler.DomHandler;
 
+const SELF_CLOSING = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
+
 function isSpace(ch: string) {
     const n = ch.charCodeAt(0);
     return n === 32 || n < 14 && n > 8;
 }
 
 export class DomWriter implements IDomWriter {
+    public static normalize(source: string) {
+        const pattern = /(?:<(\s*)((?:"[^"]*"|'[^']*'|[^"'>])+?)(\s*\/?\s*)>|<(\s*)\/([^>]+?)(\s*)>)/g;
+        let match: Null<RegExpExecArray>;
+        while (match = pattern.exec(source)) {
+            let value: Undef<string>;
+            if (match[2]) {
+                if (match[1] || match[3]) {
+                    value = '<' + match[2] + '>';
+                }
+            }
+            else if (match[4] || match[6]) {
+                value = '</' + match[5] + '>';
+            }
+            if (value) {
+                source = source.substring(0, match.index) + value + source.substring(match.index + match[0].length);
+                pattern.lastIndex -= match[0].length - value.length;
+            }
+        }
+        return source;
+    }
+
     public static minifySpace(value: string) {
-        return value.replace(/[\s/]+/g, '');
+        return value.replace(/[\s]+/g, '');
     }
 
     public static getNewlineString(leading: string, trailing: string) {
         return leading.includes('\n') || /(?:\r?\n){2,}$/.test(trailing) ? (leading + trailing).includes('\r') ? '\r\n' : '\n' : '';
     }
 
+    public source: string;
     public errors: Error[] = [];
     public failCount = 0;
     public modifyCount = 0;
+    public documentElement: Null<ElementIndex> = null;
 
-    constructor(public source: string, public elements: ElementIndex[]) {
-    }
-
-    startHTML() {
-        let result = -1;
-        new Parser(new DomHandler((err, dom) => {
-            if (!err) {
-                const html = domutils.findOne(elem => elem.tagName === 'html', dom);
-                if (html) {
-                    result = html.startIndex!;
+    constructor(source: string, public elements: ElementIndex[], normalize?: boolean) {
+        const items = elements.filter(item => item.tagName === 'HTML');
+        const html = this.getDocumentElement(source);
+        let documentElement: Undef<ElementIndex>,
+            startIndex = -1;
+        if (html) {
+            startIndex = html.startIndex!;
+            const [opening, closing] = HtmlElement.splitOuterHTML(source, startIndex);
+            if (opening && closing) {
+                const outerHTML = source.substring(startIndex, startIndex + opening.length);
+                for (const item of items) {
+                    item.startIndex = html.startIndex!;
+                    item.outerHTML = outerHTML;
+                    if (item.innerHTML) {
+                        documentElement = item;
+                    }
                 }
             }
-            else {
-                this.errors.push(err);
-            }
-        }, { withStartIndices: true, withEndIndices: true })).end(this.source);
-        return result;
+        }
+        const newline = source.includes('\r\n') ? '\r\n' : '\n';
+        let doctype = '';
+        if (!documentElement && (documentElement = items.find(item => item.innerHTML))) {
+            doctype = '<!DOCTYPE html>' + newline;
+            startIndex = doctype.length;
+            documentElement.startIndex = startIndex;
+            documentElement.outerHTML = '<html>';
+        }
+        if (documentElement) {
+            this.source = doctype + source.substring(0, startIndex + documentElement.outerHTML.length) + newline + documentElement.innerHTML! + newline + '</html>';
+            this.documentElement = documentElement;
+        }
+        else {
+            this.source = normalize ? DomWriter.normalize(source) : source;
+        }
     }
+
     write(element: HtmlElement, options?: WriteOptions) {
         let remove: Undef<boolean>,
             rename: Undef<boolean>;
@@ -278,7 +321,7 @@ export class DomWriter implements IDomWriter {
                                 for (let j = 0; j < elements.length; ++j) {
                                     const item = elements[j];
                                     const sourceHTML = this.source.substring(startIndex!, endIndex! + 1);
-                                    if (sourceHTML === item.outerHTML || !HtmlElement.hasContent(tag) && sourceHTML.replace(/\s*\/?>$/, '>') === item.outerHTML) {
+                                    if (sourceHTML === item.outerHTML) {
                                         item.tagIndex = i;
                                         item.tagCount = tagCount.size;
                                         foundIndex.add(i);
@@ -335,32 +378,26 @@ export class DomWriter implements IDomWriter {
     getRawString(startIndex: number, endIndex: number) {
         return this.source.substring(startIndex, endIndex);
     }
+    getDocumentElement(source: string): Null<domhandler.Node> {
+        let result: Null<domhandler.Node> = null;
+        new Parser(new DomHandler((err, dom) => {
+            if (!err) {
+                result = domutils.findOne(elem => elem.tagName === 'html', dom);
+            }
+            else {
+                this.errors.push(err);
+            }
+        }, { withStartIndices: true, withEndIndices: true })).end(source);
+        return result;
+    }
     hasErrors() {
         return this.errors.length > 0;
     }
 }
 
 export class HtmlElement implements IHtmlElement {
-    public static hasContent(tagName: string) {
-        switch (tagName.toLowerCase()) {
-            case 'area':
-            case 'base':
-            case 'br':
-            case 'col':
-            case 'embed':
-            case 'hr':
-            case 'img':
-            case 'input':
-            case 'link':
-            case 'meta':
-            case 'param':
-            case 'source':
-            case 'track':
-            case 'wbr':
-                return false;
-            default:
-                return true;
-        }
+    public static hasInnerHTML(tagName: string) {
+        return !SELF_CLOSING.includes(tagName.toLowerCase());
     }
 
     public static splitOuterHTML(outerHTML: string, startIndex = -1): [string, string, string] {
@@ -429,9 +466,9 @@ export class HtmlElement implements IHtmlElement {
     }
 
     private _modified = false;
+    private _tagName = '';
     private _tagStart: string;
     private _tagEnd: string;
-    private _tagName = '';
     private _innerHTML: string;
 
     constructor(public position: ElementIndex, public attributes: StandardMap = {}) {
@@ -443,12 +480,12 @@ export class HtmlElement implements IHtmlElement {
                 attributes[name] = value;
             }
         }
-        const [opening, closing, content] = HtmlElement.splitOuterHTML(position.outerHTML);
+        const [tagStart, tagEnd, innerHTML] = HtmlElement.splitOuterHTML(position.outerHTML);
         const hasValue = (name: string) => /^[a-z][a-z\d-:.]*$/.test(name) && !this.hasAttribute(name);
         let pattern = /([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]*))/g,
-            source = opening,
+            source = tagStart,
             match: Null<RegExpExecArray>;
-        while (match = pattern.exec(opening)) {
+        while (match = pattern.exec(tagStart)) {
             const attr = match[1].toLowerCase();
             if (hasValue(attr)) {
                 attributes[attr] = match[2] || match[3] || match[4] || '';
@@ -467,10 +504,10 @@ export class HtmlElement implements IHtmlElement {
                 }
             }
         }
-        this._tagStart = opening;
-        this._tagEnd = closing;
+        this._tagStart = tagStart;
+        this._tagEnd = tagEnd;
         this._modified = Object.keys(attributes).length > 0;
-        this._innerHTML = content;
+        this._innerHTML = innerHTML;
     }
     setAttribute(name: string, value: string) {
         name = name.toLowerCase();
@@ -517,9 +554,9 @@ export class HtmlElement implements IHtmlElement {
                 this.position.endIndex = startIndex + content.length - 1;
                 return source.substring(0, startIndex) + content + source.substring(endIndex);
             };
-            const foundIndex: [number, number, string][] = [];
-            if (outerIndex !== -1) {
-                let pattern = !HtmlElement.hasContent(tagName) ? escapeRegexp(outerHTML).replace(/\/?>$/, '\\s*/?>') : escapeRegexp(outerHTML),
+            if (outerIndex !== -1 && (outerCount === 1 || !HtmlElement.hasInnerHTML(tagName))) {
+                const foundIndex: [number, number, string][] = [];
+                let pattern = escapeRegexp(outerHTML),
                     match: Null<RegExpExecArray>;
                 if (remove) {
                     pattern = '(\\s*)' + pattern + '[ \\t]*((?:\\r?\\n)*)';
@@ -541,12 +578,11 @@ export class HtmlElement implements IHtmlElement {
                         return [spliceSource([startIndex, startIndex + opening.length, '']), replaceHTML];
                     }
                 }
-                return ['', ''];
+                return ['', '', new Error('Unable to find HTML element')];
             }
-            foundIndex.length = 0;
-            const minHTML = DomWriter.minifySpace(outerHTML);
             let index: Undef<[number, number, string]>;
             if (this._tagStart && this._tagEnd) {
+                const foundIndex: [number, number, string][] = [];
                 const openTag: number[] = [];
                 let tag = new RegExp(`<${escapeRegexp(tagName)}\\b`, 'ig'),
                     match: Null<RegExpExecArray>;
@@ -556,7 +592,7 @@ export class HtmlElement implements IHtmlElement {
                 const open = openTag.length;
                 if (open) {
                     const closeTag: number[] = [];
-                    tag = new RegExp(`</\\s*${escapeRegexp(tagName)}\\s*>`, 'ig');
+                    tag = new RegExp(`</${escapeRegexp(tagName)}>`, 'ig');
                     while (match = tag.exec(source)) {
                         closeTag.push(match.index + match[0].length);
                     }
@@ -597,10 +633,7 @@ export class HtmlElement implements IHtmlElement {
                         }
                     }
                     if (foundIndex.length === tagCount) {
-                        const [startIndex, endIndex] = foundIndex[tagIndex];
-                        if (minHTML === DomWriter.minifySpace(source.substring(startIndex, endIndex))) {
-                            index = foundIndex[tagIndex];
-                        }
+                        index = foundIndex[tagIndex];
                     }
                 }
             }
@@ -611,9 +644,7 @@ export class HtmlElement implements IHtmlElement {
                         const nodes = domutils.findAll(elem => elem.tagName === tagElem, dom);
                         if (nodes.length === tagCount) {
                             const { startIndex, endIndex } = nodes[tagIndex];
-                            if (minHTML === DomWriter.minifySpace(source.substring(startIndex!, endIndex! + 1))) {
-                                index = [startIndex!, endIndex! + 1, ''];
-                            }
+                            index = [startIndex!, endIndex! + 1, ''];
                         }
                     }
                     else {
@@ -660,7 +691,7 @@ export class HtmlElement implements IHtmlElement {
     set tagName(value: string) {
         if (value.toLowerCase() !== this.tagName.toLowerCase()) {
             this._tagName = value;
-            if (!HtmlElement.hasContent(value)) {
+            if (!HtmlElement.hasInnerHTML(value)) {
                 this.innerHTML = '';
             }
             this._modified = true;
@@ -692,7 +723,11 @@ export class HtmlElement implements IHtmlElement {
                 outerHTML += ' ' + key + (value !== null ? `="${value.replace(/"/g, '&quot;')}"` : '');
             }
         }
-        return outerHTML + (!HtmlElement.hasContent(tagName) || tagName.toLowerCase() === 'html' ? '>' : '>' + this.innerHTML + `</${tagName}>`);
+        outerHTML += '>';
+        if (HtmlElement.hasInnerHTML(tagName) && tagName.toLowerCase() !== 'html') {
+            outerHTML += this.innerHTML + `</${tagName}>`;
+        }
+        return outerHTML;
     }
 }
 

@@ -303,10 +303,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                 const cloud = this.Cloud;
                 const baseDirectory = instance.baseDirectory;
                 const baseUri = file.uri!;
-                const parserOptions: domhandler.DomHandlerOptions = { withStartIndices: true, withEndIndices: true };
                 const assets = this.assets.filter(item => this.hasDocument(instance, item.document)) || [];
                 const database = cloud?.database.filter(item => this.hasDocument(instance, item.document) && item.element) || [];
-                const domBase = new DomWriter(this.getUTF8String(file, localUri), (assets as ElementAction[]).concat(database).filter(item => item.element).map(item => item.element!));
+                const domBase = new DomWriter(this.getUTF8String(file, localUri), (assets as ElementAction[]).concat(database).filter(item => item.element).map(item => item.element!), true);
                 const isRemoved = (item: DocumentAsset) => item.exclude || item.bundleIndex !== undefined;
                 const getErrorDOM = (tagName: string, tagIndex: number) => new Error(`${tagName} ${tagIndex}: Unable to parse DOM`);
                 if (database.length) {
@@ -328,7 +327,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             const element = item.element!;
                             const htmlElement = new HtmlElement(element);
                             if (typeof template === 'string') {
-                                if (HtmlElement.hasContent(element.tagName)) {
+                                if (HtmlElement.hasInnerHTML(element.tagName)) {
                                     let output = '',
                                         match: Null<RegExpExecArray>;
                                     for (const row of result) {
@@ -434,7 +433,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                 }
                 for (const item of assets as DocumentAsset[]) {
-                    if (item === file || item.invalid || !item.uri && !item.attributes || item.bundleIndex !== undefined || item.inlineContent || item.content) {
+                    if (item === file && !item.attributes || item.invalid || !item.uri && !item.attributes || item.bundleIndex !== undefined || item.inlineContent || item.content) {
                         continue;
                     }
                     const { element, base64 } = item;
@@ -442,22 +441,8 @@ class ChromeDocument extends Document implements IChromeDocument {
                     if (element) {
                         const { uri, attributes } = item;
                         const { tagName, tagIndex } = element;
-                        if (tagName === 'HTML' && attributes) {
-                            const startIndex = domBase.startHTML();
-                            if (startIndex !== -1) {
-                                const [opening, closing] = HtmlElement.splitOuterHTML(domBase.source, startIndex);
-                                if (opening && closing) {
-                                    element.startIndex = startIndex;
-                                    element.outerHTML = domBase.getRawString(startIndex, startIndex + opening.length);
-                                }
-                                else {
-                                    this.writeFail(`${tagName} outerHTML empty`, getErrorDOM(tagName, tagIndex));
-                                    continue;
-                                }
-                            }
-                        }
                         const htmlElement = new HtmlElement(element, attributes);
-                        if (uri) {
+                        if (uri && item !== file) {
                             const src = [uri];
                             if (item.format === 'base64') {
                                 value = uuid.v4();
@@ -553,7 +538,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             else {
                                 this.writeFail(['Unable to parse DOM', 'htmlparser2'], err);
                             }
-                        }, parserOptions)).end(domBase.source);
+                        }, { withStartIndices: true, withEndIndices: true })).end(domBase.source);
                         if (!modified) {
                             delete item.inlineCloud;
                         }

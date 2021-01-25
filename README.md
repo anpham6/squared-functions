@@ -148,7 +148,7 @@ const options = {
 <script src="/common/system.js" data-chrome-tasks="gulp:minify+gulp:beautify:true"></script>
 
 <!-- android -->
-<img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg" data-android-tasks="gulp:compress" />
+<img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg" data-android-tasks="gulp:compress">
 ```
 
 NOTE: SRC (temp) and DEST (original) always read and write to the current directory.
@@ -221,7 +221,7 @@ NOTE: Placing the "chrome" dataset commands at the end is recommended especially
 ```xml
 <!-- Required: Lowercase tag names and attributes with no extra spaces -->
 
-<link rel="stylesheet" href="css/dev.css" data-chrome-file="saveAs:css/prod.css::beautify" data-chrome-options="preserve|inline" />
+<link rel="stylesheet" href="css/dev.css" data-chrome-file="saveAs:css/prod.css::beautify" data-chrome-options="preserve|inline">
 <style data-chrome-file="exportAs:css/prod.css::minify+beautify" data-chrome-options="compress[gz]">
     body {
         font: 1em/1.4 Helvetica, Arial, sans-serif;
@@ -242,7 +242,7 @@ Bundling with "exportAs" gives you the ability to debug source code inside &lt;s
 
 <img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg"
      data-chrome-file="saveAs:images/harbour.jpg"
-     data-chrome-options="compress" />
+     data-chrome-options="compress">
 ```
 
 You can use images commands with saveTo (directory) on any element where the image is the primary display output.
@@ -253,7 +253,7 @@ You can use images commands with saveTo (directory) on any element where the ima
 <img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg"
      data-chrome-file="saveTo:../images/harbour"
      data-chrome-commands="png(10000,75000)(800x600[bezier]^contain[right|bottom])"
-     data-chrome-options="compress|inline" />
+     data-chrome-options="compress|inline">
 ```
 
 Transformations including the original file are given a UUID filename. Leaving "file" empty will save the transformations to the current image directory.
@@ -416,11 +416,13 @@ Here is the equivalent configuration in YAML and when available has higher prece
 
 ### Modifying content attributes
 
-There are possible scenarios when a transformation may cause an asset type to change into another format. Similar to JSON it is better to use double quotes (or &amp;quot;). Tags that are not well-formed may fail to be replaced.
+There are possible scenarios when a transformation may cause an asset type to change into another format. Similar to JSON it is better to use double quotes (or &amp;quot;) and do not use unnecessary spaces around the opening and closing tags. It is also recommended to lowercase every element tag name and attribute since the browser does this anyway when they interpret your HTML document.
+
+Tags that are not well-formed may fail to be replaced.
 
 ```xml
 <!-- before -->
-<link id="sass-example" rel="alternate" type="text/plain" href="css/dev.sass" />
+<link id="sass-example" rel="alternate" type="text/plain" href="css/dev.sass"> <!-- Better to not use " />" self closing tag -->
 ```
 
 NOTE: Using element "id" can fix replacement errors when multiple elements share the same identical structure and content.
@@ -446,7 +448,7 @@ NOTE: Using element "id" can fix replacement errors when multiple elements share
 
 ```xml
 <!-- after -->
-<link rel="stylesheet" type="text/css" title="" disabled href="css/prod.css" />
+<link rel="stylesheet" type="text/css" title="" disabled href="css/prod.css">
 ```
 
 You can also use the workspace feature in [squared-express](https://github.com/anpham6/squared-express#readme) to precompile text assets during development.
@@ -923,7 +925,7 @@ squared.copyTo('/local/user/www', {
 <script src="/common/system.js" data-chrome-watch="true"></script>
 
 <!-- android -->
-<img src="images/harbour1.jpg" data-android-watch="1000::1h 30m" />
+<img src="images/harbour1.jpg" data-android-watch="1000::1h 30m">
 ```
 
 File watching is available and uses HTTP HEAD requests to determine modifications. You can also watch any file that is served using HTTP on a different server or computer. The HTML page itself or any inlined assets cannot be watched since changes to the DOM structure requires a complete browser reload.
@@ -945,7 +947,7 @@ You can exclude unnecessary processing files using the dataset attribute in &lt;
 You can similarly prevent an asset from being downloaded or transformed using the "ignore" command.
 
 ```xml
-<iframe src="https://www.google.com/maps" data-chrome-file="ignore" />
+<iframe src="https://www.google.com/maps" data-chrome-file="ignore"></iframe>
 ```
 
 ### LICENSE

@@ -15,7 +15,7 @@ export interface RebuildOptions {
 export interface IDomWriter {
     source: string;
     elements: ElementIndex[];
-    startHTML(): void;
+    documentElement: Null<ElementIndex>;
     write(element: IHtmlElement, options?: WriteOptions): boolean;
     rebuild(index: ElementIndex, replaceHTML: string, options?: RebuildOptions | true): void;
     decrement(index: ElementIndex): ElementIndex[];
@@ -24,13 +24,15 @@ export interface IDomWriter {
     findTagIndex(element: Element, dom: Node[], replaceHTML?: string): number;
     setRawString(segmentHTML: string, replaceHTML: string): boolean;
     getRawString(startIndex: number, endIndex: number): string;
+    getDocumentElement(source: string): Null<Node>;
     hasErrors(): boolean;
 }
 
 export interface DomWriterConstructor {
+    normalize(source: string): string;
     minifySpace(value: string): string;
     getNewlineString(leading: string, trailing: string): string;
-    new(source: string, elements: ElementIndex[]): IDomWriter;
+    new(source: string, elements: ElementIndex[], normalize?: boolean): IDomWriter;
 }
 
 export interface IHtmlElement {
@@ -47,7 +49,7 @@ export interface IHtmlElement {
 }
 
 export class HtmlElementConstructor {
-    hasContent(tagName: string): boolean;
+    hasInnerHTML(tagName: string): boolean;
     splitOuterHTML(outerHTML: string, startIndex?: number): [string, string, string];
     new(position: ElementIndex, attributes?: StandardMap): IHtmlElement;
 }
