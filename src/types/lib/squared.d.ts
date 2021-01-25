@@ -14,11 +14,10 @@ interface TextAsset extends Asset, LocationUri {
     content?: string;
 }
 
-export interface OutputAction<T = unknown> {
+export interface OutputAction<T = unknown> extends DocumentAction {
     moveTo?: string;
     commands?: string[];
     compress?: CompressFormat[];
-    document?: StringOfArray;
     cloudStorage?: T[];
 }
 
@@ -35,21 +34,27 @@ export interface BundleAction {
     trailingContent?: string[];
 }
 
+export interface DocumentAction {
+    document?: StringOfArray;
+}
+
 export interface ElementAction {
     element?: ElementIndex;
 }
 
-export interface ElementIndex {
+export interface TagIndex {
     tagName: string;
     tagIndex: number;
     tagCount: number;
+}
+
+export interface ElementIndex extends TagIndex {
+    id: StringMap;
+    domIndex: number;
     outerHTML: string;
-    outerIndex: number;
-    outerCount: number;
     innerHTML?: string;
     startIndex?: number;
     endIndex?: number;
-    attributes?: ObjectMap<unknown>;
 }
 
 export interface LocationUri {

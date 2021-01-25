@@ -22,15 +22,15 @@ import { DomWriter, HtmlElement } from '../parse';
 
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
 
-function removeFileCommands(value: string) {
-    if (value.includes('data-chrome')) {
-        return value
-            .replace(/(\s*)<(script|link|style).+?data-chrome-file\s*=\s*(["'])?exclude\3[\S\s]*?<\/\s*\2\s*>[ \t]*((?:\r?\n)*)/ig, (...capture) => DomWriter.getNewlineString(capture[1], capture[4]))
-            .replace(/(\s*)<(?:script|link).+?data-chrome-file\s*=\s*(["'])?exclude\2[^>]*>[ \t]*((?:\r?\n)*)/ig, (...capture) => DomWriter.getNewlineString(capture[1], capture[3]))
-            .replace(/(\s*)<script.+?data-chrome-template\s*=\s*(?:"[^"]*"|'[^']*')[\S\s]*?<\/\s*script\s*>[ \t]*((?:\r?\n)*)/ig, (...capture) => DomWriter.getNewlineString(capture[1], capture[2]))
-            .replace(/\s+data-chrome-[a-z-]+\s*=\s*(?:"[^"]*"|'[^']*')/g, '');
+function removeDatasetNamespace(name: string, source: string) {
+    if (source.includes('data-' + name)) {
+        return source
+            .replace(new RegExp(`(\\s*)<(script|link|style).+?data-${name}-file\\s*=\\s*(["'])?exclude\\3[\\S\\s]*?<\\/\\2\\>[ \\t]*((?:\\r?\\n)*)`, 'ig'), (...capture) => DomWriter.getNewlineString(capture[1], capture[4]))
+            .replace(new RegExp(`(\\s*)<(?:script|link).+?data-${name}-file\\s*=\\s*(["'])?exclude\\2[^>]*>[ \\t]*((?:\\r?\\n)*)`, 'ig'), (...capture) => DomWriter.getNewlineString(capture[1], capture[3]))
+            .replace(new RegExp(`(\\s*)<script.+?data-${name}-template\\s*=\\s*(?:"[^"]*"|'[^']*')[\\S\\s]*?<\\/script>[ \\t]*((?:\\r?\\n)*)`, 'ig'), (...capture) => DomWriter.getNewlineString(capture[1], capture[2]))
+            .replace(new RegExp(`\\s+data-${name}-[a-z-]+\\s*=\\s*(?:"[^"]*"|'[^']*')`, 'g'), '');
     }
-    return value;
+    return source;
 }
 
 function getObjectValue(data: unknown, key: string, joinString = ' ') {
@@ -295,12 +295,12 @@ class ChromeDocument extends Document implements IChromeDocument {
             case '@text/html': {
                 this.formatMessage(this.logType.PROCESS, 'HTML', ['Rewriting content...', path.basename(localUri!)]);
                 const time = Date.now();
-                const cloud = this.Cloud;
-                const baseDirectory = instance.baseDirectory;
+                const { moduleName, baseDirectory } = instance;
                 const baseUri = file.uri!;
+                const cloud = this.Cloud;
                 const assets = this.assets.filter(item => this.hasDocument(instance, item.document)) || [];
                 const database = cloud?.database.filter(item => this.hasDocument(instance, item.document) && item.element) || [];
-                const domBase = new DomWriter(this.getUTF8String(file, localUri), (assets as ElementAction[]).concat(database).filter(item => item.element).map(item => item.element!), true);
+                const domBase = new DomWriter(moduleName, this.getUTF8String(file, localUri), (assets as ElementAction[]).concat(database).filter(item => item.element).map(item => item.element!), true);
                 const isRemoved = (item: DocumentAsset) => item.exclude || item.bundleIndex !== undefined;
                 const getErrorDOM = (tagName: string, tagIndex: number) => new Error(`${tagName} ${tagIndex}: Unable to parse DOM`);
                 if (database.length) {
@@ -320,7 +320,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             const item = database[index];
                             const template = item.value;
                             const element = item.element!;
-                            const htmlElement = new HtmlElement(element);
+                            const htmlElement = new HtmlElement(moduleName, element);
                             if (typeof template === 'string') {
                                 if (HtmlElement.hasInnerHTML(element.tagName)) {
                                     let output = '',
@@ -385,7 +385,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     if (element) {
                         const { bundleIndex, inlineContent, attributes } = item;
                         const { tagName, tagIndex } = element;
-                        const htmlElement = new HtmlElement(element, attributes);
+                        const htmlElement = new HtmlElement(moduleName, element, attributes);
                         if (inlineContent) {
                             const id = `<!-- ${uuid.v4()} -->`;
                             htmlElement.tagName = inlineContent;
@@ -436,7 +436,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     if (element) {
                         const { uri, attributes } = item;
                         const { tagName, tagIndex } = element;
-                        const htmlElement = new HtmlElement(element, attributes);
+                        const htmlElement = new HtmlElement(moduleName, element, attributes);
                         if (uri && item !== file) {
                             const src = [uri];
                             if (item.format === 'base64') {
@@ -489,7 +489,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             }
                                         }
                                         htmlElement.setAttribute('srcset', current);
-                                        if (element.attributes?.srcset) {
+                                        if (item.format === 'srcset') {
                                             break;
                                         }
                                     }
@@ -528,7 +528,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         }
                     }
                 }
-                file.sourceUTF8 = removeFileCommands(transformCss.call(this, instance, assets, file, domBase.source, true) || domBase.source);
+                file.sourceUTF8 = transformCss.call(this, instance, assets, file, domBase.source, true) || domBase.source;
                 this.writeTimeElapsed('HTML', `${path.basename(localUri!)}: ${domBase.modifyCount} modified | ${domBase.failCount} failed`, time);
                 if (domBase.hasErrors()) {
                     this.errors.push(...domBase.errors.map(item => item.message));
@@ -598,7 +598,6 @@ class ChromeDocument extends Document implements IChromeDocument {
     }
 
     public static async finalize(this: IFileManager, instance: IChromeDocument, assets: DocumentAsset[]) {
-        const inlineMap: StringMap = {};
         const base64Map: StringMap = {};
         const removeFile = (item: DocumentAsset) => {
             const localUri = item.localUri!;
@@ -625,39 +624,25 @@ class ChromeDocument extends Document implements IChromeDocument {
         async function replaceContent(manager: IFileManager, file: DocumentAsset, source: string, content?: boolean, formatting?: boolean) {
             if (file.mimeType![0] === '@') {
                 if (content) {
-                    let current = source;
                     for (const item of srcSet) {
                         const element = item.element;
                         if (element) {
-                            let outerHTML = element.outerHTML,
-                                value = 'srcset="',
-                                start = true,
-                                match = /(\s*)srcset\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(outerHTML);
-                            if (match) {
-                                value = (match[2] || match[3]).trim();
-                                start = false;
-                            }
+                            const htmlElement = new HtmlElement(instance.moduleName, element);
                             const images = item.srcSet!;
                             const length = images.length;
-                            let i = 0;
+                            let value = htmlElement.getAttribute('srcset') || '',
+                                i = 0;
                             while (i < length) {
-                                value += (!start ? ', ' : '') + images[i++] + ' ' + images[i++];
-                                start = false;
+                                value += (value ? ', ' : '') + images[i++] + ' ' + images[i++];
                             }
-                            value += '"';
-                            if (match) {
-                                outerHTML = outerHTML.replace(match[0], (match[1] ? ' ' : '') + value);
+                            htmlElement.setAttribute('srcset', value);
+                            const [output, replaceHTML, err] = htmlElement.write(source);
+                            if (output) {
+                                source = output;
+                                element.outerHTML = replaceHTML;
                             }
-                            else if (match = /^(<[^\s/>]+)(\s*)/.exec(outerHTML)) {
-                                outerHTML = outerHTML.replace(match[0], match[1] + ' ' + value + (match[2] ? ' ' : ''));
-                            }
-                            else {
-                                continue;
-                            }
-                            source = source.replace(element.outerHTML, outerHTML);
-                            if (current !== source) {
-                                element.outerHTML = outerHTML;
-                                current = source;
+                            else if (err) {
+                                instance.errors.push(err.message);
                             }
                         }
                     }
@@ -714,6 +699,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             await Document.allSettled(tasks, ['Replace UTF-8 <finalize>', instance.moduleName], this.errors);
         }
         if (instance.htmlFiles.length) {
+            const inlineMap: StringMap = {};
             for (const item of assets) {
                 const inlineContent = item.inlineContent;
                 if (inlineContent && inlineContent.startsWith('<!--')) {
@@ -721,14 +707,12 @@ class ChromeDocument extends Document implements IChromeDocument {
                     removeFile(item);
                 }
             }
-            if (Object.keys(inlineMap).length) {
-                for (const item of instance.htmlFiles) {
-                    let content = this.getUTF8String(item);
-                    for (const id in inlineMap) {
-                        content = content.replace(id, inlineMap[id]!);
-                    }
-                    item.sourceUTF8 = content;
+            for (const item of instance.htmlFiles) {
+                let content = this.getUTF8String(item);
+                for (const id in inlineMap) {
+                    content = content.replace(id, inlineMap[id]!);
                 }
+                item.sourceUTF8 = removeDatasetNamespace(instance.moduleName, content);
             }
         }
     }

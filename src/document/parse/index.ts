@@ -1,6 +1,6 @@
-import type { ElementIndex } from '../../types/lib/squared';
+import type { ElementIndex, TagIndex } from '../../types/lib/squared';
 
-import type { IDomWriter, IHtmlElement, RebuildOptions, WriteOptions } from './document';
+import type { IDomWriter, IHtmlElement, WriteOptions } from './document';
 
 import escapeRegexp = require('escape-string-regexp');
 
@@ -50,18 +50,18 @@ export class DomWriter implements IDomWriter {
     public errors: Error[] = [];
     public documentElement: Null<ElementIndex> = null;
 
-    constructor(source: string, public elements: ElementIndex[], normalize?: boolean) {
+    constructor(public documentName: string, source: string, public elements: ElementIndex[], normalize?: boolean) {
         const items = elements.filter(item => item.tagName === 'HTML');
-        const html = this.getDocumentElement(source);
+        const html = /<\\s*html/i.exec(source);
         let startIndex = -1,
             documentElement: Undef<ElementIndex>;
         if (html) {
-            startIndex = html.startIndex!;
-            const [opening, closing] = HtmlElement.splitOuterHTML(source, startIndex);
-            if (opening && closing) {
+            startIndex = html.index;
+            const opening = HtmlElement.splitOuterHTML('html', source, startIndex)[0];
+            if (opening) {
                 const outerHTML = source.substring(startIndex, startIndex + opening.length);
                 for (const item of items) {
-                    item.startIndex = html.startIndex!;
+                    item.startIndex = startIndex;
                     item.outerHTML = outerHTML;
                     if (item.innerHTML) {
                         documentElement = item;
@@ -97,21 +97,19 @@ export class DomWriter implements IDomWriter {
         }
         const [output, replaceHTML, error] = element.write(this.source, remove);
         if (output) {
-            const position = element.position;
+            const position = element.index;
             this.source = output;
             ++this.modifyCount;
             if (remove) {
-                return this.decrement(position).length > 0;
+                return this.decrement(position, remove).length > 0;
             }
             else if (rename) {
                 const tagName = element.tagName.toUpperCase();
                 if (tagName !== position.tagName.toUpperCase()) {
-                    const result = this.renameTag(position, tagName);
-                    this.rebuild(position, replaceHTML, true);
-                    return result;
+                    this.renameTag(position, tagName);
                 }
             }
-            this.rebuild(position, replaceHTML);
+            this.update(position, replaceHTML);
             return true;
         }
         if (error) {
@@ -120,230 +118,102 @@ export class DomWriter implements IDomWriter {
         ++this.failCount;
         return false;
     }
-    rebuild(index: ElementIndex, replaceHTML: string, options?: RebuildOptions | true) {
-        const { tagName, tagIndex, outerHTML, outerIndex, outerCount } = index;
-        if (tagName === 'HTML') {
-            return;
-        }
-        const elements: ElementIndex[] = [];
-        const related: ElementIndex[] = [];
-        const failAll = (nodes: ElementIndex[]) => {
-            for (const item of nodes) {
-                item.outerIndex = -1;
-                item.outerCount = 0;
-            }
-        };
-        for (const item of this.elements) {
-            if (item.tagName === tagName) {
-                if (item.tagIndex === tagIndex) {
-                    item.outerHTML = replaceHTML;
-                    related.push(item);
+    update(index: TagIndex, replaceHTML: string) {
+        const tagName = index.tagName.toUpperCase();
+        if (tagName !== 'HTML') {
+            const { tagIndex, tagCount } = index;
+            for (const item of this.elements) {
+                if (item.tagName.toUpperCase() === tagName) {
+                    if (item.tagIndex === tagIndex) {
+                        item.startIndex = -1;
+                        item.endIndex = -1;
+                        item.outerHTML = replaceHTML;
+                    }
+                    item.tagCount = tagCount;
                 }
-                elements.push(item);
-            }
-            item.startIndex = -1;
-            item.endIndex = -1;
-        }
-        if (options) {
-            if (options !== true) {
-                const previous = elements.filter(item => item.outerHTML === outerHTML);
-                if (previous.length) {
-                    const { nodes, sourceIndex } = options;
-                    const matched: number[] = [];
-                    const length = options.nodes.length;
-                    let failed: Undef<boolean>;
-                    if (length === previous[0].tagCount) {
-                        for (let i = 0; i < length; ++i) {
-                            const { startIndex, endIndex } = nodes[i];
-                            if (this.source.substring(startIndex!, endIndex! + 1) === outerHTML) {
-                                matched.push(i);
-                            }
-                        }
-                    }
-                    else {
-                        failed = true;
-                    }
-                    if (matched.length === previous[0].outerCount - 1) {
-                        for (const item of previous) {
-                            const i = matched.findIndex(value => value === item.tagIndex);
-                            if (i !== -1) {
-                                if (nodes[i].startIndex! >= sourceIndex) {
-                                    --item.outerIndex;
-                                }
-                                --item.outerCount;
-                            }
-                            else {
-                                failed = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (failed) {
-                        failAll(previous);
-                    }
-                }
-            }
-        }
-        else {
-            for (const item of elements) {
-                if (item.tagName === tagName && item.outerCount === outerCount && item.outerHTML === outerHTML) {
-                    if (item.outerIndex > outerIndex) {
-                        --item.outerIndex;
-                    }
-                    --item.outerCount;
-                }
-            }
-        }
-        const next = elements.filter(item => !related.includes(item) && item.outerHTML === replaceHTML);
-        if (next.length) {
-            next.push(...related);
-            new Parser(new DomHandler((err, dom) => {
-                if (!err) {
-                    const tag = tagName.toLowerCase();
-                    const nodes = domutils.findAll(elem => elem.tagName === tag, dom);
-                    const matched: number[] = [];
-                    const length = nodes.length;
-                    let failed: Undef<boolean>;
-                    if (length === next[0].tagCount) {
-                        for (let i = 0; i < length; ++i) {
-                            const { startIndex, endIndex } = nodes[i];
-                            if (this.source.substring(startIndex!, endIndex! + 1) === replaceHTML) {
-                                matched.push(i);
-                            }
-                        }
-                    }
-                    else {
-                        failed = true;
-                    }
-                    if (matched.length) {
-                        for (const item of next) {
-                            const i = matched.findIndex(value => value === item.tagIndex);
-                            if (i !== -1) {
-                                item.outerIndex = i;
-                                item.outerCount = matched.length;
-                            }
-                            else {
-                                failed = true;
-                                break;
-                            }
-                        }
-                    }
-                    else {
-                        failed = true;
-                    }
-                    if (failed) {
-                        failAll(next);
-                    }
-                }
-                else {
-                    this.errors.push(err);
-                }
-            }, { withStartIndices: true, withEndIndices: true })).end(this.source);
-        }
-        else {
-            for (const item of related) {
-                item.outerIndex = 0;
-                item.outerCount = 1;
             }
         }
     }
-    decrement(index: ElementIndex) {
-        const { tagName, tagIndex, outerHTML, outerIndex, outerCount } = index;
+    decrement(index: ElementIndex, remove?: boolean) {
+        const { domIndex, tagName, tagIndex } = index;
         const result: ElementIndex[] = [];
         for (const item of this.elements) {
             if (item.tagName === tagName) {
                 if (item.tagIndex === tagIndex) {
-                    item.tagIndex = -1;
-                    item.tagCount = 0;
-                    item.outerCount = 1;
-                    item.outerIndex = 0;
                     result.push(item);
-                    continue;
                 }
-                else if (item.tagIndex > tagIndex) {
-                    --item.tagIndex;
-                }
-                if (item.outerCount === outerCount && item.outerHTML === outerHTML) {
-                    if (item.outerIndex > outerIndex) {
-                        --item.outerIndex;
+                else {
+                    if (item.tagIndex > tagIndex) {
+                        --item.tagIndex;
                     }
-                    --item.outerCount;
+                    if (remove) {
+                        --item.tagCount;
+                    }
                 }
-                --item.tagCount;
+            }
+            if (remove && item.domIndex > domIndex) {
+                --item.domIndex;
             }
         }
         return result;
     }
     renameTag(index: ElementIndex, tagName: string) {
         const revised = this.decrement(index);
-        for (const item of revised) {
-            item.tagName = tagName;
+        if (revised.length) {
+            const related = this.elements.find(item => item.tagName.toUpperCase() === tagName);
+            if (related) {
+                tagName = related.tagName;
+                for (const item of revised) {
+                    item.tagName = tagName;
+                    item.tagIndex = -1;
+                }
+                this.indexTag(tagName);
+            }
+            else {
+                for (const item of revised) {
+                    item.tagName = tagName;
+                    item.tagIndex = 0;
+                    item.tagCount = 1;
+                }
+            }
         }
-        return this.insertTag(tagName, revised);
     }
-    insertTag(tagName: string, revised: ElementIndex[] = []) {
+    indexTag(tagName: string) {
         const elements: ElementIndex[] = [];
-        const tagCount = new Set<number>();
-        let result = false;
+        const revised: ElementIndex[] = [];
+        const tagIndex = new Set<number>();
+        let domIndex = -1;
         for (const item of this.elements) {
             if (item.tagName === tagName) {
-                if (item.tagIndex !== -1) {
-                    elements.push(item);
-                }
-                tagCount.add(item.tagIndex);
-            }
-        }
-        if (elements.length) {
-            elements.sort((a, b) => a.outerHTML === b.outerHTML ? a.tagIndex - b.tagIndex : 0);
-            new Parser(new DomHandler((err, dom) => {
-                if (!err) {
-                    const tag = tagName.toLowerCase();
-                    const nodes = domutils.findAll(elem => elem.tagName === tag, dom);
-                    const length = nodes.length;
-                    if (length === tagCount.size) {
-                        const foundIndex = new Set<number>();
-                        for (let i = 0; i < length; ++i) {
-                            const { startIndex, endIndex } = nodes[i];
-                            for (let j = 0; j < revised.length; ++j) {
-                                const item = revised[j];
-                                if (item.startIndex === startIndex && item.endIndex === endIndex) {
-                                    item.tagIndex = i;
-                                    item.tagCount = tagCount.size;
-                                    revised.splice(j--, 1);
-                                    foundIndex.add(i);
-                                }
-                            }
-                        }
-                        for (let i = 0; i < length; ++i) {
-                            if (!foundIndex.has(i)) {
-                                const { startIndex, endIndex } = nodes[i];
-                                for (let j = 0; j < elements.length; ++j) {
-                                    const item = elements[j];
-                                    if (this.source.substring(startIndex!, endIndex! + 1) === item.outerHTML) {
-                                        item.tagIndex = i;
-                                        item.tagCount = tagCount.size;
-                                        foundIndex.add(i);
-                                        elements.splice(j--, 1);
-                                    }
-                                }
-                            }
-                        }
-                        result = foundIndex.size === tagCount.size;
-                    }
+                if (item.tagIndex === -1) {
+                    domIndex = item.domIndex;
+                    revised.push(item);
                 }
                 else {
-                    this.errors.push(err);
+                    elements.push(item);
                 }
-            }, { withStartIndices: true, withEndIndices: true })).end(this.source);
-        }
-        else {
-            result = true;
-            for (const item of revised) {
-                item.tagIndex = 0;
-                item.tagCount = 1;
+                tagIndex.add(item.tagIndex);
             }
         }
-        return result;
+        if (domIndex !== -1) {
+            const length = tagIndex.size;
+            let index = length - 1;
+            tagIndex.clear();
+            for (const item of elements) {
+                if (item.domIndex > domIndex) {
+                    ++item.tagIndex;
+                }
+                tagIndex.add(item.tagIndex);
+                item.tagCount = length;
+            }
+            while (tagIndex.has(index)) {
+                --index;
+            }
+            for (const item of revised) {
+                item.tagIndex = index;
+                item.tagCount = length;
+            }
+        }
     }
     replaceAll(predicate: (elem: domhandler.Element) => boolean, callback: (elem: domhandler.Element, source: string) => Undef<string>) {
         let result = 0;
@@ -359,17 +229,7 @@ export class DomWriter implements IDomWriter {
                             const { startIndex, endIndex } = target;
                             if (startIndex !== null && endIndex !== null) {
                                 this.source = source.substring(0, startIndex) + replaceHTML + source.substring(endIndex + 1);
-                                this.rebuild({
-                                        tagName: target.tagName.toUpperCase(),
-                                        tagIndex,
-                                        tagCount: -1,
-                                        outerHTML: source.substring(startIndex, endIndex + 1),
-                                        outerIndex: 0,
-                                        outerCount: 1
-                                    },
-                                    replaceHTML,
-                                    { nodes, sourceIndex: startIndex }
-                                );
+                                this.update({ tagName: target.tagName, tagIndex, tagCount: nodes.length }, replaceHTML);
                             }
                         }
                         ++result;
@@ -412,7 +272,7 @@ export class HtmlElement implements IHtmlElement {
         return !SELF_CLOSING.includes(tagName.toLowerCase());
     }
 
-    public static splitOuterHTML(outerHTML: string, startIndex = -1): [string, string, string] {
+    public static splitOuterHTML(tagName: string, outerHTML: string, startIndex = -1): [string, string, string] {
         const forward = outerHTML.split('>');
         const opposing = outerHTML.split('<');
         if (startIndex === -1) {
@@ -420,7 +280,7 @@ export class HtmlElement implements IHtmlElement {
                 return [outerHTML, '', ''];
             }
             else if (opposing.length === 2 && forward.length === 2 && /^<[^>]+>[\S\s]*?<\/[^>]+>$/i.test(outerHTML)) {
-                return [forward[0] + '>', '<' + opposing[1], forward[1] + opposing[0]];
+                return [forward[0] + '>', forward[1] + opposing[0], '<' + opposing[1]];
             }
         }
         const openIndex = startIndex === -1 ? 0 : startIndex;
@@ -468,40 +328,44 @@ export class HtmlElement implements IHtmlElement {
             }
         }
         if (opening) {
-            const q = opening.length;
-            const index = outerHTML.lastIndexOf('<');
-            if (q < index && q < length) {
-                return [opening, outerHTML.substring(index), outerHTML.substring(q, index)];
+            if (startIndex !== -1) {
+                return [opening, '', ''];
+            }
+            else if (HtmlElement.hasInnerHTML(tagName)) {
+                const q = opening.length;
+                const index = outerHTML.lastIndexOf('<');
+                if (q < index && q < length) {
+                    return [opening, outerHTML.substring(q, index), outerHTML.substring(index)];
+                }
             }
         }
-        return [outerHTML, '', ''];
+        return [startIndex === -1 ? outerHTML : '', '', ''];
     }
 
     public lowerCase = false;
 
     private _modified = false;
     private _tagName = '';
-    private _tagStart: string;
-    private _tagEnd: string;
     private _innerHTML: string;
     private readonly _attributes = new Map<string, Optional<string>>();
 
-    constructor(public readonly position: ElementIndex, attributes?: StandardMap) {
+    constructor(public documentName: string, public readonly index: ElementIndex, attributes?: StandardMap) {
+        const attrs = this._attributes;
         if (attributes) {
             for (const key in attributes) {
-                attributes.set(key.toLowerCase(), attributes[key]);
+                attrs.set(key.toLowerCase(), attributes[key]);
             }
             this._modified = Object.keys(attributes).length > 0;
         }
-        const [tagStart, tagEnd, innerHTML] = HtmlElement.splitOuterHTML(position.outerHTML);
-        const hasValue = (name: string) => /^[a-z][a-z\d-:.]*$/.test(name) && !this._attributes.has(name);
+        const [tagStart, innerHTML] = HtmlElement.splitOuterHTML(index.tagName, index.outerHTML);
+        const hasValue = (name: string) => /^[a-z][a-z\d-:.]*$/.test(name) && !attrs.has(name);
         let pattern = /([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]*))/g,
             source = tagStart,
             match: Null<RegExpExecArray>;
         while (match = pattern.exec(tagStart)) {
             const attr = match[1].toLowerCase();
             if (hasValue(attr)) {
-                this._attributes.set(attr, match[2] || match[3] || match[4] || '');
+                attrs.set(attr, match[2] || match[3] || match[4] || '');
             }
             source = source.replace(match[0], '');
         }
@@ -513,12 +377,10 @@ export class HtmlElement implements IHtmlElement {
             else {
                 const attr = match[2].toLowerCase();
                 if (hasValue(attr)) {
-                    this._attributes.set(attr, null);
+                    attrs.set(attr, null);
                 }
             }
         }
-        this._tagStart = tagStart;
-        this._tagEnd = tagEnd;
         this._innerHTML = innerHTML;
     }
 
@@ -546,8 +408,7 @@ export class HtmlElement implements IHtmlElement {
     write(source: string, remove?: boolean): [string, string, Error?] {
         let error: Undef<Error>;
         if (this._modified || remove) {
-            const position = this.position;
-            const { outerIndex, outerCount, outerHTML } = position;
+            const position = this.index;
             const replaceHTML = !remove ? this.outerHTML : '';
             const spliceSource = (index: [number, number, string]) => {
                 const [startIndex, endIndex, trailing] = index;
@@ -557,72 +418,78 @@ export class HtmlElement implements IHtmlElement {
                 return source.substring(0, startIndex) + content + source.substring(endIndex);
             };
             let tagName = position.tagName;
-            if (outerIndex !== -1 && (outerCount === 1 || !HtmlElement.hasInnerHTML(tagName))) {
-                const foundIndex: [number, number, string][] = [];
-                let pattern = escapeRegexp(outerHTML),
-                    match: Null<RegExpExecArray>;
-                if (remove) {
-                    pattern = '(\\s*)' + pattern + '[ \\t]*((?:\\r?\\n)*)';
-                }
-                const tag = new RegExp(pattern, 'g');
-                while (match = tag.exec(source)) {
-                    foundIndex.push([match.index, match.index + match[0].length, remove ? DomWriter.getNewlineString(match[1], match[2]) : '']);
-                }
-                if (foundIndex.length === outerCount) {
-                    return [spliceSource(foundIndex[outerIndex]), replaceHTML, error];
-                }
-            }
             if (tagName === 'HTML') {
                 const startIndex = position.startIndex;
                 if (startIndex !== undefined && startIndex !== -1) {
-                    const [opening, closing] = HtmlElement.splitOuterHTML(source, startIndex);
-                    if (opening && closing) {
+                    const opening = HtmlElement.splitOuterHTML('html', source, startIndex)[0];
+                    if (opening) {
                         return [spliceSource([startIndex, startIndex + opening.length, '']), replaceHTML];
                     }
                 }
                 return ['', '', new Error('Unable to find HTML element')];
             }
+            if (this.lowerCase) {
+                tagName = tagName.toLowerCase();
+            }
             const { tagCount, tagIndex } = position;
+            const id = position.id[this.documentName];
+            let flags = 'g';
+            if (!this.lowerCase) {
+                flags += 'i';
+            }
+            const foundIndex: [number, number, string][] = [];
+            const openTag: number[] = [];
+            const selfClosed = !HtmlElement.hasInnerHTML(tagName);
+            let tag = new RegExp(`<${escapeRegexp(tagName)}\\b`, flags),
+                openCount = 0,
+                match: Null<RegExpExecArray>;
+            while (match = tag.exec(source)) {
+                openTag.push(match.index);
+                if (selfClosed && id) {
+                    let startIndex = -1,
+                        valid: Undef<boolean>;
+                    if (openTag.length === tagCount && openCount === tagIndex) {
+                        startIndex = match.index;
+                        valid = true;
+                    }
+                    else if (openCount) {
+                        startIndex = openTag[openCount - 1];
+                        valid = source.substring(startIndex, match.index).includes(id);
+                    }
+                    if (valid) {
+                        const opening = HtmlElement.splitOuterHTML(tagName, source, startIndex)[0];
+                        if (opening) {
+                            return [spliceSource([startIndex, startIndex + opening.length, '']), replaceHTML];
+                        }
+                    }
+                }
+                ++openCount;
+            }
             let index: Undef<[number, number, string]>;
-            if (this._tagStart && this._tagEnd) {
-                let flags = 'g';
-                if (this.lowerCase) {
-                    tagName = tagName.toLowerCase();
-                }
-                else {
-                    flags += 'i';
-                }
-                const foundIndex: [number, number, string][] = [];
-                const openTag: number[] = [];
-                let tag = new RegExp(`<${escapeRegexp(tagName)}\\b`, flags),
-                    match: Null<RegExpExecArray>;
-                while (match = tag.exec(source)) {
-                    openTag.push(match.index);
-                }
-                const open = openTag.length;
-                if (open) {
+            if (openCount) {
+                found: {
                     const closeTag: number[] = [];
                     tag = new RegExp(`</${escapeRegexp(tagName)}>`, flags);
                     while (match = tag.exec(source)) {
                         closeTag.push(match.index + match[0].length);
                     }
-                    const close = closeTag.length;
-                    if (close) {
-                        for (let i = 0; i < open; ++i) {
+                    const closeCount = closeTag.length;
+                    if (closeCount) {
+                        for (let i = 0; i < openCount; ++i) {
                             let j = 0,
                                 valid: Undef<boolean>;
-                            if (i === close - 1 && open === close) {
+                            if (i === closeCount - 1 && openCount === closeCount) {
                                 j = i;
                                 valid = true;
                             }
                             else {
-                                found: {
+                                closed: {
                                     const k = openTag[i];
                                     let start = i + 1;
-                                    for ( ; j < close; ++j) {
+                                    for ( ; j < closeCount; ++j) {
                                         const l = closeTag[j];
                                         if (l > k) {
-                                            for (let m = start; m < open; ++m) {
+                                            for (let m = start; m < openCount; ++m) {
                                                 const n = openTag[m];
                                                 if (n < l) {
                                                     ++start;
@@ -630,7 +497,7 @@ export class HtmlElement implements IHtmlElement {
                                                 }
                                                 else if (n > l) {
                                                     valid = true;
-                                                    break found;
+                                                    break closed;
                                                 }
                                             }
                                         }
@@ -639,6 +506,14 @@ export class HtmlElement implements IHtmlElement {
                             }
                             if (valid) {
                                 foundIndex.push([openTag[i], closeTag[j], '']);
+                                if (id && foundIndex.length > 1) {
+                                    for (let k = 1; k < foundIndex.length; ++k) {
+                                        if (source.substring(foundIndex[k - 1][0], foundIndex[k][0]).includes(id)) {
+                                            index = foundIndex[k - 1];
+                                            break found;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -650,11 +525,22 @@ export class HtmlElement implements IHtmlElement {
             if (!index) {
                 new Parser(new DomHandler((err, dom) => {
                     if (!err) {
-                        tagName = tagName.toLowerCase();
-                        const nodes = domutils.findAll(elem => elem.tagName === tagName, dom);
-                        if (nodes.length === tagCount) {
-                            const { startIndex, endIndex } = nodes[tagIndex];
-                            index = [startIndex!, endIndex! + 1, ''];
+                        const documentId = `data-${this.documentName}-id`;
+                        const target = domutils.findOne(elem => elem.attribs[documentId] === id, dom);
+                        let startIndex: Null<number> = null,
+                            endIndex: Null<number> = null;
+                        if (target) {
+                            ({ startIndex, endIndex } = target);
+                        }
+                        else {
+                            tagName = tagName.toLowerCase();
+                            const nodes = domutils.findAll(elem => elem.tagName === tagName, dom);
+                            if (nodes.length === tagCount) {
+                                ({ startIndex, endIndex } = nodes[tagIndex]);
+                            }
+                        }
+                        if (startIndex !== null && endIndex !== null) {
+                            index = [startIndex, endIndex + 1, ''];
                         }
                     }
                     else {
@@ -709,7 +595,7 @@ export class HtmlElement implements IHtmlElement {
         }
     }
     get tagName() {
-        return this._tagName ||= this.position.tagName.toLowerCase();
+        return this._tagName ||= this.index.tagName.toLowerCase();
     }
     get innerHTML() {
         return this._innerHTML;

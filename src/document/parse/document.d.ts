@@ -1,4 +1,4 @@
-import type { ElementIndex } from '../../types/lib/squared';
+import type { ElementIndex, TagIndex } from '../../types/lib/squared';
 
 import type { Element, Node } from 'domhandler';
 
@@ -7,20 +7,16 @@ export interface WriteOptions {
     rename?: boolean;
 }
 
-export interface RebuildOptions {
-    nodes: Element[];
-    sourceIndex: number;
-}
-
 export interface IDomWriter {
+    documentName: string;
     source: string;
     elements: ElementIndex[];
     documentElement: Null<ElementIndex>;
     write(element: IHtmlElement, options?: WriteOptions): boolean;
-    rebuild(index: ElementIndex, replaceHTML: string, options?: RebuildOptions | true): void;
+    update(index: TagIndex, replaceHTML: string): void;
     decrement(index: ElementIndex): ElementIndex[];
-    renameTag(index: ElementIndex, tagName: string): boolean;
-    insertTag(tagName: string, revised?: ElementIndex[]): boolean;
+    renameTag(index: ElementIndex, tagName: string): void;
+    indexTag(tagName: string): void;
     replaceAll(predicate: (elem: Element) => boolean, callback: (elem: Element, source: string) => Undef<string>): number;
     setRawString(segmentHTML: string, replaceHTML: string): boolean;
     getRawString(startIndex: number, endIndex: number): string;
@@ -31,13 +27,14 @@ export interface IDomWriter {
 export interface DomWriterConstructor {
     normalize(source: string): string;
     getNewlineString(leading: string, trailing: string): string;
-    new(source: string, elements: ElementIndex[], normalize?: boolean): IDomWriter;
+    new(documentName: string, source: string, elements: ElementIndex[], normalize?: boolean): IDomWriter;
 }
 
 export interface IHtmlElement {
+    documentName: string;
     tagName: string;
     innerHTML: string;
-    readonly position: ElementIndex;
+    readonly index: ElementIndex;
     readonly outerHTML: string;
     setAttribute(name: string, value: string): void;
     getAttribute(name: string): Optional<string>;
@@ -49,5 +46,5 @@ export interface IHtmlElement {
 export class HtmlElementConstructor {
     hasInnerHTML(tagName: string): boolean;
     splitOuterHTML(outerHTML: string, startIndex?: number): [string, string, string];
-    new(position: ElementIndex, attributes?: StandardMap): IHtmlElement;
+    new(documentName: string, index: ElementIndex, attributes?: StandardMap): IHtmlElement;
 }
