@@ -36,13 +36,12 @@ export interface DomWriterConstructor {
 }
 
 export interface IHtmlElement {
-    position: ElementIndex;
-    attributes: StandardMap;
     tagName: string;
     innerHTML: string;
+    readonly position: ElementIndex;
     readonly outerHTML: string;
     setAttribute(name: string, value: string): void;
-    getAttribute(name: string): Undef<string>;
+    getAttribute(name: string): Optional<string>;
     removeAttribute(...names: string[]): void;
     hasAttribute(name: string): boolean;
     write(source: string, remove?: boolean): [string, string, Error?];

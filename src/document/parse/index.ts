@@ -96,6 +96,9 @@ export class DomWriter implements IDomWriter {
         if (options) {
             ({ remove, rename } = options);
         }
+        if (this.documentElement) {
+            element.lowercase = true;
+        }
         const [output, replaceHTML, error] = element.write(this.source, remove);
         if (output) {
             const position = element.position;
@@ -106,7 +109,7 @@ export class DomWriter implements IDomWriter {
             }
             else if (rename) {
                 const tagName = element.tagName.toUpperCase();
-                if (tagName !== position.tagName) {
+                if (tagName !== position.tagName.toUpperCase()) {
                     const result = this.renameTag(position, tagName);
                     this.rebuild(position, replaceHTML, true);
                     return result;
@@ -249,10 +252,10 @@ export class DomWriter implements IDomWriter {
         }
     }
     decrement(index: ElementIndex) {
-        const { tagName: tag, tagIndex, outerHTML, outerIndex, outerCount } = index;
+        const { tagName, tagIndex, outerHTML, outerIndex, outerCount } = index;
         const result: ElementIndex[] = [];
         for (const item of this.elements) {
-            if (item.tagName === tag) {
+            if (item.tagName === tagName) {
                 if (item.tagIndex === tagIndex) {
                     item.tagIndex = -1;
                     item.tagCount = 0;
@@ -465,95 +468,83 @@ export class HtmlElement implements IHtmlElement {
         return [outerHTML, '', ''];
     }
 
+    public lowercase = false;
+
     private _modified = false;
     private _tagName = '';
     private _tagStart: string;
     private _tagEnd: string;
     private _innerHTML: string;
+    private readonly _attributes = new Map<string, Optional<string>>();
 
-    constructor(public position: ElementIndex, public attributes: StandardMap = {}) {
-        for (const key in attributes) {
-            const name = key.toLowerCase();
-            if (name !== key) {
-                const value = attributes[key];
-                delete attributes[key];
-                attributes[name] = value;
+    constructor(public readonly position: ElementIndex, attributes?: StandardMap) {
+        if (attributes) {
+            for (const key in attributes) {
+                attributes.set(key.toLowerCase(), attributes[key]);
             }
+            this._modified = Object.keys(attributes).length > 0;
         }
         const [tagStart, tagEnd, innerHTML] = HtmlElement.splitOuterHTML(position.outerHTML);
-        const hasValue = (name: string) => /^[a-z][a-z\d-:.]*$/.test(name) && !this.hasAttribute(name);
+        const hasValue = (name: string) => /^[a-z][a-z\d-:.]*$/.test(name) && !this._attributes.has(name);
         let pattern = /([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]*))/g,
             source = tagStart,
             match: Null<RegExpExecArray>;
         while (match = pattern.exec(tagStart)) {
             const attr = match[1].toLowerCase();
             if (hasValue(attr)) {
-                attributes[attr] = match[2] || match[3] || match[4] || '';
+                this._attributes.set(attr, match[2] || match[3] || match[4] || '');
             }
             source = source.replace(match[0], '');
         }
         pattern = /(<|\s+)([^\s="'/>]+)/g;
         while (match = pattern.exec(source)) {
-            if (match[1][0] === '<' && position.tagName.toUpperCase() === match[2].toUpperCase()) {
+            if (match[1][0] === '<') {
                 continue;
             }
             else {
                 const attr = match[2].toLowerCase();
                 if (hasValue(attr)) {
-                    attributes[attr] = null;
+                    this._attributes.set(attr, null);
                 }
             }
         }
         this._tagStart = tagStart;
         this._tagEnd = tagEnd;
-        this._modified = Object.keys(attributes).length > 0;
         this._innerHTML = innerHTML;
     }
     setAttribute(name: string, value: string) {
-        name = name.toLowerCase();
-        const attrs = this.attributes;
-        for (const key in attrs) {
-            if (key === name) {
-                delete attrs[key];
-                break;
-            }
-        }
-        attrs[name] = value;
+        this._attributes.set(name.toLowerCase(), value);
         this._modified = true;
     }
-    getAttribute(name: string): Undef<string> {
-        return this.attributes[name.toLowerCase()];
+    getAttribute(name: string) {
+        return this._attributes.get(name.toLowerCase());
     }
     removeAttribute(...names: string[]) {
-        const attrs = this.attributes;
-        for (const key in attrs) {
-            if (names.includes(key)) {
-                delete attrs[key];
+        const attrs = this._attributes;
+        for (let key of names) {
+            if (attrs.has(key = key.toLowerCase())) {
+                attrs.delete(key);
                 this._modified = true;
             }
         }
     }
     hasAttribute(name: string) {
-        name = name.toLowerCase();
-        for (const key in this.attributes) {
-            if (key === name) {
-                return true;
-            }
-        }
-        return false;
+        return this._attributes.has(name = name.toLowerCase());
     }
     write(source: string, remove?: boolean): [string, string, Error?] {
         let error: Undef<Error>;
         if (this._modified || remove) {
-            const { tagName, outerIndex, outerCount, outerHTML } = this.position;
+            const position = this.position;
+            const { outerIndex, outerCount, outerHTML } = position;
             const replaceHTML = !remove ? this.outerHTML : '';
             const spliceSource = (index: [number, number, string]) => {
                 const [startIndex, endIndex, trailing] = index;
                 const content = replaceHTML + trailing;
-                this.position.startIndex = startIndex;
-                this.position.endIndex = startIndex + content.length - 1;
+                position.startIndex = startIndex;
+                position.endIndex = startIndex + content.length - 1;
                 return source.substring(0, startIndex) + content + source.substring(endIndex);
             };
+            let tagName = position.tagName;
             if (outerIndex !== -1 && (outerCount === 1 || !HtmlElement.hasInnerHTML(tagName))) {
                 const foundIndex: [number, number, string][] = [];
                 let pattern = escapeRegexp(outerHTML),
@@ -569,9 +560,8 @@ export class HtmlElement implements IHtmlElement {
                     return [spliceSource(foundIndex[outerIndex]), replaceHTML, error];
                 }
             }
-            const { tagCount, tagIndex } = this.position;
             if (tagName === 'HTML') {
-                const startIndex = this.position.startIndex;
+                const startIndex = position.startIndex;
                 if (startIndex !== undefined && startIndex !== -1) {
                     const [opening, closing] = HtmlElement.splitOuterHTML(source, startIndex);
                     if (opening && closing) {
@@ -580,11 +570,19 @@ export class HtmlElement implements IHtmlElement {
                 }
                 return ['', '', new Error('Unable to find HTML element')];
             }
+            const { tagCount, tagIndex } = position;
             let index: Undef<[number, number, string]>;
             if (this._tagStart && this._tagEnd) {
+                let flags = 'g';
+                if (this.lowercase) {
+                    tagName = tagName.toLowerCase();
+                }
+                else {
+                    flags += 'i';
+                }
                 const foundIndex: [number, number, string][] = [];
                 const openTag: number[] = [];
-                let tag = new RegExp(`<${escapeRegexp(tagName)}\\b`, 'ig'),
+                let tag = new RegExp(`<${escapeRegexp(tagName)}\\b`, flags),
                     match: Null<RegExpExecArray>;
                 while (match = tag.exec(source)) {
                     openTag.push(match.index);
@@ -592,7 +590,7 @@ export class HtmlElement implements IHtmlElement {
                 const open = openTag.length;
                 if (open) {
                     const closeTag: number[] = [];
-                    tag = new RegExp(`</${escapeRegexp(tagName)}>`, 'ig');
+                    tag = new RegExp(`</${escapeRegexp(tagName)}>`, flags);
                     while (match = tag.exec(source)) {
                         closeTag.push(match.index + match[0].length);
                     }
@@ -640,8 +638,8 @@ export class HtmlElement implements IHtmlElement {
             if (!index) {
                 new Parser(new DomHandler((err, dom) => {
                     if (!err) {
-                        const tagElem = tagName.toLowerCase();
-                        const nodes = domutils.findAll(elem => elem.tagName === tagElem, dom);
+                        tagName = tagName.toLowerCase();
+                        const nodes = domutils.findAll(elem => elem.tagName === tagName, dom);
                         if (nodes.length === tagCount) {
                             const { startIndex, endIndex } = nodes[tagIndex];
                             index = [startIndex!, endIndex! + 1, ''];
@@ -689,7 +687,8 @@ export class HtmlElement implements IHtmlElement {
         return ['', '', error];
     }
     set tagName(value: string) {
-        if (value.toLowerCase() !== this.tagName.toLowerCase()) {
+        value = value.toLowerCase();
+        if (value !== this.tagName) {
             this._tagName = value;
             if (!HtmlElement.hasInnerHTML(value)) {
                 this.innerHTML = '';
@@ -698,11 +697,7 @@ export class HtmlElement implements IHtmlElement {
         }
     }
     get tagName() {
-        if (!this._tagName) {
-            const match = /^<([^\s/>]+)/i.exec(this._tagStart);
-            this._tagName = match ? match[1] : this.position.tagName.toLowerCase();
-        }
-        return this._tagName;
+        return this._tagName ||= this.position.tagName.toLowerCase();
     }
     get innerHTML() {
         return this._innerHTML;
@@ -715,10 +710,8 @@ export class HtmlElement implements IHtmlElement {
     }
     get outerHTML() {
         const tagName = this.tagName;
-        const attrs = this.attributes;
         let outerHTML = '<' + tagName;
-        for (const key in attrs) {
-            const value = attrs[key] as Undef<string>;
+        for (const [key, value] of this._attributes) {
             if (value !== undefined) {
                 outerHTML += ' ' + key + (value !== null ? `="${value.replace(/"/g, '&quot;')}"` : '');
             }
