@@ -15,7 +15,8 @@ export interface IDomWriter {
     elements: ElementIndex[];
     documentElement: Null<ElementIndex>;
     write(element: IHtmlElement, options?: WriteOptions): boolean;
-    update(index: TagIndex, replaceHTML: string): void;
+    update(index: ElementIndex, replaceHTML: string): void;
+    updateByTag(index: TagIndex, replaceHTML: string): boolean;
     decrement(index: ElementIndex): ElementIndex[];
     renameTag(index: ElementIndex, tagName: string): void;
     indexTag(tagName: string): void;
@@ -44,6 +45,7 @@ export interface IHtmlElement {
     removeAttribute(...names: string[]): void;
     hasAttribute(name: string): boolean;
     write(source: string, remove?: boolean): [string, string, Null<Error>?];
+    save(source: string, remove?: boolean): [string, Null<Error>?];
 }
 
 export class HtmlElementConstructor {

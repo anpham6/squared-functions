@@ -75,7 +75,7 @@ function getObjectValue(data: unknown, key: string, joinString = ' ') {
 }
 
 function replaceUrl(css: string, src: string, value: string, base64: boolean) {
-    const pattern = new RegExp(`\\b[Uu][Rr][Ll]\\(\\s*(["'])?\\s*${!base64 ? escapePosix(src) : `[^"',]+,\\s*` + src.replace(/\+/g, '\\+')}\\s*\\1\\s*\\)`, 'g');
+    const pattern = new RegExp(`\\s*[Uu][Rr][Ll]\\(\\s*(["'])?\\s*${!base64 ? escapePosix(src) : `[^"',]+,\\s*` + src.replace(/\+/g, '\\+')}\\s*\\1\\s*\\)`, 'g');
     let output: Undef<string>,
         match: Null<RegExpExecArray>;
     while (match = pattern.exec(css)) {
@@ -300,7 +300,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 const cloud = this.Cloud;
                 const assets = this.assets.filter(item => this.hasDocument(instance, item.document)) || [];
                 const database = cloud?.database.filter(item => this.hasDocument(instance, item.document) && item.element) || [];
-                const domBase = new DomWriter(moduleName, this.getUTF8String(file, localUri), (assets as ElementAction[]).concat(database).filter(item => item.element).map(item => item.element!), true);
+                const domBase = new DomWriter(moduleName, this.getUTF8String(file, localUri), (assets as ElementAction[]).concat(database).filter(item => item.element).map(item => item.element!));
                 const isRemoved = (item: DocumentAsset) => item.exclude || item.bundleIndex !== undefined;
                 const getErrorDOM = (tagName: string, tagIndex: number) => new Error(`${tagName} ${tagIndex}: Unable to parse DOM`);
                 if (database.length) {
@@ -636,10 +636,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 value += (value ? ', ' : '') + images[i++] + ' ' + images[i++];
                             }
                             htmlElement.setAttribute('srcset', value);
-                            const [output, replaceHTML, err] = htmlElement.write(source);
+                            const [output, err] = htmlElement.save(source);
                             if (output) {
                                 source = output;
-                                element.outerHTML = replaceHTML;
                             }
                             else if (err) {
                                 instance.errors.push(err.message);
