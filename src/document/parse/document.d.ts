@@ -2,6 +2,8 @@ import type { ElementIndex, TagIndex } from '../../types/lib/squared';
 
 import type { Element, Node } from 'domhandler';
 
+export type ParserResult = [Null<Node>, Null<Error>];
+
 export interface WriteOptions {
     remove?: boolean;
     rename?: boolean;
@@ -20,12 +22,13 @@ export interface IDomWriter {
     replaceAll(predicate: (elem: Element) => boolean, callback: (elem: Element, source: string) => Undef<string>): number;
     setRawString(segmentHTML: string, replaceHTML: string): boolean;
     getRawString(startIndex: number, endIndex: number): string;
-    getDocumentElement(source: string): Null<Node>;
     hasErrors(): boolean;
 }
 
 export interface DomWriterConstructor {
     normalize(source: string): string;
+    getDocumentElement(source: string): ParserResult;
+    findElement(source: string, index: ElementIndex, documentName?: string): ParserResult;
     getNewlineString(leading: string, trailing: string): string;
     new(documentName: string, source: string, elements: ElementIndex[], normalize?: boolean): IDomWriter;
 }
@@ -40,7 +43,7 @@ export interface IHtmlElement {
     getAttribute(name: string): Optional<string>;
     removeAttribute(...names: string[]): void;
     hasAttribute(name: string): boolean;
-    write(source: string, remove?: boolean): [string, string, Error?];
+    write(source: string, remove?: boolean): [string, string, Null<Error>?];
 }
 
 export class HtmlElementConstructor {

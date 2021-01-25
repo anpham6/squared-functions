@@ -1,6 +1,6 @@
 import type { ElementIndex, TagIndex } from '../../types/lib/squared';
 
-import type { IDomWriter, IHtmlElement, WriteOptions } from './document';
+import type { IDomWriter, IHtmlElement, ParserResult, WriteOptions } from './document';
 
 import escapeRegexp = require('escape-string-regexp');
 
@@ -38,6 +38,48 @@ export class DomWriter implements IDomWriter {
             }
         }
         return source;
+    }
+
+    public static getDocumentElement(source: string): ParserResult {
+        let result: Null<domhandler.Node> = null,
+            error: Null<Error> = null;
+        new Parser(new DomHandler((err, dom) => {
+            if (!err) {
+                result = domutils.findOne(elem => elem.tagName === 'html', dom);
+            }
+            else {
+                error = err;
+            }
+        }, { withStartIndices: true, withEndIndices: true })).end(source);
+        return [result, error];
+    }
+
+    public static findElement(source: string, index: ElementIndex, documentName?: string): ParserResult {
+        let result: Null<domhandler.Node> = null,
+            error: Null<Error> = null;
+        new Parser(new DomHandler((err, dom) => {
+            if (!err) {
+                if (documentName) {
+                    const id = index.id[documentName];
+                    if (id) {
+                        const documentId = `data-${documentName}-id`;
+                        result = domutils.findOne(elem => elem.attribs[documentId] === id, dom);
+                        if (result) {
+                            return;
+                        }
+                    }
+                }
+                const tagName = index.tagName.toLowerCase();
+                const nodes = domutils.findAll(elem => elem.tagName === tagName, dom);
+                if (nodes.length === index.tagCount) {
+                    result = nodes[index.tagIndex];
+                }
+            }
+            else {
+                error = err;
+            }
+        }, { withStartIndices: true, withEndIndices: true })).end(source);
+        return [result, error];
     }
 
     public static getNewlineString(leading: string, trailing: string) {
@@ -97,9 +139,9 @@ export class DomWriter implements IDomWriter {
         }
         const [output, replaceHTML, error] = element.write(this.source, remove);
         if (output) {
-            const position = element.index;
             this.source = output;
             ++this.modifyCount;
+            const position = element.index;
             if (remove) {
                 return this.decrement(position, remove).length > 0;
             }
@@ -215,20 +257,31 @@ export class DomWriter implements IDomWriter {
             }
         }
     }
+    setRawString(segmentHTML: string, replaceHTML: string) {
+        const current = this.source;
+        this.source = current.replace(segmentHTML, replaceHTML);
+        return current !== this.source;
+    }
+    getRawString(startIndex: number, endIndex: number) {
+        return this.source.substring(startIndex, endIndex);
+    }
+    spliceRawString(startIndex: number, endIndex: number, replaceHTML: string) {
+        const source = this.source;
+        this.source = source.substring(0, startIndex) + replaceHTML + source.substring(endIndex);
+    }
     replaceAll(predicate: (elem: domhandler.Element) => boolean, callback: (elem: domhandler.Element, source: string) => Undef<string>) {
         let result = 0;
         new Parser(new DomHandler((err, dom) => {
             if (!err) {
                 for (const target of domutils.findAll(predicate, dom).reverse()) {
-                    const source = this.source;
-                    const replaceHTML = callback(target, source);
+                    const replaceHTML = callback(target, this.source);
                     if (replaceHTML) {
                         const nodes = domutils.findAll(elem => elem.tagName === target.tagName, dom);
                         const tagIndex = nodes.findIndex(elem => elem === target);
                         if (tagIndex !== -1) {
                             const { startIndex, endIndex } = target;
                             if (startIndex !== null && endIndex !== null) {
-                                this.source = source.substring(0, startIndex) + replaceHTML + source.substring(endIndex + 1);
+                                this.spliceRawString(startIndex, endIndex + 1, replaceHTML);
                                 this.update({ tagName: target.tagName, tagIndex, tagCount: nodes.length }, replaceHTML);
                             }
                         }
@@ -240,26 +293,6 @@ export class DomWriter implements IDomWriter {
                 this.errors.push(err);
             }
         }, { withStartIndices: true, withEndIndices: true })).end(this.source);
-        return result;
-    }
-    setRawString(segmentHTML: string, replaceHTML: string) {
-        const current = this.source;
-        this.source = current.replace(segmentHTML, replaceHTML);
-        return current !== this.source;
-    }
-    getRawString(startIndex: number, endIndex: number) {
-        return this.source.substring(startIndex, endIndex);
-    }
-    getDocumentElement(source: string): Null<domhandler.Node> {
-        let result: Null<domhandler.Node> = null;
-        new Parser(new DomHandler((err, dom) => {
-            if (!err) {
-                result = domutils.findOne(elem => elem.tagName === 'html', dom);
-            }
-            else {
-                this.errors.push(err);
-            }
-        }, { withStartIndices: true, withEndIndices: true })).end(source);
         return result;
     }
     hasErrors() {
@@ -358,7 +391,7 @@ export class HtmlElement implements IHtmlElement {
             this._modified = Object.keys(attributes).length > 0;
         }
         const [tagStart, innerHTML] = HtmlElement.splitOuterHTML(index.tagName, index.outerHTML);
-        const hasValue = (name: string) => /^[a-z][a-z\d-:.]*$/.test(name) && !attrs.has(name);
+        const hasValue = (name: string) => /^[a-z][a-z\d_\-:.]*$/.test(name) && !attrs.has(name);
         let pattern = /([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]*))/g,
             source = tagStart,
             match: Null<RegExpExecArray>;
@@ -369,16 +402,11 @@ export class HtmlElement implements IHtmlElement {
             }
             source = source.replace(match[0], '');
         }
-        pattern = /(<|\s+)([^\s="'/>]+)/g;
+        pattern = /[^<]\s*([\w-:.]+)/g;
         while (match = pattern.exec(source)) {
-            if (match[1][0] === '<') {
-                continue;
-            }
-            else {
-                const attr = match[2].toLowerCase();
-                if (hasValue(attr)) {
-                    attrs.set(attr, null);
-                }
+            const attr = match[1].toLowerCase();
+            if (hasValue(attr)) {
+                attrs.set(attr, null);
             }
         }
         this._innerHTML = innerHTML;
@@ -405,21 +433,21 @@ export class HtmlElement implements IHtmlElement {
     hasAttribute(name: string) {
         return this._attributes.has(name = name.toLowerCase());
     }
-    write(source: string, remove?: boolean): [string, string, Error?] {
-        let error: Undef<Error>;
+    write(source: string, remove?: boolean): [string, string, Null<Error>?] {
+        let error: Null<Error> = null;
         if (this._modified || remove) {
-            const position = this.index;
+            const element = this.index;
             const replaceHTML = !remove ? this.outerHTML : '';
             const spliceSource = (index: [number, number, string]) => {
                 const [startIndex, endIndex, trailing] = index;
                 const content = replaceHTML + trailing;
-                position.startIndex = startIndex;
-                position.endIndex = startIndex + content.length - 1;
+                element.startIndex = startIndex;
+                element.endIndex = startIndex + content.length - 1;
                 return source.substring(0, startIndex) + content + source.substring(endIndex);
             };
-            let tagName = position.tagName;
+            let tagName = element.tagName;
             if (tagName === 'HTML') {
-                const startIndex = position.startIndex;
+                const startIndex = element.startIndex;
                 if (startIndex !== undefined && startIndex !== -1) {
                     const opening = HtmlElement.splitOuterHTML('html', source, startIndex)[0];
                     if (opening) {
@@ -431,8 +459,8 @@ export class HtmlElement implements IHtmlElement {
             if (this.lowerCase) {
                 tagName = tagName.toLowerCase();
             }
-            const { tagCount, tagIndex } = position;
-            const id = position.id[this.documentName];
+            const { tagCount, tagIndex } = element;
+            const id = element.id[this.documentName];
             let flags = 'g';
             if (!this.lowerCase) {
                 flags += 'i';
@@ -465,8 +493,8 @@ export class HtmlElement implements IHtmlElement {
                 }
                 ++openCount;
             }
-            let index: Undef<[number, number, string]>;
-            if (openCount) {
+            let sourceIndex: Undef<[number, number, string]>;
+            if (openCount && !selfClosed) {
                 found: {
                     const closeTag: number[] = [];
                     tag = new RegExp(`</${escapeRegexp(tagName)}>`, flags);
@@ -505,53 +533,34 @@ export class HtmlElement implements IHtmlElement {
                                 }
                             }
                             if (valid) {
-                                foundIndex.push([openTag[i], closeTag[j], '']);
-                                if (id && foundIndex.length > 1) {
-                                    for (let k = 1; k < foundIndex.length; ++k) {
-                                        if (source.substring(foundIndex[k - 1][0], foundIndex[k][0]).includes(id)) {
-                                            index = foundIndex[k - 1];
-                                            break found;
-                                        }
+                                const length = foundIndex.push([openTag[i], closeTag[j], '']);
+                                if (id && length > 1) {
+                                    const index = foundIndex[length - 2];
+                                    if (source.substring(index[0], openTag[i]).includes(id)) {
+                                        sourceIndex = index;
+                                        break found;
                                     }
                                 }
                             }
                         }
                     }
                     if (foundIndex.length === tagCount) {
-                        index = foundIndex[tagIndex];
+                        sourceIndex = foundIndex[tagIndex];
                     }
                 }
             }
-            if (!index) {
-                new Parser(new DomHandler((err, dom) => {
-                    if (!err) {
-                        const documentId = `data-${this.documentName}-id`;
-                        const target = domutils.findOne(elem => elem.attribs[documentId] === id, dom);
-                        let startIndex: Null<number> = null,
-                            endIndex: Null<number> = null;
-                        if (target) {
-                            ({ startIndex, endIndex } = target);
-                        }
-                        else {
-                            tagName = tagName.toLowerCase();
-                            const nodes = domutils.findAll(elem => elem.tagName === tagName, dom);
-                            if (nodes.length === tagCount) {
-                                ({ startIndex, endIndex } = nodes[tagIndex]);
-                            }
-                        }
-                        if (startIndex !== null && endIndex !== null) {
-                            index = [startIndex, endIndex + 1, ''];
-                        }
-                    }
-                    else {
-                        error = err;
-                    }
-                }, { withStartIndices: true, withEndIndices: true })).end(source);
+            if (!sourceIndex) {
+                let target: Null<domhandler.Node>;
+                [target, error] = DomWriter.findElement(source, element, this.documentName);
+                if (target) {
+                    const { startIndex, endIndex } = target;
+                    sourceIndex = [startIndex!, endIndex! + 1, ''];
+                }
             }
-            if (index) {
+            if (sourceIndex) {
                 let leading = '',
                     trailing = '',
-                    i = index[1];
+                    i = sourceIndex[1];
                 newline: {
                     let found: Undef<boolean>;
                     while (isSpace(source[i])) {
@@ -571,15 +580,15 @@ export class HtmlElement implements IHtmlElement {
                     }
                 }
                 if (remove) {
-                    i = index[0] - 1;
+                    i = sourceIndex[0] - 1;
                     while (isSpace(source[i])) {
                         leading = source[i--] + leading;
                     }
-                    index[0] -= leading.length;
-                    index[1] += trailing.length;
-                    index[2] = DomWriter.getNewlineString(leading, trailing);
+                    sourceIndex[0] -= leading.length;
+                    sourceIndex[1] += trailing.length;
+                    sourceIndex[2] = DomWriter.getNewlineString(leading, trailing);
                 }
-                return [spliceSource(index), replaceHTML];
+                return [spliceSource(sourceIndex), replaceHTML];
             }
         }
         return ['', '', error];

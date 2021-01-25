@@ -469,8 +469,6 @@ There are possible scenarios when a transformation may cause an asset type to ch
 <link id="sass-example" rel="alternate" type="text/plain" href="css/dev.sass"> <!-- Better to not use " />" self closing tag -->
 ```
 
-NOTE: Using element "id" can fix replacement errors when multiple elements share the same identical structure and content.
-
 ```javascript
 {
   "selector": "#sass-example",
