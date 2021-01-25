@@ -1,6 +1,6 @@
 ## squared-functions 0.12
 
-These are the available options when creating archives or copying files. Examples use squared 2.3 although the concepts can be used similarly with any NodeJS application.
+These are the available options when creating archives or copying files. Examples use squared 2.3 although the concepts can be used similarly with any NodeJS application and has no features that require using Express.
 
 ### Image
 
@@ -168,7 +168,9 @@ gulp.task('minify', () => {
 
 Renaming files with Gulp is not recommended. It is better to use the "saveAs" or "filename" attributes when the asset is part of the HTML page.
 
-### CHROME: Saving web page assets
+### Document: CHROME
+
+NOTE: As of squared 2.4 the current state of the DOM is sent to the server including any updates you may have made with JavaScript.
 
 Bundling options are available with these HTML tag names.
 
@@ -188,7 +190,7 @@ Files with the same path and filename will automatically create a bundle assumin
 }
 ```
 
-JS and CSS files can be bundled together with the "saveAs" or "exportAs" action. Multiple transformations per asset can be chained using the "+" symbol. Whitespace can be used between anything for readability.
+JS and CSS files can be bundled together with the "saveAs" or "exportAs" action. Multiple transformations per bundle can be chained using the "+" symbol.
 
 ```javascript
 
@@ -216,11 +218,9 @@ These are the available option modifiers:
     - br: Brotli
 ```
 
-NOTE: Placing the "chrome" dataset commands at the end is recommended especially if you are using the ">" character in your attributes. When possible use the "&amp;gt;" entity instead.
+NOTE: Whitespace can be used between anything for readability.
 
 ```xml
-<!-- Required: Lowercase tag names and attributes with no extra spaces -->
-
 <link rel="stylesheet" href="css/dev.css" data-chrome-file="saveAs:css/prod.css::beautify" data-chrome-options="preserve|inline">
 <style data-chrome-file="exportAs:css/prod.css::minify+beautify" data-chrome-options="compress[gz]">
     body {
@@ -281,9 +281,9 @@ You can also define your own optimizations in squared.settings.json:
 * [npm i html-minifier-terser](https://github.com/DanielRuf/html-minifier-terser)
 * [npm i html-minifier](https://github.com/kangax/html-minifier)
 
-These particular plugins can be configured using a plain object literal. Manual installation is required when using any of these packages [<b>npm run install-chrome</b>]. Transpiling with Babel is also configurable with a .babelrc file in the base folder for any presets and additional settings. Other non-builtin minifiers can similarly be applied and chained by defining a custom string-based synchronous function.
+These particular plugins can be configured using a plain object literal. Manual installation is required when using any of these packages [<b>npm run install-chrome</b>]. Transpiling with Babel is also configurable with a .babelrc file in the base folder for any presets and additional settings. Other non-builtin minifiers can similarly be applied and chained by defining a custom string-based function.
 
-Custom plugins can also be installed from NPM. The asynchronous function has to be named "transform" for validation purposes. The only difference is the context object is set to the Document module. Examples can be found in the "chrome/packages" folder.
+Custom plugins can also be installed from NPM. The function has to be named "transform" for validation purposes and can be asynchronous. The only difference is the context object is set to the Document module. Examples can be found in the "chrome/packages" folder.
 
 * Function object
 * file relative to serve.js
@@ -414,45 +414,6 @@ Here is the equivalent configuration in YAML and when available has higher prece
 - [squared.settings.json](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.json)
 - [squared.settings.yml](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.yml)
 
-### Modifying content attributes
-
-There are possible scenarios when a transformation may cause an asset type to change into another format. Similar to JSON it is better to use double quotes (or &amp;quot;) and do not use unnecessary spaces around the opening and closing tags. It is also recommended to lowercase every element tag name and attribute since the browser does this anyway when they interpret your HTML document.
-
-Tags that are not well-formed may fail to be replaced.
-
-```xml
-<!-- before -->
-<link id="sass-example" rel="alternate" type="text/plain" href="css/dev.sass"> <!-- Better to not use " />" self closing tag -->
-```
-
-NOTE: Using element "id" can fix replacement errors when multiple elements share the same identical structure and content.
-
-```javascript
-{
-  "selector": "#sass-example",
-  "type": "css",
-  "filename": "prod.css",
-  "attributes": {
-      "id": undefined,
-      "rel": "stylesheet",
-      "type": "text/css",
-      "title": "",
-      "disabled": null
-    }
-  ],
-  "process": [
-    "node-sass"
-  ]
-}
-```
-
-```xml
-<!-- after -->
-<link rel="stylesheet" type="text/css" title="" disabled href="css/prod.css">
-```
-
-You can also use the workspace feature in [squared-express](https://github.com/anpham6/squared-express#readme) to precompile text assets during development.
-
 ### External configuration
 
 JSON (json/js) configuration is optional and is provided for those who prefer to separate the bundling and transformations from the HTML. Any assets inside the configuration file will override any settings either inline or from JavaScript. You can also use the equivalent in YAML (yml/yaml) for configuring as well.
@@ -498,6 +459,47 @@ squared.saveAs('bundle.zip', { configUri: 'http://localhost:3000/chrome/bundle.y
 Here is the equivalent page using only inline commands with "data-chrome-file" and "data-chrome-tasks".
 
 - [bundle_inline.html](https://github.com/anpham6/squared/blob/master/html/chrome/bundle_inline.html)
+
+### Modifying content attributes
+
+There are possible scenarios when a transformation may cause an asset type to change into another format.
+
+```xml
+<!-- before -->
+<link id="sass-example" rel="alternate" type="text/plain" href="css/dev.sass"> <!-- Better to not use " />" self closing tag -->
+```
+
+NOTE: Using element "id" can fix replacement errors when multiple elements share the same identical structure and content.
+
+```javascript
+{
+  "selector": "#sass-example",
+  "type": "css",
+  "filename": "prod.css",
+  "attributes": {
+      "id": undefined,
+      "rel": "stylesheet",
+      "type": "text/css",
+      "title": "",
+      "disabled": null
+    }
+  ],
+  "process": [
+    "node-sass"
+  ]
+}
+```
+
+Similar to JSON it is better to use double quotes (or &amp;quot;) and do not use unnecessary spaces around the opening and closing tags. It is also recommended to lower case every element tag name and attribute since the browser does this anyway when they interpret your HTML document. Inline commands are not supported.
+
+Tags that are not well-formed may fail to be replaced.
+
+```xml
+<!-- after -->
+<link rel="stylesheet" type="text/css" title="" disabled href="css/prod.css">
+```
+
+You can also use the workspace feature in [squared-express](https://github.com/anpham6/squared-express#readme) to precompile text assets and using that to build the production release in one routine.
 
 ### Cloud storage
 
@@ -922,7 +924,7 @@ squared.copyTo('/local/user/www', {
 
 ```xml
 <!-- chrome -->
-<script src="/common/system.js" data-chrome-watch="true"></script>
+<script src="/common/util.js" data-chrome-watch="true"></script>
 
 <!-- android -->
 <img src="images/harbour1.jpg" data-android-watch="1000::1h 30m">

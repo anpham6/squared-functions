@@ -21,7 +21,7 @@ export interface IDomWriter {
     decrement(index: ElementIndex): ElementIndex[];
     renameTag(index: ElementIndex, tagName: string): boolean;
     insertTag(tagName: string, revised?: ElementIndex[]): boolean;
-    findTagIndex(element: Element, dom: Node[], replaceHTML?: string): number;
+    replaceAll(predicate: (elem: Element) => boolean, callback: (elem: Element, source: string) => Undef<string>): number;
     setRawString(segmentHTML: string, replaceHTML: string): boolean;
     getRawString(startIndex: number, endIndex: number): string;
     getDocumentElement(source: string): Null<Node>;
@@ -30,7 +30,6 @@ export interface IDomWriter {
 
 export interface DomWriterConstructor {
     normalize(source: string): string;
-    minifySpace(value: string): string;
     getNewlineString(leading: string, trailing: string): string;
     new(source: string, elements: ElementIndex[], normalize?: boolean): IDomWriter;
 }

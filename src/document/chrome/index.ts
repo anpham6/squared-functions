@@ -9,21 +9,16 @@ import type { RequestBody } from '../../types/lib/node';
 import type { CloudIScopeOrigin } from '../../cloud';
 import type { DocumentAsset, IChromeDocument } from './document';
 
+import type * as domhandler from 'domhandler';
+
 import path = require('path');
 import fs = require('fs-extra');
 import escapeRegexp = require('escape-string-regexp');
 import uuid = require('uuid');
 
-import htmlparser2 = require('htmlparser2');
-import domhandler = require('domhandler');
-import domutils = require('domutils');
-
 import Document from '../../document';
 import Cloud from '../../cloud';
 import { DomWriter, HtmlElement } from '../parse';
-
-const Parser = htmlparser2.Parser;
-const DomHandler = domhandler.DomHandler;
 
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
 
@@ -515,31 +510,20 @@ class ChromeDocument extends Document implements IChromeDocument {
                             value = uuid.v4();
                             item.inlineCloud = value;
                         }
-                        let modified: Undef<boolean>;
-                        new Parser(new DomHandler((err, dom) => {
-                            if (!err) {
-                                const related = domutils.findAll(elem => {
-                                    if (elem.tagName === 'style') {
-                                        return !!elem.children.find((child: domhandler.DataNode) => child.type === 'text' && child.nodeValue.includes(base64));
-                                    }
-                                    else if (elem.attribs.style?.includes(base64)) {
-                                        return true;
-                                    }
-                                    return false;
-                                }, dom);
-                                for (const target of related.reverse()) {
-                                    const { startIndex, endIndex } = target;
-                                    const replaceHTML = replaceUrl(domBase.source.substring(startIndex!, endIndex! + 1), base64, value, true);
-                                    if (replaceHTML && domBase.findTagIndex(target, dom, replaceHTML) !== -1) {
-                                        modified = true;
-                                    }
-                                }
+                        const findAll = (elem: domhandler.Element) => {
+                            if (elem.tagName === 'style') {
+                                return !!elem.children.find((child: domhandler.DataNode) => child.type === 'text' && child.nodeValue.includes(base64));
                             }
-                            else {
-                                this.writeFail(['Unable to parse DOM', 'htmlparser2'], err);
+                            else if (elem.attribs.style?.includes(base64)) {
+                                return true;
                             }
-                        }, { withStartIndices: true, withEndIndices: true })).end(domBase.source);
-                        if (!modified) {
+                            return false;
+                        };
+                        const modifyTag = (elem: domhandler.Element, source: string) => {
+                            const { startIndex, endIndex } = elem;
+                            return replaceUrl(source.substring(startIndex!, endIndex! + 1), base64, value, true);
+                        };
+                        if (!domBase.replaceAll(findAll, modifyTag)) {
                             delete item.inlineCloud;
                         }
                     }

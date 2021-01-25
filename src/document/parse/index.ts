@@ -40,25 +40,21 @@ export class DomWriter implements IDomWriter {
         return source;
     }
 
-    public static minifySpace(value: string) {
-        return value.replace(/[\s]+/g, '');
-    }
-
     public static getNewlineString(leading: string, trailing: string) {
         return leading.includes('\n') || /(?:\r?\n){2,}$/.test(trailing) ? (leading + trailing).includes('\r') ? '\r\n' : '\n' : '';
     }
 
     public source: string;
-    public errors: Error[] = [];
-    public failCount = 0;
     public modifyCount = 0;
+    public failCount = 0;
+    public errors: Error[] = [];
     public documentElement: Null<ElementIndex> = null;
 
     constructor(source: string, public elements: ElementIndex[], normalize?: boolean) {
         const items = elements.filter(item => item.tagName === 'HTML');
         const html = this.getDocumentElement(source);
-        let documentElement: Undef<ElementIndex>,
-            startIndex = -1;
+        let startIndex = -1,
+            documentElement: Undef<ElementIndex>;
         if (html) {
             startIndex = html.startIndex!;
             const [opening, closing] = HtmlElement.splitOuterHTML(source, startIndex);
@@ -97,7 +93,7 @@ export class DomWriter implements IDomWriter {
             ({ remove, rename } = options);
         }
         if (this.documentElement) {
-            element.lowercase = true;
+            element.lowerCase = true;
         }
         const [output, replaceHTML, error] = element.write(this.source, remove);
         if (output) {
@@ -323,8 +319,7 @@ export class DomWriter implements IDomWriter {
                                 const { startIndex, endIndex } = nodes[i];
                                 for (let j = 0; j < elements.length; ++j) {
                                     const item = elements[j];
-                                    const sourceHTML = this.source.substring(startIndex!, endIndex! + 1);
-                                    if (sourceHTML === item.outerHTML) {
+                                    if (this.source.substring(startIndex!, endIndex! + 1) === item.outerHTML) {
                                         item.tagIndex = i;
                                         item.tagCount = tagCount.size;
                                         foundIndex.add(i);
@@ -350,28 +345,42 @@ export class DomWriter implements IDomWriter {
         }
         return result;
     }
-    findTagIndex(element: domhandler.Element, dom: domhandler.Node[], replaceHTML?: string) {
-        const nodes = domutils.findAll(elem => elem.tagName === element.tagName, dom);
-        const tagIndex = nodes.findIndex(elem => elem === element);
-        if (replaceHTML && tagIndex !== -1) {
-            const { startIndex, endIndex } = element;
-            if (startIndex !== null && endIndex !== null) {
-                const source = this.source;
-                this.source = source.substring(0, startIndex) + replaceHTML + source.substring(endIndex + 1);
-                this.rebuild({
-                        tagName: element.tagName.toUpperCase(),
-                        tagIndex,
-                        tagCount: -1,
-                        outerHTML: source.substring(startIndex, endIndex + 1),
-                        outerIndex: 0,
-                        outerCount: 1
-                    },
-                    replaceHTML,
-                    { nodes, sourceIndex: startIndex }
-                );
+    replaceAll(predicate: (elem: domhandler.Element) => boolean, callback: (elem: domhandler.Element, source: string) => Undef<string>) {
+        let result = 0;
+        new Parser(new DomHandler((err, dom) => {
+            if (!err) {
+                for (const target of domutils.findAll(predicate, dom).reverse()) {
+                    const source = this.source;
+                    const replaceHTML = callback(target, source);
+                    if (replaceHTML) {
+                        const nodes = domutils.findAll(elem => elem.tagName === target.tagName, dom);
+                        const tagIndex = nodes.findIndex(elem => elem === target);
+                        if (tagIndex !== -1) {
+                            const { startIndex, endIndex } = target;
+                            if (startIndex !== null && endIndex !== null) {
+                                this.source = source.substring(0, startIndex) + replaceHTML + source.substring(endIndex + 1);
+                                this.rebuild({
+                                        tagName: target.tagName.toUpperCase(),
+                                        tagIndex,
+                                        tagCount: -1,
+                                        outerHTML: source.substring(startIndex, endIndex + 1),
+                                        outerIndex: 0,
+                                        outerCount: 1
+                                    },
+                                    replaceHTML,
+                                    { nodes, sourceIndex: startIndex }
+                                );
+                            }
+                        }
+                        ++result;
+                    }
+                }
             }
-        }
-        return tagIndex;
+            else {
+                this.errors.push(err);
+            }
+        }, { withStartIndices: true, withEndIndices: true })).end(this.source);
+        return result;
     }
     setRawString(segmentHTML: string, replaceHTML: string) {
         const current = this.source;
@@ -468,7 +477,7 @@ export class HtmlElement implements IHtmlElement {
         return [outerHTML, '', ''];
     }
 
-    public lowercase = false;
+    public lowerCase = false;
 
     private _modified = false;
     private _tagName = '';
@@ -512,9 +521,12 @@ export class HtmlElement implements IHtmlElement {
         this._tagEnd = tagEnd;
         this._innerHTML = innerHTML;
     }
+
     setAttribute(name: string, value: string) {
-        this._attributes.set(name.toLowerCase(), value);
-        this._modified = true;
+        if (this._attributes.get(name = name.toLowerCase()) !== value) {
+            this._attributes.set(name, value);
+            this._modified = true;
+        }
     }
     getAttribute(name: string) {
         return this._attributes.get(name.toLowerCase());
@@ -574,7 +586,7 @@ export class HtmlElement implements IHtmlElement {
             let index: Undef<[number, number, string]>;
             if (this._tagStart && this._tagEnd) {
                 let flags = 'g';
-                if (this.lowercase) {
+                if (this.lowerCase) {
                     tagName = tagName.toLowerCase();
                 }
                 else {
