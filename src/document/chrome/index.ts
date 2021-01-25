@@ -20,7 +20,7 @@ import domutils = require('domutils');
 
 import Document from '../../document';
 import Cloud from '../../cloud';
-import { DomWriter, HtmlElement } from '../dom';
+import { DomWriter, HtmlElement } from '../parse';
 
 const Parser = htmlparser2.Parser;
 const DomHandler = domhandler.DomHandler;

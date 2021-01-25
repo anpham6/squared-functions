@@ -10,21 +10,13 @@ export default [
         }
     },
     {
-        input: './build/document/dom.js',
+        input: './build/document/parse/index.js',
         treeshake: false,
         output: {
-            file: './publish/document/dom.js',
+            file: './publish/document/parse/index.js',
             format: 'cjs',
-            strict: false
-        }
-    },
-    {
-        input: './build/document/util.js',
-        treeshake: false,
-        output: {
-            file: './publish/document/util.js',
-            format: 'cjs',
-            strict: false
+            strict: false,
+            banner: `/* @squared-functions/document/parse ${require('./publish/document/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
         }
     },
     {
@@ -35,6 +27,15 @@ export default [
             format: 'cjs',
             strict: false,
             banner: `/* @squared-functions/document/chrome ${require('./publish/document/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
+        }
+    },
+    {
+        input: './build/document/util.js',
+        treeshake: false,
+        output: {
+            file: './publish/document/util.js',
+            format: 'cjs',
+            strict: false
         }
     },
     {

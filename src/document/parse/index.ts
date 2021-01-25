@@ -1,4 +1,6 @@
-import type { ElementIndex } from '../types/lib/squared';
+import type { ElementIndex } from '../../types/lib/squared';
+
+import type { IDomWriter, IHtmlElement, RebuildOptions, WriteOptions } from './document';
 
 import escapeRegexp = require('escape-string-regexp');
 
@@ -14,12 +16,7 @@ function isSpace(ch: string) {
     return n === 32 || n < 14 && n > 8;
 }
 
-interface WriteOptions {
-    remove?: boolean;
-    rename?: boolean;
-}
-
-export class DomWriter {
+export class DomWriter implements IDomWriter {
     public static minifySpace(value: string) {
         return value.replace(/[\s/]+/g, '');
     }
@@ -81,7 +78,7 @@ export class DomWriter {
         ++this.failCount;
         return false;
     }
-    rebuild(index: ElementIndex, replaceHTML: string, data?: true | { nodes: domhandler.Element[]; sourceIndex: number }) {
+    rebuild(index: ElementIndex, replaceHTML: string, options?: RebuildOptions | true) {
         const { tagName, tagIndex, outerHTML, outerIndex, outerCount } = index;
         if (tagName === 'HTML') {
             return;
@@ -105,13 +102,13 @@ export class DomWriter {
             item.startIndex = -1;
             item.endIndex = -1;
         }
-        if (data) {
-            if (data !== true) {
+        if (options) {
+            if (options !== true) {
                 const previous = elements.filter(item => item.outerHTML === outerHTML);
                 if (previous.length) {
-                    const { nodes, sourceIndex } = data;
+                    const { nodes, sourceIndex } = options;
                     const matched: number[] = [];
-                    const length = data.nodes.length;
+                    const length = options.nodes.length;
                     let failed: Undef<boolean>;
                     if (length === previous[0].tagCount) {
                         for (let i = 0; i < length; ++i) {
@@ -215,7 +212,7 @@ export class DomWriter {
             if (item.tagName === tag) {
                 if (item.tagIndex === tagIndex) {
                     item.tagIndex = -1;
-                    item.tagCount = -1;
+                    item.tagCount = 0;
                     item.outerCount = 1;
                     item.outerIndex = 0;
                     result.push(item);
@@ -343,7 +340,7 @@ export class DomWriter {
     }
 }
 
-export class HtmlElement {
+export class HtmlElement implements IHtmlElement {
     public static hasContent(tagName: string) {
         switch (tagName.toLowerCase()) {
             case 'area':

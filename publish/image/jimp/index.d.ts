@@ -1,5 +1,7 @@
 import type { JimpImageConstructor } from './image';
 
-declare const JimpImage: JimpImageConstructor;
+import type * as jimp from 'jimp';
+
+declare const JimpImage: JimpImageConstructor<jimp>;
 
 export = JimpImage;

@@ -42,7 +42,7 @@ function performCommand(localUri: string | Buffer, command: string, outputType: 
 
 const getBuffer = (data: FileData) => (data.file.buffer as unknown) as string || data.file.localUri!;
 
-class Jimp extends Image implements IJimpImageHandler {
+class Jimp extends Image implements IJimpImageHandler<jimp> {
     public static MIME_INPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, jimp.MIME_GIF, jimp.MIME_TIFF, 'image/webp']);
     public static MIME_OUTPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, 'image/webp']);
 
