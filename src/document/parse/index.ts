@@ -3,6 +3,7 @@ import type { ElementIndex, TagIndex } from '../../types/lib/squared';
 import type { IDomWriter, IHtmlElement, ParserResult, WriteOptions } from './document';
 
 import escapeRegexp = require('escape-string-regexp');
+import uuid = require('uuid');
 
 import htmlparser2 = require('htmlparser2');
 import domhandler = require('domhandler');
@@ -16,6 +17,14 @@ const SELF_CLOSING = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input'
 function isSpace(ch: string) {
     const n = ch.charCodeAt(0);
     return n === 32 || n < 14 && n > 8;
+}
+
+function applyAttributes(attrs: Map<string, Optional<string>>, data: Undef<StandardMap>) {
+    if (data) {
+        for (const key in data) {
+            attrs.set(key.toLowerCase(), data[key]);
+        }
+    }
 }
 
 export class DomWriter implements IDomWriter {
@@ -90,18 +99,32 @@ export class DomWriter implements IDomWriter {
     public failCount = 0;
     public errors: Error[] = [];
     public documentElement: Null<ElementIndex> = null;
+    public newline = '\n';
 
     constructor(public documentName: string, source: string, public elements: ElementIndex[], normalize = true) {
         const items: ElementIndex[] = [];
-        for (const item of this.elements) {
+        const appending: Required<ElementIndex>[] = [];
+        for (let i = 0; i < elements.length; ++i) {
+            const item = elements[i];
             item.tagName = item.tagName.toLowerCase();
             if (item.tagName === 'html') {
                 items.push(item);
             }
+            else if (item.appendOrder !== undefined && item.domIndex > 0 && item.tagName) {
+                if (item.appendName) {
+                    item.appendName = item.appendName.toLowerCase();
+                }
+                appending.push(item as Required<ElementIndex>);
+            }
+            else if (item.tagIndex < 0 || item.tagCount < 1 || item.domIndex < 0) {
+                elements.slice(i--, 1);
+            }
         }
         const documentElement = items.find(item => item.innerHTML);
         const html = /<\s*html[\s|>]/i.exec(source);
-        const newline = source.includes('\r\n') ? '\r\n' : '\n';
+        if (source.includes('\r\n')) {
+            this.newline = '\r\n';
+        }
         let outerHTML = '',
             startIndex = -1;
         if (html) {
@@ -112,12 +135,12 @@ export class DomWriter implements IDomWriter {
             }
         }
         if (documentElement) {
-            const leading = startIndex === -1 ? '<!DOCTYPE html>' + newline + '<html>' : source.substring(0, startIndex + outerHTML.length);
+            const leading = startIndex === -1 ? '<!DOCTYPE html>' + this.newline + '<html>' : source.substring(0, startIndex + outerHTML.length);
             if (startIndex === -1) {
                 outerHTML = '<html>';
                 startIndex = leading.length - outerHTML.length;
             }
-            this.source = leading + newline + documentElement.innerHTML! + newline + '</html>';
+            this.source = leading + this.newline + documentElement.innerHTML! + this.newline + '</html>';
             this.documentElement = documentElement;
         }
         else {
@@ -129,29 +152,68 @@ export class DomWriter implements IDomWriter {
                 item.outerHTML = outerHTML;
             }
         }
+        appending
+            .sort((a, b) => {
+                if (a.domIndex === b.domIndex) {
+                    return b.appendOrder - a.appendOrder;
+                }
+                return b.domIndex - a.domIndex;
+            })
+            .forEach(item => this.append(item));
     }
 
+    append(index: ElementIndex) {
+        const documentName = this.documentName;
+        const htmlElement = new HtmlElement(documentName, index);
+        const id = uuid.v4();
+        htmlElement.setAttribute(`data-${documentName}-id`, id);
+        if (this.write(htmlElement, { append: index })) {
+            (index.id ||= {})[documentName] = id;
+            delete index.appendName;
+            delete index.appendOrder;
+            return htmlElement;
+        }
+        this.errors.push(new Error(`Unable to append ${(index.appendName || index.tagName).toUpperCase()} element at DOM index ${index.domIndex}`));
+        return null;
+    }
     write(element: HtmlElement, options?: WriteOptions) {
         let remove: Undef<boolean>,
-            rename: Undef<boolean>;
+            rename: Undef<boolean>,
+            append: Undef<ElementIndex>;
         if (options) {
-            ({ remove, rename } = options);
+            ({ remove, rename, append } = options);
+        }
+        if (!remove && !append && !element.modified) {
+            return true;
         }
         if (this.documentElement) {
             element.lowerCase = true;
         }
-        const [output, replaceHTML, error] = element.write(this.source, remove);
+        const [output, replaceHTML, error] = element.write(this.source, options);
         if (output) {
             this.source = output;
             ++this.modifyCount;
-            const position = element.index;
-            if (remove) {
-                return this.decrement(position, remove).length > 0;
+            const index = element.index;
+            if (append) {
+                this.elements.push(index);
+                ++index.domIndex;
+                if (index.appendName && index.appendName !== index.tagName) {
+                    index.tagName = index.appendName;
+                    index.tagIndex = -1;
+                    this.increment(index);
+                    this.indexTag(index.tagName);
+                }
+                else {
+                    this.increment(index);
+                }
             }
-            else if (rename && element.tagName !== position.tagName) {
-                this.renameTag(position, position.tagName);
+            else if (remove) {
+                return this.decrement(index, remove).length > 0;
             }
-            this.update(position, replaceHTML);
+            else if (rename && element.tagName !== index.tagName) {
+                this.renameTag(index, index.tagName);
+            }
+            this.update(index, replaceHTML);
             return true;
         }
         if (error) {
@@ -174,10 +236,12 @@ export class DomWriter implements IDomWriter {
         const { tagName, tagIndex, tagCount } = index;
         for (const item of this.elements) {
             if (item.tagName === tagName) {
-                if (item.tagIndex === tagIndex && item.tagCount === tagCount) {
-                    item.startIndex = -1;
-                    item.endIndex = -1;
-                    item.outerHTML = replaceHTML;
+                if (item.tagCount === tagCount) {
+                    if (item.tagIndex === tagIndex) {
+                        item.startIndex = -1;
+                        item.endIndex = -1;
+                        item.outerHTML = replaceHTML;
+                    }
                 }
                 else {
                     return false;
@@ -185,6 +249,27 @@ export class DomWriter implements IDomWriter {
             }
         }
         return true;
+    }
+    increment(index: ElementIndex) {
+        const { domIndex, tagName, tagIndex } = index;
+        for (const item of this.elements) {
+            if (item === index) {
+                if (tagIndex !== -1) {
+                    ++item.tagIndex;
+                    ++item.tagCount;
+                }
+                continue;
+            }
+            if (tagIndex !== -1 && item.tagName === tagName) {
+                if (item.tagIndex > tagIndex) {
+                    ++item.tagIndex;
+                }
+                ++item.tagCount;
+            }
+            if (item.domIndex >= domIndex) {
+                ++item.domIndex;
+            }
+        }
     }
     decrement(index: ElementIndex, remove?: boolean) {
         const { domIndex, tagName, tagIndex } = index;
@@ -392,12 +477,9 @@ export class HtmlElement implements IHtmlElement {
 
     constructor(public documentName: string, public readonly index: ElementIndex, attributes?: StandardMap) {
         const attrs = this._attributes;
-        if (attributes) {
-            for (const key in attributes) {
-                attrs.set(key.toLowerCase(), attributes[key]);
-            }
-            this._modified = Object.keys(attributes).length > 0;
-        }
+        applyAttributes(attrs, index.attributes);
+        applyAttributes(attrs, attributes);
+        this._modified = attrs.size > 0;
         const [tagStart, innerHTML] = HtmlElement.splitOuterHTML(index.tagName, index.outerHTML);
         const hasValue = (name: string) => /^[a-z][a-z\d_\-:.]*$/.test(name) && !attrs.has(name);
         let pattern = /([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]*))/g,
@@ -441,13 +523,31 @@ export class HtmlElement implements IHtmlElement {
     hasAttribute(name: string) {
         return this._attributes.has(name = name.toLowerCase());
     }
-    write(source: string, remove?: boolean): [string, string, Null<Error>?] {
+    write(source: string, options?: WriteOptions): [string, string, Null<Error>?] {
+        let remove: Undef<boolean>,
+            append: Undef<TagIndex>;
+        if (options) {
+            ({ remove, append } = options);
+        }
         let error: Null<Error> = null;
-        if (this._modified || remove) {
+        if (this._modified || remove || append) {
             const element = this.index;
-            const replaceHTML = !remove ? this.outerHTML : '';
+            const replaceHTML = !remove || append ? this.outerHTML : '';
             const spliceSource = (index: [number, number, string]) => {
                 const [startIndex, endIndex, trailing] = index;
+                if (append) {
+                    let leading = '',
+                        newline: Undef<boolean>,
+                        i = startIndex - 1;
+                    while (isSpace(source[i])) {
+                        leading = source[i--] + leading;
+                        if (source[i] === '\n') {
+                            newline = true;
+                            break;
+                        }
+                    }
+                    return source.substring(0, endIndex + 1) + (newline ? leading : '') + replaceHTML + (newline ? '\n' : '') + source.substring(endIndex + 1);
+                }
                 const content = replaceHTML + trailing;
                 element.startIndex = startIndex;
                 element.endIndex = startIndex + content.length - 1;
@@ -598,7 +698,7 @@ export class HtmlElement implements IHtmlElement {
         return ['', '', error];
     }
     save(source: string, remove?: boolean): [string, Null<Error>?] {
-        const [output, replaceHTML, err] = this.write(source, remove);
+        const [output, replaceHTML, err] = this.write(source, { remove });
         if (output) {
             this.index.outerHTML = replaceHTML;
         }
@@ -627,7 +727,8 @@ export class HtmlElement implements IHtmlElement {
         }
     }
     get outerHTML() {
-        const tagName = this.tagName;
+        const appendName = this.index.appendName;
+        const tagName = appendName && appendName.toLowerCase() || this.tagName;
         let outerHTML = '<' + tagName;
         for (const [key, value] of this._attributes) {
             if (value !== undefined) {
@@ -639,6 +740,9 @@ export class HtmlElement implements IHtmlElement {
             outerHTML += this.innerHTML + `</${tagName}>`;
         }
         return outerHTML;
+    }
+    get modified() {
+        return this._modified;
     }
 }
 

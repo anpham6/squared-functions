@@ -289,7 +289,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 const database = cloud?.database.filter(item => this.hasDocument(instance, item.document) && item.element) || [];
                 const domBase = new DomWriter(moduleName, this.getUTF8String(file, localUri), (assets as ElementAction[]).concat(database).filter(item => item.element).map(item => item.element!));
                 const isRemoved = (item: DocumentAsset) => item.exclude || item.bundleIndex !== undefined;
-                const getErrorDOM = (tagName: string, tagIndex: number) => new Error(`${tagName} ${tagIndex}: Unable to parse DOM`);
+                const getErrorDOM = (tagName: string, tagIndex: number) => new Error(`${tagName.toUpperCase()} ${tagIndex}: Unable to parse DOM`);
                 if (database.length) {
                     const cacheKey = uuid.v4();
                     const pattern = /\$\{\s*(\w+)\s*\}/g;

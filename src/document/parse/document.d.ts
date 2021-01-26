@@ -7,6 +7,7 @@ export type ParserResult = [Null<Node>, Null<Error>];
 export interface WriteOptions {
     remove?: boolean;
     rename?: boolean;
+    append?: ElementIndex;
 }
 
 export interface IDomWriter {
@@ -14,6 +15,8 @@ export interface IDomWriter {
     source: string;
     elements: ElementIndex[];
     documentElement: Null<ElementIndex>;
+    readonly newline: string;
+    append(index: ElementIndex): Null<IHtmlElement>;
     write(element: IHtmlElement, options?: WriteOptions): boolean;
     update(index: ElementIndex, replaceHTML: string): void;
     updateByTag(index: TagIndex, replaceHTML: string): boolean;
@@ -40,11 +43,12 @@ export interface IHtmlElement {
     innerHTML: string;
     readonly index: ElementIndex;
     readonly outerHTML: string;
+    readonly modified: boolean;
     setAttribute(name: string, value: string): void;
     getAttribute(name: string): Optional<string>;
     removeAttribute(...names: string[]): void;
     hasAttribute(name: string): boolean;
-    write(source: string, remove?: boolean): [string, string, Null<Error>?];
+    write(source: string, options?: WriteOptions): [string, string, Null<Error>?];
     save(source: string, remove?: boolean): [string, Null<Error>?];
 }
 

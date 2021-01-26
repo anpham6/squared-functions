@@ -59,6 +59,7 @@ export interface ElementIndex extends TagIndex, AttributeAction {
     innerHTML?: string;
     startIndex?: number;
     endIndex?: number;
+    appendName?: string;
     appendOrder?: number;
 }
 

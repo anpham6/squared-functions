@@ -170,8 +170,6 @@ Renaming files with Gulp is not recommended. It is better to use the "saveAs" or
 
 ### Document: CHROME
 
-NOTE: As of squared 2.4 the current state of the DOM is sent to the server including any updates you may have made with JavaScript.
-
 Bundling options are available with these HTML tag names.
 
 * saveAs: html + script + link
@@ -429,7 +427,7 @@ interface OutputModifiers {
 
 interface AssetCommand extends OutputModifiers {
     selector?: string;
-    type?: string;
+    type?: string; // js | css | image | append/js | append/css | database: text | attribute
     saveAs?: string; // type: js | css
     exportAs?: string; // type: js | css
     saveTo?: string; // type: image | video | audio (transforms create multiple files and are given a UUID filename)
@@ -498,6 +496,30 @@ Tags that are not well-formed may fail to be replaced.
 ```
 
 You can also use the workspace feature in [squared-express](https://github.com/anpham6/squared-express#readme) to precompile text assets and using that to build the production release in one routine.
+
+### Appending external JS/CSS
+
+You can append a sibling element (not child) that can be processed similar to a typical "script" or "link" element.
+
+```xml
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+```
+
+```javascript
+// All commands are supported in relation to the base type
+
+{
+  "selector": "head > script:nth-of-type(1)",
+  "type": "append/js", // append/css
+  "attributes": {
+      "src": "https://www.google-analytics.com/analytics.js",
+      "async": null
+    }
+  ]
+}
+```
+
+NOTE: As of squared 2.4 the current state of the DOM is sent to the server including updates you may have made with JavaScript. This is sufficient for regular text insertion such as inline scripts or styles.
 
 ### Cloud storage
 
