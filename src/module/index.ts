@@ -261,16 +261,16 @@ abstract class Module implements IModule {
    }
 
    public static joinPosix(...values: Undef<string>[]) {
-        values = values.filter(value => value && value.trim());
+        values = values.filter(value => value && value.trim().replace(/\\+/g, '/'));
         let result = '';
         for (let i = 0; i < values.length; ++i) {
-            const trailing = values[i]!.replace(/\\+/g, '/');
+            const trailing = values[i]!;
             if (i === 0) {
                 result = trailing;
             }
             else {
                 const leading = values[i - 1];
-                result += (leading && trailing && !leading.endsWith('/') && !trailing.startsWith('/') ? '/' : '') + trailing;
+                result += (leading && trailing && !leading.endsWith('/') && trailing[0] !== '/' ? '/' : '') + trailing;
             }
         }
         return result;

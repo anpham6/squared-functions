@@ -38,6 +38,10 @@ export interface DocumentAction {
     document?: StringOfArray;
 }
 
+export interface AttributeAction {
+    attributes?: AttributeMap;
+}
+
 export interface ElementAction {
     element?: ElementIndex;
 }
@@ -48,13 +52,14 @@ export interface TagIndex {
     tagCount: number;
 }
 
-export interface ElementIndex extends TagIndex {
+export interface ElementIndex extends TagIndex, AttributeAction {
     id: StringMap;
     domIndex: number;
     outerHTML: string;
     innerHTML?: string;
     startIndex?: number;
     endIndex?: number;
+    appendOrder?: number;
 }
 
 export interface LocationUri {
@@ -101,3 +106,5 @@ export interface ResponseError {
     message: string;
     hint?: string;
 }
+
+export type AttributeMap = ObjectMap<Optional<string>>;
