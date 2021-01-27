@@ -711,7 +711,7 @@ class FileManager extends Module implements IFileManager {
                 const copying = downloading[uri];
                 const ready = processing[localUri];
                 if (file.invalid) {
-                    if (copying && copying.length) {
+                    if (copying?.length) {
                         for (const item of copying) {
                             item.invalid = true;
                         }
@@ -724,7 +724,7 @@ class FileManager extends Module implements IFileManager {
                 }
                 else {
                     completed.push(localUri);
-                    if (copying && copying.length) {
+                    if (copying?.length) {
                         const tasks: Promise<void>[] = [];
                         const uriMap = new Map<string, ExternalAsset[]>();
                         for (const item of copying) {

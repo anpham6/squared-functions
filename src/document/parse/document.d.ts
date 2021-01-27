@@ -18,6 +18,7 @@ export interface IDomWriter {
     readonly newline: string;
     append(index: ElementIndex): Null<IHtmlElement>;
     write(element: IHtmlElement, options?: WriteOptions): boolean;
+    close(): string;
     update(index: ElementIndex, replaceHTML: string): void;
     updateByTag(index: TagIndex, replaceHTML: string): boolean;
     decrement(index: ElementIndex): ElementIndex[];
@@ -33,7 +34,7 @@ export interface DomWriterConstructor {
     normalize(source: string): string;
     getDocumentElement(source: string): ParserResult;
     findElement(source: string, index: ElementIndex, documentName?: string): ParserResult;
-    getNewlineString(leading: string, trailing: string): string;
+    getNewlineString(leading: string, trailing: string, newline?: string): string;
     new(documentName: string, source: string, elements: ElementIndex[], normalize?: boolean): IDomWriter;
 }
 
@@ -41,6 +42,7 @@ export interface IHtmlElement {
     documentName: string;
     tagName: string;
     innerHTML: string;
+    newline: string;
     readonly index: ElementIndex;
     readonly outerHTML: string;
     readonly modified: boolean;
@@ -54,6 +56,7 @@ export interface IHtmlElement {
 
 export class HtmlElementConstructor {
     hasInnerHTML(tagName: string): boolean;
+    findCloseTag(source: string, startIndex?: number): number;
     splitOuterHTML(outerHTML: string, startIndex?: number): [string, string, string];
     new(documentName: string, index: ElementIndex, attributes?: StandardMap): IHtmlElement;
 }

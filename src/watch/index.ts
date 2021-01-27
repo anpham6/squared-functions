@@ -118,7 +118,7 @@ class Watch extends Module implements IWatch {
                             continue;
                         }
                         const http = HTTP_MAP[uri];
-                        const previous = http && http.get(dest);
+                        const previous = http?.get(dest);
                         if (previous) {
                             if (expires > previous.data.expires || expires === previous.data.expires && interval < previous.timeout[1]) {
                                 clearInterval(previous.timeout[0]!);
@@ -167,8 +167,7 @@ class Watch extends Module implements IWatch {
                         (HTTP_MAP[uri] ||= new Map()).set(dest, { data, timeout: [timeout, interval] });
                     }
                     else if (permission && (permission.hasUNCRead() && Module.isFileUNC(uri) || permission.hasDiskRead() && path.isAbsolute(uri))) {
-                        const disk = DISK_MAP[uri];
-                        const previous = disk && disk.get(dest);
+                        const previous = DISK_MAP[uri]?.get(dest);
                         if (previous) {
                             if (expires > previous.data.expires && previous.data.expires !== 0) {
                                 clearTimeout(previous.timeout[0]!);

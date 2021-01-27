@@ -148,7 +148,7 @@ export async function deleteObjects(this: IModule, credential: AWSStorageCredent
     const s3 = createStorageClient.call(this, credential, service, sdk);
     try {
         const Contents = (await s3.listObjects({ Bucket }).promise()).Contents;
-        if (Contents && Contents.length) {
+        if (Contents?.length) {
             return s3.deleteObjects({ Bucket, Delete: { Objects: Contents.map(data => ({ Key: data.Key! })) } }).promise()
                 .then(data => {
                     if (data.Deleted) {

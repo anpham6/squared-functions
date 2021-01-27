@@ -19,8 +19,8 @@ export interface IChromeDocument extends IDocument {
     htmlFiles: DocumentAsset[];
     cssFiles: DocumentAsset[];
     baseDirectory: string;
+    baseUrl: string;
     internalServerRoot: string;
-    baseUrl?: string;
     unusedStyles?: string[];
 }
 

@@ -90,8 +90,8 @@ export class DomWriter implements IDomWriter {
         return [result, error];
     }
 
-    public static getNewlineString(leading: string, trailing: string) {
-        return leading.includes('\n') || /(?:\r?\n){2,}$/.test(trailing) ? (leading + trailing).includes('\r') ? '\r\n' : '\n' : '';
+    public static getNewlineString(leading: string, trailing: string, newline?: string) {
+        return leading.includes('\n') || /(?:\r?\n){2,}$/.test(trailing) ? newline ? newline : (leading + trailing).includes('\r') ? '\r\n' : '\n' : '';
     }
 
     public source: string;
@@ -115,9 +115,7 @@ export class DomWriter implements IDomWriter {
                     item.appendName = item.appendName.toLowerCase();
                 }
                 appending.push(item as Required<ElementIndex>);
-            }
-            else if (item.tagIndex < 0 || item.tagCount < 1 || item.domIndex < 0) {
-                elements.slice(i--, 1);
+                elements.splice(i--, 1);
             }
         }
         const documentElement = items.find(item => item.innerHTML);
@@ -128,10 +126,10 @@ export class DomWriter implements IDomWriter {
         let outerHTML = '',
             startIndex = -1;
         if (html) {
-            const opening = HtmlElement.splitOuterHTML('html', source, html.index)[0];
-            if (opening) {
+            const closeIndex = HtmlElement.findCloseTag(source, html.index);
+            if (closeIndex !== -1) {
                 startIndex = html.index;
-                outerHTML = source.substring(startIndex, startIndex + opening.length);
+                outerHTML = source.substring(startIndex, closeIndex + 1);
             }
         }
         if (documentElement) {
@@ -164,6 +162,13 @@ export class DomWriter implements IDomWriter {
 
     append(index: ElementIndex) {
         const documentName = this.documentName;
+        for (const item of this.elements) {
+            if (item.domIndex === index.domIndex) {
+                index.tagIndex = item.tagIndex;
+                index.tagCount = item.tagCount;
+                break;
+            }
+        }
         const htmlElement = new HtmlElement(documentName, index);
         const id = uuid.v4();
         htmlElement.setAttribute(`data-${documentName}-id`, id);
@@ -189,6 +194,7 @@ export class DomWriter implements IDomWriter {
         if (this.documentElement) {
             element.lowerCase = true;
         }
+        element.newline = this.newline;
         const [output, replaceHTML, error] = element.write(this.source, options);
         if (output) {
             this.source = output;
@@ -211,7 +217,7 @@ export class DomWriter implements IDomWriter {
                 return this.decrement(index, remove).length > 0;
             }
             else if (rename && element.tagName !== index.tagName) {
-                this.renameTag(index, index.tagName);
+                this.renameTag(index, element.tagName);
             }
             this.update(index, replaceHTML);
             return true;
@@ -283,9 +289,7 @@ export class DomWriter implements IDomWriter {
                     if (item.tagIndex > tagIndex) {
                         --item.tagIndex;
                     }
-                    if (remove) {
-                        --item.tagCount;
-                    }
+                    --item.tagCount;
                 }
             }
             if (remove && item.domIndex > domIndex) {
@@ -351,6 +355,9 @@ export class DomWriter implements IDomWriter {
             }
         }
     }
+    close() {
+        return this.source = this.source.replace(new RegExp(`\\s+data-${this.documentName}-id="[^"]+"`, 'g'), '');
+    }
     setRawString(segmentHTML: string, replaceHTML: string) {
         const current = this.source;
         this.source = current.replace(segmentHTML, replaceHTML);
@@ -398,27 +405,15 @@ export class HtmlElement implements IHtmlElement {
         return !SELF_CLOSING.includes(tagName);
     }
 
-    public static splitOuterHTML(tagName: string, outerHTML: string, startIndex = -1): [string, string, string] {
-        if (startIndex === -1) {
-            const forward = outerHTML.split('>');
-            const opposing = outerHTML.split('<');
-            if (opposing.length === 1 || forward.length === 1) {
-                return [outerHTML, '', ''];
-            }
-            else if (opposing.length === 2 && forward.length === 2 && /^<[^>]+>[\S\s]*?<\/[^>]+>$/i.test(outerHTML)) {
-                return [forward[0] + '>', forward[1] + opposing[0], '<' + opposing[1]];
-            }
-        }
-        const openIndex = startIndex === -1 ? 0 : startIndex;
-        const length = outerHTML.length;
+    public static findCloseTag(source: string, startIndex = 0) {
+        const length = source.length;
         const start: number[] = [];
-        let opening: Undef<string>;
-        for (let i = openIndex, quote = ''; i < length; ++i) {
-            const ch = outerHTML[i];
+        for (let i = startIndex, quote = ''; i < length; ++i) {
+            const ch = source[i];
             if (ch === '=') {
                 if (!quote) {
-                    while (isSpace(outerHTML[++i])) {}
-                    switch (outerHTML[i]) {
+                    while (isSpace(source[++i])) {}
+                    switch (source[i]) {
                         case '"':
                             quote = '"';
                             start.push(i);
@@ -437,42 +432,49 @@ export class HtmlElement implements IHtmlElement {
                 quote = '';
             }
             else if (ch === '>' && !quote) {
-                opening = outerHTML.substring(openIndex, i + 1);
-                break;
+                return i;
             }
         }
-        if (!opening && start.length) {
-            found: {
-                for (const index of start.reverse()) {
-                    for (let j = index + 1; j < length; ++j) {
-                        if (outerHTML[j] === '>') {
-                            opening = outerHTML.substring(openIndex, j + 1);
-                            break found;
-                        }
+        if (start.length) {
+            for (const index of start.reverse()) {
+                for (let j = index + 1; j < length; ++j) {
+                    if (source[j] === '>') {
+                        return j;
                     }
                 }
             }
         }
-        if (opening) {
-            if (startIndex !== -1) {
-                return [opening, '', ''];
-            }
-            else if (HtmlElement.hasInnerHTML(tagName)) {
-                const q = opening.length;
-                const index = outerHTML.lastIndexOf('<');
-                if (q < index && q < length) {
-                    return [opening, outerHTML.substring(q, index), outerHTML.substring(index)];
+        return -1;
+    }
+
+    public static splitOuterHTML(tagName: string, outerHTML: string): [string, string, string] {
+        const forward = outerHTML.split('>');
+        const opposing = outerHTML.split('<');
+        if (opposing.length === 2 || forward.length === 2) {
+            return [outerHTML, '', ''];
+        }
+        else if (opposing.length === 3 && forward.length === 3 && /^<[^>]+>[\S\s]*?<\/[^>]+>$/i.test(outerHTML)) {
+            return [forward[0] + '>', !forward[2] ? '' : forward[1].substring(0, forward[1].length - opposing[2].length), '<' + opposing[2]];
+        }
+        if (HtmlElement.hasInnerHTML(tagName)) {
+            const closeIndex = this.findCloseTag(outerHTML) + 1;
+            if (closeIndex !== 0) {
+                const lastIndex = outerHTML.lastIndexOf('<');
+                if (closeIndex < lastIndex && closeIndex < outerHTML.length) {
+                    return [outerHTML.substring(0, closeIndex), outerHTML.substring(closeIndex, lastIndex), outerHTML.substring(lastIndex)];
                 }
             }
+            return ['', '', ''];
         }
-        return [startIndex === -1 ? outerHTML : '', '', ''];
+        return [outerHTML, '', ''];
     }
 
     public lowerCase = false;
+    public newline = '\n';
 
     private _modified = false;
     private _tagName = '';
-    private _innerHTML: string;
+    private _innerHTML = '';
     private readonly _attributes = new Map<string, Optional<string>>();
 
     constructor(public documentName: string, public readonly index: ElementIndex, attributes?: StandardMap) {
@@ -480,26 +482,30 @@ export class HtmlElement implements IHtmlElement {
         applyAttributes(attrs, index.attributes);
         applyAttributes(attrs, attributes);
         this._modified = attrs.size > 0;
-        const [tagStart, innerHTML] = HtmlElement.splitOuterHTML(index.tagName, index.outerHTML);
-        const hasValue = (name: string) => /^[a-z][a-z\d_\-:.]*$/.test(name) && !attrs.has(name);
-        let pattern = /([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]*))/g,
-            source = tagStart,
-            match: Null<RegExpExecArray>;
-        while (match = pattern.exec(tagStart)) {
-            const attr = match[1].toLowerCase();
-            if (hasValue(attr)) {
-                attrs.set(attr, match[2] || match[3] || match[4] || '');
+        if (index.outerHTML) {
+            const [tagStart, innerHTML] = HtmlElement.splitOuterHTML(index.tagName, index.outerHTML);
+            if (tagStart) {
+                const hasValue = (name: string) => /^[a-z][a-z\d_\-:.]*$/.test(name) && !attrs.has(name);
+                let pattern = /([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]*))/g,
+                    source = tagStart,
+                    match: Null<RegExpExecArray>;
+                while (match = pattern.exec(tagStart)) {
+                    const attr = match[1].toLowerCase();
+                    if (hasValue(attr)) {
+                        attrs.set(attr, match[2] || match[3] || match[4] || '');
+                    }
+                    source = source.replace(match[0], '');
+                }
+                pattern = /[^<]\s+([\w-:.]+)/g;
+                while (match = pattern.exec(source)) {
+                    const attr = match[1].toLowerCase();
+                    if (hasValue(attr)) {
+                        attrs.set(attr, null);
+                    }
+                }
+                this._innerHTML = innerHTML;
             }
-            source = source.replace(match[0], '');
         }
-        pattern = /[^<]\s+([\w-:.]+)/g;
-        while (match = pattern.exec(source)) {
-            const attr = match[1].toLowerCase();
-            if (hasValue(attr)) {
-                attrs.set(attr, null);
-            }
-        }
-        this._innerHTML = innerHTML;
     }
 
     setAttribute(name: string, value: string) {
@@ -540,72 +546,68 @@ export class HtmlElement implements IHtmlElement {
                         newline: Undef<boolean>,
                         i = startIndex - 1;
                     while (isSpace(source[i])) {
-                        leading = source[i--] + leading;
                         if (source[i] === '\n') {
                             newline = true;
                             break;
                         }
+                        leading = source[i--] + leading;
                     }
-                    return source.substring(0, endIndex + 1) + (newline ? leading : '') + replaceHTML + (newline ? '\n' : '') + source.substring(endIndex + 1);
+                    return source.substring(0, endIndex + 1) + (!newline ? this.newline : '') + leading + replaceHTML + this.newline + source.substring(endIndex + 1);
                 }
                 const content = replaceHTML + trailing;
                 element.startIndex = startIndex;
                 element.endIndex = startIndex + content.length - 1;
                 return source.substring(0, startIndex) + content + source.substring(endIndex);
             };
-            let tagName = element.tagName;
+            const errorResult = (message: string): [string, string, Error] => ['', '', new Error(`${tagName.toUpperCase()} ${tagIndex}: ${message}`)];
+            const tagName = element.tagName;
             if (tagName === 'html') {
                 const startIndex = element.startIndex;
                 if (startIndex !== undefined && startIndex !== -1) {
-                    const opening = HtmlElement.splitOuterHTML('html', source, startIndex)[0];
-                    if (opening) {
-                        return [spliceSource([startIndex, startIndex + opening.length, '']), replaceHTML];
+                    const closeIndex = HtmlElement.findCloseTag(source, startIndex);
+                    if (closeIndex !== -1) {
+                        return [spliceSource([startIndex, closeIndex + 1, '']), replaceHTML];
                     }
                 }
-                return ['', '', new Error('Unable to find HTML element')];
+                return errorResult('Element was not found');
             }
-            if (this.lowerCase) {
-                tagName = tagName.toLowerCase();
+            const id = element.id[this.documentName];
+            if (append && !id) {
+                return errorResult('Element id is missing.');
             }
             const { tagCount, tagIndex } = element;
-            const id = element.id[this.documentName];
-            const hasId = (startIndex: number, endIndex?: number) => source.substring(startIndex, endIndex).includes(id!);
-            const getTagStart = (startIndex: number, endIndex?: number): Null<[string, string]> => {
-                if (hasId(startIndex, endIndex)) {
-                    const tagStart = HtmlElement.splitOuterHTML(tagName, source, startIndex)[0];
-                    if (tagStart) {
-                        return [spliceSource([startIndex, startIndex + tagStart.length, '']), replaceHTML];
-                    }
-                }
-                return null;
-            };
             const foundIndex: [number, number, string][] = [];
             const openTag: number[] = [];
             const selfClosed = !HtmlElement.hasInnerHTML(tagName);
             const selfId = selfClosed && !!id;
+            const hasId = (startIndex: number, endIndex?: number) => !!id && source.substring(startIndex, endIndex).includes(id);
+            const getTagStart = (startIndex: number): Null<[string, string]> => {
+                const closeIndex = HtmlElement.findCloseTag(source, startIndex);
+                return closeIndex !== -1 && hasId(startIndex, closeIndex) ? [spliceSource([startIndex, closeIndex + 1, '']), replaceHTML] : null;
+            };
             let tag = new RegExp(`<${escapeRegexp(tagName)}[\\s|>]`, !this.lowerCase ? 'gi' : 'g'),
                 openCount = 0,
                 result: Null<[string, string]>,
                 match: Null<RegExpExecArray>;
             while (match = tag.exec(source)) {
-                openTag.push(match.index);
-                if (selfId && openCount && (result = getTagStart(openTag[openCount - 1], match.index))) {
+                if (selfId && (openCount === tagIndex || append) && (result = getTagStart(match.index))) {
                     return result;
                 }
-                ++openCount;
+                openCount = openTag.push(match.index);
             }
-            if (selfId && tagIndex === tagCount - 1 && openTag.length === tagCount && (result = getTagStart(openTag[tagCount - 1]))) {
+            if (selfId && (tagIndex === tagCount - 1 && openCount === tagCount || append) && (result = getTagStart(openTag[openCount - 1]))) {
                 return result;
             }
             let sourceIndex: Undef<[number, number, string]>;
             if (openCount && !selfClosed) {
                 found: {
-                    const closeTag: number[] = [];
+                    const closeIndex: number[] = [];
+                    let foundCount = 0;
                     tag = new RegExp(`</${escapeRegexp(tagName)}>`, !this.lowerCase ? 'gi' : 'g');
                     while (match = tag.exec(source)) {
-                        closeTag.push(match.index + match[0].length);
+                        closeIndex.push(match.index + match[0].length);
                     }
-                    const closeCount = closeTag.length;
+                    const closeCount = closeIndex.length;
                     if (closeCount) {
                         for (let i = 0; i < openCount; ++i) {
                             let j = 0,
@@ -619,7 +621,7 @@ export class HtmlElement implements IHtmlElement {
                                     const k = openTag[i];
                                     let start = i + 1;
                                     for ( ; j < closeCount; ++j) {
-                                        const l = closeTag[j];
+                                        const l = closeIndex[j];
                                         if (l > k) {
                                             for (let m = start; m < openCount; ++m) {
                                                 const n = openTag[m];
@@ -637,18 +639,32 @@ export class HtmlElement implements IHtmlElement {
                                 }
                             }
                             if (valid) {
-                                const length = foundIndex.push([openTag[i], closeTag[j], '']);
-                                if (id && length > 1) {
-                                    const index = foundIndex[length - 2];
-                                    if (hasId(index[0], openTag[i])) {
+                                if (id) {
+                                    let index: Undef<[number, number, string]>;
+                                    if (append) {
+                                        if (foundCount) {
+                                            index = foundIndex[foundCount - 1];
+                                        }
+                                    }
+                                    else if (foundCount === tagIndex + 1) {
+                                        index = foundIndex[tagIndex];
+                                    }
+                                    if (index && hasId(index[0], openTag[i])) {
                                         sourceIndex = index;
                                         break found;
                                     }
                                 }
+                                foundCount = foundIndex.push([openTag[i], closeIndex[j], '']);
                             }
                         }
                     }
-                    if (foundIndex.length === tagCount) {
+                    if (append) {
+                        sourceIndex = foundIndex[foundCount - 1];
+                        if (!hasId(sourceIndex[0], sourceIndex[1])) {
+                            return errorResult(`Element ${id!} was removed from the DOM.`);
+                        }
+                    }
+                    else if (foundCount === tagCount) {
                         sourceIndex = foundIndex[tagIndex];
                     }
                 }
@@ -690,7 +706,7 @@ export class HtmlElement implements IHtmlElement {
                     }
                     sourceIndex[0] -= leading.length;
                     sourceIndex[1] += trailing.length;
-                    sourceIndex[2] = DomWriter.getNewlineString(leading, trailing);
+                    sourceIndex[2] = DomWriter.getNewlineString(leading, trailing, this.newline);
                 }
                 return [spliceSource(sourceIndex), replaceHTML];
             }
@@ -727,8 +743,7 @@ export class HtmlElement implements IHtmlElement {
         }
     }
     get outerHTML() {
-        const appendName = this.index.appendName;
-        const tagName = appendName && appendName.toLowerCase() || this.tagName;
+        const tagName = this.index.appendName || this.tagName;
         let outerHTML = '<' + tagName;
         for (const [key, value] of this._attributes) {
             if (value !== undefined) {

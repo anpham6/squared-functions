@@ -499,7 +499,7 @@ You can also use the workspace feature in [squared-express](https://github.com/a
 
 ### Appending external JS/CSS
 
-You can append a sibling element (not child) that can be processed similar to a typical "script" or "link" element.
+You can append a sibling element (not child) that can be processed similar to a typical "script" or "link" element. Appends will fail if you remove the sibling selector element from the DOM.
 
 ```xml
 <script async src='https://www.google-analytics.com/analytics.js'></script>
