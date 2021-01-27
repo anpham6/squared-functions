@@ -61,7 +61,7 @@
     },
     "js": {
       "terser": {
-        "minify-example": "function(context, value, output) {\n  return context.minify(value, output).code;\n}\n",
+        "minify-example": "function(context, value, options, resolve) { resolve(context.minify(value, options.outputConfig).code;) }",
         "minify-example-output": {
           "keep_classnames": true
         }
@@ -81,7 +81,7 @@
     },
     "css": {
       "node-sass": {
-        "sass-example": "function(context, value) {\n  return context.renderSync({ data: value }, functions: {});\n}"
+        "sass-example": "function (context, value, options, resolve) { resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css); }"
       }
     }
   }

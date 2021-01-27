@@ -420,9 +420,9 @@ JSON (json/js) configuration is optional and is provided for those who prefer to
 interface OutputModifiers {
     inline?: boolean; // type: js | css | image (base64)
     blob?: boolean; // type: image (base64)
-    preserve?: boolean; // type: css
+    preserve?: boolean; // type: css | cross-origin: append/js | append/css
     ignore?: boolean;
-    exclude?: boolean
+    exclude?: boolean // type: js | css (remove from HTML)
 }
 
 interface AssetCommand extends OutputModifiers {
@@ -502,24 +502,46 @@ You can also use the workspace feature in [squared-express](https://github.com/a
 You can append a sibling element (not child) that can be processed similar to a typical "script" or "link" element. Appends will fail if you remove the sibling selector element from the DOM.
 
 ```xml
-<script async src='https://www.google-analytics.com/analytics.js'></script>
+<html>
+<head>
+    <title></title>
+    <!-- Google Analytics -->
+    <script>
+    window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+    ga('create', 'UA-XXXXX-Y', 'auto');
+    ga('send', 'pageview');
+    </script>
+    <script async src='https://www.google-analytics.com/analytics.js'></script>
+    <!-- End Google Analytics -->
+</head>
+<body>
+  <!-- HTML reserved characters "<" or ">" will be encoded as "&lt;" or "&gt;" -->
+</body>
+</html>
 ```
 
 ```javascript
 // All commands are supported in relation to the base type
 
-{
-  "selector": "head > script:nth-of-type(1)",
-  "type": "append/js", // append/css
-  "attributes": {
-      "src": "https://www.google-analytics.com/analytics.js",
+[
+  {
+    "selector": "title",
+    "type": "append/script", // all tags supported except "html"
+    "textContent": "\\nwindow.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;\\nga('create', 'UA-XXXXX-Y', 'auto');\\nga('send', 'pageview');\\n" // YAML "|" operator preserves indentation (optional)
+  },
+  {
+    "selector": "title",
+    "type": "append/js", // append/css
+    "preserve": true,
+    "attributes": {
+      "src": "https://www.google-analytics.com/analytics.js", // css: href (required)
       "async": null
     }
-  ]
-}
+  }
+]
 ```
 
-NOTE: As of squared 2.4 the current state of the DOM is sent to the server including updates you may have made with JavaScript. This is sufficient for regular text insertion such as inline scripts or styles.
+NOTE: As of squared 2.4 the current state of the DOM is sent to the server including updates you may have made with JavaScript. This is sufficient for most regular text insertion.
 
 ### Cloud storage
 

@@ -730,6 +730,15 @@ class FileManager extends Module implements IFileManager {
                         for (const item of copying) {
                             const copyUri = item.localUri!;
                             if (!uriMap.has(copyUri)) {
+                                const pathname = path.dirname(copyUri);
+                                try {
+                                    fs.mkdirpSync(pathname);
+                                }
+                                catch (err) {
+                                    this.writeFail(['Unable to create directory', pathname], err);
+                                    item.invalid = true;
+                                    continue;
+                                }
                                 tasks.push(
                                     fs.copyFile(localUri, copyUri)
                                         .then(() => {
@@ -813,42 +822,48 @@ class FileManager extends Module implements IFileManager {
                     this.completeAsyncTask(err);
                 }
             };
-            if (!emptied.has(pathname)) {
-                if (emptyDir) {
+            const createFolder = () => {
+                if (!emptied.has(pathname)) {
+                    if (emptyDir) {
+                        try {
+                            fs.emptyDirSync(pathname);
+                        }
+                        catch (err) {
+                            this.writeFail(['Unable to empty directory', pathname], err);
+                        }
+                    }
                     try {
-                        fs.emptyDirSync(pathname);
+                        fs.mkdirpSync(pathname);
+                        emptied.add(pathname);
                     }
                     catch (err) {
-                        this.writeFail(['Unable to empty directory', pathname], err);
+                        this.writeFail(['Unable to create directory', pathname], err);
+                        item.invalid = true;
+                        return false;
                     }
                 }
-                try {
-                    fs.mkdirpSync(pathname);
-                }
-                catch (err) {
-                    this.writeFail(['Unable to create directory', pathname], err);
-                    item.invalid = true;
-                }
-                emptied.add(pathname);
-            }
+                return true;
+            };
             if (item.content) {
-                if (!checkQueue(item, localUri, true)) {
+                if (!checkQueue(item, localUri, true) && createFolder()) {
                     item.sourceUTF8 = item.content;
                     this.performAsyncTask();
                     fs.writeFile(localUri, item.content, 'utf8', err => fileReceived(err));
                 }
             }
             else if (item.base64) {
-                this.performAsyncTask();
-                fs.writeFile(localUri, item.base64, 'base64', err => {
-                    if (!err) {
-                        this.finalizeAsset({ file: item });
-                    }
-                    else {
-                        item.invalid = true;
-                        this.completeAsyncTask(err);
-                    }
-                });
+                if (createFolder()) {
+                    this.performAsyncTask();
+                    fs.writeFile(localUri, item.base64, 'base64', err => {
+                        if (!err) {
+                            this.finalizeAsset({ file: item });
+                        }
+                        else {
+                            item.invalid = true;
+                            this.completeAsyncTask(err);
+                        }
+                    });
+                }
             }
             else {
                 const uri = item.uri;
@@ -863,35 +878,37 @@ class FileManager extends Module implements IFileManager {
                                 downloading[uri].push(item);
                                 continue;
                             }
-                            const stream = fs.createWriteStream(localUri);
-                            stream.on('finish', () => {
-                                if (!notFound[uri]) {
-                                    processQueue(item, localUri);
-                                }
-                            });
-                            this.performAsyncTask();
-                            downloading[uri] = [];
-                            request(uri)
-                                .on('response', response => {
-                                    if (this.Watch) {
-                                        item.etag = (response.headers['etag'] || response.headers['last-modified']) as string;
+                            if (createFolder()) {
+                                const stream = fs.createWriteStream(localUri);
+                                stream.on('finish', () => {
+                                    if (!notFound[uri]) {
+                                        processQueue(item, localUri);
                                     }
-                                    const statusCode = response.statusCode;
-                                    if (statusCode >= 300) {
-                                        errorRequest(item, uri, localUri, new Error(statusCode + ' ' + response.statusMessage), stream);
-                                    }
-                                })
-                                .on('data', data => {
-                                    if (Buffer.isBuffer(data)) {
-                                        item.buffer = item.buffer ? Buffer.concat([item.buffer, data]) : data;
-                                    }
-                                })
-                                .on('error', err => errorRequest(item, uri, localUri, err, stream))
-                                .pipe(stream);
+                                });
+                                downloading[uri] = [];
+                                this.performAsyncTask();
+                                request(uri)
+                                    .on('response', response => {
+                                        if (this.Watch) {
+                                            item.etag = (response.headers['etag'] || response.headers['last-modified']) as string;
+                                        }
+                                        const statusCode = response.statusCode;
+                                        if (statusCode >= 300) {
+                                            errorRequest(item, uri, localUri, new Error(statusCode + ' ' + response.statusMessage), stream);
+                                        }
+                                    })
+                                    .on('data', data => {
+                                        if (Buffer.isBuffer(data)) {
+                                            item.buffer = item.buffer ? Buffer.concat([item.buffer, data]) : data;
+                                        }
+                                    })
+                                    .on('error', err => errorRequest(item, uri, localUri, err, stream))
+                                    .pipe(stream);
+                            }
                         }
                     }
                     else if (this.permission.hasUNCRead() && Module.isFileUNC(uri) || this.permission.hasDiskRead() && path.isAbsolute(uri)) {
-                        if (!checkQueue(item, localUri)) {
+                        if (!checkQueue(item, localUri) && createFolder()) {
                             this.performAsyncTask();
                             fs.copyFile(uri, localUri, err => fileReceived(err));
                         }

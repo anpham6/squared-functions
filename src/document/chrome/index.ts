@@ -74,12 +74,12 @@ function getObjectValue(data: unknown, key: string, joinString = ' ') {
     return '';
 }
 
-function replaceUrl(css: string, src: string, value: string, base64: boolean) {
-    const pattern = new RegExp(`\\s*[Uu][Rr][Ll]\\(\\s*(["'])?\\s*${!base64 ? escapePosix(src) : `[^"',]+,\\s*` + src.replace(/\+/g, '\\+')}\\s*\\1\\s*\\)`, 'g');
+function replaceUrl(source: string, segment: string, url: string, base64: boolean) {
+    const pattern = new RegExp(`\\s*[Uu][Rr][Ll]\\(\\s*(["'])?\\s*${!base64 ? escapePosix(segment) : `[^"',]+,\\s*` + segment.replace(/\+/g, '\\+')}\\s*\\1\\s*\\)`, 'g');
     let output: Undef<string>,
         match: Null<RegExpExecArray>;
-    while (match = pattern.exec(css)) {
-        output = (output || css).replace(match[0], 'url(' + match[1] + value + match[1] + ')');
+    while (match = pattern.exec(source)) {
+        output = (output || source).replace(match[0], 'url(' + match[1] + url + match[1] + ')');
     }
     return output;
 }
@@ -170,24 +170,24 @@ function findRelativeUri(this: IFileManager, file: DocumentAsset, url: string): 
     return ['', null];
 }
 
-function findCloudUUID(this: IFileManager, css: DocumentAsset, asset: Undef<DocumentAsset>, url: string) {
+function findCloudUUID(this: IFileManager, cssFile: DocumentAsset, asset: Undef<DocumentAsset>, url: string) {
     if (asset && this.Cloud?.getStorage('upload', asset.cloudStorage)) {
         if (!asset.inlineCssCloud) {
-            (css.inlineCssMap ||= {})[asset.inlineCssCloud = uuid.v4()] = url;
+            (cssFile.inlineCssMap ||= {})[asset.inlineCssCloud = uuid.v4()] = url;
         }
         return asset.inlineCssCloud;
     }
     return url;
 }
 
-function transformCss(this: IFileManager, document: IChromeDocument, assets: DocumentAsset[], file: DocumentAsset, content: string, fromHTML?: boolean) {
-    const cssUri = file.uri!;
+function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: DocumentAsset, content: string, fromHTML?: boolean) {
+    const cssUri = cssFile.uri!;
     let output: Undef<string>;
     for (const item of assets) {
         if (item.base64 && !item.element && item.uri) {
-            const [url] = findRelativeUri.call(this, file, item.uri);
+            const [url] = findRelativeUri.call(this, cssFile, item.uri);
             if (url) {
-                const result = replaceUrl(output || content, item.base64, findCloudUUID.call(this, file, item, url), true);
+                const result = replaceUrl(output || content, item.base64, findCloudUUID.call(this, cssFile, item, url), true);
                 if (result) {
                     output = result;
                 }
@@ -202,7 +202,7 @@ function transformCss(this: IFileManager, document: IChromeDocument, assets: Doc
     }
     const writeURL = (value: string, quote?: string) => {
         if (!quote) {
-            quote = document.baseUrl === cssUri || value.includes('"') || fromHTML ? "'" : '"';
+            quote = value.includes('"') || fromHTML ? "'" : '"';
         }
         return `url(${quote}${value.replace(quote === '"' ? /["()]/g : /['"()]/g, (...capture) => '\\' + capture[0])}${quote})`;
     };
@@ -227,34 +227,33 @@ function transformCss(this: IFileManager, document: IChromeDocument, assets: Doc
                         break;
                 }
             }
-            if (j !== -1 && /["');>]/.test(ch)) {
-                i = j;
-                break;
-            }
             if (ch === ')' || ch === quote) {
                 if (content[i - 1] !== '\\') {
                     break;
                 }
                 j = i;
             }
-            url += ch;
-            if (ch === ':' && content.substring(i - 4, i) === 'data') {
+            else if (j !== -1 && /["':;>]/.test(ch)) {
+                i = j;
                 break;
             }
+            else if (ch === ':' && content.substring(i - 4, i) === 'data') {
+                break;
+            }
+            url += ch;
         }
         url = url.replace(/^\s*["']?\s*/, '').replace(/\s*["']?\s*$/, '');
         if (!url.startsWith('data:')) {
             const segment = content.substring(match.index, i + 1);
             let location: string,
                 asset: Optional<DocumentAsset>;
-            if ((!Document.isFileHTTP(url) || Document.hasSameOrigin(cssUri, url)) && ([location, asset] = findRelativeUri.call(this, file, url)) && asset) {
-                output = (output || content).replace(segment, writeURL(findCloudUUID.call(this, file, asset, location), quote));
-                continue;
+            if ((!Document.isFileHTTP(url) || Document.hasSameOrigin(cssUri, url)) && ([location, asset] = findRelativeUri.call(this, cssFile, url)) && asset) {
+                output = (output || content).replace(segment, writeURL(findCloudUUID.call(this, cssFile, asset, location), quote));
             }
-            if (asset = this.findAsset(Document.resolvePath(url, cssUri))) {
-                const pathname = file.pathname;
+            else if (asset = this.findAsset(Document.resolvePath(url, cssUri))) {
+                const pathname = cssFile.pathname;
                 const count = pathname && pathname !== '/' ? pathname.split(/[\\/]/).length : 0;
-                output = (output || content).replace(segment, writeURL(findCloudUUID.call(this, file, asset, (count ? '../'.repeat(count) : '') + asset.relativeUri), quote));
+                output = (output || content).replace(segment, writeURL(findCloudUUID.call(this, cssFile, asset, (count ? '../'.repeat(count) : '') + asset.relativeUri), quote));
             }
         }
     }
@@ -393,7 +392,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             else if (query) {
                                 queryString = typeof query !== 'string' ? JSON.stringify(query) : query;
                             }
-                            this.formatMessage(this.logType.CLOUD_DATABASE, service, ['Query had no results', table ? 'table: ' + table : ''], queryString, { titleColor: 'yellow' });
+                            this.formatFail(this.logType.CLOUD_DATABASE, service, ['Query had no results', table ? 'table: ' + table : ''], new Error(queryString));
                         }
                     });
                 }
@@ -545,7 +544,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         }
                     }
                 }
-                file.sourceUTF8 = transformCss.call(this, instance, assets, file, domBase.source, true) || domBase.source;
+                file.sourceUTF8 = transformCss.call(this, assets, file, domBase.source, true) || domBase.source;
                 const failCount = domBase.failCount;
                 if (failCount) {
                     this.writeFail([`DOM update had ${failCount} ${failCount === 1 ? 'error' : 'errors'}`, instance.moduleName], new Error(`${instance.moduleName}: ${failCount} modifications failed`));
@@ -771,7 +770,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     content = result;
                 }
             }
-            const result = transformCss.call(manager, this, manager.assets.filter((item: DocumentAsset) => manager.hasDocument(this, item.document)) as DocumentAsset[], file, content);
+            const result = transformCss.call(manager, manager.assets.filter((item: DocumentAsset) => manager.hasDocument(this, item.document)) as DocumentAsset[], file, content);
             if (result) {
                 content = result;
             }

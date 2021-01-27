@@ -43,8 +43,8 @@ chrome:
   js:
     terser:
       minify-example: |
-        function(context, value, output) {
-          return context.minify(value, output).code;
+        function(context, value, options, resolve) {
+          resolve(context.minify(value, options.outputConfig).code);
         }
       minify-example-output:
         keep_classnames: true
@@ -59,6 +59,6 @@ chrome:
   css:
     node-sass:
       sass-example: |
-        function(context, value) {
-          return context.renderSync({ data: value }, functions: {});
+        function(context, value, options, resolve) {
+          return resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css);
         }

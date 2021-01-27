@@ -1,6 +1,6 @@
-import type { ElementIndex, TagIndex } from '../../types/lib/squared';
+import type { TagIndex } from '../../types/lib/squared';
 
-import type { IDomWriter, IHtmlElement, ParserResult, WriteOptions } from './document';
+import type { ElementIndex, FindElementOptions, IDomWriter, IHtmlElement, ParserResult, WriteOptions } from './document';
 
 import escapeRegexp = require('escape-string-regexp');
 import uuid = require('uuid');
@@ -27,6 +27,24 @@ function applyAttributes(attrs: Map<string, Optional<string>>, data: Undef<Stand
     }
 }
 
+function escapeXmlString(value: string) {
+    return value.replace(/[<>"'&]/g, (...capture) => {
+        switch (capture[0]) {
+            case '<':
+                return '&lt;';
+            case '>':
+                return '&gt;';
+            case '"':
+                return '&quot;';
+            case "'":
+                return '&apos;';
+            case '&':
+                return '&amp;';
+        }
+        return capture[0];
+    });
+}
+
 export class DomWriter implements IDomWriter {
     public static normalize(source: string) {
         const pattern = /(?:<(\s*)((?:"[^"]*"|'[^']*'|[^"'>])+?)(\s*\/?\s*)>|<(\s*)\/([^>]+?)(\s*)>)/g;
@@ -50,44 +68,58 @@ export class DomWriter implements IDomWriter {
     }
 
     public static getDocumentElement(source: string): ParserResult {
-        let result: Null<domhandler.Node> = null,
+        let element: Null<domhandler.Node> = null,
             error: Null<Error> = null;
         new Parser(new DomHandler((err, dom) => {
             if (!err) {
-                result = domutils.findOne(elem => elem.tagName === 'html', dom);
+                element = domutils.findOne(elem => elem.tagName === 'html', dom);
             }
             else {
                 error = err;
             }
         }, { withStartIndices: true, withEndIndices: true })).end(source);
-        return [result, error];
+        return { element, error };
     }
 
-    public static findElement(source: string, index: ElementIndex, documentName?: string): ParserResult {
-        let result: Null<domhandler.Node> = null,
-            error: Null<Error> = null;
+    public static findElement(source: string, element: ElementIndex, options?: FindElementOptions): ParserResult {
+        let document: Undef<string>,
+            byId: Undef<boolean>;
+        if (options) {
+            ({ document, byId } = options);
+        }
+        const result: ParserResult = { element: null, error: null };
         new Parser(new DomHandler((err, dom) => {
             if (!err) {
-                if (documentName) {
-                    const id = index.id[documentName];
+                const nodes = domutils.getElementsByTagName(element.tagName, dom, true);
+                let index = -1;
+                if (document) {
+                    const id = element.id?.[document];
                     if (id) {
-                        const documentId = `data-${documentName}-id`;
-                        result = domutils.findOne(elem => elem.attribs[documentId] === id, dom);
-                        if (result) {
-                            return;
+                        const documentId = `data-${document}-id`;
+                        index = nodes.findIndex(elem => elem.attribs[documentId] === id);
+                        if (index !== -1) {
+                            result.element = nodes[index];
+                            byId = true;
                         }
                     }
                 }
-                const nodes = domutils.getElementsByTagName(index.tagName, dom, true);
-                if (nodes.length === index.tagCount) {
-                    result = nodes[index.tagIndex] as domhandler.Node;
+                if (!byId) {
+                    index = element.tagIndex;
+                    if (nodes.length === element.tagCount && nodes[index]) {
+                        result.element = nodes[index];
+                    }
+                }
+                if (result.element) {
+                    result.tagName = element.tagName;
+                    result.tagIndex = index;
+                    result.tagCount = nodes.length;
                 }
             }
             else {
-                error = err;
+                result.error = err;
             }
         }, { withStartIndices: true, withEndIndices: true })).end(source);
-        return [result, error];
+        return result;
     }
 
     public static getNewlineString(leading: string, trailing: string, newline?: string) {
@@ -101,22 +133,25 @@ export class DomWriter implements IDomWriter {
     public documentElement: Null<ElementIndex> = null;
     public newline = '\n';
 
+    private _tagCount: ObjectMap<number> = {};
+
     constructor(public documentName: string, source: string, public elements: ElementIndex[], normalize = true) {
         const items: ElementIndex[] = [];
         const appending: Required<ElementIndex>[] = [];
         for (let i = 0; i < elements.length; ++i) {
             const item = elements[i];
-            item.tagName = item.tagName.toLowerCase();
+            const tagName = item.tagName.toLowerCase();
+            item.tagName = tagName;
             if (item.tagName === 'html') {
                 items.push(item);
             }
-            else if (item.appendOrder !== undefined && item.domIndex > 0 && item.tagName) {
-                if (item.appendName) {
-                    item.appendName = item.appendName.toLowerCase();
-                }
+            else if (item.append && item.domIndex > 0 && item.tagName) {
+                item.append.tagName = item.append.tagName.toLowerCase();
                 appending.push(item as Required<ElementIndex>);
                 elements.splice(i--, 1);
+                continue;
             }
+            this._tagCount[tagName] = item.tagCount;
         }
         const documentElement = items.find(item => item.innerHTML);
         const html = /<\s*html[\s|>]/i.exec(source);
@@ -153,32 +188,31 @@ export class DomWriter implements IDomWriter {
         appending
             .sort((a, b) => {
                 if (a.domIndex === b.domIndex) {
-                    return b.appendOrder - a.appendOrder;
+                    return b.append.order - a.append.order;
                 }
                 return b.domIndex - a.domIndex;
             })
             .forEach(item => this.append(item));
     }
 
-    append(index: ElementIndex) {
-        const documentName = this.documentName;
-        for (const item of this.elements) {
-            if (item.domIndex === index.domIndex) {
-                index.tagIndex = item.tagIndex;
-                index.tagCount = item.tagCount;
-                break;
+    append(element: ElementIndex) {
+        const data = element.append;
+        if (data) {
+            const documentName = this.documentName;
+            const htmlElement = new HtmlElement(documentName, element);
+            const id = uuid.v4();
+            const tagName = data.tagName;
+            if (!(tagName in this._tagCount)) {
+                this._tagCount[tagName] = data.tagCount;
             }
+            htmlElement.setAttribute(`data-${documentName}-id`, id);
+            if (this.write(htmlElement, { append: element })) {
+                (element.id ||= {})[documentName] = id;
+                delete element.append;
+                return htmlElement;
+            }
+            this.errors.push(new Error(`Unable to append element ${tagName.toUpperCase()} at DOM index ${element.domIndex}`));
         }
-        const htmlElement = new HtmlElement(documentName, index);
-        const id = uuid.v4();
-        htmlElement.setAttribute(`data-${documentName}-id`, id);
-        if (this.write(htmlElement, { append: index })) {
-            (index.id ||= {})[documentName] = id;
-            delete index.appendName;
-            delete index.appendOrder;
-            return htmlElement;
-        }
-        this.errors.push(new Error(`Unable to append ${(index.appendName || index.tagName).toUpperCase()} element at DOM index ${index.domIndex}`));
         return null;
     }
     write(element: HtmlElement, options?: WriteOptions) {
@@ -203,11 +237,13 @@ export class DomWriter implements IDomWriter {
             if (append) {
                 this.elements.push(index);
                 ++index.domIndex;
-                if (index.appendName && index.appendName !== index.tagName) {
-                    index.tagName = index.appendName;
+                index.outerHTML = replaceHTML;
+                const tagName = index.append!.tagName;
+                if (tagName !== index.tagName) {
+                    index.tagName = tagName;
                     index.tagIndex = -1;
                     this.increment(index);
-                    this.indexTag(index.tagName);
+                    this.indexTag(tagName, true);
                 }
                 else {
                     this.increment(index);
@@ -228,8 +264,8 @@ export class DomWriter implements IDomWriter {
         ++this.failCount;
         return false;
     }
-    update(index: ElementIndex, replaceHTML: string) {
-        const domIndex = index.domIndex;
+    update(element: ElementIndex, replaceHTML: string) {
+        const domIndex = element.domIndex;
         for (const item of this.elements) {
             if (item.domIndex === domIndex) {
                 item.startIndex = -1;
@@ -238,8 +274,8 @@ export class DomWriter implements IDomWriter {
             }
         }
     }
-    updateByTag(index: TagIndex, replaceHTML: string) {
-        const { tagName, tagIndex, tagCount } = index;
+    updateByTag(element: Required<TagIndex>, replaceHTML: string) {
+        const { tagName, tagIndex, tagCount } = element;
         for (const item of this.elements) {
             if (item.tagName === tagName) {
                 if (item.tagCount === tagCount) {
@@ -256,10 +292,10 @@ export class DomWriter implements IDomWriter {
         }
         return true;
     }
-    increment(index: ElementIndex) {
-        const { domIndex, tagName, tagIndex } = index;
+    increment(element: ElementIndex) {
+        const { domIndex, tagName, tagIndex } = element;
         for (const item of this.elements) {
-            if (item === index) {
+            if (item === element) {
                 if (tagIndex !== -1) {
                     ++item.tagIndex;
                     ++item.tagCount;
@@ -276,25 +312,24 @@ export class DomWriter implements IDomWriter {
                 ++item.domIndex;
             }
         }
+        ++this._tagCount[tagName];
     }
-    decrement(index: ElementIndex, remove?: boolean) {
-        const { domIndex, tagName, tagIndex } = index;
-        const result: ElementIndex[] = [];
-        for (const item of this.elements) {
-            if (item.tagName === tagName) {
-                if (item.tagIndex === tagIndex) {
-                    result.push(item);
-                }
-                else {
+    decrement(element: ElementIndex, remove?: boolean) {
+        const { domIndex, tagName, tagIndex } = element;
+        const result: ElementIndex[] = this.elements.filter(item => item.tagName === tagName && item.tagIndex === tagIndex);
+        if (result.length) {
+            for (const item of this.elements) {
+                if (item.tagName === tagName && item.tagIndex !== tagIndex) {
                     if (item.tagIndex > tagIndex) {
                         --item.tagIndex;
                     }
                     --item.tagCount;
                 }
+                if (remove && item.domIndex > domIndex) {
+                    --item.domIndex;
+                }
             }
-            if (remove && item.domIndex > domIndex) {
-                --item.domIndex;
-            }
+            --this._tagCount[tagName];
         }
         return result;
     }
@@ -317,11 +352,14 @@ export class DomWriter implements IDomWriter {
                 }
             }
         }
+        else {
+            this.errors.push(new Error(`Unable to rename element ${index.tagName.toUpperCase()} -> ${tagName.toUpperCase()} at DOM index ${index.domIndex}`));
+        }
     }
-    indexTag(tagName: string) {
+    indexTag(tagName: string, append?: boolean) {
         const elements: ElementIndex[] = [];
         const revised: ElementIndex[] = [];
-        const tagIndex = new Set<number>();
+        const index = new Set<number>();
         let domIndex = -1;
         for (const item of this.elements) {
             if (item.tagName === tagName) {
@@ -332,35 +370,49 @@ export class DomWriter implements IDomWriter {
                 else {
                     elements.push(item);
                 }
-                tagIndex.add(item.tagIndex);
+                index.add(item.tagIndex);
             }
         }
-        if (domIndex !== -1) {
-            const length = tagIndex.size;
-            let index = length - 1;
-            tagIndex.clear();
-            for (const item of elements) {
-                if (item.domIndex > domIndex) {
-                    ++item.tagIndex;
+        const tagCount = this._tagCount[tagName];
+        if (append && tagCount === 1) {
+            if (!elements.length) {
+                for (const item of revised) {
+                    item.tagIndex = 0;
+                    item.tagCount = 1;
                 }
-                tagIndex.add(item.tagIndex);
-                item.tagCount = length;
-            }
-            while (tagIndex.has(index)) {
-                --index;
-            }
-            for (const item of revised) {
-                item.tagIndex = index;
-                item.tagCount = length;
+                return true;
             }
         }
+        else if (index.size !== tagCount) {
+            if (domIndex !== -1) {
+                let i = tagCount - 1;
+                index.clear();
+                for (const item of elements) {
+                    if (item.domIndex > domIndex) {
+                        ++item.tagIndex;
+                    }
+                    index.add(item.tagIndex);
+                    item.tagCount = tagCount;
+                }
+                while (index.has(i)) {
+                    --i;
+                }
+                for (const target of revised) {
+                    target.tagIndex = i;
+                    target.tagCount = tagCount;
+                }
+            }
+            return true;
+        }
+        this.errors.push(new Error(`Unable to index ${tagName.toUpperCase()}`));
+        return false;
     }
     close() {
         return this.source = this.source.replace(new RegExp(`\\s+data-${this.documentName}-id="[^"]+"`, 'g'), '');
     }
-    setRawString(segmentHTML: string, replaceHTML: string) {
+    setRawString(sourceHTML: string, replaceHTML: string) {
         const current = this.source;
-        this.source = current.replace(segmentHTML, replaceHTML);
+        this.source = current.replace(sourceHTML, replaceHTML);
         return current !== this.source;
     }
     getRawString(startIndex: number, endIndex: number) {
@@ -368,7 +420,7 @@ export class DomWriter implements IDomWriter {
     }
     spliceRawString(startIndex: number, endIndex: number, replaceHTML: string) {
         const source = this.source;
-        this.source = source.substring(0, startIndex) + replaceHTML + source.substring(endIndex);
+        return this.source = source.substring(0, startIndex) + replaceHTML + source.substring(endIndex);
     }
     replaceAll(predicate: (elem: domhandler.Element) => boolean, callback: (elem: domhandler.Element, source: string) => Undef<string>) {
         let result = 0;
@@ -423,8 +475,7 @@ export class HtmlElement implements IHtmlElement {
                             start.push(i);
                             break;
                         case '>':
-                            --i;
-                            break;
+                            return i;
                     }
                 }
             }
@@ -451,20 +502,22 @@ export class HtmlElement implements IHtmlElement {
         const forward = outerHTML.split('>');
         const opposing = outerHTML.split('<');
         if (opposing.length === 2 || forward.length === 2) {
-            return [outerHTML, '', ''];
+            return HtmlElement.hasInnerHTML(tagName) ? [outerHTML.replace(/\s*\/?\s*>$/, ''), '', `</${tagName}>`] : [outerHTML, '', ''];
         }
-        else if (opposing.length === 3 && forward.length === 3 && /^<[^>]+>[\S\s]*?<\/[^>]+>$/i.test(outerHTML)) {
+        else if (opposing.length === 3 && forward.length === 3 && /^<[^>]+>[\S\s]*?<\/[^>]+>$/.test(outerHTML)) {
             return [forward[0] + '>', !forward[2] ? '' : forward[1].substring(0, forward[1].length - opposing[2].length), '<' + opposing[2]];
         }
         if (HtmlElement.hasInnerHTML(tagName)) {
-            const closeIndex = this.findCloseTag(outerHTML) + 1;
+            const closeIndex = HtmlElement.findCloseTag(outerHTML) + 1;
+            let openTag: Undef<string>;
             if (closeIndex !== 0) {
+                openTag = outerHTML.substring(0, closeIndex);
                 const lastIndex = outerHTML.lastIndexOf('<');
                 if (closeIndex < lastIndex && closeIndex < outerHTML.length) {
-                    return [outerHTML.substring(0, closeIndex), outerHTML.substring(closeIndex, lastIndex), outerHTML.substring(lastIndex)];
+                    return [openTag, outerHTML.substring(closeIndex, lastIndex), outerHTML.substring(lastIndex)];
                 }
             }
-            return ['', '', ''];
+            return [openTag || `<${tagName}>`, '', `</${tagName}>`];
         }
         return [outerHTML, '', ''];
     }
@@ -505,6 +558,9 @@ export class HtmlElement implements IHtmlElement {
                 }
                 this._innerHTML = innerHTML;
             }
+        }
+        else if (index.innerHTML) {
+            this._innerHTML = index.innerHTML;
         }
     }
 
@@ -571,7 +627,7 @@ export class HtmlElement implements IHtmlElement {
                 }
                 return errorResult('Element was not found');
             }
-            const id = element.id[this.documentName];
+            const id = element.id?.[this.documentName];
             if (append && !id) {
                 return errorResult('Element id is missing.');
             }
@@ -671,7 +727,7 @@ export class HtmlElement implements IHtmlElement {
             }
             if (!sourceIndex) {
                 let target: Null<domhandler.Node>;
-                [target, error] = DomWriter.findElement(source, element, this.documentName);
+                ({ element: target, error } = DomWriter.findElement(source, element, { document: this.documentName, byId: !!append }));
                 if (target) {
                     const { startIndex, endIndex } = target;
                     sourceIndex = [startIndex!, endIndex! + 1, ''];
@@ -713,8 +769,8 @@ export class HtmlElement implements IHtmlElement {
         }
         return ['', '', error];
     }
-    save(source: string, remove?: boolean): [string, Null<Error>?] {
-        const [output, replaceHTML, err] = this.write(source, { remove });
+    save(source: string, options?: WriteOptions): [string, Null<Error>?] {
+        const [output, replaceHTML, err] = this.write(source, options);
         if (output) {
             this.index.outerHTML = replaceHTML;
         }
@@ -743,7 +799,15 @@ export class HtmlElement implements IHtmlElement {
         }
     }
     get outerHTML() {
-        const tagName = this.index.appendName || this.tagName;
+        let tagName: Undef<string>,
+            textContent: Undef<string>;
+        const append = this.index.append;
+        if (append) {
+            ({ tagName, textContent } = append);
+        }
+        else {
+            tagName = this.tagName;
+        }
         let outerHTML = '<' + tagName;
         for (const [key, value] of this._attributes) {
             if (value !== undefined) {
@@ -752,7 +816,17 @@ export class HtmlElement implements IHtmlElement {
         }
         outerHTML += '>';
         if (HtmlElement.hasInnerHTML(tagName) && tagName !== 'html') {
-            outerHTML += this.innerHTML + `</${tagName}>`;
+            if (textContent) {
+                switch (tagName) {
+                    case 'script':
+                    case 'style':
+                        break;
+                    default:
+                        textContent = escapeXmlString(textContent);
+                        break;
+                }
+            }
+            outerHTML += (textContent || this.innerHTML) + `</${tagName}>`;
         }
         return outerHTML;
     }
