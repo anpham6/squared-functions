@@ -170,8 +170,8 @@ function findRelativeUri(this: IFileManager, file: DocumentAsset, url: string): 
     return ['', null];
 }
 
-function findCloudUUID(this: IFileManager, cssFile: DocumentAsset, asset: Undef<DocumentAsset>, url: string) {
-    if (asset && this.Cloud?.getStorage('upload', asset.cloudStorage)) {
+function findCloudUUID(this: IFileManager, cssFile: DocumentAsset, asset: DocumentAsset, url: string) {
+    if (this.Cloud?.getStorage('upload', asset.cloudStorage)) {
         if (!asset.inlineCssCloud) {
             (cssFile.inlineCssMap ||= {})[asset.inlineCssCloud = uuid.v4()] = url;
         }
@@ -535,10 +535,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             }
                             return false;
                         };
-                        const modifyTag = (elem: domhandler.Element, source: string) => {
-                            const { startIndex, endIndex } = elem;
-                            return replaceUrl(source.substring(startIndex!, endIndex! + 1), base64, value, true);
-                        };
+                        const modifyTag = (elem: domhandler.Element, source: string) => replaceUrl(source.substring(elem.startIndex!, elem.endIndex! + 1), base64, value, true);
                         if (!domBase.replaceAll(findAll, modifyTag)) {
                             delete item.inlineCloud;
                         }

@@ -33,7 +33,7 @@ export interface IDomWriter {
     write(element: IHtmlElement, options?: WriteOptions): boolean;
     close(): string;
     update(element: ElementIndex, replaceHTML: string): void;
-    updateByTag(element: Required<TagIndex>, replaceHTML: string): boolean;
+    updateByTag(element: Required<TagIndex>, replaceHTML: string, startIndex: number, endIndex: number): boolean;
     increment(element: ElementIndex): void;
     decrement(element: ElementIndex): ElementIndex[];
     renameTag(element: ElementIndex, tagName: string): void;
@@ -41,7 +41,7 @@ export interface IDomWriter {
     replaceAll(predicate: (elem: Element) => boolean, callback: (elem: Element, source: string) => Undef<string>): number;
     setRawString(sourceHTML: string, replaceHTML: string): boolean;
     getRawString(startIndex: number, endIndex: number): string;
-    spliceRawString(startIndex: number, endIndex: number, replaceHTML: string): string;
+    spliceRawString(replaceHTML: string, startIndex: number, endIndex: number): string;
     hasErrors(): boolean;
 }
 

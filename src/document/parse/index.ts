@@ -9,6 +9,8 @@ import htmlparser2 = require('htmlparser2');
 import domhandler = require('domhandler');
 import domutils = require('domutils');
 
+type WriteSourceIndex = [number, number, string?];
+
 const Parser = htmlparser2.Parser;
 const DomHandler = domhandler.DomHandler;
 
@@ -40,10 +42,13 @@ function escapeXmlString(value: string) {
                 return '&apos;';
             case '&':
                 return '&amp;';
+            default:
+                return capture[0];
         }
-        return capture[0];
     });
 }
+
+const getAttrId = (document: string) => `data-${document}-id`;
 
 export class DomWriter implements IDomWriter {
     public static normalize(source: string) {
@@ -95,7 +100,7 @@ export class DomWriter implements IDomWriter {
                 if (document) {
                     const id = element.id?.[document];
                     if (id) {
-                        const documentId = `data-${document}-id`;
+                        const documentId = getAttrId(document);
                         index = nodes.findIndex(elem => elem.attribs[documentId] === id);
                         if (index !== -1) {
                             result.element = nodes[index];
@@ -180,8 +185,10 @@ export class DomWriter implements IDomWriter {
             this.source = normalize ? DomWriter.normalize(source) : source;
         }
         if (outerHTML) {
+            const endIndex = startIndex + outerHTML.length - 1;
             for (const item of items) {
                 item.startIndex = startIndex;
+                item.endIndex = endIndex;
                 item.outerHTML = outerHTML;
             }
         }
@@ -205,7 +212,7 @@ export class DomWriter implements IDomWriter {
             if (!(tagName in this._tagCount)) {
                 this._tagCount[tagName] = data.tagCount;
             }
-            htmlElement.setAttribute(`data-${documentName}-id`, id);
+            htmlElement.setAttribute(getAttrId(documentName), id);
             if (this.write(htmlElement, { append: element })) {
                 (element.id ||= {})[documentName] = id;
                 delete element.append;
@@ -265,31 +272,39 @@ export class DomWriter implements IDomWriter {
         return false;
     }
     update(element: ElementIndex, replaceHTML: string) {
-        const domIndex = element.domIndex;
+        const { domIndex, startIndex = -1 } = element;
         for (const item of this.elements) {
             if (item.domIndex === domIndex) {
-                item.startIndex = -1;
-                item.endIndex = -1;
                 item.outerHTML = replaceHTML;
+            }
+            else if (item.startIndex !== undefined && (item.startIndex >= startIndex || startIndex === -1 && item.tagName !== 'html')) {
+                delete item.startIndex;
+                delete item.endIndex;
             }
         }
     }
-    updateByTag(element: Required<TagIndex>, replaceHTML: string) {
+    updateByTag(element: Required<TagIndex>, replaceHTML: string, startIndex: number, endIndex: number) {
         const { tagName, tagIndex, tagCount } = element;
         for (const item of this.elements) {
             if (item.tagName === tagName) {
                 if (item.tagCount === tagCount) {
                     if (item.tagIndex === tagIndex) {
-                        item.startIndex = -1;
-                        item.endIndex = -1;
                         item.outerHTML = replaceHTML;
+                        item.startIndex = startIndex;
+                        item.endIndex = endIndex;
+                        continue;
                     }
                 }
                 else {
                     return false;
                 }
             }
+            if (item.startIndex !== undefined && item.startIndex >= startIndex) {
+                delete item.startIndex;
+                delete item.endIndex;
+            }
         }
+        this.spliceRawString(replaceHTML, startIndex, endIndex);
         return true;
     }
     increment(element: ElementIndex) {
@@ -408,7 +423,7 @@ export class DomWriter implements IDomWriter {
         return false;
     }
     close() {
-        return this.source = this.source.replace(new RegExp(`\\s+data-${this.documentName}-id="[^"]+"`, 'g'), '');
+        return this.source = this.source.replace(new RegExp(`\\s+${getAttrId(this.documentName)}="[^"]+"`, 'g'), '');
     }
     setRawString(sourceHTML: string, replaceHTML: string) {
         const current = this.source;
@@ -418,9 +433,9 @@ export class DomWriter implements IDomWriter {
     getRawString(startIndex: number, endIndex: number) {
         return this.source.substring(startIndex, endIndex);
     }
-    spliceRawString(startIndex: number, endIndex: number, replaceHTML: string) {
+    spliceRawString(replaceHTML: string, startIndex: number, endIndex: number) {
         const source = this.source;
-        return this.source = source.substring(0, startIndex) + replaceHTML + source.substring(endIndex);
+        return this.source = source.substring(0, startIndex) + replaceHTML + source.substring(endIndex + 1);
     }
     replaceAll(predicate: (elem: domhandler.Element) => boolean, callback: (elem: domhandler.Element, source: string) => Undef<string>) {
         let result = 0;
@@ -431,9 +446,8 @@ export class DomWriter implements IDomWriter {
                     if (replaceHTML) {
                         const nodes = domutils.getElementsByTagName(target.tagName, dom, true);
                         const tagIndex = nodes.findIndex(elem => elem === target);
-                        if (tagIndex !== -1 && this.updateByTag({ tagName: target.tagName, tagIndex, tagCount: nodes.length }, replaceHTML)) {
-                            const { startIndex, endIndex } = target;
-                            this.spliceRawString(startIndex!, endIndex! + 1, replaceHTML);
+                        const { startIndex, endIndex } = target;
+                        if (tagIndex !== -1 && this.updateByTag({ tagName: target.tagName, tagIndex, tagCount: nodes.length }, replaceHTML, startIndex!, endIndex!)) {
                             ++result;
                             continue;
                         }
@@ -498,28 +512,28 @@ export class HtmlElement implements IHtmlElement {
         return -1;
     }
 
-    public static splitOuterHTML(tagName: string, outerHTML: string): [string, string, string] {
+    public static splitOuterHTML(tagName: string, outerHTML: string): [string, string] {
         const forward = outerHTML.split('>');
         const opposing = outerHTML.split('<');
         if (opposing.length === 2 || forward.length === 2) {
-            return HtmlElement.hasInnerHTML(tagName) ? [outerHTML.replace(/\s*\/?\s*>$/, ''), '', `</${tagName}>`] : [outerHTML, '', ''];
+            return HtmlElement.hasInnerHTML(tagName) ? [outerHTML.replace(/\s*\/?\s*>$/, ''), ''] : [outerHTML, ''];
         }
         else if (opposing.length === 3 && forward.length === 3 && /^<[^>]+>[\S\s]*?<\/[^>]+>$/.test(outerHTML)) {
-            return [forward[0] + '>', !forward[2] ? '' : forward[1].substring(0, forward[1].length - opposing[2].length), '<' + opposing[2]];
+            return [forward[0] + '>', !forward[2] ? '' : forward[1].substring(0, forward[1].length - opposing[2].length)];
         }
         if (HtmlElement.hasInnerHTML(tagName)) {
             const closeIndex = HtmlElement.findCloseTag(outerHTML) + 1;
             let openTag: Undef<string>;
             if (closeIndex !== 0) {
-                openTag = outerHTML.substring(0, closeIndex);
                 const lastIndex = outerHTML.lastIndexOf('<');
+                openTag = outerHTML.substring(0, closeIndex);
                 if (closeIndex < lastIndex && closeIndex < outerHTML.length) {
-                    return [openTag, outerHTML.substring(closeIndex, lastIndex), outerHTML.substring(lastIndex)];
+                    return [openTag, outerHTML.substring(closeIndex, lastIndex)];
                 }
             }
-            return [openTag || `<${tagName}>`, '', `</${tagName}>`];
+            return [openTag || `<${tagName}>`, ''];
         }
-        return [outerHTML, '', ''];
+        return [outerHTML, ''];
     }
 
     public lowerCase = false;
@@ -595,8 +609,10 @@ export class HtmlElement implements IHtmlElement {
         if (this._modified || remove || append) {
             const element = this.index;
             const replaceHTML = !remove || append ? this.outerHTML : '';
-            const spliceSource = (index: [number, number, string]) => {
-                const [startIndex, endIndex, trailing] = index;
+            const spliceSource = (index: WriteSourceIndex) => {
+                const [startIndex, endIndex, trailing = ''] = index;
+                element.startIndex = startIndex;
+                element.endIndex = startIndex + replaceHTML.length - 1;
                 if (append) {
                     let leading = '',
                         newline: Undef<boolean>,
@@ -608,38 +624,37 @@ export class HtmlElement implements IHtmlElement {
                         }
                         leading = source[i--] + leading;
                     }
-                    return source.substring(0, endIndex + 1) + (!newline ? this.newline : '') + leading + replaceHTML + this.newline + source.substring(endIndex + 1);
+                    return source.substring(0, endIndex + 2) + (!newline ? this.newline : '') + leading + replaceHTML + this.newline + source.substring(endIndex + 2);
                 }
-                const content = replaceHTML + trailing;
-                element.startIndex = startIndex;
-                element.endIndex = startIndex + content.length - 1;
-                return source.substring(0, startIndex) + content + source.substring(endIndex);
+                return source.substring(0, startIndex) + replaceHTML + trailing + source.substring(endIndex + 1);
             };
             const errorResult = (message: string): [string, string, Error] => ['', '', new Error(`${tagName.toUpperCase()} ${tagIndex}: ${message}`)];
-            const tagName = element.tagName;
+            const { tagName, tagCount, tagIndex, startIndex, endIndex } = element;
             if (tagName === 'html') {
-                const startIndex = element.startIndex;
-                if (startIndex !== undefined && startIndex !== -1) {
-                    const closeIndex = HtmlElement.findCloseTag(source, startIndex);
-                    if (closeIndex !== -1) {
-                        return [spliceSource([startIndex, closeIndex + 1, '']), replaceHTML];
+                const start = element.startIndex;
+                if (start !== undefined && start !== -1) {
+                    const end = HtmlElement.findCloseTag(source, start);
+                    if (end !== -1) {
+                        return [spliceSource([start, end]), replaceHTML];
                     }
                 }
                 return errorResult('Element was not found');
+            }
+            if (startIndex !== undefined && endIndex !== undefined) {
+                return [spliceSource([startIndex, endIndex]), replaceHTML];
             }
             const id = element.id?.[this.documentName];
             if (append && !id) {
                 return errorResult('Element id is missing.');
             }
-            const { tagCount, tagIndex } = element;
-            const foundIndex: [number, number, string][] = [];
+            const foundIndex: WriteSourceIndex[] = [];
             const openTag: number[] = [];
             const selfClosed = !HtmlElement.hasInnerHTML(tagName);
             const selfId = selfClosed && !!id;
-            const hasId = (startIndex: number, endIndex?: number) => !!id && source.substring(startIndex, endIndex).includes(id);
-            const getTagStart = (startIndex: number): Null<[string, string]> => {
-                const closeIndex = HtmlElement.findCloseTag(source, startIndex);
-                return closeIndex !== -1 && hasId(startIndex, closeIndex) ? [spliceSource([startIndex, closeIndex + 1, '']), replaceHTML] : null;
+            const hasId = (start: number, end?: number) => !!id && source.substring(start, end).includes(id);
+            const getTagStart = (start: number): Null<[string, string]> => {
+                const end = HtmlElement.findCloseTag(source, start);
+                return end !== -1 && hasId(start, end) ? [spliceSource([start, end]), replaceHTML] : null;
             };
             let tag = new RegExp(`<${escapeRegexp(tagName)}[\\s|>]`, !this.lowerCase ? 'gi' : 'g'),
                 openCount = 0,
@@ -654,14 +669,14 @@ export class HtmlElement implements IHtmlElement {
             if (selfId && (tagIndex === tagCount - 1 && openCount === tagCount || append) && (result = getTagStart(openTag[openCount - 1]))) {
                 return result;
             }
-            let sourceIndex: Undef<[number, number, string]>;
+            let sourceIndex: Undef<WriteSourceIndex>;
             if (openCount && !selfClosed) {
                 found: {
                     const closeIndex: number[] = [];
                     let foundCount = 0;
                     tag = new RegExp(`</${escapeRegexp(tagName)}>`, !this.lowerCase ? 'gi' : 'g');
                     while (match = tag.exec(source)) {
-                        closeIndex.push(match.index + match[0].length);
+                        closeIndex.push(match.index + match[0].length - 1);
                     }
                     const closeCount = closeIndex.length;
                     if (closeCount) {
@@ -696,7 +711,7 @@ export class HtmlElement implements IHtmlElement {
                             }
                             if (valid) {
                                 if (id) {
-                                    let index: Undef<[number, number, string]>;
+                                    let index: Undef<WriteSourceIndex>;
                                     if (append) {
                                         if (foundCount) {
                                             index = foundIndex[foundCount - 1];
@@ -710,7 +725,7 @@ export class HtmlElement implements IHtmlElement {
                                         break found;
                                     }
                                 }
-                                foundCount = foundIndex.push([openTag[i], closeIndex[j], '']);
+                                foundCount = foundIndex.push([openTag[i], closeIndex[j]]);
                             }
                         }
                     }
@@ -729,8 +744,7 @@ export class HtmlElement implements IHtmlElement {
                 let target: Null<domhandler.Node>;
                 ({ element: target, error } = DomWriter.findElement(source, element, { document: this.documentName, byId: !!append }));
                 if (target) {
-                    const { startIndex, endIndex } = target;
-                    sourceIndex = [startIndex!, endIndex! + 1, ''];
+                    sourceIndex = [target.startIndex!, target.endIndex!];
                 }
             }
             if (sourceIndex) {
