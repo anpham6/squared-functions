@@ -43,6 +43,7 @@ function withinSizeRange(uri: string, value: Undef<string>) {
     return true;
 }
 
+const concatString = (values: Undef<string[]>) => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const findFormat = (compress: Undef<CompressFormat[]>, format: string) => compress ? compress.filter(item => item.format === format) : [];
 const isObject = <T = PlainObject>(value: unknown): value is T => typeof value === 'object' && value !== null;
 const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
@@ -370,8 +371,8 @@ class FileManager extends Module implements IFileManager {
         }
         return file.sourceUTF8 || '';
     }
-    async appendContent(file: ExternalAsset, localUri: string, content: string, bundleIndex = 0) {
-        const trailing = this.getTrailingContent(file);
+    async setAssetContent(file: ExternalAsset, localUri: string, content: string, index = 0) {
+        const trailing = concatString(file.trailingContent);
         if (trailing) {
             content += trailing;
         }
@@ -382,21 +383,16 @@ class FileManager extends Module implements IFileManager {
                 }
             }
         }
-        if (bundleIndex === 0) {
+        if (index === 0) {
             return content;
         }
         const items = this.contentToAppend.get(localUri) || [];
-        items[bundleIndex - 1] = content;
+        items[index - 1] = content;
         this.contentToAppend.set(localUri, items);
         return '';
     }
-    getTrailingContent(file: ExternalAsset) {
-        if (file.trailingContent) {
-            return file.trailingContent.reduce((a, b) => a + '\n' + b, '');
-        }
-    }
-    getBundleContent(localUri: string) {
-        const content = this.contentToAppend.get(localUri);
+    getAssetContent(file: ExternalAsset) {
+        const content = this.contentToAppend.get(file.localUri!);
         if (content) {
             return content.reduce((a, b) => b ? a + '\n' + b : a, '');
         }
@@ -552,7 +548,7 @@ class FileManager extends Module implements IFileManager {
             }
         }
     }
-    async finalizeAsset(data: FileData, parent?: ExternalAsset) {
+    async transformAsset(data: FileData, parent?: ExternalAsset) {
         const file = data.file;
         const localUri = this.getLocalUri(data);
         if (file.tasks) {
@@ -624,7 +620,7 @@ class FileManager extends Module implements IFileManager {
             }
             else if (!content) {
                 if (completed.includes(localUri)) {
-                    this.finalizeAsset({ file });
+                    this.transformAsset({ file });
                     return true;
                 }
                 const queue = processing[localUri];
@@ -640,7 +636,7 @@ class FileManager extends Module implements IFileManager {
             if (file.bundleIndex !== undefined) {
                 let cloudStorage: Undef<CloudService[]>;
                 if (file.bundleIndex === 0) {
-                    const content = await this.appendContent(file, localUri, this.getUTF8String(file, localUri));
+                    const content = await this.setAssetContent(file, localUri, this.getUTF8String(file, localUri));
                     if (content) {
                         file.sourceUTF8 = content;
                         file.invalid = false;
@@ -662,10 +658,10 @@ class FileManager extends Module implements IFileManager {
                     if (queue) {
                         const verifyBundle = async (next: ExternalAsset, value: string) => {
                             if (bundleMain) {
-                                return this.appendContent(next, localUri, value, next.bundleIndex);
+                                return this.setAssetContent(next, localUri, value, next.bundleIndex);
                             }
                             if (value) {
-                                next.sourceUTF8 = await this.appendContent(next, localUri, value);
+                                next.sourceUTF8 = await this.setAssetContent(next, localUri, value);
                                 next.cloudStorage = cloudStorage;
                                 bundleMain = queue;
                             }
@@ -699,7 +695,7 @@ class FileManager extends Module implements IFileManager {
                     }
                 }
                 if (bundleMain || !file.invalid) {
-                    this.finalizeAsset({ file: bundleMain || file });
+                    this.transformAsset({ file: bundleMain || file });
                 }
                 else {
                     this.completeAsyncTask();
@@ -744,7 +740,7 @@ class FileManager extends Module implements IFileManager {
                                         .then(() => {
                                             for (const queue of uriMap.get(copyUri)!) {
                                                 this.performAsyncTask();
-                                                this.finalizeAsset({ file: queue });
+                                                this.transformAsset({ file: queue });
                                             }
                                         })
                                         .catch(err => {
@@ -766,11 +762,11 @@ class FileManager extends Module implements IFileManager {
                             if (item !== file) {
                                 this.performAsyncTask();
                             }
-                            this.finalizeAsset({ file: item });
+                            this.transformAsset({ file: item });
                         }
                     }
                     else {
-                        this.finalizeAsset({ file });
+                        this.transformAsset({ file });
                     }
                 }
                 delete downloading[uri];
@@ -856,7 +852,7 @@ class FileManager extends Module implements IFileManager {
                     this.performAsyncTask();
                     fs.writeFile(localUri, item.base64, 'base64', err => {
                         if (!err) {
-                            this.finalizeAsset({ file: item });
+                            this.transformAsset({ file: item });
                         }
                         else {
                             item.invalid = true;

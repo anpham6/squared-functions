@@ -260,6 +260,7 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
     return output;
 }
 
+const concatString = (values: Undef<string[]>) => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const escapePosix = (value: string) => value.split(/[\\/]/).map(seg => escapeRegexp(seg)).join('[\\\\/]');
 const isObject = (value: unknown): value is PlainObject => typeof value === 'object' && value !== null;
 const isRemoved = (item: DocumentAsset) => item.exclude || item.bundleIndex !== undefined;
@@ -558,8 +559,8 @@ class ChromeDocument extends Document implements IChromeDocument {
             case '@text/css': {
                 const unusedStyles = file.preserve !== true && instance?.unusedStyles;
                 const transform = mimeType[0] === '@';
-                const trailing = this.getTrailingContent(file);
-                const bundle = this.getBundleContent(localUri!);
+                const trailing = concatString(file.trailingContent);
+                const bundle = this.getAssetContent(file);
                 if (!unusedStyles && !transform && !trailing && !bundle && !format) {
                     break;
                 }
@@ -586,8 +587,8 @@ class ChromeDocument extends Document implements IChromeDocument {
                 break;
             }
             case 'text/javascript': {
-                const trailing = this.getTrailingContent(file);
-                const bundle = this.getBundleContent(localUri!);
+                const trailing = concatString(file.trailingContent);
+                const bundle = this.getAssetContent(file);
                 if (!trailing && !bundle && !format) {
                     break;
                 }

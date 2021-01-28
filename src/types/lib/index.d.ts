@@ -196,15 +196,14 @@ declare namespace functions {
         findAsset(uri: string): Undef<ExternalAsset>;
         removeCwd(value: Undef<string>): string;
         getUTF8String(file: ExternalAsset, localUri?: string): string;
-        appendContent(file: ExternalAsset, localUri: string, content: string, bundleIndex?: number): Promise<string>;
-        getTrailingContent(file: ExternalAsset): Undef<string>;
-        getBundleContent(localUri: string): Undef<string>;
+        setAssetContent(file: ExternalAsset, localUri: string, content: string, index?: number): Promise<string>;
+        getAssetContent(file: ExternalAsset): Undef<string>;
         writeBuffer(file: ExternalAsset): Null<Buffer>;
         writeImage(document: StringOfArray, data: OutputData): boolean;
         compressFile(file: ExternalAsset): Promise<unknown>;
         addCopy(data: FileData, saveAs?: string, replace?: boolean): Undef<string>;
         findMime(data: FileData, rename?: boolean): Promise<string>;
-        finalizeAsset(data: FileData, parent?: ExternalAsset): Promise<void>;
+        transformAsset(data: FileData, parent?: ExternalAsset): Promise<void>;
         processAssets(emptyDir?: boolean): void;
         finalize(): Promise<void>;
     }
