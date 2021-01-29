@@ -16,6 +16,7 @@ export interface DocumentAsset extends ExternalAsset, ChromeAsset {
 
 export interface IChromeDocument extends IDocument {
     productionRelease: boolean;
+    assets: DocumentAsset[];
     htmlFiles: DocumentAsset[];
     cssFiles: DocumentAsset[];
     baseDirectory: string;

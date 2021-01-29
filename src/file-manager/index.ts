@@ -151,7 +151,7 @@ class FileManager extends Module implements IFileManager {
             case 'document':
                 if (isFunction<DocumentConstructor>(target) && target.prototype instanceof Document) {
                     const instance = new target(params[0] as DocumentModule, this.body.templateMap, ...params.slice(1));
-                    target.init.call(this, instance, this.body);
+                    instance.init(this.getDocumentAssets(instance), this.body);
                     this.Document.push({ instance, constructor: target, params });
                 }
                 break;
@@ -337,9 +337,9 @@ class FileManager extends Module implements IFileManager {
     getRelativeUri(file: ExternalAsset, filename = file.filename) {
         return Module.joinPosix(file.moveTo, file.pathname, filename);
     }
-    assignUUID(data: DocumentData, attr: string, target: any = data) {
+    assignUUID(data: DocumentData, attr: string, target: unknown = data) {
         const document = data.document;
-        if (document) {
+        if (document && isObject(target)) {
             const value: unknown = data[attr];
             if (typeof value === 'string') {
                 for (const { instance } of this.Document) {
@@ -358,9 +358,9 @@ class FileManager extends Module implements IFileManager {
     getCloudAssets(instance: IModule) {
         return this.Cloud ? this.Cloud.database.filter(item => this.hasDocument(instance, item.document) && item.element) : [];
     }
-    findAsset(uri: string) {
+    findAsset(uri: string, instance?: IModule) {
         if (uri) {
-            return this.assets.find(item => item.uri === uri && !item.invalid);
+            return this.assets.find(item => item.uri === uri && (!instance || this.hasDocument(instance, item.document)));
         }
     }
     removeCwd(value: Undef<string>) {
@@ -434,10 +434,10 @@ class FileManager extends Module implements IFileManager {
         if (!localUri) {
             return;
         }
-        const ext = path.extname(localUri).substring(1);
-        saveAs ||= ext;
         const document = data.file.document;
+        const ext = path.extname(localUri).substring(1);
         let output: Undef<string>;
+        saveAs ||= ext;
         if (document) {
             for (const { instance } of this.Document) {
                 if (this.hasDocument(instance, document) && instance.addCopy && (output = instance.addCopy(this, data, saveAs, replace))) {

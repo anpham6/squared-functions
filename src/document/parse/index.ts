@@ -1,6 +1,6 @@
 import type { TagIndex } from '../../types/lib/squared';
 
-import type { ElementIndex, FindElementOptions, IDomWriter, IHtmlElement, ParserResult, WriteOptions } from './document';
+import type { ElementIndex, FindElementOptions, IDomWriter, IHtmlElement, ParserResult, SaveResult, WriteOptions, WriteResult } from './document';
 
 import escapeRegexp = require('escape-string-regexp');
 import uuid = require('uuid');
@@ -236,7 +236,7 @@ export class DomWriter implements IDomWriter {
             element.lowerCase = true;
         }
         element.newline = this.newline;
-        const [output, replaceHTML, error] = element.write(this.source, options);
+        const [output, outerHTML, error] = element.write(this.source, options);
         if (output) {
             this.source = output;
             ++this.modifyCount;
@@ -244,7 +244,7 @@ export class DomWriter implements IDomWriter {
             if (append) {
                 this.elements.push(index);
                 ++index.domIndex;
-                index.outerHTML = replaceHTML;
+                index.outerHTML = outerHTML;
                 const tagName = index.append!.tagName;
                 if (tagName !== index.tagName) {
                     index.tagName = tagName;
@@ -262,7 +262,7 @@ export class DomWriter implements IDomWriter {
             else if (rename && element.tagName !== index.tagName) {
                 this.renameTag(index, element.tagName);
             }
-            this.update(index, replaceHTML);
+            this.update(index, outerHTML);
             return true;
         }
         if (error) {
@@ -271,11 +271,11 @@ export class DomWriter implements IDomWriter {
         ++this.failCount;
         return false;
     }
-    update(element: ElementIndex, replaceHTML: string) {
+    update(element: ElementIndex, outerHTML: string) {
         const { domIndex, startIndex = -1 } = element;
         for (const item of this.elements) {
             if (item.domIndex === domIndex) {
-                item.outerHTML = replaceHTML;
+                item.outerHTML = outerHTML;
             }
             else if (item.startIndex !== undefined && (item.startIndex >= startIndex || startIndex === -1 && item.tagName !== 'html')) {
                 delete item.startIndex;
@@ -283,7 +283,7 @@ export class DomWriter implements IDomWriter {
             }
         }
     }
-    updateByTag(element: Required<TagIndex>, replaceHTML: string, startIndex: number, endIndex: number) {
+    updateByTag(element: Required<TagIndex>, outerHTML: string, startIndex: number, endIndex: number) {
         const { tagName, tagIndex, tagCount } = element;
         for (const item of this.elements) {
             if (item.tagName === tagName) {
@@ -291,7 +291,7 @@ export class DomWriter implements IDomWriter {
                     if (item.tagIndex === tagIndex) {
                         item.startIndex = startIndex;
                         item.endIndex = endIndex;
-                        item.outerHTML = replaceHTML;
+                        item.outerHTML = outerHTML;
                         continue;
                     }
                 }
@@ -304,7 +304,7 @@ export class DomWriter implements IDomWriter {
                 delete item.endIndex;
             }
         }
-        this.spliceRawString(replaceHTML, startIndex, endIndex);
+        this.spliceRawString(outerHTML, startIndex, endIndex);
         return true;
     }
     increment(element: ElementIndex) {
@@ -425,28 +425,28 @@ export class DomWriter implements IDomWriter {
     close() {
         return this.source = this.source.replace(new RegExp(`\\s+${getAttrId(this.documentName)}="[^"]+"`, 'g'), '');
     }
-    setRawString(sourceHTML: string, replaceHTML: string) {
+    setRawString(sourceHTML: string, outerHTML: string) {
         const current = this.source;
-        this.source = current.replace(sourceHTML, replaceHTML);
+        this.source = current.replace(sourceHTML, outerHTML);
         return current !== this.source;
     }
     getRawString(startIndex: number, endIndex: number) {
         return this.source.substring(startIndex, endIndex);
     }
-    spliceRawString(replaceHTML: string, startIndex: number, endIndex: number) {
+    spliceRawString(outerHTML: string, startIndex: number, endIndex: number) {
         const source = this.source;
-        return this.source = source.substring(0, startIndex) + replaceHTML + source.substring(endIndex + 1);
+        return this.source = source.substring(0, startIndex) + outerHTML + source.substring(endIndex + 1);
     }
     replaceAll(predicate: (elem: domhandler.Element) => boolean, callback: (elem: domhandler.Element, source: string) => Undef<string>) {
         let result = 0;
         new Parser(new DomHandler((err, dom) => {
             if (!err) {
                 for (const target of domutils.findAll(predicate, dom).reverse()) {
-                    const replaceHTML = callback(target, this.source);
-                    if (replaceHTML) {
+                    const outerHTML = callback(target, this.source);
+                    if (outerHTML) {
                         const nodes = domutils.getElementsByTagName(target.tagName, dom, true);
                         const tagIndex = nodes.findIndex(elem => elem === target);
-                        if (tagIndex !== -1 && this.updateByTag({ tagName: target.tagName, tagIndex, tagCount: nodes.length }, replaceHTML, target.startIndex!, target.endIndex!)) {
+                        if (tagIndex !== -1 && this.updateByTag({ tagName: target.tagName, tagIndex, tagCount: nodes.length }, outerHTML, target.startIndex!, target.endIndex!)) {
                             ++result;
                             continue;
                         }
@@ -598,7 +598,7 @@ export class HtmlElement implements IHtmlElement {
     hasAttribute(name: string) {
         return this._attributes.has(name = name.toLowerCase());
     }
-    write(source: string, options?: WriteOptions): [string, string, Null<Error>?] {
+    write(source: string, options?: WriteOptions): WriteResult {
         let remove: Undef<boolean>,
             append: Undef<TagIndex>;
         if (options) {
@@ -607,11 +607,11 @@ export class HtmlElement implements IHtmlElement {
         let error: Null<Error> = null;
         if (this._modified || remove || append) {
             const element = this.index;
-            const replaceHTML = !remove || append ? this.outerHTML : '';
+            const outerHTML = !remove || append ? this.outerHTML : '';
             const spliceSource = (index: WriteSourceIndex) => {
                 const [startIndex, endIndex, trailing = ''] = index;
                 element.startIndex = startIndex;
-                element.endIndex = startIndex + replaceHTML.length - 1;
+                element.endIndex = startIndex + outerHTML.length - 1;
                 if (append) {
                     let leading = '',
                         newline: Undef<boolean>,
@@ -623,9 +623,9 @@ export class HtmlElement implements IHtmlElement {
                         }
                         leading = source[i--] + leading;
                     }
-                    return source.substring(0, endIndex + 2) + (!newline ? this.newline : '') + leading + replaceHTML + this.newline + source.substring(endIndex + 2);
+                    return source.substring(0, endIndex + 2) + (!newline ? this.newline : '') + leading + outerHTML + this.newline + source.substring(endIndex + 2);
                 }
-                return source.substring(0, startIndex) + replaceHTML + (!remove ? trailing : '') + source.substring(endIndex + 1);
+                return source.substring(0, startIndex) + outerHTML + (!remove ? trailing : '') + source.substring(endIndex + 1);
             };
             const errorResult = (message: string): [string, string, Error] => ['', '', new Error(`${tagName.toUpperCase()} ${tagIndex}: ${message}`)];
             const { tagName, tagCount, tagIndex, startIndex, endIndex } = element;
@@ -634,13 +634,13 @@ export class HtmlElement implements IHtmlElement {
                 if (start !== undefined && start !== -1) {
                     const end = HtmlElement.findCloseTag(source, start);
                     if (end !== -1) {
-                        return [spliceSource([start, end]), replaceHTML];
+                        return [spliceSource([start, end]), outerHTML, error];
                     }
                 }
                 return errorResult('Element was not found');
             }
             if (startIndex !== undefined && endIndex !== undefined) {
-                return [spliceSource([startIndex, endIndex]), replaceHTML];
+                return [spliceSource([startIndex, endIndex]), outerHTML, error];
             }
             const id = element.id?.[this.documentName];
             if (append && !id) {
@@ -651,13 +651,13 @@ export class HtmlElement implements IHtmlElement {
             const selfClosed = !HtmlElement.hasInnerHTML(tagName);
             const selfId = selfClosed && !!id;
             const hasId = (start: number, end?: number) => !!id && source.substring(start, end).includes(id);
-            const getTagStart = (start: number): Null<[string, string]> => {
+            const getTagStart = (start: number): Null<WriteResult> => {
                 const end = HtmlElement.findCloseTag(source, start);
-                return end !== -1 && hasId(start, end) ? [spliceSource([start, end]), replaceHTML] : null;
+                return end !== -1 && hasId(start, end) ? [spliceSource([start, end]), outerHTML, error] : null;
             };
             let tag = new RegExp(`<${escapeRegexp(tagName)}[\\s|>]`, !this.lowerCase ? 'gi' : 'g'),
                 openCount = 0,
-                result: Null<[string, string]>,
+                result: Null<WriteResult>,
                 match: Null<RegExpExecArray>;
             while (match = tag.exec(source)) {
                 if (selfId && (openCount === tagIndex || append) && (result = getTagStart(match.index))) {
@@ -777,15 +777,15 @@ export class HtmlElement implements IHtmlElement {
                     sourceIndex[1] += trailing.length;
                     sourceIndex[2] = DomWriter.getNewlineString(leading, trailing, this.newline);
                 }
-                return [spliceSource(sourceIndex), replaceHTML];
+                return [spliceSource(sourceIndex), outerHTML, error];
             }
         }
         return ['', '', error];
     }
-    save(source: string, options?: WriteOptions): [string, Null<Error>?] {
-        const [output, replaceHTML, err] = this.write(source, options);
+    save(source: string, options?: WriteOptions): SaveResult {
+        const [output, outerHTML, err] = this.write(source, options);
         if (output) {
-            this.index.outerHTML = replaceHTML;
+            this.index.outerHTML = outerHTML;
         }
         return [output, err];
     }

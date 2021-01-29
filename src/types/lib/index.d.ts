@@ -114,6 +114,7 @@ declare namespace functions {
         templateMap?: StandardMap;
         readonly moduleName: string;
         readonly internalAssignUUID: string;
+        init(assets: ExternalAsset[], body: RequestBody): void;
         findConfig(settings: StandardMap, name: string, type?: string): PluginConfig;
         loadConfig(data: StandardMap, name: string): Optional<ConfigOrTransformer>;
         transform(type: string, code: string, format: string, options?: TransformOutput): Promise<Void<TransformResult>>;
@@ -127,7 +128,6 @@ declare namespace functions {
     }
 
     interface DocumentConstructor extends ModuleConstructor {
-        init(this: IFileManager, instance: IDocument, body: RequestBody): boolean;
         using(this: IFileManager, instance: IDocument, file: ExternalAsset): Promise<void>;
         finalize(this: IFileManager, instance: IDocument, assets: ExternalAsset[]): Promise<void>;
         createSourceMap(code: string, file?: ExternalAsset): SourceMapInput;
@@ -195,8 +195,8 @@ declare namespace functions {
         getLocalUri(data: FileData): string;
         getMimeType(data: FileData): Undef<string>;
         getRelativeUri(file: ExternalAsset, filename?: string): string;
-        assignUUID(data: DocumentData, attr: string, target?: any): Undef<string>;
-        findAsset(uri: string): Undef<ExternalAsset>;
+        assignUUID(data: DocumentData, attr: string, target?: unknown): Undef<string>;
+        findAsset(uri: string, instance?: IModule): Undef<ExternalAsset>;
         removeCwd(value: Undef<string>): string;
         getUTF8String(file: ExternalAsset, localUri?: string): string;
         setAssetContent(file: ExternalAsset, localUri: string, content: string, index?: number): Promise<string>;

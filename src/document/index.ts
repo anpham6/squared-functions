@@ -13,7 +13,6 @@ const isString = (value: any): value is string => !!value && typeof value === 's
 const getSourceMappingURL = (value: string) => `\n//# sourceMappingURL=${value}\n`;
 
 abstract class Document extends Module implements IDocument {
-    public static init(this: IFileManager, instance: IDocument, body: RequestBody) {}
     public static async using(this: IFileManager, instance: IDocument, file: ExternalAsset) {}
     public static async finalize(this: IFileManager, instance: IDocument, assets: ExternalAsset[]) {}
 
@@ -112,6 +111,8 @@ abstract class Document extends Module implements IDocument {
     constructor(public module: DocumentModule, public templateMap?: Undef<StandardMap>) {
         super();
     }
+
+    public abstract init(assets: ExternalAsset[], body: RequestBody): void;
 
     findConfig(settings: StandardMap, name: string, type?: string): PluginConfig {
         if (this.module.eval_template && this.templateMap && type) {

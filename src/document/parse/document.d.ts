@@ -7,6 +7,9 @@ export interface ParserResult extends Partial<TagIndex> {
     error: Null<Error>;
 }
 
+export type WriteResult = [string, string, Null<Error>];
+export type SaveResult = [string, Null<Error>];
+
 export interface ElementIndex extends IElementIndex {
     startIndex?: number;
     endIndex?: number;
@@ -32,16 +35,16 @@ export interface IDomWriter {
     append(index: ElementIndex): Null<IHtmlElement>;
     write(element: IHtmlElement, options?: WriteOptions): boolean;
     close(): string;
-    update(element: ElementIndex, replaceHTML: string): void;
-    updateByTag(element: Required<TagIndex>, replaceHTML: string, startIndex: number, endIndex: number): boolean;
+    update(element: ElementIndex, outerHTML: string): void;
+    updateByTag(element: Required<TagIndex>, outerHTML: string, startIndex: number, endIndex: number): boolean;
     increment(element: ElementIndex): void;
     decrement(element: ElementIndex): ElementIndex[];
     renameTag(element: ElementIndex, tagName: string): void;
     indexTag(tagName: string, append?: boolean): boolean;
     replaceAll(predicate: (elem: Element) => boolean, callback: (elem: Element, source: string) => Undef<string>): number;
-    setRawString(sourceHTML: string, replaceHTML: string): boolean;
+    setRawString(sourceHTML: string, outerHTML: string): boolean;
     getRawString(startIndex: number, endIndex: number): string;
-    spliceRawString(replaceHTML: string, startIndex: number, endIndex: number): string;
+    spliceRawString(outerHTML: string, startIndex: number, endIndex: number): string;
     hasErrors(): boolean;
 }
 
@@ -65,8 +68,8 @@ export interface IHtmlElement {
     getAttribute(name: string): Optional<string>;
     removeAttribute(...names: string[]): void;
     hasAttribute(name: string): boolean;
-    write(source: string, options?: WriteOptions): [string, string, Null<Error>?];
-    save(source: string, options?: WriteOptions): [string, Null<Error>?];
+    write(source: string, options?: WriteOptions): WriteResult;
+    save(source: string, options?: WriteOptions): SaveResult;
 }
 
 export interface HtmlElementConstructor {
