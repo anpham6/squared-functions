@@ -289,9 +289,9 @@ export class DomWriter implements IDomWriter {
             if (item.tagName === tagName) {
                 if (item.tagCount === tagCount) {
                     if (item.tagIndex === tagIndex) {
-                        item.outerHTML = replaceHTML;
                         item.startIndex = startIndex;
                         item.endIndex = endIndex;
+                        item.outerHTML = replaceHTML;
                         continue;
                     }
                 }
@@ -446,8 +446,7 @@ export class DomWriter implements IDomWriter {
                     if (replaceHTML) {
                         const nodes = domutils.getElementsByTagName(target.tagName, dom, true);
                         const tagIndex = nodes.findIndex(elem => elem === target);
-                        const { startIndex, endIndex } = target;
-                        if (tagIndex !== -1 && this.updateByTag({ tagName: target.tagName, tagIndex, tagCount: nodes.length }, replaceHTML, startIndex!, endIndex!)) {
+                        if (tagIndex !== -1 && this.updateByTag({ tagName: target.tagName, tagIndex, tagCount: nodes.length }, replaceHTML, target.startIndex!, target.endIndex!)) {
                             ++result;
                             continue;
                         }
@@ -626,7 +625,7 @@ export class HtmlElement implements IHtmlElement {
                     }
                     return source.substring(0, endIndex + 2) + (!newline ? this.newline : '') + leading + replaceHTML + this.newline + source.substring(endIndex + 2);
                 }
-                return source.substring(0, startIndex) + replaceHTML + trailing + source.substring(endIndex + 1);
+                return source.substring(0, startIndex) + replaceHTML + (!remove ? trailing : '') + source.substring(endIndex + 1);
             };
             const errorResult = (message: string): [string, string, Error] => ['', '', new Error(`${tagName.toUpperCase()} ${tagIndex}: ${message}`)];
             const { tagName, tagCount, tagIndex, startIndex, endIndex } = element;

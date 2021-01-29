@@ -227,6 +227,10 @@ class FileManager extends Module implements IFileManager {
             }
         }
     }
+    removeAsset(file: ExternalAsset) {
+        this.filesToRemove.add(file.localUri!);
+        file.invalid = true;
+    }
     has(value: Undef<string>): value is string {
         return value ? this.files.has(this.removeCwd(value)) : false;
     }
@@ -346,6 +350,13 @@ class FileManager extends Module implements IFileManager {
                 return value;
             }
         }
+    }
+    getDocumentAssets(instance: IModule) {
+        const moduleName = instance.moduleName;
+        return moduleName ? this.documentAssets.filter(item => item.document!.includes(moduleName)) : [];
+    }
+    getCloudAssets(instance: IModule) {
+        return this.Cloud ? this.Cloud.database.filter(item => this.hasDocument(instance, item.document) && item.element) : [];
     }
     findAsset(uri: string) {
         if (uri) {
@@ -633,9 +644,10 @@ class FileManager extends Module implements IFileManager {
             return false;
         };
         const processQueue = async (file: ExternalAsset, localUri: string, bundleMain?: ExternalAsset) => {
-            if (file.bundleIndex !== undefined) {
+            const bundleIndex = file.bundleIndex;
+            if (bundleIndex !== undefined && bundleIndex !== -1) {
                 let cloudStorage: Undef<CloudService[]>;
-                if (file.bundleIndex === 0) {
+                if (bundleIndex === 0) {
                     const content = await this.setAssetContent(file, localUri, this.getUTF8String(file, localUri));
                     if (content) {
                         file.sourceUTF8 = content;
@@ -945,7 +957,7 @@ class FileManager extends Module implements IFileManager {
         }
         if (this.documentAssets.length) {
             for (const { instance, constructor } of this.Document) {
-                const assets = this.documentAssets.filter(item => item.document!.includes(instance.moduleName) && !item.invalid);
+                const assets = this.getDocumentAssets(instance);
                 if (assets.length) {
                     await constructor.finalize.call(this, instance, assets);
                 }

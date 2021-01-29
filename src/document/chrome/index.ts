@@ -6,7 +6,7 @@ import type { SourceMapOutput } from '../../types/lib/document';
 import type { DocumentModule } from '../../types/lib/module';
 import type { RequestBody } from '../../types/lib/node';
 
-import type { CloudIScopeOrigin } from '../../cloud';
+import type { CloudScopeOrigin } from '../../cloud';
 import type { DocumentAsset, IChromeDocument } from './document';
 
 import type * as domhandler from 'domhandler';
@@ -74,14 +74,27 @@ function getObjectValue(data: unknown, key: string, joinString = ' ') {
     return '';
 }
 
-function replaceUrl(source: string, segment: string, url: string, base64: boolean) {
-    const pattern = new RegExp(`\\s*[Uu][Rr][Ll]\\(\\s*(["'])?\\s*${!base64 ? escapePosix(segment) : `[^"',]+,\\s*` + segment.replace(/\+/g, '\\+')}\\s*\\1\\s*\\)`, 'g');
+function replaceBase64Url(source: string, base64: string, url: string, fromHTML?: boolean) {
+    const pattern = new RegExp(`\\s*(["'])?([^"'=,]+?,\\s*` + base64.replace(/\+/g, '\\+') + `\\s*)\\1\\s*`, 'g');
     let output: Undef<string>,
         match: Null<RegExpExecArray>;
     while (match = pattern.exec(source)) {
-        output = (output || source).replace(match[0], 'url(' + match[1] + url + match[1] + ')');
+        output = (output || source).replace(match[2], url);
+        if (fromHTML) {
+            break;
+        }
     }
     return output;
+}
+
+function findCloudUUID(this: IFileManager, cssFile: DocumentAsset, asset: DocumentAsset, url: string) {
+    if (this.Cloud?.getStorage('upload', asset.cloudStorage)) {
+        if (!asset.inlineCssCloud) {
+            (cssFile.inlineCssMap ||= {})[asset.inlineCssCloud = uuid.v4()] = url;
+        }
+        url = asset.inlineCssCloud;
+    }
+    return url;
 }
 
 function removeCss(source: string, styles: string[]) {
@@ -90,8 +103,7 @@ function removeCss(source: string, styles: string[]) {
         pattern: Undef<RegExp>,
         match: Null<RegExpExecArray>;
     for (let value of styles) {
-        value = escapeRegexp(value);
-        const block = `(\\s*)${value}\\s*\\{[^}]*\\}[ \\t]*((?:\\r?\\n)*)`;
+        const block = `(\\s*)${value = escapeRegexp(value)}\\s*\\{[^}]*\\}[ \\t]*((?:\\r?\\n)*)`;
         for (let i = 0; i < 2; ++i) {
             pattern = new RegExp(leading[i] + block, i === 0 ? 'm' : 'g');
             while (match = pattern.exec(source)) {
@@ -126,92 +138,54 @@ function removeCss(source: string, styles: string[]) {
     return output;
 }
 
-function findRelativeUri(this: IFileManager, file: DocumentAsset, url: string): [string, Null<DocumentAsset>] {
-    const origin = file.uri!;
-    const asset = this.findAsset(Document.resolvePath(url, origin)) as DocumentAsset;
-    if (asset) {
-        if (file.inlineContent) {
-            return [asset.relativeUri!, asset];
+function findRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: DocumentAsset) {
+    if (cssFile.inlineContent) {
+        return asset.relativeUri!;
+    }
+    const splitPath = (value: string) => value.split(/[\\/]/).filter(segment => segment.trim());
+    let fileDir = cssFile.pathname,
+        assetDir = asset.pathname;
+    if (fileDir === assetDir && (cssFile.moveTo || '') === (asset.moveTo || '')) {
+        return asset.filename;
+    }
+    if (cssFile.moveTo) {
+        if (cssFile.moveTo === asset.moveTo) {
+            assetDir = Document.joinPosix(asset.moveTo, asset.pathname);
         }
-        const splitPath = (value: string) => value.split(/[\\/]/).filter(segment => segment.trim());
-        let fileDir = file.pathname,
-            assetDir = asset.pathname;
-        if (fileDir === assetDir && (file.moveTo || '') === (asset.moveTo || '')) {
-            return [asset.filename, asset];
-        }
-        if (file.moveTo) {
-            if (file.moveTo === asset.moveTo) {
-                assetDir = Document.joinPosix(asset.moveTo, asset.pathname);
-            }
-            else {
-                const moveUri = path.join(this.baseDirectory, file.moveTo, asset.relativeUri!);
-                try {
-                    if (!fs.existsSync(moveUri)) {
-                        fs.mkdirpSync(path.dirname(moveUri));
-                        fs.copyFileSync(asset.localUri!, moveUri);
-                    }
-                }
-                catch (err) {
-                    this.writeFail(['Unable to copy file', path.basename(moveUri)], err);
+        else {
+            const moveUri = path.join(this.baseDirectory, cssFile.moveTo, asset.relativeUri!);
+            try {
+                if (!fs.existsSync(moveUri)) {
+                    fs.mkdirpSync(path.dirname(moveUri));
+                    fs.copyFileSync(asset.localUri!, moveUri);
                 }
             }
-            fileDir = Document.joinPosix(file.moveTo, file.pathname);
+            catch (err) {
+                this.writeFail(['Unable to copy file', path.basename(moveUri)], err);
+            }
         }
-        const prefix = splitPath(fileDir);
-        const suffix = splitPath(assetDir);
-        let found: Undef<boolean>;
-        while (prefix.length && suffix.length && prefix[0] === suffix[0]) {
-            prefix.shift();
-            suffix.shift();
-            found = true;
-        }
-        return [found ? Document.joinPosix('../'.repeat(prefix.length), suffix.join('/')) : '../'.repeat(prefix.length) + asset.relativeUri!, asset];
+        fileDir = Document.joinPosix(cssFile.moveTo, cssFile.pathname);
     }
-    return ['', null];
-}
-
-function findCloudUUID(this: IFileManager, cssFile: DocumentAsset, asset: DocumentAsset, url: string) {
-    if (this.Cloud?.getStorage('upload', asset.cloudStorage)) {
-        if (!asset.inlineCssCloud) {
-            (cssFile.inlineCssMap ||= {})[asset.inlineCssCloud = uuid.v4()] = url;
-        }
-        return asset.inlineCssCloud;
+    const prefix = splitPath(fileDir);
+    const suffix = splitPath(assetDir);
+    let found: Undef<boolean>;
+    while (prefix.length && suffix.length && prefix[0] === suffix[0]) {
+        prefix.shift();
+        suffix.shift();
+        found = true;
     }
-    return url;
+    return found ? Document.joinPosix('../'.repeat(prefix.length), suffix.join('/'), asset.filename) : '../'.repeat(prefix.length) + asset.relativeUri!;
 }
 
 function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: DocumentAsset, content: string, fromHTML?: boolean) {
     const cssUri = cssFile.uri!;
-    let output: Undef<string>;
-    for (const item of assets) {
-        if (item.base64 && !item.element && item.uri) {
-            const [url] = findRelativeUri.call(this, cssFile, item.uri);
-            if (url) {
-                const result = replaceUrl(output || content, item.base64, findCloudUUID.call(this, cssFile, item, url), true);
-                if (result) {
-                    output = result;
-                }
-                else {
-                    delete item.inlineCloud;
-                }
-            }
-        }
-    }
-    if (output) {
-        content = output;
-    }
-    const writeURL = (value: string, quote?: string) => {
-        if (!quote) {
-            quote = value.includes('"') || fromHTML ? "'" : '"';
-        }
-        return `url(${quote}${value.replace(quote === '"' ? /["()]/g : /['"()]/g, (...capture) => '\\' + capture[0])}${quote})`;
-    };
     const length = content.length;
     const pattern = /url\(/ig;
-    let match: Null<RegExpExecArray>;
+    let output: Undef<string>,
+        match: Null<RegExpExecArray>;
     while (match = pattern.exec(content)) {
         let url = '',
-            quote: Undef<string>,
+            quote = '',
             i = match.index + match[0].length,
             j = -1;
         for ( ; i < length; ++i) {
@@ -227,37 +201,101 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
                         break;
                 }
             }
-            if (ch === ')' || ch === quote) {
+            if (ch === ')') {
                 if (content[i - 1] !== '\\') {
                     break;
                 }
                 j = i;
             }
-            else if (j !== -1 && /["':;>]/.test(ch)) {
+            else if (j !== -1 && (!fromHTML && /[:;}]/.test(ch) || fromHTML && /["':;>]/.test(ch))) {
                 i = j;
-                break;
-            }
-            else if (ch === ':' && content.substring(i - 4, i) === 'data') {
                 break;
             }
             url += ch;
         }
         url = url.replace(/^\s*["']?\s*/, '').replace(/\s*["']?\s*$/, '');
-        if (!url.startsWith('data:')) {
-            const segment = content.substring(match.index, i + 1);
-            let location: string,
-                asset: Optional<DocumentAsset>;
-            if ((!Document.isFileHTTP(url) || Document.hasSameOrigin(cssUri, url)) && ([location, asset] = findRelativeUri.call(this, cssFile, url)) && asset) {
-                output = (output || content).replace(segment, writeURL(findCloudUUID.call(this, cssFile, asset, location), quote));
+        const asset = this.findAsset(Document.resolvePath(url, cssUri)) as DocumentAsset;
+        if (asset) {
+            const setOutputUrl = (value: string) => output = (output || content).replace(content.substring(match!.index, i + 1), 'url(' + quote + findCloudUUID.call(this, cssFile, asset, value) + quote + ')');
+            if (url.startsWith('data:')) {
+                const base64 = url.split(',')[1];
+                for (const item of assets) {
+                    if (item.base64 === base64) {
+                        setOutputUrl(findRelativeUri.call(this, cssFile, asset));
+                        break;
+                    }
+                }
             }
-            else if (asset = this.findAsset(Document.resolvePath(url, cssUri))) {
+            else if (asset.format === 'base64') {
+                setOutputUrl(asset.inlineBase64 ||= uuid.v4());
+            }
+            else if (!Document.isFileHTTP(url) || Document.hasSameOrigin(cssUri, url)) {
+                setOutputUrl(findRelativeUri.call(this, cssFile, asset));
+            }
+            else {
                 const pathname = cssFile.pathname;
                 const count = pathname && pathname !== '/' ? pathname.split(/[\\/]/).length : 0;
-                output = (output || content).replace(segment, writeURL(findCloudUUID.call(this, cssFile, asset, (count ? '../'.repeat(count) : '') + asset.relativeUri), quote));
+                setOutputUrl((count ? '../'.repeat(count) : '') + asset.relativeUri);
             }
         }
     }
     return output;
+}
+
+function setElementAttribute(this: ChromeDocument, htmlFile: DocumentAsset, asset: DocumentAsset, element: HtmlElement, value: string) {
+    switch (element.tagName) {
+        case 'a':
+        case 'area':
+        case 'base':
+        case 'link':
+            element.setAttribute('href', value);
+            break;
+        case 'object':
+            element.setAttribute('data', value);
+            break;
+        case 'video':
+            element.setAttribute('poster', value);
+            break;
+        case 'img':
+        case 'source': {
+            const srcset = element.getAttribute('srcset');
+            if (srcset) {
+                const baseUri = htmlFile.uri!;
+                const uri = asset.uri!;
+                const src = [uri];
+                const sameOrigin = Document.hasSameOrigin(baseUri, uri);
+                if (sameOrigin) {
+                    let url = element.getAttribute('src');
+                    if (url && uri === Document.resolvePath(url, baseUri)) {
+                        src.push(url);
+                    }
+                    url = uri.startsWith(this.baseDirectory) ? uri.substring(this.baseDirectory.length) : uri.replace(new URL(baseUri).origin, '');
+                    if (!src.includes(url)) {
+                        src.push(url);
+                    }
+                }
+                let current = srcset,
+                    match: Null<RegExpExecArray>;
+                for (const url of src) {
+                    const resolve = sameOrigin && !Document.isFileHTTP(url);
+                    const pathname = escapePosix(url);
+                    const pattern = new RegExp(`(,?\\s*)(${(resolve && url[0] !== '.' ? '(?:\\.\\.[\\\\/])*\\.\\.' + pathname + '|' : '') + pathname})([^,]*)`, 'g');
+                    while (match = pattern.exec(srcset)) {
+                        if (!resolve || uri === Document.resolvePath(match[2], baseUri)) {
+                            current = current.replace(match[0], match[1] + value + match[3]);
+                        }
+                    }
+                }
+                element.setAttribute('srcset', current);
+                if (asset.format === 'srcset') {
+                    break;
+                }
+            }
+        }
+        default:
+            element.setAttribute('src', value);
+            break;
+    }
 }
 
 const concatString = (values: Undef<string[]>) => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
@@ -268,7 +306,7 @@ const getErrorDOM = (tagName: string, tagIndex: number) => new Error(`${tagName.
 
 class ChromeDocument extends Document implements IChromeDocument {
     public static init(this: IFileManager, instance: IChromeDocument, body: RequestBody) {
-        const baseUrl = body.baseUrl;
+        const { baseUrl, unusedStyles } = body;
         if (baseUrl) {
             try {
                 const { origin, pathname } = new URL(baseUrl);
@@ -278,17 +316,21 @@ class ChromeDocument extends Document implements IChromeDocument {
             catch {
             }
         }
-        instance.unusedStyles = body.unusedStyles;
+        instance.unusedStyles = unusedStyles;
         const assets = this.assets as DocumentAsset[];
         assets.sort((a, b) => {
             if (a.bundleId && a.bundleId === b.bundleId) {
                 return a.bundleIndex! - b.bundleIndex!;
             }
-            if (a.uri === baseUrl) {
-                return 1;
+            switch (a.mimeType) {
+                case '@text/html':
+                case '@text/css':
+                    return -1;
             }
-            if (b.uri === baseUrl) {
-                return -1;
+            switch (b.mimeType) {
+                case '@text/html':
+                case '@text/css':
+                    return 1;
             }
             return 0;
         });
@@ -305,274 +347,19 @@ class ChromeDocument extends Document implements IChromeDocument {
     }
 
     public static async using(this: IFileManager, instance: ChromeDocument, file: DocumentAsset) {
-        const { format, mimeType, localUri } = file;
+        const { localUri, format, mimeType } = file;
         switch (mimeType) {
-            case '@text/html': {
-                this.formatMessage(this.logType.PROCESS, 'HTML', ['Rewriting content...', path.basename(localUri!)]);
-                const time = Date.now();
-                const { moduleName, baseDirectory } = instance;
-                const cloud = this.Cloud;
-                const baseUri = file.uri!;
-                const assets = this.assets.filter(item => this.hasDocument(instance, item.document)) || [];
-                const database = cloud?.database.filter(item => this.hasDocument(instance, item.document) && item.element) || [];
-                const domBase = new DomWriter(
-                    moduleName,
-                    this.getUTF8String(file, localUri),
-                    (assets as ElementAction[]).concat(database).filter(item => item.element).map(item => item.element!)
-                );
-                if (database.length) {
-                    const cacheKey = uuid.v4();
-                    const pattern = /\$\{\s*(\w+)\s*\}/g;
-                    (await Promise.all(
-                        database.map(item => {
-                            return cloud!.getDatabaseRows(item, cacheKey).catch(err => {
-                                if (err instanceof Error && err.message) {
-                                    this.errors.push(err.message);
-                                }
-                                return [];
-                            });
-                        })
-                    )).forEach((result, index) => {
-                        if (result.length) {
-                            const item = database[index];
-                            const template = item.value;
-                            const element = item.element!;
-                            const htmlElement = new HtmlElement(moduleName, element);
-                            if (typeof template === 'string') {
-                                if (HtmlElement.hasInnerHTML(element.tagName)) {
-                                    let output = '',
-                                        match: Null<RegExpExecArray>;
-                                    for (const row of result) {
-                                        let value = template;
-                                        while (match = pattern.exec(template)) {
-                                            value = value.replace(match[0], getObjectValue(row, match[1]));
-                                        }
-                                        output += value;
-                                        pattern.lastIndex = 0;
-                                    }
-                                    htmlElement.innerHTML = output;
-                                }
-                            }
-                            else {
-                                for (const attr in template) {
-                                    let columns = template[attr]!;
-                                    if (typeof columns === 'string') {
-                                        columns = [columns];
-                                    }
-                                    for (const row of result) {
-                                        let value = '',
-                                            joinString = ' ';
-                                        for (const col of columns) {
-                                            if (col[0] === ':') {
-                                                const join = /^:join\((.*)\)$/.exec(col);
-                                                if (join) {
-                                                    joinString = join[1];
-                                                }
-                                                continue;
-                                            }
-                                            value += (value ? joinString : '') + getObjectValue(row, col, joinString);
-                                        }
-                                        if (value) {
-                                            htmlElement.setAttribute(attr, value);
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            if (!domBase.write(htmlElement)) {
-                                const { tagName, tagIndex } = element;
-                                this.writeFail(['Cloud text replacement', tagName], getErrorDOM(tagName, tagIndex));
-                            }
-                        }
-                        else {
-                            const { service, table, id, query } = database[index];
-                            let queryString = '';
-                            if (id) {
-                                queryString = 'id: ' + id;
-                            }
-                            else if (query) {
-                                queryString = typeof query !== 'string' ? JSON.stringify(query) : query;
-                            }
-                            this.formatFail(this.logType.CLOUD_DATABASE, service, ['Query had no results', table ? 'table: ' + table : ''], new Error(queryString));
-                        }
-                    });
-                }
-                for (const item of (assets as DocumentAsset[]).filter(asset => !(asset.invalid && !asset.exclude && asset.bundleIndex === undefined)).sort((a, b) => isRemoved(a) ? -1 : isRemoved(b) ? 1 : 0)) {
-                    const element = item.element;
-                    if (element) {
-                        const { bundleIndex, inlineContent, attributes } = item;
-                        const { tagName, tagIndex } = element;
-                        const htmlElement = new HtmlElement(moduleName, element, attributes);
-                        if (inlineContent) {
-                            const id = `<!-- ${uuid.v4()} -->`;
-                            htmlElement.tagName = inlineContent;
-                            htmlElement.innerHTML = id;
-                            htmlElement.removeAttribute('src', 'href');
-                            if (domBase.write(htmlElement, { rename: tagName === 'link' })) {
-                                item.inlineContent = id;
-                                item.watch = false;
-                            }
-                            else {
-                                this.writeFail(['Inline tag replacement', tagName], getErrorDOM(tagName, tagIndex));
-                            }
-                        }
-                        else if (bundleIndex === 0 || bundleIndex === -1) {
-                            let value: string;
-                            if (cloud?.getStorage('upload', item.cloudStorage)) {
-                                value = uuid.v4();
-                                item.inlineCloud = value;
-                            }
-                            else {
-                                value = item.relativeUri!;
-                            }
-                            if (tagName === 'link' || tagName === 'style') {
-                                htmlElement.tagName = 'link';
-                                htmlElement.setAttribute('rel', 'stylesheet');
-                                htmlElement.setAttribute('href', value);
-                            }
-                            else {
-                                htmlElement.setAttribute('src', value);
-                            }
-                            htmlElement.innerHTML = '';
-                            if (!domBase.write(htmlElement, { rename: tagName === 'style' })) {
-                                this.writeFail(['Bundle tag replacement', tagName], getErrorDOM(tagName, tagIndex));
-                                delete item.inlineCloud;
-                            }
-                        }
-                        else if (isRemoved(item) && !domBase.write(htmlElement, { remove: true })) {
-                            this.writeFail(['Exclude tag removal', tagName], getErrorDOM(tagName, tagIndex));
-                        }
+            case 'text/html':
+                if (format) {
+                    const result = await instance.transform('html', this.getUTF8String(file, localUri), format);
+                    if (result) {
+                        file.sourceUTF8 = result.code;
                     }
-                }
-                for (const item of assets as DocumentAsset[]) {
-                    if (item === file && !item.attributes || item.invalid || !item.uri && !item.attributes || item.bundleIndex !== undefined || item.inlineContent || item.content) {
-                        continue;
-                    }
-                    const { element, base64 } = item;
-                    let value = item.relativeUri!;
-                    if (element) {
-                        const { uri, attributes } = item;
-                        const { tagName, tagIndex } = element;
-                        const htmlElement = new HtmlElement(moduleName, element, attributes);
-                        if (uri && item !== file) {
-                            const src = [uri];
-                            if (item.format === 'base64') {
-                                value = uuid.v4();
-                                item.inlineBase64 = value;
-                                item.watch = false;
-                            }
-                            else if (cloud?.getStorage('upload', item.cloudStorage)) {
-                                value = uuid.v4();
-                                item.inlineCloud = value;
-                            }
-                            switch (tagName) {
-                                case 'a':
-                                case 'area':
-                                case 'base':
-                                case 'link':
-                                    htmlElement.setAttribute('href', value);
-                                    break;
-                                case 'object':
-                                    htmlElement.setAttribute('data', value);
-                                    break;
-                                case 'video':
-                                    htmlElement.setAttribute('poster', value);
-                                    break;
-                                case 'img':
-                                case 'source': {
-                                    const srcset = htmlElement.getAttribute('srcset');
-                                    if (srcset) {
-                                        const sameOrigin = Document.hasSameOrigin(baseUri, uri);
-                                        if (sameOrigin) {
-                                            let url = htmlElement.getAttribute('src');
-                                            if (url && uri === Document.resolvePath(url, baseUri)) {
-                                                src.push(url);
-                                            }
-                                            url = uri.startsWith(baseDirectory) ? uri.substring(baseDirectory.length) : uri.replace(new URL(baseUri).origin, '');
-                                            if (!src.includes(url)) {
-                                                src.push(url);
-                                            }
-                                        }
-                                        let current = srcset,
-                                            match: Null<RegExpExecArray>;
-                                        for (const url of src) {
-                                            const resolve = sameOrigin && !Document.isFileHTTP(url);
-                                            const pathname = escapePosix(url);
-                                            const pattern = new RegExp(`(,?\\s*)(${(resolve && item[0] !== '.' ? '(?:\\.\\.[\\\\/])*\\.\\.' + pathname + '|' : '') + pathname})([^,]*)`, 'g');
-                                            while (match = pattern.exec(srcset)) {
-                                                if (!resolve || uri === Document.resolvePath(match[2], baseUri)) {
-                                                    current = current.replace(match[0], match[1] + value + match[3]);
-                                                }
-                                            }
-                                        }
-                                        htmlElement.setAttribute('srcset', current);
-                                        if (item.format === 'srcset') {
-                                            break;
-                                        }
-                                    }
-                                }
-                                default:
-                                    htmlElement.setAttribute('src', value);
-                                    break;
-                            }
-                        }
-                        if (!domBase.write(htmlElement)) {
-                            this.writeFail(['Element URL replacement', tagName], getErrorDOM(tagName, tagIndex));
-                            delete item.inlineCloud;
-                            delete item.inlineBase64;
-                        }
-                    }
-                    else if (base64) {
-                        if (cloud?.getStorage('upload', item.cloudStorage)) {
-                            value = uuid.v4();
-                            item.inlineCloud = value;
-                        }
-                        const findAll = (elem: domhandler.Element) => {
-                            if (elem.tagName === 'style') {
-                                return !!elem.children.find((child: domhandler.DataNode) => child.type === 'text' && child.nodeValue.includes(base64));
-                            }
-                            else if (elem.attribs.style?.includes(base64)) {
-                                return true;
-                            }
-                            return false;
-                        };
-                        const modifyTag = (elem: domhandler.Element, source: string) => replaceUrl(source.substring(elem.startIndex!, elem.endIndex! + 1), base64, value, true);
-                        if (!domBase.replaceAll(findAll, modifyTag)) {
-                            delete item.inlineCloud;
-                        }
-                    }
-                }
-                file.sourceUTF8 = transformCss.call(this, assets, file, domBase.source, true) || domBase.source;
-                const failCount = domBase.failCount;
-                if (failCount) {
-                    this.writeFail([`DOM update had ${failCount} ${failCount === 1 ? 'error' : 'errors'}`, instance.moduleName], new Error(`${instance.moduleName}: ${failCount} modifications failed`));
-                }
-                else {
-                    this.writeTimeElapsed('HTML', `${path.basename(localUri!)}: ${domBase.modifyCount} modified`, time);
-                }
-                if (domBase.hasErrors()) {
-                    this.errors.push(...domBase.errors.map(item => item.message));
                 }
                 break;
-            }
             case 'text/css':
-            case '@text/css': {
-                const unusedStyles = file.preserve !== true && instance?.unusedStyles;
-                const transform = mimeType[0] === '@';
-                const trailing = concatString(file.trailingContent);
-                const bundle = this.getAssetContent(file);
-                if (!unusedStyles && !transform && !trailing && !bundle && !format) {
-                    break;
-                }
-                let source = await instance.formatContent(this, file, this.getUTF8String(file, localUri));
-                if (trailing) {
-                    source += trailing;
-                }
-                if (bundle) {
-                    source += bundle;
-                }
                 if (format) {
-                    const result = await instance.transform('css', source, format);
+                    const result = await instance.transform('css', this.getUTF8String(file, localUri), format);
                     if (result) {
                         if (result.map) {
                             const uri = Document.writeSourceMap(localUri!, result as SourceMapOutput);
@@ -580,16 +367,14 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 this.add(uri, file);
                             }
                         }
-                        source = result.code;
+                        file.sourceUTF8 = result.code;
                     }
                 }
-                file.sourceUTF8 = source;
                 break;
-            }
             case 'text/javascript': {
-                const trailing = concatString(file.trailingContent);
                 const bundle = this.getAssetContent(file);
-                if (!trailing && !bundle && !format) {
+                const trailing = concatString(file.trailingContent);
+                if (!bundle && !trailing && !format) {
                     break;
                 }
                 let source = this.getUTF8String(file, localUri);
@@ -614,129 +399,301 @@ class ChromeDocument extends Document implements IChromeDocument {
                 file.sourceUTF8 = source;
                 break;
             }
+            case '@text/html': {
+                const assets = this.getDocumentAssets(instance) as DocumentAsset[];
+                const items = assets.filter(item => item.base64 || item.format === 'base64');
+                if (items.length) {
+                    const domBase = new DomWriter(
+                        instance.moduleName,
+                        this.getUTF8String(file, localUri),
+                        (assets as ElementAction[]).concat(this.getCloudAssets(instance)).filter(item => item.element).map(item => item.element!)
+                    );
+                    let modified: Undef<boolean>;
+                    for (const item of items) {
+                        const base64 = item.base64;
+                        if (base64) {
+                            const url = this.Cloud?.getStorage('upload', item.cloudStorage) ? item.inlineCloud ||= uuid.v4() : item.relativeUri!;
+                            const findAll = (elem: domhandler.Element) => {
+                                if (elem.tagName === 'style') {
+                                    return !!elem.children.find((child: domhandler.DataNode) => child.type === 'text' && child.nodeValue.includes(base64));
+                                }
+                                else if (elem.attribs.style?.includes(base64)) {
+                                    return true;
+                                }
+                                return false;
+                            };
+                            if (domBase.replaceAll(findAll, (elem: domhandler.Element, value: string) => replaceBase64Url(value.substring(elem.startIndex!, elem.endIndex! + 1), base64, url, true))) {
+                                modified = true;
+                            }
+                            else {
+                                delete item.inlineCloud;
+                            }
+                        }
+                        else {
+                            const element = item.element!;
+                            const domElement = new HtmlElement(instance.moduleName, element, item.attributes);
+                            setElementAttribute.call(instance, file, item, domElement, item.inlineBase64 ||= uuid.v4());
+                            if (domBase.write(domElement)) {
+                                item.watch = false;
+                                modified = true;
+                            }
+                            else {
+                                const { tagName, tagIndex } = element;
+                                this.writeFail(['Element base64 attribute replacement', tagName], getErrorDOM(tagName, tagIndex));
+                                delete item.inlineBase64;
+                            }
+                        }
+                    }
+                    if (modified) {
+                        file.sourceUTF8 = domBase.source;
+                    }
+                }
+                break;
+            }
         }
     }
 
     public static async finalize(this: IFileManager, instance: IChromeDocument, assets: DocumentAsset[]) {
+        const moduleName = instance.moduleName;
+        const inlineMap = new Set<DocumentAsset>();
         const base64Map: StringMap = {};
-        const removeFile = (item: DocumentAsset) => {
-            const localUri = item.localUri!;
-            this.filesToRemove.add(localUri);
-            item.invalid = true;
+        const tasks: Promise<unknown>[] = [];
+        const replaceContent = (source: string) => {
+            for (const id in base64Map) {
+                source = source.replace(new RegExp(escapeRegexp(id), 'g'), base64Map[id]!);
+            }
+            if (instance.productionRelease) {
+                source = source.replace(new RegExp('(\\.\\./)*' + escapeRegexp(instance.internalServerRoot), 'g'), '');
+            }
+            return source;
         };
-        let tasks: Promise<unknown>[] = [];
+        const setBase64Url = (item: DocumentAsset, data: Buffer) => {
+            base64Map[item.inlineBase64!] = `data:${item.mimeType!};base64,${data.toString('base64').trim()}`;
+            this.removeAsset(item);
+        };
         for (const item of assets) {
-            if (item.inlineBase64 && !item.invalid) {
-                tasks.push(
-                    fs.readFile(item.localUri!).then((data: Buffer) => {
-                        base64Map[item.inlineBase64!] = `data:${item.mimeType!};base64,${data.toString('base64').trim()}`;
-                        removeFile(item);
-                    })
-                );
+            if (item.inlineBase64) {
+                if (item.buffer) {
+                    setBase64Url(item, item.buffer);
+                }
+                else {
+                    tasks.push(fs.readFile(item.localUri!).then((data: Buffer) => setBase64Url(item, data)));
+                }
             }
         }
         if (tasks.length) {
-            await Document.allSettled(tasks, ['Cache base64 <finalize>', instance.moduleName], this.errors);
-            tasks = [];
+            await Document.allSettled(tasks, ['Unable to read base64 buffer', instance.moduleName], this.errors);
         }
-        const replaced = assets.filter(item => item.originalName && !item.invalid);
-        const srcSet = assets.filter(item => item.srcSet);
-        async function replaceContent(manager: IFileManager, file: DocumentAsset, source: string, html?: boolean, formatting?: boolean) {
-            if (file.mimeType![0] === '@') {
-                if (html) {
-                    for (const item of srcSet) {
-                        const element = item.element;
-                        if (element) {
-                            const htmlElement = new HtmlElement(instance.moduleName, element);
-                            const images = item.srcSet!;
-                            const length = images.length;
-                            let value = htmlElement.getAttribute('srcset') || '',
-                                i = 0;
-                            while (i < length) {
-                                value += (value ? ', ' : '') + images[i++] + ' ' + images[i++];
-                            }
-                            htmlElement.setAttribute('srcset', value);
-                            const [output, err] = htmlElement.save(source);
-                            if (output) {
-                                source = output;
-                            }
-                            else if (err) {
-                                instance.errors.push(err.message);
-                            }
+        for (const file of instance.cssFiles) {
+            const { format, localUri } = file;
+            const trailing = concatString(file.trailingContent);
+            const bundle = this.getAssetContent(file);
+            let source = await instance.formatContent!(this, file, this.getUTF8String(file, localUri));
+            if (trailing) {
+                source += trailing;
+            }
+            if (bundle) {
+                source += bundle;
+            }
+            if (format) {
+                const result = await instance.transform('css', source, format);
+                if (result) {
+                    if (result.map) {
+                        const uri = Document.writeSourceMap(localUri!, result as SourceMapOutput);
+                        if (uri) {
+                            this.add(uri, file);
                         }
                     }
-                }
-                for (const id in base64Map) {
-                    source = source.replace(new RegExp(id, 'g'), base64Map[id]!);
-                }
-                for (const asset of replaced) {
-                    let pattern = `(${escapePosix(manager.getRelativeUri(asset, asset.originalName))})`;
-                    if (!html) {
-                        pattern += `|((?:(?:\\.\\./)*\\.\\./)|["'])${Document.joinPosix(asset.pathname, asset.originalName)}`;
-                    }
-                    source = source.replace(new RegExp(pattern, 'g'), (...capture) => !html && capture[2] ? capture[2] + Document.joinPosix(asset.pathname, asset.filename) : asset.relativeUri!);
-                }
-                if (instance.productionRelease) {
-                    source = source.replace(new RegExp('(\\.\\./)*' + escapeRegexp(instance.internalServerRoot), 'g'), '');
+                    source = result.code;
                 }
             }
-            if (formatting) {
-                const result = await instance.transform('html', source, file.format!);
+            file.sourceUTF8 = replaceContent(source);
+        }
+        for (const html of instance.htmlFiles) {
+            const { format, localUri } = html;
+            this.formatMessage(this.logType.PROCESS, 'HTML', ['Rewriting content...', path.basename(localUri!)]);
+            const time = Date.now();
+            const cloud = this.Cloud;
+            const database = this.getCloudAssets(instance);
+            const domBase = new DomWriter(
+                moduleName,
+                this.getUTF8String(html, localUri),
+                (assets as ElementAction[]).concat(database).filter(item => item.element).map(item => item.element!)
+            );
+            if (database.length) {
+                const cacheKey = uuid.v4();
+                const pattern = /\$\{\s*(\w+)\s*\}/g;
+                (await Promise.all(
+                    database.map(item => {
+                        return cloud!.getDatabaseRows(item, cacheKey).catch(err => {
+                            if (err instanceof Error && err.message) {
+                                this.errors.push(err.message);
+                            }
+                            return [];
+                        });
+                    })
+                )).forEach((result, index) => {
+                    if (result.length) {
+                        const item = database[index];
+                        const template = item.value;
+                        const element = item.element!;
+                        const domElement = new HtmlElement(moduleName, element);
+                        if (typeof template === 'string') {
+                            if (HtmlElement.hasInnerHTML(element.tagName)) {
+                                let output = '',
+                                    match: Null<RegExpExecArray>;
+                                for (const row of result) {
+                                    let value = template;
+                                    while (match = pattern.exec(template)) {
+                                        value = value.replace(match[0], getObjectValue(row, match[1]));
+                                    }
+                                    output += value;
+                                    pattern.lastIndex = 0;
+                                }
+                                domElement.innerHTML = output;
+                            }
+                        }
+                        else {
+                            for (const attr in template) {
+                                let columns = template[attr]!;
+                                if (typeof columns === 'string') {
+                                    columns = [columns];
+                                }
+                                for (const row of result) {
+                                    let value = '',
+                                        joinString = ' ';
+                                    for (const col of columns) {
+                                        if (col[0] === ':') {
+                                            const join = /^:join\((.*)\)$/.exec(col);
+                                            if (join) {
+                                                joinString = join[1];
+                                            }
+                                            continue;
+                                        }
+                                        value += (value ? joinString : '') + getObjectValue(row, col, joinString);
+                                    }
+                                    if (value) {
+                                        domElement.setAttribute(attr, value);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if (!domBase.write(domElement)) {
+                            const { tagName, tagIndex } = element;
+                            this.writeFail(['Cloud text replacement', tagName], getErrorDOM(tagName, tagIndex));
+                        }
+                    }
+                    else {
+                        const { service, table, id, query } = database[index];
+                        let queryString = '';
+                        if (id) {
+                            queryString = 'id: ' + id;
+                        }
+                        else if (query) {
+                            queryString = typeof query !== 'string' ? JSON.stringify(query) : query;
+                        }
+                        this.formatFail(this.logType.CLOUD_DATABASE, service, ['Query had no results', table ? 'table: ' + table : ''], new Error(queryString));
+                    }
+                });
+            }
+            for (const item of assets.filter(asset => asset.element && !(asset.invalid && !asset.exclude && asset.bundleIndex === undefined)).sort((a, b) => isRemoved(a) ? -1 : isRemoved(b) ? 1 : 0)) {
+                const { element, bundleIndex, inlineContent, attributes } = item;
+                const { tagName, tagIndex } = element!;
+                const domElement = new HtmlElement(moduleName, element!, attributes);
+                if (inlineContent) {
+                    domElement.tagName = inlineContent;
+                    domElement.innerHTML = this.getUTF8String(item).trim();
+                    domElement.removeAttribute('src', 'href');
+                    if (domBase.write(domElement, { rename: tagName === 'link' })) {
+                        inlineMap.add(item);
+                        item.watch = false;
+                    }
+                    else {
+                        this.writeFail(['Inline tag replacement', tagName], getErrorDOM(tagName, tagIndex));
+                    }
+                }
+                else if (bundleIndex === 0 || bundleIndex === -1) {
+                    let value: string;
+                    if (cloud?.getStorage('upload', item.cloudStorage)) {
+                        value = uuid.v4();
+                        item.inlineCloud = value;
+                    }
+                    else {
+                        value = item.relativeUri!;
+                    }
+                    if (tagName === 'link' || tagName === 'style') {
+                        domElement.tagName = 'link';
+                        domElement.setAttribute('rel', 'stylesheet');
+                        domElement.setAttribute('href', value);
+                    }
+                    else {
+                        domElement.setAttribute('src', value);
+                    }
+                    domElement.innerHTML = '';
+                    if (!domBase.write(domElement, { rename: tagName === 'style' })) {
+                        this.writeFail(['Bundle tag replacement', tagName], getErrorDOM(tagName, tagIndex));
+                        delete item.inlineCloud;
+                    }
+                }
+                else if (isRemoved(item) && !domBase.write(domElement, { remove: true })) {
+                    this.writeFail(['Exclude tag removal', tagName], getErrorDOM(tagName, tagIndex));
+                }
+            }
+            for (const item of assets) {
+                const element = item.element;
+                if (item.invalid || !element || !item.attributes && (item === html || !item.uri && !item.srcSet) || item.content || item.inlineContent || item.format === 'base64' || item.base64 || item.bundleIndex !== undefined) {
+                    continue;
+                }
+                const { uri, attributes, srcSet } = item;
+                const domElement = new HtmlElement(moduleName, element, attributes);
+                if (uri && item !== html) {
+                    let value: string;
+                    if (cloud?.getStorage('upload', item.cloudStorage)) {
+                        value = uuid.v4();
+                        item.inlineCloud = value;
+                    }
+                    else {
+                        value = item.relativeUri!;
+                    }
+                    setElementAttribute.call(instance, html, item, domElement, value);
+                    if (srcSet) {
+                        let src = domElement.getAttribute('srcset') || '',
+                            i = 0;
+                        while (i < length) {
+                            src += (src ? ', ' : '') + srcSet[i++] + ' ' + srcSet[i++];
+                        }
+                        domElement.setAttribute('srcset', src);
+                    }
+                }
+                if (!domBase.write(domElement)) {
+                    const { tagName, tagIndex } = element;
+                    this.writeFail(['Element attribute replacement', tagName], getErrorDOM(tagName, tagIndex));
+                    delete item.inlineCloud;
+                }
+            }
+            let source = replaceContent(removeDatasetNamespace(instance.moduleName, domBase.source));
+            source = transformCss.call(this, assets, html, source, true) || source;
+            if (format) {
+                const result = await instance.transform('html', source, format);
                 if (result) {
                     source = result.code;
                 }
             }
-            file.sourceUTF8 = source;
-        }
-        if (instance.productionRelease || replaced.length || srcSet.length || Object.keys(base64Map).length || assets.find(item => item.format && item.mimeType?.endsWith('text/html'))) {
-            for (const item of assets) {
-                if (!item.invalid) {
-                    let html: Undef<boolean>,
-                        formatting: Undef<boolean>;
-                    switch (item.mimeType) {
-                        case 'text/html':
-                            if (item.format) {
-                                formatting = true;
-                            }
-                            else {
-                                break;
-                            }
-                        case '@text/html':
-                            if (item.format) {
-                                formatting = true;
-                            }
-                            html = true;
-                        case '@text/css':
-                            if (item.sourceUTF8 || item.buffer) {
-                                tasks.push(replaceContent(this, item, this.getUTF8String(item), html, formatting));
-                            }
-                            else {
-                                tasks.push(fs.readFile(item.localUri!, 'utf8').then(data => replaceContent(this, item, data, html, formatting)));
-                            }
-                            break;
-                    }
-                }
+            html.sourceUTF8 = source;
+            const failCount = domBase.failCount;
+            if (failCount) {
+                this.writeFail([`DOM update had ${failCount} ${failCount === 1 ? 'error' : 'errors'}`, instance.moduleName], new Error(`${instance.moduleName}: ${failCount} modifications failed`));
+            }
+            else {
+                this.writeTimeElapsed('HTML', `${path.basename(localUri!)}: ${domBase.modifyCount} modified`, time);
+            }
+            if (domBase.hasErrors()) {
+                this.errors.push(...domBase.errors.map(item => item.message));
             }
         }
-        if (tasks.length) {
-            await Document.allSettled(tasks, ['Replace UTF-8 <finalize>', instance.moduleName], this.errors);
-        }
-        if (instance.htmlFiles.length) {
-            const inlineMap: StringMap = {};
-            for (const item of assets) {
-                const inlineContent = item.inlineContent;
-                if (inlineContent && inlineContent.startsWith('<!--')) {
-                    inlineMap[inlineContent] = this.getUTF8String(item).trim();
-                    removeFile(item);
-                }
-            }
-            for (const item of instance.htmlFiles) {
-                let content = this.getUTF8String(item);
-                for (const id in inlineMap) {
-                    content = content.replace(id, inlineMap[id]!);
-                }
-                item.sourceUTF8 = removeDatasetNamespace(instance.moduleName, content);
-            }
+        for (const file of inlineMap) {
+            this.removeAsset(file);
         }
     }
 
@@ -760,17 +717,20 @@ class ChromeDocument extends Document implements IChromeDocument {
     }
 
     async formatContent(manager: IFileManager, file: DocumentAsset, content: string): Promise<string> {
-        if (file.mimeType === '@text/css') {
-            const unusedStyles = this.unusedStyles;
-            if (!file.preserve && unusedStyles) {
-                const result = removeCss(content, unusedStyles);
+        switch (file.mimeType) {
+            case 'text/css':
+            case '@text/css': {
+                if (!file.preserve && this.unusedStyles) {
+                    const result = removeCss(content, this.unusedStyles);
+                    if (result) {
+                        content = result;
+                    }
+                }
+                const result = transformCss.call(manager, manager.assets.filter((item: DocumentAsset) => manager.hasDocument(this, item.document)) as DocumentAsset[], file, content);
                 if (result) {
                     content = result;
                 }
-            }
-            const result = transformCss.call(manager, manager.assets.filter((item: DocumentAsset) => manager.hasDocument(this, item.document)) as DocumentAsset[], file, content);
-            if (result) {
-                content = result;
+                break;
             }
         }
         return content;
@@ -794,7 +754,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
         return false;
     }
-    cloudInit(state: CloudIScopeOrigin) {
+    cloudInit(state: CloudScopeOrigin) {
         this._cloudMap = {};
         this._cloudCssMap = {};
         this._cloudUploaded = new Set();
@@ -808,7 +768,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
     }
-    cloudObject(state: CloudIScopeOrigin, file: DocumentAsset) {
+    cloudObject(state: CloudScopeOrigin, file: DocumentAsset) {
         if (file.inlineCloud) {
             this._cloudMap[file.inlineCloud] = file;
         }
@@ -817,14 +777,11 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
         return this.htmlFiles.includes(file) || this.cssFiles.includes(file);
     }
-    async cloudUpload(state: CloudIScopeOrigin, file: DocumentAsset, url: string, active: boolean) {
+    async cloudUpload(state: CloudScopeOrigin, file: DocumentAsset, url: string, active: boolean) {
         if (active) {
             const host = state.host;
             const endpoint = this._cloudEndpoint;
-            let cloudUrl = url;
-            if (endpoint) {
-                cloudUrl = cloudUrl.replace(new RegExp(escapeRegexp(endpoint), 'g'), '');
-            }
+            let cloudUrl = endpoint ? url.replace(new RegExp('^' + escapeRegexp(endpoint)), '') : url;
             if (file.inlineCloud) {
                 for (const item of this.htmlFiles) {
                     item.sourceUTF8 = host.getUTF8String(item).replace(file.inlineCloud, cloudUrl);
@@ -833,9 +790,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                 this._cloudUploaded.add(file.inlineCloud);
             }
             if (file.inlineCssCloud) {
-                const pattern = new RegExp(file.inlineCssCloud, 'g');
-                for (const content of this.htmlFiles) {
-                    content.sourceUTF8 = host.getUTF8String(content).replace(pattern, cloudUrl);
+                const pattern = new RegExp('^' + escapeRegexp(file.inlineCssCloud));
+                for (const item of this.htmlFiles) {
+                    item.sourceUTF8 = host.getUTF8String(item).replace(pattern, cloudUrl);
                 }
                 if (endpoint && cloudUrl.indexOf('/') !== -1) {
                     cloudUrl = url;
@@ -852,32 +809,27 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
         return false;
     }
-    async cloudFinalize(state: CloudIScopeOrigin) {
+    async cloudFinalize(state: CloudScopeOrigin) {
         const { host, localStorage, compressed } = state;
-        const modifiedCss = this._cloudModifiedCss;
+        const cloudMap = this._cloudMap;
         let tasks: Promise<unknown>[] = [];
-        if (modifiedCss.size) {
-            for (const id in this._cloudCssMap) {
-                if (!this._cloudUploaded.has(id)) {
-                    for (const item of this.cssFiles) {
-                        const inlineCssMap = item.inlineCssMap;
-                        if (inlineCssMap && inlineCssMap[id]) {
-                            item.sourceUTF8 = host.getUTF8String(item).replace(new RegExp(id, 'g'), inlineCssMap[id]!);
-                            modifiedCss.add(item);
-                        }
+        for (const id in this._cloudCssMap) {
+            if (!this._cloudUploaded.has(id)) {
+                for (const item of this.cssFiles) {
+                    const inlineCss = item.inlineCssMap?.[id];
+                    if (inlineCss) {
+                        item.sourceUTF8 = host.getUTF8String(item).replace(new RegExp(escapeRegexp(id), 'g'), inlineCss);
+                        tasks.push(fs.writeFile(item.localUri!, item.sourceUTF8, 'utf8'));
                     }
-                    localStorage.delete(this._cloudCssMap[id]);
                 }
-            }
-            if (modifiedCss.size) {
-                tasks.push(...Array.from(modifiedCss).map(item => fs.writeFile(item.localUri!, item.sourceUTF8, 'utf8')));
-            }
-            if (tasks.length) {
-                await Document.allSettled(tasks, ['Update "text/css" <cloud storage>', this.moduleName], host.errors);
-                tasks = [];
+                localStorage.delete(this._cloudCssMap[id]);
             }
         }
-        for (const item of this.cssFiles) {
+        if (tasks.length) {
+            await Document.allSettled(tasks, ['Update "text/css" <cloud storage>', this.moduleName], host.errors);
+            tasks = [];
+        }
+        for (const item of this._cloudModifiedCss) {
             if (item.cloudStorage) {
                 if (item.compress) {
                     await host.compressFile(item);
@@ -890,37 +842,34 @@ class ChromeDocument extends Document implements IChromeDocument {
             await Document.allSettled(tasks, ['Upload "text/css" <cloud storage>', this.moduleName], host.errors);
             tasks = [];
         }
-        if (this._cloudModifiedHtml.size) {
-            const cloudMap = this._cloudMap;
-            for (const item of this.htmlFiles) {
-                let sourceUTF8 = host.getUTF8String(item);
-                for (const id in cloudMap) {
-                    if (!this._cloudUploaded.has(id)) {
-                        const file = cloudMap[id];
-                        sourceUTF8 = sourceUTF8.replace(id, file.relativeUri!);
-                        localStorage.delete(file);
-                    }
-                }
-                if (this._cloudEndpoint) {
-                    sourceUTF8 = sourceUTF8.replace(this._cloudEndpoint, '');
-                }
-                try {
-                    fs.writeFileSync(item.localUri!, sourceUTF8, 'utf8');
-                }
-                catch (err) {
-                    this.writeFail(['Update "text/html" <cloud storage>', this.moduleName], err);
-                }
-                if (item.cloudStorage) {
-                    if (item.compress) {
-                        await host.compressFile(item);
-                        compressed.push(item);
-                    }
-                    tasks.push(...Cloud.uploadAsset.call(host, state, item, 'text/html', true));
+        for (const item of this._cloudModifiedHtml) {
+            let sourceUTF8 = host.getUTF8String(item);
+            for (const id in cloudMap) {
+                if (!this._cloudUploaded.has(id)) {
+                    const file = cloudMap[id];
+                    sourceUTF8 = sourceUTF8.replace(id, file.relativeUri!);
+                    localStorage.delete(file);
                 }
             }
-            if (tasks.length) {
-                await Document.allSettled(tasks, ['Upload "text/html" <cloud storage>', this.moduleName], host.errors);
+            if (this._cloudEndpoint) {
+                sourceUTF8 = sourceUTF8.replace(this._cloudEndpoint, '');
             }
+            try {
+                fs.writeFileSync(item.localUri!, sourceUTF8, 'utf8');
+            }
+            catch (err) {
+                this.writeFail(['Update "text/html" <cloud storage>', this.moduleName], err);
+            }
+            if (item.cloudStorage) {
+                if (item.compress) {
+                    await host.compressFile(item);
+                    compressed.push(item);
+                }
+                tasks.push(...Cloud.uploadAsset.call(host, state, item, 'text/html', true));
+            }
+        }
+        if (tasks.length) {
+            await Document.allSettled(tasks, ['Upload "text/html" <cloud storage>', this.moduleName], host.errors);
         }
     }
 }

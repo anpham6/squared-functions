@@ -10,7 +10,7 @@ import uuid = require('uuid');
 
 import Module from '../module';
 
-export interface CloudIScopeOrigin extends Required<IScopeOrigin<IFileManager, ICloud>> {
+export interface CloudScopeOrigin extends Required<IScopeOrigin<IFileManager, ICloud>> {
     bucketGroup: string;
     localStorage: Map<ExternalAsset, CloudStorageUpload>;
     compressed: ExternalAsset[];
@@ -64,7 +64,7 @@ function getFiles(cloud: ICloud, file: ExternalAsset, data: CloudStorageUpload) 
 const assignFilename = (value: string) => uuid.v4() + (path.extname(value) || '');
 
 class Cloud extends Module implements ICloud {
-    public static uploadAsset(this: IFileManager, state: CloudIScopeOrigin, file: ExternalAsset, mimeType = file.mimeType, uploadDocument?: boolean) {
+    public static uploadAsset(this: IFileManager, state: CloudScopeOrigin, file: ExternalAsset, mimeType = file.mimeType, uploadDocument?: boolean) {
         const { instance, bucketGroup } = state;
         const tasks: Promise<void>[] = [];
         for (const storage of file.cloudStorage!) {
@@ -152,21 +152,21 @@ class Cloud extends Module implements ICloud {
         return tasks;
     }
 
-    public static async finalize(this: IFileManager, cloud: ICloud) {
+    public static async finalize(this: IFileManager, instance: ICloud) {
         const compressed: ExternalAsset[] = [];
         const localStorage = new Map<ExternalAsset, CloudStorageUpload>();
         const bucketGroup = uuid.v4();
-        const state: CloudIScopeOrigin = { host: this, instance: cloud, bucketGroup, localStorage, compressed };
+        const state: CloudScopeOrigin = { host: this, instance, bucketGroup, localStorage, compressed };
         const bucketMap: ObjectMap<Map<string, PlainObject>> = {};
         const downloadMap: ObjectMap<Set<string>> = {};
         const rawFiles: ExternalAsset[] = [];
         let tasks: Promise<unknown>[] = [];
         if (this.Compress) {
             for (const format in this.Compress.compressorProxy) {
-                cloud.compressFormat.add('.' + format);
+                instance.compressFormat.add('.' + format);
             }
         }
-        cloud.setObjectKeys(this.assets);
+        instance.setObjectKeys(this.assets);
         for (const { instance } of this.Document) {
             if (instance.cloudInit) {
                 instance.cloudInit(state);
@@ -191,15 +191,15 @@ class Cloud extends Module implements ICloud {
                     }
                 }
                 for (const storage of item.cloudStorage) {
-                    if (storage.admin?.emptyBucket && cloud.hasCredential('storage', storage) && storage.bucket && !(bucketMap[storage.service] ||= new Map()).has(storage.bucket)) {
-                        bucketMap[storage.service].set(storage.bucket, cloud.getCredential(storage));
+                    if (storage.admin?.emptyBucket && instance.hasCredential('storage', storage) && storage.bucket && !(bucketMap[storage.service] ||= new Map()).has(storage.bucket)) {
+                        bucketMap[storage.service].set(storage.bucket, instance.getCredential(storage));
                     }
                 }
             }
         }
         for (const service in bucketMap) {
             for (const [bucket, credential] of bucketMap[service]) {
-                tasks.push(cloud.deleteObjects(service, credential, bucket).catch(err => this.writeFail(['Cloud provider not found', service], err)));
+                tasks.push(instance.deleteObjects(service, credential, bucket).catch(err => this.writeFail(['Cloud provider not found', service], err)));
             }
         }
         if (tasks.length) {
@@ -221,7 +221,7 @@ class Cloud extends Module implements ICloud {
             }
         }
         for (const [item, data] of localStorage) {
-            for (const group of getFiles(cloud, item, data)) {
+            for (const group of getFiles(instance, item, data)) {
                 if (group.length) {
                     tasks.push(...group.map(value => fs.unlink(value).then(() => this.delete(value)).catch(() => this.delete(value, false))));
                 }
@@ -234,7 +234,7 @@ class Cloud extends Module implements ICloud {
         for (const item of this.assets) {
             if (item.cloudStorage) {
                 for (const data of item.cloudStorage) {
-                    if (cloud.hasStorage('download', data)) {
+                    if (instance.hasStorage('download', data)) {
                         const { pathname, filename, active, overwrite } = data.download!;
                         if (filename) {
                             const localUri = item.localUri;
@@ -263,7 +263,7 @@ class Cloud extends Module implements ICloud {
                                 }
                                 else {
                                     try {
-                                        tasks.push(cloud.downloadObject(data.service, cloud.getCredential(data), data.bucket!, data.download!, (value: Null<Buffer | string>) => {
+                                        tasks.push(instance.downloadObject(data.service, instance.getCredential(data), data.bucket!, data.download!, (value: Null<Buffer | string>) => {
                                             if (value) {
                                                 try {
                                                     const items = Array.from(downloadMap[location]);
@@ -306,10 +306,7 @@ class Cloud extends Module implements ICloud {
 
     private _cache: CacheTimeout = {};
 
-    constructor(
-        public settings: CloudModule = {},
-        public database: CloudDatabase[] = [])
-    {
+    constructor(public settings: CloudModule = {}, public database: CloudDatabase[] = []) {
         super();
         Object.assign(this._cache, settings.cache);
     }

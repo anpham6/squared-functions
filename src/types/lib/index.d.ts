@@ -94,8 +94,8 @@ declare namespace functions {
     }
 
     interface CloudConstructor extends ModuleConstructor {
-        finalize<T = IFileManager, U = ICloud>(this: T, cloud: U): Promise<FinalizeResult>;
-        uploadAsset<T = IFileManager, U = ICloud>(this: T, cloud: U, state: IScopeOrigin<T, U>, file: ExternalAsset, mimeType?: string, uploadDocument?: boolean): Promise<void>;
+        finalize<T = IFileManager, U = ICloud>(this: T, instance: U): Promise<FinalizeResult>;
+        uploadAsset<T = IFileManager, U = ICloud>(this: T, instance: U, state: IScopeOrigin<T, U>, file: ExternalAsset, mimeType?: string, uploadDocument?: boolean): Promise<void>;
         new(settings: CloudModule): ICloud;
     }
 
@@ -183,11 +183,14 @@ declare namespace functions {
         delete(value: string, emptyDir?: boolean): void;
         has(value: Undef<string>): value is string;
         replace(file: ExternalAsset, replaceWith: string, mimeType?: string): void;
+        removeAsset(file: ExternalAsset): void;
         performAsyncTask: PerformAsyncTaskMethod;
         removeAsyncTask(): void;
         completeAsyncTask: CompleteAsyncTaskCallback;
         performFinalize(): void;
         hasDocument(instance: IModule, document: Undef<StringOfArray>): boolean;
+        getDocumentAssets(instance: IModule): ExternalAsset[];
+        getCloudAssets(instance: IModule): CloudDatabase[];
         setLocalUri(file: ExternalAsset): FileOutput;
         getLocalUri(data: FileData): string;
         getMimeType(data: FileData): Undef<string>;
