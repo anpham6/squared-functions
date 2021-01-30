@@ -1,4 +1,3 @@
-
 import type { IPermission } from '../../types/lib';
 import type { PermissionSettings } from '../../types/lib/node';
 

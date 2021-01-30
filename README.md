@@ -499,7 +499,7 @@ You can also use the workspace feature in [squared-express](https://github.com/a
 
 ### Appending external JS/CSS
 
-You can append a sibling element (not child) that can be processed similar to a typical "script" or "link" element. Appends will fail if you remove the sibling selector element from the DOM.
+You can append or prepend a sibling element (not child) that can be processed similar to a typical "script" or "link" element. Appends will fail if you remove the sibling selector element from the DOM.
 
 ```xml
 <html>
@@ -521,7 +521,7 @@ You can append a sibling element (not child) that can be processed similar to a 
 ```
 
 ```javascript
-// All commands are supported in relation to the base type
+// All commands including prepend are supported in relation to the base type
 
 [
   {
@@ -531,7 +531,7 @@ You can append a sibling element (not child) that can be processed similar to a 
   },
   {
     "selector": "title",
-    "type": "append/js", // append/css
+    "type": "append/js", // prepend/css
     "preserve": true,
     "attributes": {
       "src": "https://www.google-analytics.com/analytics.js", // css: href (required)

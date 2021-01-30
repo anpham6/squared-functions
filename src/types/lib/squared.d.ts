@@ -64,6 +64,7 @@ export interface ElementIndex extends Required<TagIndex>, AttributeAction {
     innerHTML?: string;
     textContent?: string;
     append?: TagAppend;
+    prepend?: TagAppend;
 }
 
 export interface LocationUri {

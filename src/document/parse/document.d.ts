@@ -24,6 +24,7 @@ export interface WriteOptions {
     remove?: boolean;
     rename?: boolean;
     append?: ElementIndex;
+    prepend?: ElementIndex;
 }
 
 export interface IDomWriter {
@@ -33,6 +34,7 @@ export interface IDomWriter {
     documentElement: Null<ElementIndex>;
     readonly newline: string;
     append(index: ElementIndex): Null<IHtmlElement>;
+    prepend(index: ElementIndex): Null<IHtmlElement>;
     write(element: IHtmlElement, options?: WriteOptions): boolean;
     close(): string;
     update(element: ElementIndex, outerHTML: string): void;
@@ -52,7 +54,6 @@ export interface DomWriterConstructor {
     normalize(source: string): string;
     getDocumentElement(source: string): ParserResult;
     findElement(source: string, index: ElementIndex, options?: FindElementOptions): ParserResult;
-    getNewlineString(leading: string, trailing: string, newline?: string): string;
     new(documentName: string, source: string, elements: ElementIndex[], normalize?: boolean): IDomWriter;
 }
 
@@ -76,5 +77,6 @@ export interface HtmlElementConstructor {
     hasInnerHTML(tagName: string): boolean;
     findCloseTag(source: string, startIndex?: number): number;
     splitOuterHTML(outerHTML: string, startIndex?: number): [string, string, string];
+    getNewlineString(leading: string, trailing: string, newline?: string): string;
     new(documentName: string, index: ElementIndex, attributes?: StandardMap): IHtmlElement;
 }
