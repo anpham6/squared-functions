@@ -5,7 +5,7 @@
 import type { CompressFormat, ResponseData } from './squared';
 
 import type { ExternalAsset, FileData, FileOutput, OutputData } from './asset';
-import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload, FinalizeResult } from './cloud';
+import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload } from './cloud';
 import type { CompressTryFileMethod, CompressTryImageCallback } from './compress';
 import type { ConfigOrTransformer, DocumentData, PluginConfig, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
 import type { CompleteAsyncTaskCallback, InstallData, PerformAsyncTaskMethod } from './filemanager';
@@ -24,13 +24,12 @@ declare namespace functions {
     }
 
     interface ICompress extends IModule {
-        gzipLevel: number;
-        brotliQuality: number;
-        compressorProxy: ObjectMap<CompressTryFileMethod>;
+        level: ObjectMap<number>;
+        compressors: ObjectMap<CompressTryFileMethod>;
         chunkSize?: number;
         register(format: string, callback: CompressTryFileMethod): void;
-        createWriteStreamAsGzip(source: string, uri: string, level?: number): WriteStream;
-        createWriteStreamAsBrotli(source: string, uri: string, quality?: number, mimeType?: string): WriteStream;
+        createWriteStreamAsGzip(source: string, output: string, level?: number): WriteStream;
+        createWriteStreamAsBrotli(source: string, output: string, quality?: number, mimeType?: string): WriteStream;
         tryFile: CompressTryFileMethod;
         tryImage(uri: string, data: CompressFormat, callback: CompressTryImageCallback): void;
     }
@@ -94,7 +93,7 @@ declare namespace functions {
     }
 
     interface CloudConstructor extends ModuleConstructor {
-        finalize<T = IFileManager, U = ICloud>(this: T, instance: U): Promise<FinalizeResult>;
+        finalize<T = IFileManager, U = ICloud>(this: T, instance: U): Promise<void>;
         uploadAsset<T = IFileManager, U = ICloud>(this: T, instance: U, state: IScopeOrigin<T, U>, file: ExternalAsset, mimeType?: string, uploadDocument?: boolean): Promise<void>;
         new(settings: CloudModule): ICloud;
     }

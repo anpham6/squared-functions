@@ -56,10 +56,10 @@ class FileManager extends Module implements IFileManager {
             const brotli = +(brotli_quality as string);
             const chunkSize = +(chunk_size as string);
             if (!isNaN(gzip)) {
-                Compress.gzipLevel = gzip;
+                Compress.level.gz = gzip;
             }
             if (!isNaN(brotli)) {
-                Compress.brotliQuality = brotli;
+                Compress.level.br = brotli;
             }
             if (!isNaN(chunkSize) && chunkSize > 0 && chunkSize % 1024 === 0) {
                 Compress.chunkSize = chunkSize;
@@ -511,8 +511,9 @@ class FileManager extends Module implements IFileManager {
         if (compress && this.has(localUri)) {
             const tasks: Promise<void>[] = [];
             for (const item of compress) {
+                const format = item.format;
                 let valid = false;
-                switch (item.format) {
+                switch (format) {
                     case 'gz':
                         valid = true;
                         break;
@@ -520,10 +521,10 @@ class FileManager extends Module implements IFileManager {
                         valid = this.supported(11, 7);
                         break;
                     default:
-                        valid = typeof Compress.compressorProxy[item.format] === 'function';
+                        valid = typeof Compress.compressors[format] === 'function';
                         break;
                 }
-                if (valid && withinSizeRange(localUri, item.condition)) {
+                if (valid && withinSizeRange(localUri, item.condition) && !fs.existsSync(localUri + '.' + format)) {
                     tasks.push(
                         new Promise<void>(resolve => {
                             try {
@@ -934,7 +935,6 @@ class FileManager extends Module implements IFileManager {
         this.performFinalize();
     }
     async finalize() {
-        const compressMap = new WeakSet<ExternalAsset>();
         let tasks: Promise<unknown>[] = [];
         for (const [file, output] of this.filesToCompare) {
             const localUri = file.localUri!;
@@ -1028,14 +1028,11 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (this.Cloud) {
-            const { compressed } = await Cloud.finalize.call(this, this.Cloud);
-            for (const item of compressed) {
-                compressMap.add(item);
-            }
+            await Cloud.finalize.call(this, this.Cloud);
         }
         if (this.Compress) {
             for (const item of this.assets) {
-                if (item.compress && !compressMap.has(item) && !item.invalid) {
+                if (item.compress && !item.invalid) {
                     tasks.push(this.compressFile(item));
                 }
             }

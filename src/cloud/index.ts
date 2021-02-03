@@ -1,6 +1,6 @@
 import type { ICloud, ICloudServiceClient, IFileManager, IModule, IScopeOrigin } from '../types/lib';
 import type { ExternalAsset } from '../types/lib/asset';
-import type { CacheTimeout, CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageAction, CloudStorageDownload, CloudStorageUpload, DownloadData, FinalizeResult, UploadData } from '../types/lib/cloud';
+import type { CacheTimeout, CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageAction, CloudStorageDownload, CloudStorageUpload, DownloadData, UploadData } from '../types/lib/cloud';
 import type { CloudModule } from '../types/lib/module';
 
 import path = require('path');
@@ -13,7 +13,6 @@ import Module from '../module';
 export interface CloudScopeOrigin extends Required<IScopeOrigin<IFileManager, ICloud>> {
     bucketGroup: string;
     localStorage: Map<ExternalAsset, CloudStorageUpload>;
-    compressed: ExternalAsset[];
 }
 
 export type ServiceHost<T> = (this: IModule, credential: unknown, service?: string, sdk?: string) => T;
@@ -153,16 +152,15 @@ class Cloud extends Module implements ICloud {
     }
 
     public static async finalize(this: IFileManager, cloud: ICloud) {
-        const compressed: ExternalAsset[] = [];
         const localStorage = new Map<ExternalAsset, CloudStorageUpload>();
         const bucketGroup = uuid.v4();
-        const state: CloudScopeOrigin = { host: this, instance: cloud, bucketGroup, localStorage, compressed };
+        const state: CloudScopeOrigin = { host: this, instance: cloud, bucketGroup, localStorage };
         const bucketMap: ObjectMap<Map<string, PlainObject>> = {};
         const downloadMap: ObjectMap<Set<string>> = {};
         const rawFiles: ExternalAsset[] = [];
         let tasks: Promise<unknown>[] = [];
         if (this.Compress) {
-            for (const format in this.Compress.compressorProxy) {
+            for (const format in this.Compress.compressors) {
                 cloud.compressFormat.add('.' + format);
             }
         }
@@ -185,7 +183,6 @@ class Cloud extends Module implements ICloud {
                     if (!ignore) {
                         if (item.compress) {
                             await this.compressFile(item);
-                            compressed.push(item);
                         }
                         rawFiles.push(item);
                     }
@@ -296,7 +293,6 @@ class Cloud extends Module implements ICloud {
         if (tasks.length) {
             await Module.allSettled(tasks, ['Download objects <finalize>', 'cloud storage'], this.errors);
         }
-        return { compressed } as FinalizeResult;
     }
 
     public cacheExpires = 10 * 60 * 1000;

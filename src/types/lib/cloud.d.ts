@@ -1,7 +1,5 @@
 import type { ElementAction, LocationUri } from './squared';
 
-import type { ExternalAsset } from './asset';
-
 export interface CloudService extends ObjectMap<unknown> {
     service: string;
     credential: string | PlainObject;
@@ -47,10 +45,6 @@ export interface CloudStorageUpload extends CloudStorageAction {
 export interface CloudStorageDownload extends CloudStorageAction {
     versionId?: string;
     deleteObject?: string;
-}
-
-export interface FinalizeResult {
-    compressed: ExternalAsset[];
 }
 
 export interface CacheTimeout {
