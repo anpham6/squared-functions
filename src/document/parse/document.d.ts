@@ -1,4 +1,4 @@
-import type { ElementIndex as IElementIndex, TagIndex } from '../../types/lib/squared';
+import type { XmlNodeTag as IXmlNodeTag, TagAppend, TagIndex } from '../../types/lib/squared';
 
 import type { Element, Node } from 'domhandler';
 
@@ -7,10 +7,10 @@ export interface ParserResult extends Partial<TagIndex> {
     error: Null<Error>;
 }
 
-export type WriteResult = [string, string, Null<Error>];
-export type SaveResult = [string, Null<Error>];
+export type WriteResult = [string, string, Null<Error>?];
+export type SaveResult = [string, Null<Error>?];
 
-export interface ElementIndex extends IElementIndex {
+export interface XmlNodeTag extends IXmlNodeTag {
     startIndex?: number;
     endIndex?: number;
 }
@@ -23,47 +23,49 @@ export interface FindElementOptions {
 export interface WriteOptions {
     remove?: boolean;
     rename?: boolean;
-    append?: ElementIndex;
-    prepend?: ElementIndex;
+    append?: XmlNodeTag;
+    prepend?: XmlNodeTag;
 }
 
-export interface IDomWriter {
+export interface IXmlWriter {
     documentName: string;
     source: string;
-    elements: ElementIndex[];
-    documentElement: Null<ElementIndex>;
+    elements: XmlNodeTag[];
     readonly newline: string;
-    append(index: ElementIndex): Null<IHtmlElement>;
-    prepend(index: ElementIndex): Null<IHtmlElement>;
-    write(element: IHtmlElement, options?: WriteOptions): boolean;
+    readonly rootName?: string;
+    init(): void;
+    newElement(node: XmlNodeTag): IXmlElement;
+    insertElement(node: XmlNodeTag, data: TagAppend): [IXmlElement, string];
+    append(node: XmlNodeTag): Null<IXmlElement>;
+    prepend(node: XmlNodeTag): Null<IXmlElement>;
+    write(element: IXmlElement, options?: WriteOptions): boolean;
     close(): string;
-    update(element: ElementIndex, outerHTML: string): void;
-    updateByTag(element: Required<TagIndex>, outerHTML: string, startIndex: number, endIndex: number): boolean;
-    increment(element: ElementIndex): void;
-    decrement(element: ElementIndex): ElementIndex[];
-    renameTag(element: ElementIndex, tagName: string): void;
+    update(node: XmlNodeTag, outerXml: string): void;
+    updateByTag(element: Required<TagIndex>, outerXml: string, startIndex: number, endIndex: number): boolean;
+    increment(node: XmlNodeTag): void;
+    decrement(node: XmlNodeTag): XmlNodeTag[];
+    renameTag(node: XmlNodeTag, tagName: string): void;
     indexTag(tagName: string, append?: boolean): boolean;
-    replaceAll(predicate: (elem: Element) => boolean, callback: (elem: Element, source: string) => Undef<string>): number;
-    setRawString(sourceHTML: string, outerHTML: string): boolean;
+    setRawString(sourceXml: string, outerXml: string): boolean;
     getRawString(startIndex: number, endIndex: number): string;
-    spliceRawString(outerHTML: string, startIndex: number, endIndex: number): string;
+    spliceRawString(outerXml: string, startIndex: number, endIndex: number): string;
     hasErrors(): boolean;
 }
 
-export interface DomWriterConstructor {
-    normalize(source: string): string;
-    getDocumentElement(source: string): ParserResult;
-    findElement(source: string, index: ElementIndex, options?: FindElementOptions): ParserResult;
-    new(documentName: string, source: string, elements: ElementIndex[], normalize?: boolean): IDomWriter;
+export interface XmlWriterConstructor {
+    escapeXmlString(value: string): string;
+    getAttrId(document: string): string;
+    new(documentName: string, source: string, elements: XmlNodeTag[]): IXmlWriter;
 }
 
-export interface IHtmlElement {
-    documentName: string;
+export interface IXmlElement {
     tagName: string;
-    innerHTML: string;
+    innerXml: string;
     newline: string;
-    readonly index: ElementIndex;
-    readonly outerHTML: string;
+    lowerCase: boolean;
+    readonly documentName: string;
+    readonly node: XmlNodeTag;
+    readonly outerXml: string;
     readonly modified: boolean;
     setAttribute(name: string, value: string): void;
     getAttribute(name: string): Optional<string>;
@@ -71,12 +73,26 @@ export interface IHtmlElement {
     hasAttribute(name: string): boolean;
     write(source: string, options?: WriteOptions): WriteResult;
     save(source: string, options?: WriteOptions): SaveResult;
+    findIndexOf(source: string, append?: boolean): [number, number, Null<Error>?];
 }
 
-export interface HtmlElementConstructor {
-    hasInnerHTML(tagName: string): boolean;
+export interface XmlElementConstructor {
+    hasInnerXml(tagName: string): boolean;
     findCloseTag(source: string, startIndex?: number): number;
-    splitOuterHTML(outerHTML: string, startIndex?: number): [string, string, string];
+    splitOuterXml(outerXml: string, startIndex?: number): [string, string, string];
     getNewlineString(leading: string, trailing: string, newline?: string): string;
-    new(documentName: string, index: ElementIndex, attributes?: StandardMap): IHtmlElement;
+    new(documentName: string, node: XmlNodeTag, attributes?: StandardMap): IXmlElement;
+}
+
+export interface IDomWriter {
+    documentElement: Null<XmlNodeTag>;
+    replaceAll(predicate: (elem: Element) => boolean, callback: (elem: Element, source: string) => Undef<string>): number;
+}
+
+export interface DomWriterConstructor {
+    readonly TAG_VOID: string[];
+    normalize(source: string): string;
+    getDocumentElement(source: string): ParserResult;
+    findElement(source: string, node: XmlNodeTag, options?: FindElementOptions): ParserResult;
+    new(documentName: string, source: string, elements: XmlNodeTag[], normalize?: boolean): IDomWriter;
 }

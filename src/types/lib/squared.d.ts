@@ -43,7 +43,7 @@ export interface AttributeAction {
 }
 
 export interface ElementAction {
-    element?: ElementIndex;
+    element?: XmlNodeTag;
 }
 
 export interface TagIndex {
@@ -57,12 +57,14 @@ export interface TagAppend extends TagIndex {
     order: number;
 }
 
-export interface ElementIndex extends Required<TagIndex>, AttributeAction {
-    domIndex: number;
+export interface XmlNode {
+    index: number;
     id?: StringMap;
-    outerHTML?: string;
-    innerHTML?: string;
-    textContent?: string;
+    outerXml?: string;
+    innerXml?: string;
+}
+
+export interface XmlNodeTag extends XmlNode, Required<TagIndex>, AttributeAction {
     append?: TagAppend;
     prepend?: TagAppend;
 }

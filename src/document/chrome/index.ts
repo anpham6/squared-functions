@@ -18,7 +18,7 @@ import uuid = require('uuid');
 
 import Document from '../../document';
 import Cloud from '../../cloud';
-import { DomWriter, HtmlElement } from '../parse';
+import { DomWriter, HtmlElement } from '../parse/dom';
 
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
 const PATTERN_TRAILINGSPACE = '[ \\t]*((?:\\r?\\n)*)';
@@ -110,17 +110,17 @@ function removeCss(source: string, styles: string[]) {
         pattern = new RegExp(`(}?[^,{}]*?)((,?\\s*)${value}\\s*[,{](\\s*)).*?\\{?`, 'g');
         while (match = pattern.exec(source)) {
             const segment = match[2];
-            let outerHTML = '';
+            let outerXml = '';
             if (segment.trim().endsWith('{')) {
-                outerHTML = ' {' + match[4];
+                outerXml = ' {' + match[4];
             }
             else if (segment[0] === ',') {
-                outerHTML = ', ';
+                outerXml = ', ';
             }
             else if (match[1] === '}' && match[3] && !match[3].trim()) {
-                outerHTML = match[3];
+                outerXml = match[3];
             }
-            output = (output || source).replace(match[0], match[0].replace(segment, outerHTML));
+            output = (output || source).replace(match[0], match[0].replace(segment, outerXml));
         }
         if (output) {
             source = output;
@@ -204,37 +204,39 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
             }
             url += ch;
         }
+        const setOutputUrl = (asset: DocumentAsset, value: string) => {
+            if (this.Cloud?.getStorage('upload', asset.cloudStorage)) {
+                if (!asset.inlineCssCloud) {
+                    (cssFile.inlineCssMap ||= {})[asset.inlineCssCloud = uuid.v4()] = value;
+                }
+                value = asset.inlineCssCloud;
+            }
+            output = (output || content).replace(content.substring(match!.index, i + 1), 'url(' + quote + value + quote + ')');
+        };
         url = url.replace(/^\s*["']?\s*/, '').replace(/\s*["']?\s*$/, '');
-        const asset = this.findAsset(Document.resolvePath(url, cssUri)) as DocumentAsset;
-        if (asset && !asset.invalid) {
-            const setOutputUrl = (value: string) => {
-                if (this.Cloud?.getStorage('upload', asset.cloudStorage)) {
-                    if (!asset.inlineCssCloud) {
-                        (cssFile.inlineCssMap ||= {})[asset.inlineCssCloud = uuid.v4()] = value;
-                    }
-                    value = asset.inlineCssCloud;
-                }
-                output = (output || content).replace(content.substring(match!.index, i + 1), 'url(' + quote + value + quote + ')');
-            };
-            if (url.startsWith('data:')) {
-                const base64 = url.split(',')[1];
-                for (const item of assets) {
-                    if (item.base64 === base64) {
-                        setOutputUrl(getRelativeUri.call(this, cssFile, asset));
-                        break;
-                    }
+        if (url.startsWith('data:')) {
+            const base64 = url.split(',')[1];
+            for (const item of assets) {
+                if (item.base64 === base64) {
+                    setOutputUrl(item, getRelativeUri.call(this, cssFile, item));
+                    break;
                 }
             }
-            else if (asset.format === 'base64') {
-                setOutputUrl(asset.inlineBase64 ||= uuid.v4());
-            }
-            else if (!Document.isFileHTTP(url) || Document.hasSameOrigin(cssUri, url)) {
-                setOutputUrl(getRelativeUri.call(this, cssFile, asset));
-            }
-            else {
-                const pathname = cssFile.pathname;
-                const count = pathname && pathname !== '/' ? pathname.split(/[\\/]/).length : 0;
-                setOutputUrl((count ? '../'.repeat(count) : '') + asset.relativeUri);
+        }
+        else {
+            const asset = this.findAsset(Document.resolvePath(url, cssUri)) as DocumentAsset;
+            if (asset && !asset.invalid) {
+                if (asset.format === 'base64') {
+                    setOutputUrl(asset, asset.inlineBase64 ||= uuid.v4());
+                }
+                else if (!Document.isFileHTTP(url) || Document.hasSameOrigin(cssUri, url)) {
+                    setOutputUrl(asset, getRelativeUri.call(this, cssFile, asset));
+                }
+                else {
+                    const pathname = cssFile.pathname;
+                    const count = pathname && pathname !== '/' ? pathname.split(/[\\/]/).length : 0;
+                    setOutputUrl(asset, (count ? '../'.repeat(count) : '') + asset.relativeUri);
+                }
             }
         }
     }
@@ -428,7 +430,6 @@ class ChromeDocument extends Document implements IChromeDocument {
         const moduleName = instance.moduleName;
         const inlineMap = new Set<DocumentAsset>();
         const base64Map: StringMap = {};
-        const tasks: Promise<unknown>[] = [];
         const replaceContent = (source: string) => {
             for (const id in base64Map) {
                 source = source.replace(new RegExp(escapeRegexp(id), 'g'), base64Map[id]!);
@@ -438,22 +439,16 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
             return source;
         };
-        const setBase64Url = (item: DocumentAsset, data: Buffer) => {
-            base64Map[item.inlineBase64!] = `data:${item.mimeType!};base64,${data.toString('base64').trim()}`;
-            this.removeAsset(item);
-        };
         for (const item of assets) {
             if (item.inlineBase64) {
-                if (item.buffer) {
-                    setBase64Url(item, item.buffer);
+                try {
+                    base64Map[item.inlineBase64!] = `data:${item.mimeType!};base64,${(item.buffer ? item.buffer.toString('base64') : fs.readFileSync(item.localUri!, 'base64')).trim()}`;
+                    this.removeAsset(item);
                 }
-                else {
-                    tasks.push(fs.readFile(item.localUri!).then((data: Buffer) => setBase64Url(item, data)));
+                catch (err) {
+                    this.writeFail(['Unable to read base64 buffer', moduleName], err);
                 }
             }
-        }
-        if (tasks.length) {
-            await Document.allSettled(tasks, ['Unable to read base64 buffer', instance.moduleName], this.errors);
         }
         for (const css of instance.cssFiles) {
             const { format, localUri } = css;
@@ -500,7 +495,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         const { element, value: template } = database[index];
                         const domElement = new HtmlElement(moduleName, element!);
                         if (typeof template === 'string') {
-                            if (HtmlElement.hasInnerHTML(element!.tagName)) {
+                            if (HtmlElement.hasInnerXml(element!.tagName)) {
                                 let output = '',
                                     match: Null<RegExpExecArray>;
                                 for (const row of result) {
@@ -511,7 +506,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     output += value;
                                     pattern.lastIndex = 0;
                                 }
-                                domElement.innerHTML = output;
+                                domElement.innerXml = output;
                             }
                         }
                         else {
@@ -564,7 +559,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 const domElement = new HtmlElement(moduleName, element!, attributes);
                 if (inlineContent) {
                     domElement.tagName = inlineContent;
-                    domElement.innerHTML = this.getUTF8String(item).trim();
+                    domElement.innerXml = this.getUTF8String(item).trim();
                     domElement.removeAttribute('src', 'href');
                     if (domBase.write(domElement, { rename: tagName === 'link' })) {
                         inlineMap.add(item);
@@ -594,7 +589,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             domElement.setAttribute('src', value);
                             break;
                     }
-                    domElement.innerHTML = '';
+                    domElement.innerXml = '';
                     if (!domBase.write(domElement, { rename: tagName === 'style' })) {
                         this.writeFail(['Bundle tag replacement', tagName], getErrorDOM(tagName, tagIndex));
                         delete item.inlineCloud;
@@ -606,7 +601,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
             for (const item of assets) {
                 const element = item.element;
-                if (item.invalid || !element || !item.attributes && (item === html || !item.uri && !item.srcSet) || item.content || item.inlineContent || item.format === 'base64' || item.base64 || item.bundleIndex !== undefined) {
+                if (item.invalid || !element || !item.attributes && (item === html || !item.uri && !item.srcSet) || item.content || item.inlineContent || item.format === 'base64' || item.bundleIndex !== undefined) {
                     continue;
                 }
                 const { uri, attributes, srcSet } = item;
@@ -636,7 +631,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     delete item.inlineCloud;
                 }
             }
-            let source = replaceContent(removeDatasetNamespace(instance.moduleName, domBase.close()));
+            let source = replaceContent(removeDatasetNamespace(moduleName, domBase.close()));
             source = transformCss.call(this, assets, html, source, true) || source;
             if (format) {
                 const result = await instance.transform('html', source, format);
@@ -647,7 +642,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             html.sourceUTF8 = source;
             const failCount = domBase.failCount;
             if (failCount) {
-                this.writeFail([`DOM update had ${failCount} ${failCount === 1 ? 'error' : 'errors'}`, instance.moduleName], new Error(`${instance.moduleName}: ${failCount} modifications failed`));
+                this.writeFail([`DOM update had ${failCount} ${failCount === 1 ? 'error' : 'errors'}`, moduleName], new Error(`${moduleName}: ${failCount} modifications failed`));
             }
             else {
                 this.writeTimeElapsed('HTML', `${path.basename(localUri!)}: ${domBase.modifyCount} modified`, time);
@@ -747,7 +742,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     writeImage(manager: IFileManager, data: OutputData<DocumentAsset>) {
         const { file, output } = data;
         if (output) {
-            const match = file.element?.outerHTML && REGEXP_SRCSETSIZE.exec(data.command);
+            const match = file.element?.outerXml && REGEXP_SRCSETSIZE.exec(data.command);
             if (match) {
                 (file.srcSet ||= []).push(Document.toPosix(data.baseDirectory ? output.substring(data.baseDirectory.length + 1) : output), match[1] + match[2].toLowerCase());
                 return true;

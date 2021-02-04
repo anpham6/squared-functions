@@ -1,8 +1,8 @@
-import type { DomWriterConstructor, HtmlElementConstructor } from './document';
+import type { XmlWriterConstructor, XmlElementConstructor } from './document';
 
 declare namespace Parse {
-    const DomWriter: DomWriterConstructor;
-    const HtmlElement: HtmlElementConstructor;
+    const XmlWriter: XmlWriterConstructor;
+    const XmlElement: XmlElementConstructor;
 }
 
 export = Parse;
