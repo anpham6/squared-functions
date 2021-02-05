@@ -1,6 +1,6 @@
 import type { TagAppend, TagIndex } from '../../types/lib/squared';
 
-import type { IXmlElement, IXmlWriter, SaveResult, WriteOptions, WriteResult, XmlNodeTag } from './document';
+import type { FindIndexOfResult, IXmlElement, IXmlWriter, SaveResult, SourceContent, SourceIndex, WriteOptions, WriteResult, XmlNodeTag } from './document';
 
 import escapeRegexp = require('escape-string-regexp');
 import uuid = require('uuid');
@@ -158,10 +158,10 @@ export abstract class XmlWriter implements IXmlWriter {
         element.newline = this.newline;
         const [output, outerXml, error] = element.write(this.source, options);
         if (output) {
-            this.source = output;
-            ++this.modifyCount;
             const node = element.node;
             const data = append || prepend;
+            this.source = output;
+            ++this.modifyCount;
             if (data) {
                 this.elements.push(node);
                 if (append) {
@@ -180,7 +180,7 @@ export abstract class XmlWriter implements IXmlWriter {
                 }
             }
             else if (remove) {
-                return this.decrement(node, remove).length > 0;
+                this.decrement(node, remove);
             }
             else if (rename && element.tagName !== node.tagName) {
                 this.renameTag(node, element.tagName);
@@ -194,6 +194,14 @@ export abstract class XmlWriter implements IXmlWriter {
         ++this.failCount;
         return false;
     }
+    save() {
+        for (const item of this.elements) {
+            delete item.startIndex;
+            delete item.endIndex;
+        }
+        this.modifyCount = 0;
+        return this.source;
+    }
     update(node: XmlNodeTag, outerXml: string) {
         const { index, startIndex = -1 } = node;
         for (const item of this.elements) {
@@ -206,8 +214,9 @@ export abstract class XmlWriter implements IXmlWriter {
             }
         }
     }
-    updateByTag(node: Required<TagIndex>, outerXml: string, startIndex: number, endIndex: number) {
+    updateByTag(node: Required<TagIndex>, content: SourceContent) {
         const { tagName, tagIndex, tagCount } = node;
+        const { startIndex, endIndex, outerXml } = content;
         for (const item of this.elements) {
             if (item.tagName === tagName) {
                 if (item.tagCount === tagCount) {
@@ -227,7 +236,7 @@ export abstract class XmlWriter implements IXmlWriter {
                 delete item.endIndex;
             }
         }
-        this.spliceRawString(outerXml, startIndex, endIndex);
+        this.spliceRawString(content);
         return true;
     }
     increment(node: XmlNodeTag, prepend?: boolean) {
@@ -351,22 +360,34 @@ export abstract class XmlWriter implements IXmlWriter {
         return false;
     }
     close() {
-        return this.source = this.source.replace(new RegExp(`\\s+${XmlWriter.getAttrId(this.documentName)}="[^"]+"`, 'g'), '');
+        const source = this.source;
+        this.source = '';
+        this.elements.length = 0;
+        return source.replace(new RegExp(`\\s+${XmlWriter.getAttrId(this.documentName)}="[^"]+"`, 'g'), '');
     }
-    setRawString(sourceXml: string, outerXml: string) {
+    setRawString(targetXml: string, outerXml: string) {
         const current = this.source;
-        this.source = current.replace(sourceXml, outerXml);
-        return current !== this.source;
+        this.source = current.replace(targetXml, outerXml);
+        if (current !== this.source) {
+            ++this.modifyCount;
+            return true;
+        }
+        return false;
     }
-    getRawString(startIndex: number, endIndex: number) {
+    getRawString(index: SourceIndex) {
+        const { startIndex, endIndex } = index;
         return this.source.substring(startIndex, endIndex);
     }
-    spliceRawString(outerXml: string, startIndex: number, endIndex: number) {
-        const source = this.source;
-        return this.source = source.substring(0, startIndex) + outerXml + source.substring(endIndex + 1);
+    spliceRawString(content: SourceContent) {
+        const { startIndex, endIndex, outerXml } = content;
+        ++this.modifyCount;
+        return this.source = this.source.substring(0, startIndex) + outerXml + this.source.substring(endIndex + 1);
     }
     hasErrors() {
         return this.errors.length > 0;
+    }
+    get modified() {
+        return this.modifyCount > 0;
     }
 }
 
@@ -490,7 +511,7 @@ export abstract class XmlElement implements IXmlElement {
 
     abstract get outerXml(): string;
 
-    abstract findIndexOf(source: string, append?: boolean): [number, number, Null<Error>?];
+    abstract findIndexOf(source: string, append?: boolean): FindIndexOfResult;
 
     setAttribute(name: string, value: string) {
         if (this._attributes.get(name = name.toLowerCase()) !== value) {
@@ -576,7 +597,7 @@ export abstract class XmlElement implements IXmlElement {
             const openTag: number[] = [];
             const selfClosed = !XmlElement.hasInnerXml(tagName);
             const selfId = selfClosed && !!id;
-            const hasId = (start: number, end?: number) => !!id && source.substring(start, end).includes(id);
+            const hasId = (start: number, end: number) => !!id && source.substring(start, end).includes(id);
             const getTagStart = (start: number): Null<WriteResult> => {
                 const end = XmlElement.findCloseTag(source, start);
                 return end !== -1 && hasId(start, end) ? [spliceSource([start, end]), outerXml, error] : null;
@@ -711,6 +732,7 @@ export abstract class XmlElement implements IXmlElement {
         const [output, outerXml, error] = this.write(source, options);
         if (output) {
             this.node.outerXml = outerXml;
+            this._modified = false;
         }
         return [output, error];
     }

@@ -9,8 +9,6 @@ import type { RequestBody } from '../../types/lib/node';
 import type { CloudScopeOrigin } from '../../cloud';
 import type { DocumentAsset, IChromeDocument } from './document';
 
-import type * as domhandler from 'domhandler';
-
 import path = require('path');
 import fs = require('fs-extra');
 import escapeRegexp = require('escape-string-regexp');
@@ -73,19 +71,6 @@ function getObjectValue(data: unknown, key: string, joinString = ' ') {
         return (value as string).toString();
     }
     return '';
-}
-
-function replaceBase64Url(source: string, base64: string, url: string, fromHTML?: boolean) {
-    const pattern = new RegExp(`\\s*(["'])?([^"'=,]+?,\\s*${base64.replace(/\+/g, '\\+')}\\s*)\\1\\s*`, 'g');
-    let output: Undef<string>,
-        match: Null<RegExpExecArray>;
-    while (match = pattern.exec(source)) {
-        output = (output || source).replace(match[2], url);
-        if (fromHTML) {
-            break;
-        }
-    }
-    return output;
 }
 
 function removeCss(source: string, styles: string[]) {
@@ -206,10 +191,14 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
         }
         const setOutputUrl = (asset: DocumentAsset, value: string) => {
             if (this.Cloud?.getStorage('upload', asset.cloudStorage)) {
-                if (!asset.inlineCssCloud) {
-                    (cssFile.inlineCssMap ||= {})[asset.inlineCssCloud = uuid.v4()] = value;
+                if (fromHTML) {
+                    value = asset.inlineCloud ||= uuid.v4();
                 }
-                value = asset.inlineCssCloud;
+                else {
+                    const inlineCssCloud = asset.inlineCssCloud ||= uuid.v4();
+                    (cssFile.inlineCssMap ||= {})[inlineCssCloud] ||= value;
+                    value = inlineCssCloud;
+                }
             }
             output = (output || content).replace(content.substring(match!.index, i + 1), 'url(' + quote + value + quote + ')');
         };
@@ -361,51 +350,28 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
             case '@text/html': {
                 const assets = this.getDocumentAssets(instance) as DocumentAsset[];
-                const items = assets.filter(item => item.base64 || item.format === 'base64');
+                const items = assets.filter(item => item.format === 'base64' && item.element);
                 if (items.length) {
                     const domBase = new DomWriter(
                         instance.moduleName,
                         this.getUTF8String(file, localUri),
                         (assets as ElementAction[]).concat(this.getCloudAssets(instance)).filter(item => item.element).map(item => item.element!)
                     );
-                    let modified: Undef<boolean>;
                     for (const item of items) {
-                        const base64 = item.base64;
-                        if (base64) {
-                            const url = this.Cloud?.getStorage('upload', item.cloudStorage) ? item.inlineCloud ||= uuid.v4() : item.relativeUri!;
-                            const findAll = (elem: domhandler.Element) => {
-                                if (elem.tagName === 'style') {
-                                    return !!elem.children.find((child: domhandler.DataNode) => child.type === 'text' && child.nodeValue.includes(base64));
-                                }
-                                else if (elem.attribs.style?.includes(base64)) {
-                                    return true;
-                                }
-                                return false;
-                            };
-                            if (domBase.replaceAll(findAll, (elem: domhandler.Element, value: string) => replaceBase64Url(value.substring(elem.startIndex!, elem.endIndex! + 1), base64, url, true))) {
-                                modified = true;
-                            }
-                            else {
-                                delete item.inlineCloud;
-                            }
+                        const element = item.element!;
+                        const domElement = new HtmlElement(instance.moduleName, element, item.attributes);
+                        setElementAttribute.call(instance, file, item, domElement, item.inlineBase64 ||= uuid.v4());
+                        if (domBase.write(domElement)) {
+                            item.watch = false;
                         }
                         else {
-                            const element = item.element!;
-                            const domElement = new HtmlElement(instance.moduleName, element, item.attributes);
-                            setElementAttribute.call(instance, file, item, domElement, item.inlineBase64 ||= uuid.v4());
-                            if (domBase.write(domElement)) {
-                                item.watch = false;
-                                modified = true;
-                            }
-                            else {
-                                const { tagName, tagIndex } = element;
-                                this.writeFail(['Element base64 attribute replacement', tagName], getErrorDOM(tagName, tagIndex));
-                                delete item.inlineBase64;
-                            }
+                            const { tagName, tagIndex } = element;
+                            this.writeFail(['Element base64 attribute replacement', tagName], getErrorDOM(tagName, tagIndex));
+                            delete item.inlineBase64;
                         }
                     }
-                    if (modified) {
-                        file.sourceUTF8 = domBase.source;
+                    if (domBase.modified) {
+                        file.sourceUTF8 = domBase.save();
                     }
                 }
                 break;
@@ -442,7 +408,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         for (const item of assets) {
             if (item.inlineBase64) {
                 try {
-                    base64Map[item.inlineBase64!] = `data:${item.mimeType!};base64,${(item.buffer ? item.buffer.toString('base64') : fs.readFileSync(item.localUri!, 'base64')).trim()}`;
+                    base64Map[item.inlineBase64] = `data:${item.mimeType!};base64,${(item.buffer ? item.buffer.toString('base64') : fs.readFileSync(item.localUri!, 'base64')).trim()}`;
                     this.removeAsset(item);
                 }
                 catch (err) {

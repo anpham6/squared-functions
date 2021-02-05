@@ -1,4 +1,4 @@
-import type { FindElementOptions, IDomWriter, IXmlElement, ParserResult, WriteOptions, XmlNodeTag } from './document';
+import type { FindElementOptions, FindIndexOfResult, IDomWriter, IXmlElement, ParserResult, WriteOptions, XmlNodeTag } from './document';
 
 import htmlparser2 = require('htmlparser2');
 import domhandler = require('domhandler');
@@ -8,6 +8,8 @@ import { XmlElement, XmlWriter } from './index';
 
 const Parser = htmlparser2.Parser;
 const DomHandler = domhandler.DomHandler;
+
+const formatHTML = (value: string) => value.replace(/<\s*html\b/i, '<html');
 
 export class DomWriter extends XmlWriter implements IDomWriter {
     public static normalize(source: string) {
@@ -94,11 +96,11 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         const items = elements.filter(item => item.tagName === 'html');
         const documentElement = items.find(item => item.innerXml);
         const html = /<\s*html[\s|>]/i.exec(source);
+        let outerXml = '',
+            startIndex = -1;
         if (source.includes('\r\n')) {
             this.newline = '\r\n';
         }
-        let outerXml = '',
-            startIndex = -1;
         if (html) {
             const endIndex = XmlElement.findCloseTag(source, html.index);
             if (endIndex !== -1) {
@@ -107,10 +109,15 @@ export class DomWriter extends XmlWriter implements IDomWriter {
             }
         }
         if (documentElement) {
-            const leading = startIndex === -1 ? '<!DOCTYPE html>' + this.newline + '<html>' : source.substring(0, startIndex + outerXml.length);
+            let leading: string;
             if (startIndex === -1) {
+                leading = '<!DOCTYPE html>' + this.newline + '<html>';
                 outerXml = '<html>';
                 startIndex = leading.length - outerXml.length;
+            }
+            else {
+                leading = formatHTML(source.substring(0, startIndex + outerXml.length));
+                outerXml = formatHTML(outerXml);
             }
             this.source = leading + this.newline + documentElement.innerXml! + this.newline + '</html>';
             this.documentElement = documentElement;
@@ -138,6 +145,20 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         }
         return super.write(element, options);
     }
+    save() {
+        if (this.modified) {
+            const match = (this.documentElement ? /\s*<\/html>$/ : /\s*<\/\s*html\s*>/i).exec(this.source);
+            if (match) {
+                let innerXml: Undef<string>;
+                for (const item of this.elements) {
+                    if (item.tagName === 'html' && item.endIndex !== undefined) {
+                        item.innerXml = innerXml ||= this.source.substring(item.endIndex + (this.documentElement ? this.newline.length + 1 : 1), match.index);
+                    }
+                }
+            }
+        }
+        return super.save();
+    }
     replaceAll(predicate: (elem: domhandler.Element) => boolean, callback: (elem: domhandler.Element, source: string) => Undef<string>) {
         let result = 0;
         new Parser(new DomHandler((err, dom) => {
@@ -147,7 +168,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
                     if (outerXml) {
                         const nodes = domutils.getElementsByTagName(target.tagName, dom, true);
                         const tagIndex = nodes.findIndex(elem => elem === target);
-                        if (tagIndex !== -1 && this.updateByTag({ tagName: target.tagName, tagIndex, tagCount: nodes.length }, outerXml, target.startIndex!, target.endIndex!)) {
+                        if (tagIndex !== -1 && this.updateByTag({ tagName: target.tagName, tagIndex, tagCount: nodes.length }, { startIndex: target.startIndex!, endIndex: target.endIndex!, outerXml })) {
                             ++result;
                             continue;
                         }
@@ -166,7 +187,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
 export class HtmlElement extends XmlElement {
     public static readonly TAG_VOID = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
 
-    findIndexOf(source: string, append?: boolean): [number, number, Null<Error>?] {
+    findIndexOf(source: string, append?: boolean): FindIndexOfResult {
         const { element: target, error } = DomWriter.findElement(source, this.node, { document: this.documentName, byId: !!append });
         return target ? [target.startIndex!, target.endIndex!, error] : [-1, -1, error];
     }

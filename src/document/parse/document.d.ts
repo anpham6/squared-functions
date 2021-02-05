@@ -2,18 +2,16 @@ import type { XmlNodeTag as IXmlNodeTag, TagAppend, TagIndex } from '../../types
 
 import type { Element, Node } from 'domhandler';
 
-export interface ParserResult extends Partial<TagIndex> {
-    element: Null<Node>;
-    error: Null<Error>;
+export interface SourceIndex {
+    startIndex: number;
+    endIndex: number;
 }
 
-export type WriteResult = [string, string, Null<Error>?];
-export type SaveResult = [string, Null<Error>?];
-
-export interface XmlNodeTag extends IXmlNodeTag {
-    startIndex?: number;
-    endIndex?: number;
+export interface SourceContent extends SourceIndex {
+    outerXml: string;
 }
+
+export interface XmlNodeTag extends IXmlNodeTag, Partial<SourceIndex> {}
 
 export interface FindElementOptions {
     document?: string;
@@ -27,11 +25,21 @@ export interface WriteOptions {
     prepend?: XmlNodeTag;
 }
 
+export interface ParserResult extends Partial<TagIndex> {
+    element: Null<Node>;
+    error: Null<Error>;
+}
+
+export type WriteResult = [string, string, Null<Error>?];
+export type SaveResult = [string, Null<Error>?];
+export type FindIndexOfResult = [number, number, Null<Error>?];
+
 export interface IXmlWriter {
     documentName: string;
     source: string;
     elements: XmlNodeTag[];
     readonly newline: string;
+    readonly modified: boolean;
     readonly rootName?: string;
     init(): void;
     newElement(node: XmlNodeTag): IXmlElement;
@@ -39,16 +47,17 @@ export interface IXmlWriter {
     append(node: XmlNodeTag): Null<IXmlElement>;
     prepend(node: XmlNodeTag): Null<IXmlElement>;
     write(element: IXmlElement, options?: WriteOptions): boolean;
+    save(): string;
     close(): string;
     update(node: XmlNodeTag, outerXml: string): void;
-    updateByTag(element: Required<TagIndex>, outerXml: string, startIndex: number, endIndex: number): boolean;
+    updateByTag(element: Required<TagIndex>, content: SourceContent): boolean;
     increment(node: XmlNodeTag): void;
     decrement(node: XmlNodeTag): XmlNodeTag[];
     renameTag(node: XmlNodeTag, tagName: string): void;
     indexTag(tagName: string, append?: boolean): boolean;
-    setRawString(sourceXml: string, outerXml: string): boolean;
-    getRawString(startIndex: number, endIndex: number): string;
-    spliceRawString(outerXml: string, startIndex: number, endIndex: number): string;
+    setRawString(targetXml: string, outerXml: string): boolean;
+    getRawString(index: SourceIndex): string;
+    spliceRawString(content: SourceContent): string;
     hasErrors(): boolean;
 }
 
@@ -73,7 +82,7 @@ export interface IXmlElement {
     hasAttribute(name: string): boolean;
     write(source: string, options?: WriteOptions): WriteResult;
     save(source: string, options?: WriteOptions): SaveResult;
-    findIndexOf(source: string, append?: boolean): [number, number, Null<Error>?];
+    findIndexOf(source: string, append?: boolean): FindIndexOfResult;
 }
 
 export interface XmlElementConstructor {
