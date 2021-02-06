@@ -51,28 +51,31 @@ export abstract class XmlWriter implements IXmlWriter {
     public readonly rootName?: string;
 
     protected _tagCount: ObjectMap<number> = {};
-    protected _appended: IXmlElement[] = [];
 
     private _appending?: XmlNodeTag[];
 
     constructor(public documentName: string, public source: string, public elements: XmlNodeTag[]) {
-        const appending: XmlNodeTag[] = [];
         for (let i = 0; i < elements.length; ++i) {
             const item = elements[i];
             const tagName = item.tagName.toLowerCase();
-            item.tagName = tagName;
             const append = item.prepend || item.append;
+            item.tagName = tagName;
             if (append) {
                 append.tagName = append.tagName.toLowerCase();
-                appending.push(item as Required<XmlNodeTag>);
+                (this._appending ||= []).push(item);
                 elements.splice(i--, 1);
             }
             else {
                 this._tagCount[tagName] = item.tagCount;
             }
         }
-        appending
-            .sort((a, b) => {
+    }
+
+    abstract newElement(node: XmlNodeTag): IXmlElement;
+
+    insert(nodes = this._appending) {
+        if (nodes) {
+            nodes.sort((a, b) => {
                 if (a.index === b.index) {
                     if (a.prepend && b.prepend) {
                         return a.prepend.order - b.prepend.order;
@@ -89,19 +92,12 @@ export abstract class XmlWriter implements IXmlWriter {
                 }
                 return b.index - a.index;
             });
-        this._appending = appending;
-    }
-
-    abstract newElement(node: XmlNodeTag): IXmlElement;
-
-    init() {
-        const appending = this._appending;
-        if (appending) {
-            for (let i = 0, length = appending.length; i < length; ++i) {
-                const item = appending[i];
-                const xmlElement = item.prepend ? this.prepend(item) : this.append(item);
-                if (xmlElement) {
-                    this._appended.push(xmlElement);
+            for (const item of nodes) {
+                if (item.prepend) {
+                    this.prepend(item);
+                }
+                else if (item.append) {
+                    this.append(item);
                 }
             }
             delete this._appending;

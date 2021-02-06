@@ -133,7 +133,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
                 item.outerXml = outerXml;
             }
         }
-        this.init();
+        this.insert();
     }
 
     newElement(node: XmlNodeTag) {

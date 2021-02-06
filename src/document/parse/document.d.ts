@@ -41,7 +41,7 @@ export interface IXmlWriter {
     readonly newline: string;
     readonly modified: boolean;
     readonly rootName?: string;
-    init(): void;
+    insert(nodes?: XmlNodeTag[]): void;
     newElement(node: XmlNodeTag): IXmlElement;
     insertElement(node: XmlNodeTag, data: TagAppend): [IXmlElement, string];
     append(node: XmlNodeTag): Null<IXmlElement>;
