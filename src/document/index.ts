@@ -102,8 +102,6 @@ abstract class Document extends Module implements IDocument {
         return uri;
     }
 
-    public readonly internalAssignUUID = '__assign__';
-
     public abstract moduleName: string;
 
     private _packageMap: ObjectMap<Transformer> = {};

@@ -21,8 +21,9 @@ export interface IChromeDocument extends IDocument {
     cssFiles: DocumentAsset[];
     baseDirectory: string;
     baseUrl: string;
-    internalServerRoot: string;
     unusedStyles?: string[];
+    readonly internalServerRoot: string;
+    readonly internalAssignUUID: string;
 }
 
 export interface ChromeDocumentConstructor extends DocumentConstructor {

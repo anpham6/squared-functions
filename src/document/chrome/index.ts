@@ -1,4 +1,4 @@
-import type { ElementAction } from '../../types/lib/squared';
+import type { ElementAction, LocationUri } from '../../types/lib/squared';
 
 import type { IFileManager } from '../../types/lib';
 import type { FileData, OutputData } from '../../types/lib/asset';
@@ -379,7 +379,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             case '@text/css': {
                 const trailing = concatString(file.trailingContent);
                 const bundle = this.getAssetContent(file);
-                let source = await instance.formatContent(this, file, this.getUTF8String(file, localUri));
+                let source = await instance.formatContent(file, this.getUTF8String(file, localUri), this);
                 if (trailing) {
                     source += trailing;
                 }
@@ -627,9 +627,10 @@ class ChromeDocument extends Document implements IChromeDocument {
     public cssFiles: DocumentAsset[] = [];
     public baseDirectory = '';
     public baseUrl = '';
-    public internalServerRoot = '__serverroot__';
     public unusedStyles?: string[];
     public readonly moduleName = 'chrome';
+    public readonly internalAssignUUID = '__assign__';
+    public readonly internalServerRoot = '__serverroot__';
 
     private _cloudMap!: ObjectMap<DocumentAsset>;
     private _cloudCssMap!: ObjectMap<DocumentAsset>;
@@ -678,11 +679,30 @@ class ChromeDocument extends Document implements IChromeDocument {
                     this.cssFiles.push(item);
                     break;
             }
+            if (item.cloudStorage) {
+                for (const data of item.cloudStorage) {
+                    if (data.upload) {
+                        this.setLocalUri(data.upload);
+                    }
+                    if (data.download) {
+                        this.setLocalUri(data.download);
+                    }
+                }
+            }
         }
         this.assets = assets;
     }
 
-    async formatContent(manager: IFileManager, file: DocumentAsset, content: string): Promise<string> {
+    setLocalUri(file: Partial<LocationUri>) {
+        const { pathname = '', filename = '' } = file;
+        if (pathname.includes(this.internalAssignUUID)) {
+            file.pathname = pathname.replace(this.internalAssignUUID, uuid.v4());
+        }
+        if (filename.includes(this.internalAssignUUID)) {
+            file.filename = filename.replace(this.internalAssignUUID, uuid.v4());
+        }
+    }
+    async formatContent(file: DocumentAsset, content: string, manager: IFileManager): Promise<string> {
         if (file.mimeType === '@text/css') {
             if (!file.preserve && this.unusedStyles) {
                 const result = removeCss(content, this.unusedStyles);
@@ -697,7 +717,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
         return content;
     }
-    addCopy(manager: IFileManager, data: FileData, saveAs: string) {
+    addCopy(data: FileData, saveAs: string, replace = false, manager: IFileManager) {
         if (data.command) {
             const match = REGEXP_SRCSETSIZE.exec(data.command);
             if (match) {
@@ -705,7 +725,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
     }
-    writeImage(manager: IFileManager, data: OutputData<DocumentAsset>) {
+    writeImage(data: OutputData<DocumentAsset>) {
         const { file, output } = data;
         if (output) {
             const match = file.element?.outerXml && REGEXP_SRCSETSIZE.exec(data.command);

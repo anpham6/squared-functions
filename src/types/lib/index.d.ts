@@ -2,12 +2,12 @@
 
 /* eslint no-shadow: "off" */
 
-import type { CompressFormat, ResponseData } from './squared';
+import type { CompressFormat, LocationUri, ResponseData } from './squared';
 
 import type { ExternalAsset, FileData, FileOutput, OutputData } from './asset';
 import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload } from './cloud';
 import type { CompressTryFileMethod, CompressTryImageCallback } from './compress';
-import type { ConfigOrTransformer, DocumentData, PluginConfig, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
+import type { ConfigOrTransformer, PluginConfig, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
 import type { CompleteAsyncTaskCallback, InstallData, PerformAsyncTaskMethod } from './filemanager';
 import type { CropData, QualityData, ResizeData, RotateData } from './image';
 import type { LOG_TYPE, LogMessageOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
@@ -112,14 +112,14 @@ declare namespace functions {
         module: DocumentModule;
         templateMap?: StandardMap;
         readonly moduleName: string;
-        readonly internalAssignUUID: string;
         init(assets: ExternalAsset[], body: RequestBody): void;
         findConfig(settings: StandardMap, name: string, type?: string): PluginConfig;
         loadConfig(data: StandardMap, name: string): Optional<ConfigOrTransformer>;
         transform(type: string, code: string, format: string, options?: TransformOutput): Promise<Void<TransformResult>>;
-        formatContent?(manager: IFileManager, file: ExternalAsset, content: string): Promise<string>;
-        addCopy?(manager: IFileManager, data: FileData, saveAs: string, replace?: boolean): Undef<string>;
-        writeImage?(manager: IFileManager, data: OutputData): boolean;
+        setLocalUri?(file: Partial<LocationUri>, manager?: IFileManager): void;
+        formatContent?(file: ExternalAsset, content: string, manager?: IFileManager): Promise<string>;
+        addCopy?(data: FileData, saveAs: string, replace?: boolean, manager?: IFileManager): Undef<string>;
+        writeImage?(data: OutputData, manager?: IFileManager): boolean;
         cloudInit?(state: IScopeOrigin<T, U>): void;
         cloudObject?(state: IScopeOrigin<T, U>, file: ExternalAsset): boolean;
         cloudUpload?(state: IScopeOrigin<T, U>, file: ExternalAsset, url: string, active: boolean): Promise<boolean>;
@@ -194,7 +194,6 @@ declare namespace functions {
         getLocalUri(data: FileData): string;
         getMimeType(data: FileData): Undef<string>;
         getRelativeUri(file: ExternalAsset, filename?: string): string;
-        assignUUID(data: DocumentData, attr: string, target?: unknown): Undef<string>;
         findAsset(uri: string, instance?: IModule): Undef<ExternalAsset>;
         removeCwd(value: Undef<string>): string;
         getUTF8String(file: ExternalAsset, localUri?: string): string;

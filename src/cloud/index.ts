@@ -108,7 +108,7 @@ class Cloud extends Module implements ICloud {
                                                         filename = path.basename(file.cloudUrl);
                                                     }
                                                     else if (upload.filename) {
-                                                        filename = this.assignUUID(file, 'filename', upload);
+                                                        filename = upload.filename;
                                                     }
                                                     else if (upload.overwrite) {
                                                         filename = path.basename(localUri);

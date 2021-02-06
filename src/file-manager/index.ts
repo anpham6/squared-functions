@@ -3,7 +3,6 @@ import type { CompressFormat } from '../types/lib/squared';
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, IPermission, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
 import type { CloudService } from '../types/lib/cloud';
-import type { DocumentData } from '../types/lib/document';
 import type { InstallData } from '../types/lib/filemanager';
 import type { CloudModule, DocumentModule } from '../types/lib/module';
 import type { PermissionSettings, RequestBody, Settings } from '../types/lib/node';
@@ -11,7 +10,6 @@ import type { PermissionSettings, RequestBody, Settings } from '../types/lib/nod
 import path = require('path');
 import fs = require('fs-extra');
 import request = require('request');
-import uuid = require('uuid');
 import mime = require('mime-types');
 import fileType = require('file-type');
 
@@ -318,8 +316,13 @@ class FileManager extends Module implements IFileManager {
             }
         }
         file.pathname = Module.toPosix(file.pathname);
-        this.assignUUID(file, 'pathname');
-        this.assignUUID(file, 'filename');
+        if (file.document) {
+            for (const { instance } of this.Document) {
+                if (instance.setLocalUri && this.hasDocument(instance, file.document)) {
+                    instance.setLocalUri(file, this);
+                }
+            }
+        }
         const segments = [this.baseDirectory, file.moveTo, file.pathname].filter(value => value) as string[];
         const pathname = segments.length > 1 ? path.join(...segments) : this.baseDirectory;
         const localUri = path.join(pathname, file.filename);
@@ -336,20 +339,6 @@ class FileManager extends Module implements IFileManager {
     }
     getRelativeUri(file: ExternalAsset, filename = file.filename) {
         return Module.joinPosix(file.moveTo, file.pathname, filename);
-    }
-    assignUUID(data: DocumentData, attr: string, target: unknown = data) {
-        const document = data.document;
-        if (document && isObject(target)) {
-            const value: unknown = data[attr];
-            if (typeof value === 'string') {
-                for (const { instance } of this.Document) {
-                    if (this.hasDocument(instance, document) && value.includes(instance.internalAssignUUID)) {
-                        return target[attr] = value.replace(instance.internalAssignUUID, uuid.v4());
-                    }
-                }
-                return value;
-            }
-        }
     }
     getDocumentAssets(instance: IModule) {
         const moduleName = instance.moduleName;
@@ -389,8 +378,11 @@ class FileManager extends Module implements IFileManager {
         }
         if (file.document) {
             for (const { instance } of this.Document) {
-                if (this.hasDocument(instance, file.document) && instance.formatContent) {
-                    content = await instance.formatContent(this, file, content);
+                if (instance.formatContent && this.hasDocument(instance, file.document)) {
+                    const result = await instance.formatContent(file, content, this);
+                    if (result) {
+                        content = result;
+                    }
                 }
             }
         }
@@ -423,7 +415,7 @@ class FileManager extends Module implements IFileManager {
     }
     writeImage(document: StringOfArray, data: OutputData) {
         for (const { instance } of this.Document) {
-            if (this.hasDocument(instance, document) && instance.writeImage && instance.writeImage(this, data)) {
+            if (instance.writeImage && this.hasDocument(instance, document) && instance.writeImage(data, this)) {
                 return true;
             }
         }
@@ -440,7 +432,7 @@ class FileManager extends Module implements IFileManager {
         saveAs ||= ext;
         if (document) {
             for (const { instance } of this.Document) {
-                if (this.hasDocument(instance, document) && instance.addCopy && (output = instance.addCopy(this, data, saveAs, replace))) {
+                if (instance.addCopy && this.hasDocument(instance, document) && (output = instance.addCopy(data, saveAs, replace, this))) {
                     this.filesQueued.add(output);
                     return output;
                 }
