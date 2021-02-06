@@ -53,15 +53,16 @@ export interface TagIndex {
 }
 
 export interface TagAppend extends TagIndex {
-    textContent?: string;
     order: number;
+    id?: string;
+    textContent?: string;
 }
 
 export interface XmlNode {
     index: number;
-    id?: StringMap;
     outerXml?: string;
     innerXml?: string;
+    lowerCase?: boolean;
 }
 
 export interface XmlNodeTag extends XmlNode, Required<TagIndex>, AttributeAction {

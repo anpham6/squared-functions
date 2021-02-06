@@ -1,6 +1,6 @@
 import type { TagAppend, TagIndex } from '../../types/lib/squared';
 
-import type { FindIndexOfResult, IXmlElement, IXmlWriter, SaveResult, SourceContent, SourceIndex, WriteOptions, WriteResult, XmlNodeTag } from './document';
+import type { AttributeMap, FindIndexOfResult, IXmlElement, IXmlWriter, SaveResult, SourceContent, SourceIndex, WriteOptions, WriteResult, XmlNodeTag } from './document';
 
 import escapeRegexp = require('escape-string-regexp');
 import uuid = require('uuid');
@@ -12,10 +12,14 @@ function isSpace(ch: string) {
     return n === 32 || n < 14 && n > 8;
 }
 
-function applyAttributes(attrs: Map<string, Optional<string>>, data: Undef<StandardMap>) {
+function applyAttributes(attrs: AttributeMap, data: Undef<StandardMap>, lowerCase?: boolean) {
     if (data) {
-        for (const key in data) {
-            attrs.set(key.toLowerCase(), data[key]);
+        for (let key in data) {
+            const value = data[key];
+            if (lowerCase) {
+                key = key.toLowerCase();
+            }
+            attrs.set(key, value);
         }
     }
 }
@@ -40,10 +44,6 @@ export abstract class XmlWriter implements IXmlWriter {
         });
     }
 
-    public static getAttrId(document: string) {
-        return `data-${document}-id`;
-    }
-
     public modifyCount = 0;
     public failCount = 0;
     public errors: Error[] = [];
@@ -57,11 +57,11 @@ export abstract class XmlWriter implements IXmlWriter {
     constructor(public documentName: string, public source: string, public elements: XmlNodeTag[]) {
         for (let i = 0; i < elements.length; ++i) {
             const item = elements[i];
-            const tagName = item.tagName.toLowerCase();
+            const tagName = item.lowerCase ? item.tagName.toLowerCase() : item.tagName;
             const append = item.prepend || item.append;
             item.tagName = tagName;
             if (append) {
-                append.tagName = append.tagName.toLowerCase();
+                append.tagName = item.lowerCase ? append.tagName.toLowerCase() : append.tagName;
                 (this._appending ||= []).push(item);
                 elements.splice(i--, 1);
             }
@@ -73,7 +73,7 @@ export abstract class XmlWriter implements IXmlWriter {
 
     abstract newElement(node: XmlNodeTag): IXmlElement;
 
-    insert(nodes = this._appending) {
+    insertNodes(nodes = this._appending) {
         if (nodes) {
             nodes.sort((a, b) => {
                 if (a.index === b.index) {
@@ -103,52 +103,52 @@ export abstract class XmlWriter implements IXmlWriter {
             delete this._appending;
         }
     }
-    insertElement(node: XmlNodeTag, data: TagAppend): [IXmlElement, string] {
-        const id = uuid.v4();
-        const tagName = data.tagName;
-        if (!(tagName in this._tagCount)) {
-            this._tagCount[tagName] = data.tagCount;
+    fromNode(node: XmlNodeTag, append?: TagAppend): IXmlElement {
+        const element = this.newElement(node);
+        if (append) {
+            const tagName = append.tagName;
+            if (!(tagName in this._tagCount)) {
+                this._tagCount[tagName] = append.tagCount;
+            }
+            append.id ||= uuid.v4();
         }
-        const xmlElement = this.newElement(node);
-        xmlElement.setAttribute(XmlWriter.getAttrId(this.documentName), id);
-        return [xmlElement, id];
+        return element;
     }
     append(node: XmlNodeTag) {
-        const data = node.append;
-        if (data) {
-            const [xmlElement, id] = this.insertElement(node, data);
-            if (this.write(xmlElement, { append: node })) {
-                (node.id ||= {})[this.documentName] = id;
+        const append = node.append;
+        if (append) {
+            const element = this.fromNode(node, append);
+            if (this.write(element, { append })) {
+                delete node.prepend;
                 delete node.append;
-                return xmlElement;
+                return element;
             }
-            this.errors.push(new Error(`Unable to append element ${data.tagName.toUpperCase()} at index ${node.index}`));
+            this.errors.push(new Error(`Unable to append element ${append.tagName.toUpperCase()} at index ${node.index}`));
         }
         return null;
     }
     prepend(node: XmlNodeTag) {
-        const data = node.prepend;
-        if (data) {
-            const [xmlElement, id] = this.insertElement(node, data);
-            if (this.write(xmlElement, { prepend: node })) {
-                (node.id ||= {})[this.documentName] = id;
+        const prepend = node.prepend;
+        if (prepend) {
+            const element = this.fromNode(node, prepend);
+            if (this.write(element, { prepend })) {
                 delete node.prepend;
                 delete node.append;
-                return xmlElement;
+                return element;
             }
-            this.errors.push(new Error(`Unable to prepend element ${data.tagName.toUpperCase()} at index ${node.index}`));
+            this.errors.push(new Error(`Unable to prepend element ${prepend.tagName.toUpperCase()} at index ${node.index}`));
         }
         return null;
     }
     write(element: IXmlElement, options?: WriteOptions) {
         let remove: Undef<boolean>,
             rename: Undef<boolean>,
-            append: Undef<XmlNodeTag>,
-            prepend: Undef<XmlNodeTag>;
+            append: Undef<TagAppend>,
+            prepend: Undef<TagAppend>;
         if (options) {
             ({ remove, rename, append, prepend } = options);
         }
-        if (!remove && !append && !element.modified) {
+        if (!remove && !append && !prepend && !element.modified) {
             return true;
         }
         element.newline = this.newline;
@@ -163,6 +163,7 @@ export abstract class XmlWriter implements IXmlWriter {
                 if (append) {
                     ++node.index;
                 }
+                element.id = data.id!;
                 node.outerXml = outerXml;
                 const tagName = data.tagName;
                 if (tagName !== node.tagName) {
@@ -172,7 +173,7 @@ export abstract class XmlWriter implements IXmlWriter {
                     this.indexTag(tagName, true);
                 }
                 else {
-                    this.increment(node);
+                    this.increment(node, !!prepend);
                 }
             }
             else if (remove) {
@@ -290,6 +291,7 @@ export abstract class XmlWriter implements IXmlWriter {
                     item.tagName = tagName;
                     item.tagIndex = -1;
                 }
+                ++this._tagCount[tagName];
                 this.indexTag(tagName);
             }
             else {
@@ -331,7 +333,7 @@ export abstract class XmlWriter implements IXmlWriter {
                 return true;
             }
         }
-        else if (index.size !== tagCount) {
+        else if (index.size === tagCount) {
             if (documentIndex !== -1) {
                 let i = tagCount - 1;
                 index.clear();
@@ -359,7 +361,7 @@ export abstract class XmlWriter implements IXmlWriter {
         const source = this.source;
         this.source = '';
         this.elements.length = 0;
-        return source.replace(new RegExp(`\\s+${XmlWriter.getAttrId(this.documentName)}="[^"]+"`, 'g'), '');
+        return source;
     }
     setRawString(targetXml: string, outerXml: string) {
         const current = this.source;
@@ -388,14 +390,8 @@ export abstract class XmlWriter implements IXmlWriter {
 }
 
 export abstract class XmlElement implements IXmlElement {
-    public static readonly TAG_VOID: string[] = [];
-
     public static getNewlineString(leading: string, trailing: string, newline?: string) {
         return leading.includes('\n') || /(?:\r?\n){2,}$/.test(trailing) ? newline ? newline : (leading + trailing).includes('\r') ? '\r\n' : '\n' : '';
-    }
-
-    public static hasInnerXml(tagName: string) {
-        return !this.TAG_VOID.includes(tagName);
     }
 
     public static findCloseTag(source: string, startIndex = 0) {
@@ -439,16 +435,76 @@ export abstract class XmlElement implements IXmlElement {
         return -1;
     }
 
-    public static splitOuterXml(tagName: string, outerXml: string): [string, string] {
+    public lowerCase = false;
+    public newline = '\n';
+
+    protected _modified = false;
+    protected _tagName = '';
+    protected _innerXml = '';
+    protected readonly _attributes = new Map<string, Optional<string>>();
+
+    constructor(
+        public readonly documentName: string,
+        public readonly node: XmlNodeTag,
+        attributes?: StandardMap,
+        private readonly _TAG_VOID: string[] = [])
+    {
+        const lowerCase = node.lowerCase;
+        const attrs = this._attributes;
+        applyAttributes(attrs, node.attributes, lowerCase);
+        applyAttributes(attrs, attributes, lowerCase);
+        this._modified = attrs.size > 0;
+        if (node.outerXml) {
+            const [tagStart, innerXml] = this.splitOuterXml(node.tagName, node.outerXml);
+            if (tagStart) {
+                const hasValue = (name: string) => /^[a-z][\w-:.]*$/.test(name) && !attrs.has(name);
+                let pattern = /([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]*))/g,
+                    source = tagStart,
+                    match: Null<RegExpExecArray>;
+                while (match = pattern.exec(tagStart)) {
+                    let attr = match[1];
+                    if (lowerCase) {
+                        attr = attr.toLowerCase();
+                    }
+                    if (hasValue(attr)) {
+                        attrs.set(attr, match[2] || match[3] || match[4] || '');
+                    }
+                    source = source.replace(match[0], '');
+                }
+                pattern = /[^<]\s+([\w-:.]+)/g;
+                while (match = pattern.exec(source)) {
+                    let attr = match[1];
+                    if (lowerCase) {
+                        attr = attr.toLowerCase();
+                    }
+                    if (hasValue(attr)) {
+                        attrs.set(attr, null);
+                    }
+                }
+                this._innerXml = innerXml;
+            }
+        }
+        else if (node.innerXml) {
+            this._innerXml = node.innerXml;
+        }
+    }
+
+    abstract findIndexOf(source: string): FindIndexOfResult;
+
+    abstract set id(value: string);
+    abstract get id(): string;
+    abstract get outerXml(): string;
+
+    splitOuterXml(tagName: string, outerXml: string): [string, string] {
         const forward = outerXml.split('>');
         const opposing = outerXml.split('<');
         if (opposing.length === 2 || forward.length === 2) {
-            return XmlElement.hasInnerXml(tagName) ? [outerXml.replace(/\s*\/?\s*>$/, ''), ''] : [outerXml, ''];
+            return !this._TAG_VOID.includes(tagName) ? [outerXml.replace(/\s*\/?\s*>$/, ''), ''] : [outerXml, ''];
         }
         else if (opposing.length === 3 && forward.length === 3 && /^<[^>]+>[\S\s]*?<\/[^>]+>$/.test(outerXml)) {
             return [forward[0] + '>', !forward[2] ? '' : forward[1].substring(0, forward[1].length - opposing[2].length)];
         }
-        if (XmlElement.hasInnerXml(tagName)) {
+        if (!this._TAG_VOID.includes(tagName)) {
             const closeIndex = XmlElement.findCloseTag(outerXml) + 1;
             let openTag: Undef<string>;
             if (closeIndex !== 0) {
@@ -462,78 +518,44 @@ export abstract class XmlElement implements IXmlElement {
         }
         return [outerXml, ''];
     }
-
-    public lowerCase = false;
-    public newline = '\n';
-
-    protected _modified = false;
-    protected _tagName = '';
-    protected _innerXml = '';
-    protected readonly _attributes = new Map<string, Optional<string>>();
-
-    constructor(public readonly documentName: string, public readonly node: XmlNodeTag, attributes?: StandardMap) {
-        const attrs = this._attributes;
-        applyAttributes(attrs, node.attributes);
-        applyAttributes(attrs, attributes);
-        this._modified = attrs.size > 0;
-        if (node.outerXml) {
-            const [tagStart, innerXml] = XmlElement.splitOuterXml(node.tagName, node.outerXml);
-            if (tagStart) {
-                const hasValue = (name: string) => /^[a-z][a-z\d_\-:.]*$/.test(name) && !attrs.has(name);
-                let pattern = /([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]*))/g,
-                    source = tagStart,
-                    match: Null<RegExpExecArray>;
-                while (match = pattern.exec(tagStart)) {
-                    const attr = match[1].toLowerCase();
-                    if (hasValue(attr)) {
-                        attrs.set(attr, match[2] || match[3] || match[4] || '');
-                    }
-                    source = source.replace(match[0], '');
-                }
-                pattern = /[^<]\s+([\w-:.]+)/g;
-                while (match = pattern.exec(source)) {
-                    const attr = match[1].toLowerCase();
-                    if (hasValue(attr)) {
-                        attrs.set(attr, null);
-                    }
-                }
-                this._innerXml = innerXml;
-            }
-        }
-        else if (node.innerXml) {
-            this._innerXml = node.innerXml;
-        }
-    }
-
-    abstract get outerXml(): string;
-
-    abstract findIndexOf(source: string, append?: boolean): FindIndexOfResult;
-
     setAttribute(name: string, value: string) {
-        if (this._attributes.get(name = name.toLowerCase()) !== value) {
+        if (this.node.lowerCase) {
+            name = name.toLowerCase();
+        }
+        if (this._attributes.get(name) !== value) {
             this._attributes.set(name, value);
             this._modified = true;
         }
     }
     getAttribute(name: string) {
-        return this._attributes.get(name.toLowerCase());
+        if (this.node.lowerCase) {
+            name = name.toLowerCase();
+        }
+        return this._attributes.get(name);
     }
     removeAttribute(...names: string[]) {
+        const lowerCase = this.node.lowerCase;
         const attrs = this._attributes;
         for (let key of names) {
-            if (attrs.has(key = key.toLowerCase())) {
+            if (lowerCase) {
+                key = key.toLowerCase();
+            }
+            if (attrs.has(key)) {
                 attrs.delete(key);
                 this._modified = true;
             }
         }
     }
     hasAttribute(name: string) {
-        return this._attributes.has(name = name.toLowerCase());
+        if (this.node.lowerCase) {
+            name = name.toLowerCase();
+        }
+        return this._attributes.has(name);
     }
     write(source: string, options?: WriteOptions): WriteResult {
         let remove: Undef<boolean>,
-            append: Undef<TagIndex>,
-            prepend: Undef<TagIndex>;
+            append: Undef<TagAppend>,
+            prepend: Undef<TagAppend>;
         if (options) {
             ({ remove, append, prepend } = options);
         }
@@ -579,20 +601,20 @@ export abstract class XmlElement implements IXmlElement {
                 }
                 return source.substring(0, startIndex) + leading + outerXml + trailing + source.substring(endIndex);
             };
+            const { tagName, tagCount, tagIndex } = element;
             const errorResult = (message: string): [string, string, Error] => ['', '', new Error(`${tagName.toUpperCase()} ${tagIndex}: ${message}`)];
             let { startIndex, endIndex } = element;
             if (startIndex !== undefined && endIndex !== undefined) {
                 return [spliceSource([startIndex, endIndex]), outerXml, error];
             }
-            const id = element.id?.[this.documentName];
+            const id = this.id;
             if (append && !id) {
                 return errorResult('Element id is missing.');
             }
-            const { tagName, tagCount, tagIndex } = element;
             const foundIndex: WriteSourceIndex[] = [];
             const openTag: number[] = [];
-            const selfClosed = !XmlElement.hasInnerXml(tagName);
-            const selfId = selfClosed && !!id;
+            const tagVoid = this.tagVoid;
+            const selfId = tagVoid && !!id;
             const hasId = (start: number, end: number) => !!id && source.substring(start, end).includes(id);
             const getTagStart = (start: number): Null<WriteResult> => {
                 const end = XmlElement.findCloseTag(source, start);
@@ -603,16 +625,16 @@ export abstract class XmlElement implements IXmlElement {
                 result: Null<WriteResult>,
                 match: Null<RegExpExecArray>;
             while (match = tag.exec(source)) {
-                if (selfId && (openCount === tagIndex || append) && (result = getTagStart(match.index))) {
+                if (selfId && (openCount === tagIndex || tagIndex === -1 || append) && (result = getTagStart(match.index))) {
                     return result;
                 }
                 openCount = openTag.push(match.index);
             }
-            if (selfId && (tagIndex === tagCount - 1 && openCount === tagCount || append) && (result = getTagStart(openTag[openCount - 1]))) {
+            if (selfId && (tagIndex === tagCount - 1 && openCount === tagCount || tagIndex === -1 || append) && (result = getTagStart(openTag[openCount - 1]))) {
                 return result;
             }
             let sourceIndex: Undef<WriteSourceIndex>;
-            if (openCount && !selfClosed) {
+            if (openCount && !tagVoid) {
                 found: {
                     const closeIndex: number[] = [];
                     let foundCount = 0;
@@ -659,7 +681,7 @@ export abstract class XmlElement implements IXmlElement {
                                             index = foundIndex[foundCount - 1];
                                         }
                                     }
-                                    else if (foundCount === tagIndex + 1) {
+                                    else if (tagIndex !== -1 && foundCount === tagIndex + 1) {
                                         index = foundIndex[tagIndex];
                                     }
                                     if (index && hasId(index[0], openTag[i])) {
@@ -674,7 +696,7 @@ export abstract class XmlElement implements IXmlElement {
                     if (append) {
                         sourceIndex = foundIndex[foundCount - 1];
                         if (!hasId(sourceIndex[0], sourceIndex[1])) {
-                            return errorResult(`Element ${id!} was not found.`);
+                            return errorResult(`Element ${id} was not found.`);
                         }
                     }
                     else if (foundCount === tagCount) {
@@ -683,7 +705,7 @@ export abstract class XmlElement implements IXmlElement {
                 }
             }
             if (!sourceIndex) {
-                [startIndex, endIndex, error] = this.findIndexOf(source, !!append);
+                [startIndex, endIndex, error] = this.findIndexOf(source);
                 if (startIndex !== -1 && endIndex !== -1) {
                     sourceIndex = [startIndex, endIndex];
                 }
@@ -733,10 +755,12 @@ export abstract class XmlElement implements IXmlElement {
         return [output, error];
     }
     set tagName(value: string) {
-        value = value.toLowerCase();
+        if (this.node.lowerCase) {
+            value = value.toLowerCase();
+        }
         if (value !== this.tagName) {
             this._tagName = value;
-            if (!XmlElement.hasInnerXml(value)) {
+            if (this.tagVoid) {
                 this.innerXml = '';
             }
             this._modified = true;
@@ -744,6 +768,9 @@ export abstract class XmlElement implements IXmlElement {
     }
     get tagName() {
         return this._tagName ||= this.node.tagName;
+    }
+    get tagVoid() {
+        return this._TAG_VOID.includes(this.tagName);
     }
     get innerXml() {
         return this._innerXml;

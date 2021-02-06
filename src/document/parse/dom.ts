@@ -1,4 +1,4 @@
-import type { FindElementOptions, FindIndexOfResult, IDomWriter, IXmlElement, ParserResult, WriteOptions, XmlNodeTag } from './document';
+import type { AttributeMap, FindElementOptions, FindIndexOfResult, IDomWriter, IXmlElement, ParserResult, WriteOptions, XmlNodeTag } from './document';
 
 import htmlparser2 = require('htmlparser2');
 import domhandler = require('domhandler');
@@ -9,9 +9,16 @@ import { XmlElement, XmlWriter } from './index';
 const Parser = htmlparser2.Parser;
 const DomHandler = domhandler.DomHandler;
 
+const TAG_VOID = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
+
 const formatHTML = (value: string) => value.replace(/<\s*html\b/i, '<html');
+const getAttrId = (document: string) => `data-${document}-id`;
 
 export class DomWriter extends XmlWriter implements IDomWriter {
+    public static hasInnerXml(tagName: string) {
+        return !TAG_VOID.includes(tagName);
+    }
+
     public static normalize(source: string) {
         const pattern = /(?:<(\s*)((?:"[^"]*"|'[^']*'|[^"'>])+?)(\s*\/?\s*)>|<(\s*)\/([^>]+?)(\s*)>)/g;
         let match: Null<RegExpExecArray>;
@@ -49,27 +56,23 @@ export class DomWriter extends XmlWriter implements IDomWriter {
 
     public static findElement(source: string, node: XmlNodeTag, options?: FindElementOptions): ParserResult {
         let document: Undef<string>,
-            byId: Undef<boolean>;
+            id: Undef<string>;
         if (options) {
-            ({ document, byId } = options);
+            ({ document, id } = options);
         }
         const result: ParserResult = { element: null, error: null };
         new Parser(new DomHandler((err, dom) => {
             if (!err) {
                 const nodes = domutils.getElementsByTagName(node.tagName, dom, true);
                 let index = -1;
-                if (document) {
-                    const id = node.id?.[document];
-                    if (id) {
-                        const documentId = DomWriter.getAttrId(document);
-                        index = nodes.findIndex(elem => elem.attribs[documentId] === id);
-                        if (index !== -1) {
-                            result.element = nodes[index];
-                            byId = true;
-                        }
+                if (document && id) {
+                    const documentId = getAttrId(document);
+                    index = nodes.findIndex(elem => elem.attribs[documentId] === id);
+                    if (index !== -1) {
+                        result.element = nodes[index];
                     }
                 }
-                if (!byId) {
+                if (!result.element) {
                     index = node.tagIndex;
                     if (nodes.length === node.tagCount && nodes[index]) {
                         result.element = nodes[index];
@@ -133,7 +136,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
                 item.outerXml = outerXml;
             }
         }
-        this.insert();
+        this.insertNodes();
     }
 
     newElement(node: XmlNodeTag) {
@@ -158,6 +161,10 @@ export class DomWriter extends XmlWriter implements IDomWriter {
             }
         }
         return super.save();
+    }
+    close() {
+        this.source = this.source.replace(new RegExp(`\\s+${getAttrId(this.documentName)}="[^"]+"`, 'g'), '');
+        return super.close();
     }
     replaceAll(predicate: (elem: domhandler.Element) => boolean, callback: (elem: domhandler.Element, source: string) => Undef<string>) {
         let result = 0;
@@ -185,31 +192,47 @@ export class DomWriter extends XmlWriter implements IDomWriter {
 }
 
 export class HtmlElement extends XmlElement {
-    public static readonly TAG_VOID = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
+    constructor(documentName: string, node: XmlNodeTag, attributes?: StandardMap) {
+        super(documentName, node, attributes, TAG_VOID);
+    }
 
-    findIndexOf(source: string, append?: boolean): FindIndexOfResult {
-        const { element: target, error } = DomWriter.findElement(source, this.node, { document: this.documentName, byId: !!append });
+    findIndexOf(source: string): FindIndexOfResult {
+        const { element: target, error } = DomWriter.findElement(source, this.node, { document: this.documentName, id: this.id });
         return target ? [target.startIndex!, target.endIndex!, error] : [-1, -1, error];
     }
 
+    set id(value: string) {
+        this.setAttribute(getAttrId(this.documentName), value);
+    }
+    get id() {
+        return this.getAttribute(getAttrId(this.documentName)) || '';
+    }
     get outerXml() {
-        const append = this.node.append || this.node.prepend;
-        let tagName: Undef<string>,
+        const append = this.node.prepend || this.node.append;
+        let items: AttributeMap | [string, Optional<string>][],
+            tagName: Undef<string>,
             textContent: Undef<string>;
         if (append) {
-            ({ tagName, textContent } = append);
+            let id: Undef<string>;
+            ({ tagName, id, textContent } = append);
+            const idKey = getAttrId(this.documentName);
+            items = Array.from(this._attributes).filter(item => item[0] !== idKey);
+            if (id) {
+                items.push([idKey, id]);
+            }
         }
         else {
             tagName = this.tagName;
+            items = this._attributes;
         }
         let outerXml = '<' + tagName;
-        for (const [key, value] of this._attributes) {
+        for (const [key, value] of items) {
             if (value !== undefined) {
                 outerXml += ' ' + key + (value !== null ? `="${value.replace(/"/g, '&quot;')}"` : '');
             }
         }
         outerXml += '>';
-        if (HtmlElement.hasInnerXml(tagName) && tagName !== 'html') {
+        if (DomWriter.hasInnerXml(tagName) && tagName !== 'html') {
             if (textContent) {
                 switch (tagName) {
                     case 'script':

@@ -461,7 +461,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         const { element, value: template } = database[index];
                         const domElement = new HtmlElement(moduleName, element!);
                         if (typeof template === 'string') {
-                            if (HtmlElement.hasInnerXml(element!.tagName)) {
+                            if (DomWriter.hasInnerXml(element!.tagName)) {
                                 let output = '',
                                     match: Null<RegExpExecArray>;
                                 for (const row of result) {
