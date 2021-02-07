@@ -9,6 +9,7 @@ export interface SourceIndex {
 
 export interface SourceContent extends SourceIndex {
     outerXml: string;
+    tagName?: string;
 }
 
 export interface XmlNodeTag extends IXmlNodeTag, Partial<SourceIndex> {}
@@ -31,6 +32,7 @@ export interface IXmlWriter {
     elements: XmlNodeTag[];
     readonly newline: string;
     readonly modified: boolean;
+    readonly nameOfId: string;
     readonly rootName?: string;
     insertNodes(nodes?: XmlNodeTag[]): void;
     fromNode(node: XmlNodeTag, append?: TagAppend): IXmlElement;
@@ -46,6 +48,7 @@ export interface IXmlWriter {
     decrement(node: XmlNodeTag): XmlNodeTag[];
     renameTag(node: XmlNodeTag, tagName: string): void;
     indexTag(tagName: string, append?: boolean): boolean;
+    getOuterXmlById(id: string, caseSensitive?: boolean): Undef<SourceContent>;
     setRawString(targetXml: string, outerXml: string): boolean;
     getRawString(index: SourceIndex): string;
     spliceRawString(content: SourceContent): string;
@@ -54,6 +57,8 @@ export interface IXmlWriter {
 
 export interface XmlWriterConstructor {
     escapeXmlString(value: string): string;
+    findCloseTag(source: string, startIndex?: number): number;
+    getNewlineString(leading: string, trailing: string, newline?: string): string;
     new(documentName: string, source: string, elements: XmlNodeTag[]): IXmlWriter;
 }
 
@@ -79,8 +84,6 @@ export interface IXmlElement {
 }
 
 export interface XmlElementConstructor {
-    findCloseTag(source: string, startIndex?: number): number;
-    getNewlineString(leading: string, trailing: string, newline?: string): string;
     new(documentName: string, node: XmlNodeTag, attributes?: StandardMap, TAG_VOID?: string[]): IXmlElement;
 }
 

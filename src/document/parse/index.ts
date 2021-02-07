@@ -44,6 +44,51 @@ export abstract class XmlWriter implements IXmlWriter {
         });
     }
 
+    static getNewlineString(leading: string, trailing: string, newline?: string) {
+        return leading.includes('\n') || /(?:\r?\n){2,}$/.test(trailing) ? newline ? newline : (leading + trailing).includes('\r') ? '\r\n' : '\n' : '';
+    }
+
+    static findCloseTag(source: string, startIndex = 0) {
+        const length = source.length;
+        const start: number[] = [];
+        for (let i = startIndex, quote = ''; i < length; ++i) {
+            const ch = source[i];
+            if (ch === '=') {
+                if (!quote) {
+                    while (isSpace(source[++i])) {}
+                    switch (source[i]) {
+                        case '"':
+                            quote = '"';
+                            start.push(i);
+                            break;
+                        case "'":
+                            quote = "'";
+                            start.push(i);
+                            break;
+                        case '>':
+                            return i;
+                    }
+                }
+            }
+            else if (ch === quote) {
+                quote = '';
+            }
+            else if (ch === '>' && !quote) {
+                return i;
+            }
+        }
+        if (start.length) {
+            for (const index of start.reverse()) {
+                for (let j = index + 1; j < length; ++j) {
+                    if (source[j] === '>') {
+                        return j;
+                    }
+                }
+            }
+        }
+        return -1;
+    }
+
     modifyCount = 0;
     failCount = 0;
     errors: Error[] = [];
@@ -72,6 +117,8 @@ export abstract class XmlWriter implements IXmlWriter {
     }
 
     abstract newElement(node: XmlNodeTag): IXmlElement;
+
+    abstract get nameOfId(): string;
 
     insertNodes(nodes = this._appending) {
         if (nodes) {
@@ -148,16 +195,36 @@ export abstract class XmlWriter implements IXmlWriter {
         if (options) {
             ({ remove, rename, append, prepend } = options);
         }
-        if (!remove && !append && !prepend && !element.modified) {
-            return true;
-        }
+        let output: Undef<string>,
+            outerXml = '',
+            error: Optional<Error> = null;
         element.newline = this.newline;
-        const [output, outerXml, error] = element.write(this.source, options);
+        if (!remove && !append && !prepend) {
+            if (!element.modified) {
+                return true;
+            }
+            if (element.tagName !== this.rootName) {
+                const id = element.id;
+                if (id) {
+                    const content = this.getOuterXmlById(id, !element.lowerCase);
+                    if (content && (element.lowerCase ? content.tagName.toLowerCase() : content.tagName) === element.tagName) {
+                        content.outerXml = remove ? '' : element.outerXml;
+                        output = this.spliceRawString(content);
+                        outerXml = content.outerXml;
+                    }
+                }
+            }
+        }
+        if (!output) {
+            [output, outerXml, error] = element.write(this.source, options);
+            if (output) {
+                this.source = output;
+                ++this.modifyCount;
+            }
+        }
         if (output) {
             const node = element.node;
             const data = append || prepend;
-            this.source = output;
-            ++this.modifyCount;
             if (data) {
                 this.elements.push(node);
                 if (append) {
@@ -205,7 +272,7 @@ export abstract class XmlWriter implements IXmlWriter {
             if (outerXml && item.index === index) {
                 item.outerXml = outerXml;
             }
-            else if (item.startIndex !== undefined && (item.startIndex >= startIndex || startIndex === -1 && item.tagName !== this.rootName)) {
+            else if (item.startIndex !== undefined && (item.startIndex >= startIndex && startIndex !== -1 || startIndex === -1 && item.tagName !== this.rootName)) {
                 delete item.startIndex;
                 delete item.endIndex;
             }
@@ -374,11 +441,39 @@ export abstract class XmlWriter implements IXmlWriter {
         this.elements.length = 0;
         return source;
     }
+    getOuterXmlById(id: string, caseSensitive = true) {
+        const source = this.source;
+        let match = new RegExp(`<\\s*([^>\\s]+)(?:"[^"]*"|'[^']*'|[^"'>])+?${this.nameOfId}="${id}"`).exec(source);
+        if (match) {
+            let endIndex = -1,
+                openTag = 1,
+                closeTag = 0;
+            const startIndex = match.index;
+            const tagName = match[1];
+            const pattern = new RegExp(`(?:(<\\s*${escapeRegexp(tagName)}\\b)|(</${escapeRegexp(tagName)}\\s*>))`, caseSensitive ? 'g' : 'gi');
+            pattern.lastIndex = startIndex + match[0].length;
+            while (match = pattern.exec(source)) {
+                if (match[1]) {
+                    ++openTag;
+                }
+                else if (openTag === ++closeTag) {
+                    endIndex = match.index + match[0].length - 1;
+                    break;
+                }
+            }
+            if (closeTag === 0) {
+                endIndex = XmlWriter.findCloseTag(source, startIndex);
+            }
+            if (endIndex !== -1) {
+                return { startIndex, endIndex, outerXml: source.substring(startIndex, endIndex + 1), tagName };
+            }
+        }
+    }
     setRawString(targetXml: string, outerXml: string) {
-        const current = this.source;
-        this.source = current.replace(targetXml, outerXml);
-        if (current !== this.source) {
+        const source = this.source.replace(targetXml, outerXml);
+        if (source !== this.source) {
             ++this.modifyCount;
+            this.source = source;
             return true;
         }
         return false;
@@ -401,51 +496,6 @@ export abstract class XmlWriter implements IXmlWriter {
 }
 
 export abstract class XmlElement implements IXmlElement {
-    static getNewlineString(leading: string, trailing: string, newline?: string) {
-        return leading.includes('\n') || /(?:\r?\n){2,}$/.test(trailing) ? newline ? newline : (leading + trailing).includes('\r') ? '\r\n' : '\n' : '';
-    }
-
-    static findCloseTag(source: string, startIndex = 0) {
-        const length = source.length;
-        const start: number[] = [];
-        for (let i = startIndex, quote = ''; i < length; ++i) {
-            const ch = source[i];
-            if (ch === '=') {
-                if (!quote) {
-                    while (isSpace(source[++i])) {}
-                    switch (source[i]) {
-                        case '"':
-                            quote = '"';
-                            start.push(i);
-                            break;
-                        case "'":
-                            quote = "'";
-                            start.push(i);
-                            break;
-                        case '>':
-                            return i;
-                    }
-                }
-            }
-            else if (ch === quote) {
-                quote = '';
-            }
-            else if (ch === '>' && !quote) {
-                return i;
-            }
-        }
-        if (start.length) {
-            for (const index of start.reverse()) {
-                for (let j = index + 1; j < length; ++j) {
-                    if (source[j] === '>') {
-                        return j;
-                    }
-                }
-            }
-        }
-        return -1;
-    }
-
     lowerCase = false;
     newline = '\n';
 
@@ -516,7 +566,7 @@ export abstract class XmlElement implements IXmlElement {
             return [forward[0] + '>', !forward[2] ? '' : forward[1].substring(0, forward[1].length - opposing[2].length)];
         }
         if (!this._TAG_VOID.includes(tagName)) {
-            const closeIndex = XmlElement.findCloseTag(outerXml) + 1;
+            const closeIndex = XmlWriter.findCloseTag(outerXml) + 1;
             let openTag: Undef<string>;
             if (closeIndex !== 0) {
                 const lastIndex = outerXml.lastIndexOf('<');
@@ -628,7 +678,7 @@ export abstract class XmlElement implements IXmlElement {
             const selfId = tagVoid && !!id;
             const hasId = (start: number, end?: number) => !!id && source.substring(start, end).includes(id);
             const getTagStart = (start: number): Null<WriteResult> => {
-                const end = XmlElement.findCloseTag(source, start);
+                const end = XmlWriter.findCloseTag(source, start);
                 return end !== -1 && hasId(start, end) ? [spliceSource([start, end]), outerXml, error] : null;
             };
             let tag = new RegExp(`<${escapeRegexp(tagName)}[\\s|>]`, !this.lowerCase ? 'gi' : 'g'),
@@ -757,7 +807,7 @@ export abstract class XmlElement implements IXmlElement {
                     }
                     sourceIndex[0] -= leading.length;
                     sourceIndex[1] += trailing.length;
-                    sourceIndex[2] = XmlElement.getNewlineString(leading, trailing, this.newline);
+                    sourceIndex[2] = XmlWriter.getNewlineString(leading, trailing, this.newline);
                 }
                 return [spliceSource(sourceIndex), outerXml, error];
             }

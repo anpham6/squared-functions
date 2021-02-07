@@ -105,7 +105,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
             this.newline = '\r\n';
         }
         if (html) {
-            const endIndex = XmlElement.findCloseTag(source, html.index);
+            const endIndex = DomWriter.findCloseTag(source, html.index);
             if (endIndex !== -1) {
                 startIndex = html.index;
                 outerXml = source.substring(startIndex, endIndex + 1);
@@ -163,7 +163,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         return super.save();
     }
     close() {
-        this.source = this.source.replace(new RegExp(`\\s+${getAttrId(this.documentName)}="[^"]+"`, 'g'), '');
+        this.source = this.source.replace(new RegExp(`\\s+${this.nameOfId}="[^"]+"`, 'g'), '');
         return super.close();
     }
     replaceAll(predicate: (elem: domhandler.Element) => boolean, callback: (elem: domhandler.Element, source: string) => Undef<string>) {
@@ -188,6 +188,9 @@ export class DomWriter extends XmlWriter implements IDomWriter {
             }
         }, { withStartIndices: true, withEndIndices: true })).end(this.source);
         return result;
+    }
+    get nameOfId() {
+        return getAttrId(this.documentName);
     }
 }
 

@@ -24,9 +24,9 @@ const PATTERN_TRAILINGSPACE = '[ \\t]*((?:\\r?\\n)*)';
 function removeDatasetNamespace(name: string, source: string) {
     if (source.includes('data-' + name)) {
         return source
-            .replace(new RegExp(`(\\s*)<(script|link|style).+?data-${name}-file\\s*=\\s*(["'])?exclude\\3[\\S\\s]*?<\\/\\2\\>` + PATTERN_TRAILINGSPACE, 'gi'), (...capture) => HtmlElement.getNewlineString(capture[1], capture[4]))
-            .replace(new RegExp(`(\\s*)<(?:script|link).+?data-${name}-file\\s*=\\s*(["'])?exclude\\2[^>]*>` + PATTERN_TRAILINGSPACE, 'gi'), (...capture) => HtmlElement.getNewlineString(capture[1], capture[3]))
-            .replace(new RegExp(`(\\s*)<script.+?data-${name}-template\\s*=\\s*(?:"[^"]*"|'[^']*')[\\S\\s]*?<\\/script>` + PATTERN_TRAILINGSPACE, 'gi'), (...capture) => HtmlElement.getNewlineString(capture[1], capture[2]))
+            .replace(new RegExp(`(\\s*)<(script|link|style)(?:"[^"]*"|'[^']*'|[^"'>])+?data-${name}-file\\s*=\\s*(["'])?exclude\\3[\\S\\s]*?<\\/\\2\\>` + PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[4]))
+            .replace(new RegExp(`(\\s*)<(?:script|link)(?:"[^"]*"|'[^']*'|[^"'>])+?data-${name}-file\\s*=\\s*(["'])?exclude\\2[^>]*>` + PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[3]))
+            .replace(new RegExp(`(\\s*)<script(?:"[^"]*"|'[^']*'|[^"'>])+?data-${name}-template\\s*=\\s*(?:"[^"]*"|'[^']*')[\\S\\s]*?<\\/script>` + PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[2]))
             .replace(new RegExp(`\\s+data-${name}-[a-z-]+\\s*=\\s*(?:"[^"]*"|'[^']*')`, 'g'), '');
     }
     return source;
@@ -83,7 +83,7 @@ function removeCss(source: string, styles: string[]) {
         for (let i = 0; i < 2; ++i) {
             pattern = new RegExp(leading[i] + block, i === 0 ? 'm' : 'g');
             while (match = pattern.exec(source)) {
-                output = (output || source).replace(match[0], (i === 1 ? '}' : '') + HtmlElement.getNewlineString(match[1], match[2]));
+                output = (output || source).replace(match[0], (i === 1 ? '}' : '') + DomWriter.getNewlineString(match[1], match[2]));
                 if (i === 0) {
                     break;
                 }
