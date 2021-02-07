@@ -12,12 +12,12 @@ import tinify = require('tinify');
 import Module from '../module';
 
 const Compress = new class extends Module implements ICompress {
-    public level: ObjectMap<number> = {
+    level: ObjectMap<number> = {
         gz: 9,
         br: 11
     };
-    public compressors: ObjectMap<CompressTryFileMethod> = {};
-    public chunkSize?: number;
+    compressors: ObjectMap<CompressTryFileMethod> = {};
+    chunkSize?: number;
 
     register(format: string, callback: CompressTryFileMethod, level?: number) {
         this.compressors[format = format.toLowerCase()] = callback;

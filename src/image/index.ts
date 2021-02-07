@@ -7,10 +7,10 @@ import Module from '../module';
 const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : NaN;
 
 abstract class Image extends Module implements IImage {
-    public static readonly MIME_INPUT: Set<string>;
-    public static readonly MIME_OUTPUT: Set<string>;
+    static readonly MIME_INPUT: Set<string>;
+    static readonly MIME_OUTPUT: Set<string>;
 
-    public static parseFormat(value: string) {
+    static parseFormat(value: string) {
         value = value.trim();
         for (const mime of this.MIME_OUTPUT) {
             const format = mime.split('/')[1];
@@ -21,24 +21,24 @@ abstract class Image extends Module implements IImage {
         return ['', ''];
     }
 
-    public static async transform(uri: string, command: string, mimeType?: string, tempFile?: boolean): Promise<Null<Buffer> | string> {
+    static async transform(uri: string, command: string, mimeType?: string, tempFile?: boolean): Promise<Null<Buffer> | string> {
         return tempFile ? '' : null;
     }
 
-    public static clamp(value: Undef<string>, min = 0, max = 1) {
+    static clamp(value: Undef<string>, min = 0, max = 1) {
         return value ? Math.min(Math.max(min, +value), max) : NaN;
     }
 
-    public static using(this: IFileManager, data: FileData, command: string) {}
+    static using(this: IFileManager, data: FileData, command: string) {}
 
-    public resizeData?: ResizeData;
-    public cropData?: CropData;
-    public rotateData?: RotateData;
-    public qualityData?: QualityData;
-    public methodData?: string[];
-    public opacityValue = NaN;
+    resizeData?: ResizeData;
+    cropData?: CropData;
+    rotateData?: RotateData;
+    qualityData?: QualityData;
+    methodData?: string[];
+    opacityValue = NaN;
 
-    public abstract readonly moduleName: string;
+    abstract readonly moduleName: string;
 
     private _command = '';
 

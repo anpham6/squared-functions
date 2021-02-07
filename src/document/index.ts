@@ -13,10 +13,10 @@ const isString = (value: any): value is string => !!value && typeof value === 's
 const getSourceMappingURL = (value: string) => `\n//# sourceMappingURL=${value}\n`;
 
 abstract class Document extends Module implements IDocument {
-    public static async using(this: IFileManager, instance: IDocument, file: ExternalAsset) {}
-    public static async finalize(this: IFileManager, instance: IDocument, assets: ExternalAsset[]) {}
+    static async using(this: IFileManager, instance: IDocument, file: ExternalAsset) {}
+    static async finalize(this: IFileManager, instance: IDocument, assets: ExternalAsset[]) {}
 
-    public static createSourceMap(value: string) {
+    static createSourceMap(value: string) {
         return Object.create({
             code: value,
             output: new Map<string, SourceMapOutput>(),
@@ -53,7 +53,7 @@ abstract class Document extends Module implements IDocument {
         }) as SourceMapInput;
     }
 
-    public static writeSourceMap(localUri: string, sourceMap: SourceMapOutput, options?: SourceMapOptions) {
+    static writeSourceMap(localUri: string, sourceMap: SourceMapOutput, options?: SourceMapOptions) {
         const map = sourceMap.map;
         if (!map) {
             return;
@@ -102,7 +102,7 @@ abstract class Document extends Module implements IDocument {
         return uri;
     }
 
-    public abstract moduleName: string;
+    abstract moduleName: string;
 
     private _packageMap: ObjectMap<Transformer> = {};
 
@@ -110,7 +110,7 @@ abstract class Document extends Module implements IDocument {
         super();
     }
 
-    public abstract init(assets: ExternalAsset[], body: RequestBody): void;
+    abstract init(assets: ExternalAsset[], body: RequestBody): void;
 
     findConfig(settings: StandardMap, name: string, type?: string): PluginConfig {
         if (this.module.eval_template && this.templateMap && type) {

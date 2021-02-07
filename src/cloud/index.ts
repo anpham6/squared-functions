@@ -63,7 +63,7 @@ function getFiles(cloud: ICloud, file: ExternalAsset, data: CloudStorageUpload) 
 const assignFilename = (value: string) => uuid.v4() + (path.extname(value) || '');
 
 class Cloud extends Module implements ICloud {
-    public static uploadAsset(this: IFileManager, state: CloudScopeOrigin, file: ExternalAsset, mimeType = file.mimeType, uploadDocument?: boolean) {
+    static uploadAsset(this: IFileManager, state: CloudScopeOrigin, file: ExternalAsset, mimeType = file.mimeType, uploadDocument?: boolean) {
         const { instance, bucketGroup } = state;
         const tasks: Promise<void>[] = [];
         for (const storage of file.cloudStorage!) {
@@ -151,7 +151,7 @@ class Cloud extends Module implements ICloud {
         return tasks;
     }
 
-    public static async finalize(this: IFileManager, cloud: ICloud) {
+    static async finalize(this: IFileManager, cloud: ICloud) {
         const localStorage = new Map<ExternalAsset, CloudStorageUpload>();
         const bucketGroup = uuid.v4();
         const state: CloudScopeOrigin = { host: this, instance: cloud, bucketGroup, localStorage };
@@ -295,8 +295,8 @@ class Cloud extends Module implements ICloud {
         }
     }
 
-    public cacheExpires = 10 * 60 * 1000;
-    public compressFormat = new Set(['.map', '.gz', '.br']);
+    cacheExpires = 10 * 60 * 1000;
+    compressFormat = new Set(['.map', '.gz', '.br']);
 
     private _cache: CacheTimeout = {};
 

@@ -20,7 +20,7 @@ interface GulpTask extends PlainObject {
 }
 
 class Gulp extends Task {
-    public static async using(this: IFileManager, instance: Gulp, assets: ExternalAsset[], beforeStage = false) {
+    static async using(this: IFileManager, instance: Gulp, assets: ExternalAsset[], beforeStage = false) {
         const gulp = instance.module.settings as Undef<StringMap>;
         if (!gulp) {
             return;
@@ -121,7 +121,7 @@ class Gulp extends Task {
         }
     }
 
-    public readonly moduleName = 'gulp';
+    readonly moduleName = 'gulp';
 
     constructor(module: TaskModule) {
         super(module);

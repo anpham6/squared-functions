@@ -5,9 +5,9 @@ import type { TaskModule } from '../types/lib/module';
 import Module from '../module';
 
 abstract class Task extends Module implements ITask {
-    public static async using(this: IFileManager, instance: ITask, assets: ExternalAsset[]): Promise<void> {}
+    static async using(this: IFileManager, instance: ITask, assets: ExternalAsset[]): Promise<void> {}
 
-    public abstract readonly moduleName: string;
+    abstract readonly moduleName: string;
 
     constructor(public module: TaskModule) {
         super();

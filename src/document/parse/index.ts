@@ -25,7 +25,7 @@ function applyAttributes(attrs: AttributeMap, data: Undef<StandardMap>, lowerCas
 }
 
 export abstract class XmlWriter implements IXmlWriter {
-    public static escapeXmlString(value: string) {
+    static escapeXmlString(value: string) {
         return value.replace(/[<>"'&]/g, (...capture) => {
             switch (capture[0]) {
                 case '<':
@@ -44,11 +44,11 @@ export abstract class XmlWriter implements IXmlWriter {
         });
     }
 
-    public modifyCount = 0;
-    public failCount = 0;
-    public errors: Error[] = [];
-    public newline = '\n';
-    public readonly rootName?: string;
+    modifyCount = 0;
+    failCount = 0;
+    errors: Error[] = [];
+    newline = '\n';
+    readonly rootName?: string;
 
     protected _tagCount: ObjectMap<number> = {};
 
@@ -401,11 +401,11 @@ export abstract class XmlWriter implements IXmlWriter {
 }
 
 export abstract class XmlElement implements IXmlElement {
-    public static getNewlineString(leading: string, trailing: string, newline?: string) {
+    static getNewlineString(leading: string, trailing: string, newline?: string) {
         return leading.includes('\n') || /(?:\r?\n){2,}$/.test(trailing) ? newline ? newline : (leading + trailing).includes('\r') ? '\r\n' : '\n' : '';
     }
 
-    public static findCloseTag(source: string, startIndex = 0) {
+    static findCloseTag(source: string, startIndex = 0) {
         const length = source.length;
         const start: number[] = [];
         for (let i = startIndex, quote = ''; i < length; ++i) {
@@ -446,8 +446,8 @@ export abstract class XmlElement implements IXmlElement {
         return -1;
     }
 
-    public lowerCase = false;
-    public newline = '\n';
+    lowerCase = false;
+    newline = '\n';
 
     protected _modified = false;
     protected _tagName = '';
@@ -455,8 +455,8 @@ export abstract class XmlElement implements IXmlElement {
     protected readonly _attributes = new Map<string, Optional<string>>();
 
     constructor(
-        public readonly documentName: string,
-        public readonly node: XmlNodeTag,
+        readonly documentName: string,
+        readonly node: XmlNodeTag,
         attributes?: StandardMap,
         private readonly _TAG_VOID: string[] = [])
     {

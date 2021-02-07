@@ -295,7 +295,7 @@ const isRemoved = (item: DocumentAsset) => item.exclude || item.bundleIndex !== 
 const getErrorDOM = (tagName: string, tagIndex: number) => new Error(`${tagName.toUpperCase()} ${tagIndex}: Unable to parse DOM`);
 
 class ChromeDocument extends Document implements IChromeDocument {
-    public static async using(this: IFileManager, instance: ChromeDocument, file: DocumentAsset) {
+    static async using(this: IFileManager, instance: ChromeDocument, file: DocumentAsset) {
         const { localUri, format, mimeType } = file;
         switch (mimeType) {
             case 'text/html':
@@ -392,7 +392,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
     }
 
-    public static async finalize(this: IFileManager, instance: IChromeDocument, assets: DocumentAsset[]) {
+    static async finalize(this: IFileManager, instance: IChromeDocument, assets: DocumentAsset[]) {
         const moduleName = instance.moduleName;
         const inlineMap = new Set<DocumentAsset>();
         const base64Map: StringMap = {};
@@ -625,15 +625,15 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
     }
 
-    public assets: DocumentAsset[] = [];
-    public htmlFiles: DocumentAsset[] = [];
-    public cssFiles: DocumentAsset[] = [];
-    public baseDirectory = '';
-    public baseUrl = '';
-    public unusedStyles?: string[];
-    public moduleName = 'chrome';
-    public internalAssignUUID = '__assign__';
-    public internalServerRoot = '__serverroot__';
+    assets: DocumentAsset[] = [];
+    htmlFiles: DocumentAsset[] = [];
+    cssFiles: DocumentAsset[] = [];
+    baseDirectory = '';
+    baseUrl = '';
+    unusedStyles?: string[];
+    moduleName = 'chrome';
+    internalAssignUUID = '__assign__';
+    internalServerRoot = '__serverroot__';
 
     private _cloudMap!: ObjectMap<DocumentAsset>;
     private _cloudCssMap!: ObjectMap<DocumentAsset>;
@@ -645,7 +645,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         super(settings, templateMap);
     }
 
-    public init(assets: DocumentAsset[], body: RequestBody) {
+    init(assets: DocumentAsset[], body: RequestBody) {
         const { baseUrl, unusedStyles } = body;
         if (baseUrl) {
             try {
@@ -695,7 +695,6 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
         this.assets = assets;
     }
-
     setLocalUri(file: Partial<LocationUri>) {
         const { pathname, filename } = file;
         if (pathname?.includes(this.internalAssignUUID)) {

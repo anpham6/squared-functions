@@ -25,11 +25,11 @@ const getInterval = (file: ExternalAsset) => Math.max(typeof file.watch === 'obj
 const formatDate = (value: number) => new Date(value).toLocaleString().replace(/\/20\d+, /, '@').replace(/:\d+ (AM|PM)$/, (...match) => match[1]);
 
 class Watch extends Module implements IWatch {
-    public whenModified?: (assets: ExternalAsset[]) => void;
-
     constructor(public interval = 200) {
         super();
     }
+
+    whenModified?: (assets: ExternalAsset[]) => void;
 
     start(assets: ExternalAsset[], permission?: IPermission) {
         const destMap: ObjectMap<ExternalAsset[]> = {};

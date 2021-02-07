@@ -15,11 +15,11 @@ const formatHTML = (value: string) => value.replace(/<\s*html\b/i, '<html');
 const getAttrId = (document: string) => `data-${document}-id`;
 
 export class DomWriter extends XmlWriter implements IDomWriter {
-    public static hasInnerXml(tagName: string) {
+    static hasInnerXml(tagName: string) {
         return !TAG_VOID.includes(tagName);
     }
 
-    public static normalize(source: string) {
+    static normalize(source: string) {
         const pattern = /(?:<(\s*)((?:"[^"]*"|'[^']*'|[^"'>])+?)(\s*\/?\s*)>|<(\s*)\/([^>]+?)(\s*)>)/g;
         let match: Null<RegExpExecArray>;
         while (match = pattern.exec(source)) {
@@ -40,7 +40,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         return source;
     }
 
-    public static getDocumentElement(source: string): ParserResult {
+    static getDocumentElement(source: string): ParserResult {
         let element: Null<domhandler.Node> = null,
             error: Null<Error> = null;
         new Parser(new DomHandler((err, dom) => {
@@ -54,7 +54,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         return { element, error };
     }
 
-    public static findElement(source: string, node: XmlNodeTag, options?: FindElementOptions): ParserResult {
+    static findElement(source: string, node: XmlNodeTag, options?: FindElementOptions): ParserResult {
         let document: Undef<string>,
             id: Undef<string>;
         if (options) {
@@ -91,8 +91,8 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         return result;
     }
 
-    public documentElement: Null<XmlNodeTag> = null;
-    public readonly rootName = 'html';
+    documentElement: Null<XmlNodeTag> = null;
+    readonly rootName = 'html';
 
     constructor(documentName: string, source: string, elements: XmlNodeTag[], normalize = true) {
         super(documentName, source, elements);

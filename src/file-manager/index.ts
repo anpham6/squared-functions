@@ -47,7 +47,7 @@ const isObject = <T = PlainObject>(value: unknown): value is T => typeof value =
 const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
 
 class FileManager extends Module implements IFileManager {
-    public static loadSettings(value: Settings) {
+    static loadSettings(value: Settings) {
         if (value.compress) {
             const { gzip_level, brotli_quality, chunk_size } = value.compress;
             const gzip = +(gzip_level as string);
@@ -66,15 +66,15 @@ class FileManager extends Module implements IFileManager {
         super.loadSettings(value);
     }
 
-    public static moduleCompress() {
+    static moduleCompress() {
         return Compress;
     }
 
-    public static getPermission(settings?: PermissionSettings) {
+    static getPermission(settings?: PermissionSettings) {
         return new Permission(settings);
     }
 
-    public static hasPermission(dirname: string, permission: IPermission) {
+    static hasPermission(dirname: string, permission: IPermission) {
         if (Module.isDirectoryUNC(dirname)) {
             if (!permission.hasUNCWrite()) {
                 return Module.responseError('Writing to UNC shares is not enabled.', 'NODE (cli): --unc-write');
@@ -97,33 +97,33 @@ class FileManager extends Module implements IFileManager {
         return true;
     }
 
-    public static resolveMime(data: Buffer | string) {
+    static resolveMime(data: Buffer | string) {
         return data instanceof Buffer ? fileType.fromBuffer(data) : fileType.fromFile(data);
     }
 
-    public delayed = 0;
-    public cleared = false;
-    public Image: Null<Map<string, ImageConstructor>> = null;
-    public Document: InstallData<IDocument, DocumentConstructor>[] = [];
-    public Task: InstallData<ITask, TaskConstructor>[] = [];
-    public Cloud: Null<ICloud> = null;
-    public Watch: Null<IWatch> = null;
-    public Compress: Null<ICompress> = null;
-    public readonly assets: ExternalAsset[];
-    public readonly documentAssets: ExternalAsset[] = [];
-    public readonly taskAssets: ExternalAsset[] = [];
-    public readonly files = new Set<string>();
-    public readonly filesQueued = new Set<string>();
-    public readonly filesToRemove = new Set<string>();
-    public readonly filesToCompare = new Map<ExternalAsset, string[]>();
-    public readonly contentToAppend = new Map<string, string[]>();
-    public readonly emptyDir = new Set<string>();
-    public readonly permission: IPermission;
-    public readonly postFinalize?: (errors: string[]) => void;
+    delayed = 0;
+    cleared = false;
+    Image: Null<Map<string, ImageConstructor>> = null;
+    Document: InstallData<IDocument, DocumentConstructor>[] = [];
+    Task: InstallData<ITask, TaskConstructor>[] = [];
+    Cloud: Null<ICloud> = null;
+    Watch: Null<IWatch> = null;
+    Compress: Null<ICompress> = null;
+    readonly assets: ExternalAsset[];
+    readonly documentAssets: ExternalAsset[] = [];
+    readonly taskAssets: ExternalAsset[] = [];
+    readonly files = new Set<string>();
+    readonly filesQueued = new Set<string>();
+    readonly filesToRemove = new Set<string>();
+    readonly filesToCompare = new Map<ExternalAsset, string[]>();
+    readonly contentToAppend = new Map<string, string[]>();
+    readonly emptyDir = new Set<string>();
+    readonly permission: IPermission;
+    readonly postFinalize?: (errors: string[]) => void;
 
     constructor(
-        public readonly baseDirectory: string,
-        public readonly body: RequestBody,
+        readonly baseDirectory: string,
+        readonly body: RequestBody,
         postFinalize?: (errors: string[]) => void,
         settings: PermissionSettings = {})
     {

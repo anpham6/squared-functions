@@ -43,10 +43,10 @@ function performCommand(localUri: string | Buffer, command: string, outputType: 
 const getBuffer = (data: FileData) => (data.file.buffer as unknown) as string || data.file.localUri!;
 
 class Jimp extends Image implements IJimpImageHandler<jimp> {
-    public static MIME_INPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, jimp.MIME_GIF, jimp.MIME_TIFF, 'image/webp']);
-    public static MIME_OUTPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, 'image/webp']);
+    static MIME_INPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, jimp.MIME_GIF, jimp.MIME_TIFF, 'image/webp']);
+    static MIME_OUTPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, 'image/webp']);
 
-    public static parseFormat(command: string, mimeType?: string): [string, string, string] {
+    static parseFormat(command: string, mimeType?: string): [string, string, string] {
         let [outputType, saveAs] = super.parseFormat(command),
             finalAs = '';
         if (outputType && saveAs) {
@@ -70,7 +70,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
         return [outputType, saveAs, finalAs];
     }
 
-    public static async transform(uri: string, command: string, mimeType?: string, tempFile?: boolean) {
+    static async transform(uri: string, command: string, mimeType?: string, tempFile?: boolean) {
         const [outputType, saveAs, finalAs] = this.parseFormat(command, mimeType);
         if (outputType) {
             return await performCommand(uri, command, outputType, finalAs)
@@ -80,7 +80,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
         return super.transform(uri, command, mimeType, tempFile);
     }
 
-    public static using(this: IFileManager, data: FileData, command: string) {
+    static using(this: IFileManager, data: FileData, command: string) {
         const localUri = this.getLocalUri(data);
         const mimeType = this.getMimeType(data);
         if (!localUri || !mimeType || !Jimp.MIME_INPUT.has(mimeType)) {
@@ -172,7 +172,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
         }
     }
 
-    public readonly moduleName = MODULE_NAME;
+    readonly moduleName = MODULE_NAME;
 
     private _finalAs: Undef<string> = '';
 

@@ -38,10 +38,10 @@ function applyFailStyle(options: LogMessageOptions = {}) {
 }
 
 abstract class Module implements IModule {
-    public static LOG_TYPE = LOG_TYPE;
-    public static LOG_STYLE_FAIL: LogMessageOptions = { titleColor: 'white', titleBgColor: 'bgRed' };
+    static LOG_TYPE = LOG_TYPE;
+    static LOG_STYLE_FAIL: LogMessageOptions = { titleColor: 'white', titleBgColor: 'bgRed' };
 
-    public static formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
+    static formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
         switch (type) {
             case LOG_TYPE.SYSTEM:
                 if (SETTINGS.system === false) {
@@ -135,11 +135,11 @@ abstract class Module implements IModule {
         console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase().padEnd(7)) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
     }
 
-    public static writeFail(value: LogValue, message?: Null<Error>) {
+    static writeFail(value: LogValue, message?: Null<Error>) {
         this.formatMessage(LOG_TYPE.SYSTEM, 'FAIL', value, message, applyFailStyle());
     }
 
-    public static parseFunction(value: string, name?: string): Undef<FunctionType<string>> {
+    static parseFunction(value: string, name?: string): Undef<FunctionType<string>> {
         const uri = Module.fromLocalPath(value = value.trim());
         if (uri) {
             try {
@@ -165,20 +165,20 @@ abstract class Module implements IModule {
         }
     }
 
-    public static toPosix(value: string, filename?: string) {
+    static toPosix(value: string, filename?: string) {
         return value ? value.replace(/\\+/g, '/').replace(/\/+$/, '') + (filename ? '/' + filename : '') : '';
     }
 
-    public static renameExt(value: string, ext: string) {
+    static renameExt(value: string, ext: string) {
         const index = value.lastIndexOf('.');
         return (index !== -1 ? value.substring(0, index) : value) + (ext[0] === ':' ? ext + path.extname(value) : '.' + ext);
     }
 
-    public static fromLocalPath(value: string) {
+    static fromLocalPath(value: string) {
         return /^\.?\.?[\\/]/.test(value = value.trim()) ? value[0] !== '.' ? path.join(process.cwd(), value) : path.resolve(value) : '';
     }
 
-    public static hasSameOrigin(value: string, other: string) {
+    static hasSameOrigin(value: string, other: string) {
         try {
             return new URL(value).origin === new URL(other).origin;
         }
@@ -187,23 +187,23 @@ abstract class Module implements IModule {
         return false;
     }
 
-    public static isFileHTTP(value: string) {
+    static isFileHTTP(value: string) {
         return /^https?:\/\/[^/]/i.test(value);
     }
 
-    public static isFileUNC(value: string) {
+    static isFileUNC(value: string) {
         return /^\\\\([\w.-]+)\\([\w-]+\$?)((?<=\$)(?:[^\\]*|\\.+)|\\.+)$/.test(value);
     }
 
-    public static isDirectoryUNC(value: string) {
+    static isDirectoryUNC(value: string) {
         return /^\\\\([\w.-]+)\\([\w-]+\$|[\w-]+\$\\.+|[\w-]+\\.*)$/.test(value);
     }
 
-    public static isUUID(value: string) {
+    static isUUID(value: string) {
         return /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/.test(value);
     }
 
-    public static resolveUri(value: string) {
+    static resolveUri(value: string) {
         if (value.startsWith('file://')) {
             try {
                 let url = new URL(value).pathname;
@@ -221,7 +221,7 @@ abstract class Module implements IModule {
         return value;
     }
 
-    public static resolvePath(value: string, href: string) {
+    static resolvePath(value: string, href: string) {
         if ((value = value.trim()).startsWith('http')) {
             return value;
         }
@@ -260,7 +260,7 @@ abstract class Module implements IModule {
         return '';
    }
 
-   public static joinPosix(...values: Undef<string>[]) {
+   static joinPosix(...values: Undef<string>[]) {
         values = values.filter(value => value && value.trim().replace(/\\+/g, '/'));
         let result = '';
         for (let i = 0; i < values.length; ++i) {
@@ -276,7 +276,7 @@ abstract class Module implements IModule {
         return result;
     }
 
-    public static getFileSize(value: fs.PathLike) {
+    static getFileSize(value: fs.PathLike) {
         try {
             return fs.statSync(value).size;
         }
@@ -285,7 +285,7 @@ abstract class Module implements IModule {
         return 0;
     }
 
-    public static responseError(err: Error | string, hint?: string) {
+    static responseError(err: Error | string, hint?: string) {
         return {
             success: false,
             error: {
@@ -295,7 +295,7 @@ abstract class Module implements IModule {
         } as ResponseData;
     }
 
-    public static allSettled<T>(values: readonly (T | PromiseLike<T>)[], rejected?: string | [string, string], errors?: string[]) {
+    static allSettled<T>(values: readonly (T | PromiseLike<T>)[], rejected?: string | [string, string], errors?: string[]) {
         const promise = Promise.allSettled ? Promise.allSettled(values) as Promise<PromiseSettledResult<T>[]> : allSettled(values);
         if (rejected) {
             promise.then(result => {
@@ -312,18 +312,18 @@ abstract class Module implements IModule {
         return promise;
     }
 
-    public static loadSettings(value: Settings) {
+    static loadSettings(value: Settings) {
         if (value.logger) {
             SETTINGS = value.logger;
         }
     }
 
-    public major: number;
-    public minor: number;
-    public patch: number;
-    public tempDir = 'tmp';
-    public moduleName?: string;
-    public readonly errors: string[] = [];
+    major: number;
+    minor: number;
+    patch: number;
+    tempDir = 'tmp';
+    moduleName?: string;
+    readonly errors: string[] = [];
 
     constructor() {
         [this.major, this.minor, this.patch] = process.version.substring(1).split('.').map(value => +value);
