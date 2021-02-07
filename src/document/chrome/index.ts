@@ -396,6 +396,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         const moduleName = instance.moduleName;
         const inlineMap = new Set<DocumentAsset>();
         const base64Map: StringMap = {};
+        const elements: DocumentAsset[] = [];
         const replaceContent = (source: string) => {
             for (const id in base64Map) {
                 source = source.replace(new RegExp(escapeRegexp(id), 'g'), base64Map[id]!);
@@ -414,6 +415,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                 catch (err) {
                     this.writeFail(['Unable to read base64 buffer', moduleName], err);
                 }
+            }
+            if (item.element) {
+                elements.push(item);
             }
         }
         for (const css of instance.cssFiles) {
@@ -442,7 +446,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             const domBase = new DomWriter(
                 moduleName,
                 this.getUTF8String(html, localUri),
-                (assets as ElementAction[]).concat(database).filter(item => item.element).map(item => item.element!)
+                (elements as ElementAction[]).concat(database).filter(item => item.element).map(item => item.element!)
             );
             if (database.length) {
                 const cacheKey = uuid.v4();
@@ -519,7 +523,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                 });
             }
-            for (const item of assets.filter(asset => asset.element && !(asset.invalid && !asset.exclude && asset.bundleIndex === undefined)).sort((a, b) => isRemoved(a) ? -1 : isRemoved(b) ? 1 : 0)) {
+            for (const item of elements.filter(asset => !(asset.invalid && !asset.exclude && asset.bundleIndex === undefined)).sort((a, b) => isRemoved(a) ? -1 : isRemoved(b) ? 1 : 0)) {
                 const { element, bundleIndex, inlineContent, attributes } = item;
                 const { tagName, tagIndex } = element!;
                 const domElement = new HtmlElement(moduleName, element!, attributes);
@@ -565,13 +569,12 @@ class ChromeDocument extends Document implements IChromeDocument {
                     this.writeFail(['Exclude tag removal', tagName], getErrorDOM(tagName, tagIndex));
                 }
             }
-            for (const item of assets) {
-                const element = item.element;
-                if (item.invalid || !element || !item.attributes && (item === html || !item.uri && !item.srcSet) || item.content || item.inlineContent || item.format === 'base64' || item.bundleIndex !== undefined) {
+            for (const item of elements) {
+                if (item.invalid || !item.attributes && (item === html || !item.uri && !item.srcSet) || item.content || item.inlineContent || item.format === 'base64' || item.bundleIndex !== undefined || isRemoved(item)) {
                     continue;
                 }
-                const { uri, attributes, srcSet } = item;
-                const domElement = new HtmlElement(moduleName, element, attributes);
+                const { element, attributes, uri, srcSet } = item;
+                const domElement = new HtmlElement(moduleName, element!, attributes);
                 if (uri && item !== html) {
                     let value: string;
                     if (cloud?.getStorage('upload', item.cloudStorage)) {
@@ -592,7 +595,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                 }
                 if (!domBase.write(domElement)) {
-                    const { tagName, tagIndex } = element;
+                    const { tagName, tagIndex } = element!;
                     this.writeFail(['Element attribute replacement', tagName], getErrorDOM(tagName, tagIndex));
                     delete item.inlineCloud;
                 }
@@ -628,9 +631,9 @@ class ChromeDocument extends Document implements IChromeDocument {
     public baseDirectory = '';
     public baseUrl = '';
     public unusedStyles?: string[];
-    public readonly moduleName = 'chrome';
-    public readonly internalAssignUUID = '__assign__';
-    public readonly internalServerRoot = '__serverroot__';
+    public moduleName = 'chrome';
+    public internalAssignUUID = '__assign__';
+    public internalServerRoot = '__serverroot__';
 
     private _cloudMap!: ObjectMap<DocumentAsset>;
     private _cloudCssMap!: ObjectMap<DocumentAsset>;
@@ -694,11 +697,11 @@ class ChromeDocument extends Document implements IChromeDocument {
     }
 
     setLocalUri(file: Partial<LocationUri>) {
-        const { pathname = '', filename = '' } = file;
-        if (pathname.includes(this.internalAssignUUID)) {
+        const { pathname, filename } = file;
+        if (pathname?.includes(this.internalAssignUUID)) {
             file.pathname = pathname.replace(this.internalAssignUUID, uuid.v4());
         }
-        if (filename.includes(this.internalAssignUUID)) {
+        if (filename?.includes(this.internalAssignUUID)) {
             file.filename = filename.replace(this.internalAssignUUID, uuid.v4());
         }
     }

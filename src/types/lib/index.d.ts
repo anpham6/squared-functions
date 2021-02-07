@@ -110,8 +110,8 @@ declare namespace functions {
 
     interface IDocument<T = IFileManager, U = ICloud> extends IModule {
         module: DocumentModule;
+        moduleName: string;
         templateMap?: StandardMap;
-        readonly moduleName: string;
         init(assets: ExternalAsset[], body: RequestBody): void;
         findConfig(settings: StandardMap, name: string, type?: string): PluginConfig;
         loadConfig(data: StandardMap, name: string): Optional<ConfigOrTransformer>;

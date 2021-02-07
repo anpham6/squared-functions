@@ -202,7 +202,7 @@ export abstract class XmlWriter implements IXmlWriter {
     update(node: XmlNodeTag, outerXml: string) {
         const { index, startIndex = -1 } = node;
         for (const item of this.elements) {
-            if (item.index === index) {
+            if (outerXml && item.index === index) {
                 item.outerXml = outerXml;
             }
             else if (item.startIndex !== undefined && (item.startIndex >= startIndex || startIndex === -1 && item.tagName !== this.rootName)) {
@@ -265,21 +265,32 @@ export abstract class XmlWriter implements IXmlWriter {
     }
     decrement(node: XmlNodeTag, remove?: boolean) {
         const { index, tagName, tagIndex } = node;
-        const result: XmlNodeTag[] = this.elements.filter(item => item.tagName === tagName && item.tagIndex === tagIndex);
-        if (result.length) {
-            for (const item of this.elements) {
-                if (item.tagName === tagName && item.tagIndex !== tagIndex) {
+        const elements = this.elements;
+        const result: XmlNodeTag[] = [];
+        for (let i = 0; i < elements.length; ++i) {
+            const item = elements[i];
+            if (item.tagName === tagName) {
+                if (item.tagIndex === tagIndex) {
+                    if (remove) {
+                        elements.splice(i--, 1);
+                        continue;
+                    }
+                    else {
+                        result.push(item);
+                    }
+                }
+                else {
                     if (item.tagIndex > tagIndex) {
                         --item.tagIndex;
                     }
                     --item.tagCount;
                 }
-                if (remove && item.index > index) {
-                    --item.index;
-                }
             }
-            --this._tagCount[tagName];
+            if (remove && item.index > index) {
+                --item.index;
+            }
         }
+        --this._tagCount[tagName];
         return result;
     }
     renameTag(node: XmlNodeTag, tagName: string) {
@@ -613,9 +624,9 @@ export abstract class XmlElement implements IXmlElement {
             }
             const foundIndex: WriteSourceIndex[] = [];
             const openTag: number[] = [];
-            const tagVoid = this.tagVoid;
+            const tagVoid = this._TAG_VOID.includes(tagName);
             const selfId = tagVoid && !!id;
-            const hasId = (start: number, end: number) => !!id && source.substring(start, end).includes(id);
+            const hasId = (start: number, end?: number) => !!id && source.substring(start, end).includes(id);
             const getTagStart = (start: number): Null<WriteResult> => {
                 const end = XmlElement.findCloseTag(source, start);
                 return end !== -1 && hasId(start, end) ? [spliceSource([start, end]), outerXml, error] : null;
@@ -674,22 +685,29 @@ export abstract class XmlElement implements IXmlElement {
                                 }
                             }
                             if (valid) {
+                                const next: WriteSourceIndex = [openTag[i], closeIndex[j]];
                                 if (id) {
-                                    let index: Undef<WriteSourceIndex>;
-                                    if (append) {
-                                        if (foundCount) {
-                                            index = foundIndex[foundCount - 1];
-                                        }
-                                    }
-                                    else if (tagIndex !== -1 && foundCount === tagIndex + 1) {
-                                        index = foundIndex[tagIndex];
-                                    }
-                                    if (index && hasId(index[0], openTag[i])) {
-                                        sourceIndex = index;
+                                    if (foundCount === tagCount - 1 && hasId(openTag[i])) {
+                                        sourceIndex = next;
                                         break found;
                                     }
+                                    else {
+                                        let index: Undef<WriteSourceIndex>;
+                                        if (append || tagIndex === -1) {
+                                            if (foundCount) {
+                                                index = foundIndex[foundCount - 1];
+                                            }
+                                        }
+                                        else if (foundCount === tagIndex + 1) {
+                                            index = foundIndex[tagIndex];
+                                        }
+                                        if (index && hasId(index[0], openTag[i])) {
+                                            sourceIndex = index;
+                                            break found;
+                                        }
+                                    }
                                 }
-                                foundCount = foundIndex.push([openTag[i], closeIndex[j]]);
+                                foundCount = foundIndex.push(next);
                             }
                         }
                     }

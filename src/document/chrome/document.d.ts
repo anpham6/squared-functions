@@ -15,15 +15,15 @@ export interface DocumentAsset extends ExternalAsset, ChromeAsset {
 }
 
 export interface IChromeDocument extends IDocument {
-    productionRelease: boolean;
     assets: DocumentAsset[];
     htmlFiles: DocumentAsset[];
     cssFiles: DocumentAsset[];
     baseDirectory: string;
     baseUrl: string;
+    productionRelease: boolean;
+    internalServerRoot: string;
+    internalAssignUUID: string;
     unusedStyles?: string[];
-    readonly internalServerRoot: string;
-    readonly internalAssignUUID: string;
 }
 
 export interface ChromeDocumentConstructor extends DocumentConstructor {
