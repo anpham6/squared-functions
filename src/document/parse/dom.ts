@@ -1,4 +1,4 @@
-import type { AttributeMap, FindElementOptions, FindIndexOfResult, IDomWriter, IXmlElement, ParserResult, WriteOptions, XmlNodeTag } from './document';
+import type { AttributeMap, FindElementOptions, IDomWriter, ParserResult, SourceIndex, XmlNodeTag } from './document';
 
 import htmlparser2 = require('htmlparser2');
 import domhandler = require('domhandler');
@@ -9,14 +9,14 @@ import { XmlElement, XmlWriter } from './index';
 const Parser = htmlparser2.Parser;
 const DomHandler = domhandler.DomHandler;
 
-const TAG_VOID = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
-
 const formatHTML = (value: string) => value.replace(/<\s*html\b/i, '<html');
 const getAttrId = (document: string) => `data-${document}-id`;
 
 export class DomWriter extends XmlWriter implements IDomWriter {
+    static TAG_VOID = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
+
     static hasInnerXml(tagName: string) {
-        return !TAG_VOID.includes(tagName);
+        return !this.TAG_VOID.includes(tagName);
     }
 
     static normalize(source: string) {
@@ -142,12 +142,6 @@ export class DomWriter extends XmlWriter implements IDomWriter {
     newElement(node: XmlNodeTag) {
         return new HtmlElement(this.documentName, node);
     }
-    write(element: IXmlElement, options?: WriteOptions) {
-        if (this.documentElement) {
-            element.lowerCase = true;
-        }
-        return super.write(element, options);
-    }
     save() {
         if (this.modified) {
             const match = (this.documentElement ? /\s*<\/html>$/ : /\s*<\/\s*html\s*>/i).exec(this.source);
@@ -196,12 +190,14 @@ export class DomWriter extends XmlWriter implements IDomWriter {
 
 export class HtmlElement extends XmlElement {
     constructor(documentName: string, node: XmlNodeTag, attributes?: StandardMap) {
-        super(documentName, node, attributes, TAG_VOID);
+        super(documentName, node, attributes, DomWriter.TAG_VOID);
     }
 
-    findIndexOf(source: string): FindIndexOfResult {
-        const { element: target, error } = DomWriter.findElement(source, this.node, { document: this.documentName, id: this.id });
-        return target ? [target.startIndex!, target.endIndex!, error] : [-1, -1, error];
+    findIndexOf(source: string) {
+        const { element } = DomWriter.findElement(source, this.node, { document: this.documentName, id: this.id });
+        if (element) {
+            return { startIndex: element.startIndex!, endIndex: element.endIndex! } as SourceIndex;
+        }
     }
 
     set id(value: string) {

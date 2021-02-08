@@ -7,29 +7,17 @@ import Module from '../module';
 const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : NaN;
 
 abstract class Image extends Module implements IImage {
-    static readonly MIME_INPUT: Set<string>;
-    static readonly MIME_OUTPUT: Set<string>;
-
-    static parseFormat(value: string) {
-        value = value.trim();
-        for (const mime of this.MIME_OUTPUT) {
-            const format = mime.split('/')[1];
-            if (value.startsWith(format)) {
-                return [mime, format];
-            }
-        }
-        return ['', ''];
-    }
+    static using(this: IFileManager, data: FileData, command: string) {}
 
     static async transform(uri: string, command: string, mimeType?: string, tempFile?: boolean): Promise<Null<Buffer> | string> {
         return tempFile ? '' : null;
     }
 
+    static parseFormat(value: string) { return ['', '']; }
+
     static clamp(value: Undef<string>, min = 0, max = 1) {
         return value ? Math.min(Math.max(min, +value), max) : NaN;
     }
-
-    static using(this: IFileManager, data: FileData, command: string) {}
 
     resizeData?: ResizeData;
     cropData?: CropData;

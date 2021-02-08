@@ -641,7 +641,11 @@ class ChromeDocument extends Document implements IChromeDocument {
     private _cloudEndpoint!: Null<RegExp>;
     private _cloudHtml: Undef<DocumentAsset>;
 
-    constructor(settings: DocumentModule, templateMap?: StandardMap, public productionRelease = false) {
+    constructor(
+        settings: DocumentModule,
+        templateMap?: StandardMap,
+        public productionRelease = false)
+    {
         super(settings, templateMap);
     }
 

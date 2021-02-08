@@ -53,11 +53,9 @@ declare namespace functions {
     }
 
     interface ImageConstructor extends ModuleConstructor {
-        readonly MIME_INPUT: Set<string>;
-        readonly MIME_OUTPUT: Set<string>;
-        parseFormat(command: string): string[];
-        transform(uri: string, command: string, mimeType?: string, tempFile?: boolean): Promise<Null<Buffer> | string>;
         using(this: IFileManager, data: FileData, command: string): void;
+        transform(uri: string, command: string, mimeType?: string, tempFile?: boolean): Promise<Null<Buffer> | string>;
+        parseFormat(command: string): string[];
         clamp(value: Undef<string>, min?: number, max?: number): number;
         new(): IImage;
     }

@@ -300,7 +300,10 @@ class Cloud extends Module implements ICloud {
 
     private _cache: CacheTimeout = {};
 
-    constructor(public settings: CloudModule = {}, public database: CloudDatabase[] = []) {
+    constructor(
+        public settings: CloudModule = {},
+        public database: CloudDatabase[] = [])
+    {
         super();
         Object.assign(this._cache, settings.cache);
     }

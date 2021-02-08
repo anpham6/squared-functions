@@ -24,15 +24,22 @@ export interface WriteOptions {
 export type AttributeMap = Map<string, Optional<string>>;
 export type WriteResult = [string, string, Null<Error>?];
 export type SaveResult = [string, Null<Error>?];
-export type FindIndexOfResult = [number, number, Null<Error>?];
 
-export interface IXmlWriter {
+export interface FindElementOptions {
+    document?: string;
+    id?: string;
+}
+
+export interface ParserResult extends Partial<TagIndex> {
+    element: Null<Node>;
+    error: Null<Error>;
+}
+
+export class IXmlWriter {
     documentName: string;
     source: string;
     elements: XmlNodeTag[];
     readonly newline: string;
-    readonly modified: boolean;
-    readonly nameOfId: string;
     readonly rootName?: string;
     insertNodes(nodes?: XmlNodeTag[]): void;
     fromNode(node: XmlNodeTag, append?: TagAppend): IXmlElement;
@@ -53,6 +60,9 @@ export interface IXmlWriter {
     getRawString(index: SourceIndex): string;
     spliceRawString(content: SourceContent): string;
     hasErrors(): boolean;
+    get newId(): string;
+    get nameOfId(): string;
+    get modified(): boolean;
 }
 
 export interface XmlWriterConstructor {
@@ -62,42 +72,34 @@ export interface XmlWriterConstructor {
     new(documentName: string, source: string, elements: XmlNodeTag[]): IXmlWriter;
 }
 
-export interface IXmlElement {
-    tagName: string;
-    id: string;
-    innerXml: string;
+export class IXmlElement {
     newline: string;
-    lowerCase: boolean;
     readonly documentName: string;
     readonly node: XmlNodeTag;
-    readonly outerXml: string;
-    readonly modified: boolean;
-    readonly tagVoid: boolean;
-    splitOuterXml(tagName: string, outerXml: string): [string, string];
+    parseOuterXml(tagName: string, outerXml: string): [string, string];
     setAttribute(name: string, value: string): void;
     getAttribute(name: string): Optional<string>;
     removeAttribute(...names: string[]): void;
     hasAttribute(name: string): boolean;
     write(source: string, options?: WriteOptions): WriteResult;
     save(source: string, options?: WriteOptions): SaveResult;
-    findIndexOf(source: string): FindIndexOfResult;
+    findIndexOf(source: string): Undef<SourceIndex>;
+    set id(value: string);
+    get id(): string;
+    set tagName(value: string);
+    get tagName(): string;
+    get tagVoid(): boolean;
+    set innerXml(value: string);
+    get innerXml(): string
+    get outerXml(): string;
+    get modified(): boolean;
 }
 
 export interface XmlElementConstructor {
     new(documentName: string, node: XmlNodeTag, attributes?: StandardMap, TAG_VOID?: string[]): IXmlElement;
 }
 
-export interface FindElementOptions {
-    document?: string;
-    id?: string;
-}
-
-export interface ParserResult extends Partial<TagIndex> {
-    element: Null<Node>;
-    error: Null<Error>;
-}
-
-export interface IDomWriter {
+export class IDomWriter extends IXmlWriter {
     documentElement: Null<XmlNodeTag>;
     replaceAll(predicate: (elem: Element) => boolean, callback: (elem: Element, source: string) => Undef<string>): number;
 }

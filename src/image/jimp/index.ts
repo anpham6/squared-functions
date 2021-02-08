@@ -11,6 +11,8 @@ import jimp = require('jimp');
 import Image from '../index';
 
 const MODULE_NAME = 'jimp';
+const MIME_INPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, jimp.MIME_GIF, jimp.MIME_TIFF, 'image/webp']);
+const MIME_OUTPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, 'image/webp']);
 
 function performCommand(localUri: string | Buffer, command: string, outputType: string, finalAs?: string, host?: IFileManager, data?: FileData) {
     return jimp.read(localUri as string)
@@ -43,47 +45,10 @@ function performCommand(localUri: string | Buffer, command: string, outputType: 
 const getBuffer = (data: FileData) => (data.file.buffer as unknown) as string || data.file.localUri!;
 
 class Jimp extends Image implements IJimpImageHandler<jimp> {
-    static MIME_INPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, jimp.MIME_GIF, jimp.MIME_TIFF, 'image/webp']);
-    static MIME_OUTPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, 'image/webp']);
-
-    static parseFormat(command: string, mimeType?: string): [string, string, string] {
-        let [outputType, saveAs] = super.parseFormat(command),
-            finalAs = '';
-        if (outputType && saveAs) {
-            switch (saveAs) {
-                case 'jpeg':
-                    saveAs = 'jpg';
-                    break;
-                case 'webp':
-                    if (mimeType === jimp.MIME_JPEG) {
-                        outputType = jimp.MIME_JPEG;
-                        saveAs = 'jpg';
-                    }
-                    else {
-                        outputType = jimp.MIME_PNG;
-                        saveAs = 'png';
-                    }
-                    finalAs = 'webp';
-                    break;
-            }
-        }
-        return [outputType, saveAs, finalAs];
-    }
-
-    static async transform(uri: string, command: string, mimeType?: string, tempFile?: boolean) {
-        const [outputType, saveAs, finalAs] = this.parseFormat(command, mimeType);
-        if (outputType) {
-            return await performCommand(uri, command, outputType, finalAs)
-                .then(handler => handler.getBuffer(tempFile, saveAs, finalAs))
-                .catch(() => tempFile ? '' : null);
-        }
-        return super.transform(uri, command, mimeType, tempFile);
-    }
-
     static using(this: IFileManager, data: FileData, command: string) {
         const localUri = this.getLocalUri(data);
         const mimeType = this.getMimeType(data);
-        if (!localUri || !mimeType || !Jimp.MIME_INPUT.has(mimeType)) {
+        if (!localUri || !mimeType || !MIME_INPUT.has(mimeType)) {
             return;
         }
         const [outputType, saveAs, finalAs] = Jimp.parseFormat(command, mimeType);
@@ -170,6 +135,44 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
         else {
             transformBuffer();
         }
+    }
+
+    static async transform(uri: string, command: string, mimeType?: string, tempFile?: boolean) {
+        const [outputType, saveAs, finalAs] = this.parseFormat(command, mimeType);
+        if (outputType) {
+            return await performCommand(uri, command, outputType, finalAs)
+                .then(handler => handler.getBuffer(tempFile, saveAs, finalAs))
+                .catch(() => tempFile ? '' : null);
+        }
+        return super.transform(uri, command, mimeType, tempFile);
+    }
+
+    static parseFormat(command: string, mimeType?: string): [string, string, string] {
+        command = command.trim();
+        for (let mime of MIME_OUTPUT) {
+            let saveAs = mime.split('/')[1];
+            if (command.startsWith(saveAs)) {
+                let finalAs = '';
+                switch (saveAs) {
+                    case 'jpeg':
+                        saveAs = 'jpg';
+                        break;
+                    case 'webp':
+                        if (mimeType === jimp.MIME_JPEG) {
+                            mime = jimp.MIME_JPEG;
+                            saveAs = 'jpg';
+                        }
+                        else {
+                            mime = jimp.MIME_PNG;
+                            saveAs = 'png';
+                        }
+                        finalAs = 'webp';
+                        break;
+                }
+                return [mime, saveAs, finalAs];
+            }
+        }
+        return ['', '', ''];
     }
 
     readonly moduleName = MODULE_NAME;
@@ -337,7 +340,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
         });
     }
     getBuffer(tempFile?: boolean, saveAs?: string, finalAs?: string) {
-        const output = this.getTempDir(false, '.' + (finalAs || (saveAs && Jimp.MIME_OUTPUT.has('image/' + (saveAs === 'jpg' ? 'jpeg' : saveAs)) ? saveAs : this.instance.getMIME().split('/').pop()!)));
+        const output = this.getTempDir(false, '.' + (finalAs || (saveAs && MIME_OUTPUT.has('image/' + (saveAs === 'jpg' ? 'jpeg' : saveAs)) ? saveAs : this.instance.getMIME().split('/').pop()!)));
         return new Promise<Null<Buffer | string>>(resolve => {
             this.instance.write(output, err => {
                 if (!err) {

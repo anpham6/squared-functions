@@ -106,7 +106,10 @@ abstract class Document extends Module implements IDocument {
 
     private _packageMap: ObjectMap<Transformer> = {};
 
-    constructor(public module: DocumentModule, public templateMap?: Undef<StandardMap>) {
+    constructor(
+        public module: DocumentModule,
+        public templateMap?: Undef<StandardMap>)
+    {
         super();
     }
 
