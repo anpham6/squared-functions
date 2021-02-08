@@ -152,7 +152,7 @@ export abstract class XmlWriter implements IXmlWriter {
     fromNode(node: XmlNodeTag, append?: TagAppend) {
         const element = this.newElement(node);
         if (append) {
-            const tagName = node.lowerCase ? append.tagName = append.tagName.toLowerCase() : append.tagName;
+            const tagName = append.tagName;
             if (!(tagName in this._tagCount)) {
                 this._tagCount[tagName] = append.tagCount;
             }
@@ -207,7 +207,7 @@ export abstract class XmlWriter implements IXmlWriter {
                 if (id) {
                     const lowerCase = element.node.lowerCase;
                     const content = this.getOuterXmlById(id, !lowerCase);
-                    if (content && (lowerCase ? content.tagName.toLowerCase() : content.tagName) === element.tagName) {
+                    if (content && content.tagName === element.tagName) {
                         content.outerXml = remove ? '' : element.outerXml;
                         output = this.spliceRawString(content);
                         outerXml = content.outerXml;
@@ -444,14 +444,14 @@ export abstract class XmlWriter implements IXmlWriter {
     }
     getOuterXmlById(id: string, caseSensitive = true) {
         const source = this.source;
-        let match = new RegExp(`<\\s*([^>\\s]+)(?:"[^"]*"|'[^']*'|[^"'>])+?${escapeRegexp(this.nameOfId)}="${escapeRegexp(id)}"`).exec(source);
+        let match = new RegExp(`<([^>\\s]+)(?:"[^"]*"|'[^']*'|[^"'>])+?${escapeRegexp(this.nameOfId)}="${escapeRegexp(id)}"`).exec(source);
         if (match) {
             let endIndex = -1,
                 openTag = 1,
                 closeTag = 0;
             const startIndex = match.index;
             const tagName = match[1];
-            const pattern = new RegExp(`(?:(<\\s*${escapeRegexp(tagName)}\\b)|(</${escapeRegexp(tagName)}\\s*>))`, caseSensitive ? 'g' : 'gi');
+            const pattern = new RegExp(`(?:(<${escapeRegexp(tagName)}\\b)|(</${escapeRegexp(tagName)}\\s*>))`, caseSensitive ? 'g' : 'gi');
             pattern.lastIndex = startIndex + match[0].length;
             while (match = pattern.exec(source)) {
                 if (match[1]) {
@@ -686,7 +686,7 @@ export abstract class XmlElement implements IXmlElement {
                 found: {
                     const closeIndex: number[] = [];
                     let foundCount = 0;
-                    tag = new RegExp(`</${escapeRegexp(tagName)}>`, lowerCase ? 'gi' : 'g');
+                    tag = new RegExp(`</${escapeRegexp(tagName)}\\s*>`, lowerCase ? 'gi' : 'g');
                     while (match = tag.exec(source)) {
                         closeIndex.push(match.index + match[0].length - 1);
                     }
@@ -810,9 +810,6 @@ export abstract class XmlElement implements IXmlElement {
         return [output, error];
     }
     set tagName(value: string) {
-        if (this.node.lowerCase) {
-            value = value.toLowerCase();
-        }
         if (value !== this.tagName) {
             this._tagName = value;
             if (this.TAG_VOID.includes(value)) {
@@ -826,7 +823,7 @@ export abstract class XmlElement implements IXmlElement {
         }
     }
     get tagName() {
-        return this._tagName ||= this.node.lowerCase ? this.node.tagName.toLowerCase() : this.node.tagName;
+        return this._tagName ||= this.node.tagName;
     }
     set innerXml(value) {
         if (value !== this._innerXml) {

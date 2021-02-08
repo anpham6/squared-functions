@@ -11,12 +11,12 @@ const DomHandler = domhandler.DomHandler;
 
 const TAG_VOID = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
 
-const formatHTML = (value: string) => value.replace(/<\s*html\b/i, '<html');
+const formatHTML = (value: string) => value.replace(/<html\b/i, '<html');
 const getAttrId = (document: string) => `data-${document}-id`;
 
 export class DomWriter extends XmlWriter implements IDomWriter {
     static hasInnerXml(tagName: string) {
-        return !TAG_VOID.includes(tagName.toLowerCase());
+        return !TAG_VOID.includes(tagName);
     }
 
     static normalize(source: string) {
@@ -99,13 +99,12 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         const items: XmlNodeTag[] = [];
         for (const item of elements) {
             item.lowerCase = true;
-            item.tagName = item.tagName.toLowerCase();
             if (item.tagName === 'html') {
                 items.push(item);
             }
         }
         const documentElement = items.find(item => item.innerXml);
-        const html = /<\s*html[\s>]/i.exec(source);
+        const html = /<html[\s>]/i.exec(source);
         let outerXml = '',
             startIndex = -1;
         if (source.includes('\r\n')) {
@@ -199,7 +198,7 @@ export class HtmlElement extends XmlElement {
     readonly TAG_VOID = TAG_VOID;
 
     constructor(documentName: string, node: XmlNodeTag, attributes?: StandardMap) {
-        super(documentName, node, attributes, TAG_VOID.includes(node.tagName.toLowerCase()));
+        super(documentName, node, attributes, TAG_VOID.includes(node.tagName));
     }
 
     findIndexOf(source: string) {
