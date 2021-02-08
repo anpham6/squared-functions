@@ -1,4 +1,4 @@
-import type { XmlNodeTag as IXmlNodeTag, TagAppend, TagIndex } from '../../types/lib/squared';
+import type { XmlNodeTag as IXmlNodeTag, TagAppend, TagData } from '../../types/lib/squared';
 
 import type { Element, Node } from 'domhandler';
 
@@ -12,13 +12,14 @@ export interface SourceContent extends SourceIndex {
     tagName?: string;
 }
 
-export interface XmlNodeTag extends IXmlNodeTag, Partial<SourceIndex> {}
+export interface XmlNodeTag extends IXmlNodeTag, Partial<SourceIndex> {
+    id?: StringMap;
+}
 
 export interface WriteOptions {
     remove?: boolean;
     rename?: boolean;
     append?: TagAppend;
-    prepend?: TagAppend;
 }
 
 export type AttributeMap = Map<string, Optional<string>>;
@@ -30,7 +31,7 @@ export interface FindElementOptions {
     id?: string;
 }
 
-export interface ParserResult extends Partial<TagIndex> {
+export interface ParserResult extends Partial<TagData> {
     element: Null<Node>;
     error: Null<Error>;
 }
@@ -45,17 +46,16 @@ export class IXmlWriter {
     insertNodes(nodes?: XmlNodeTag[]): void;
     fromNode(node: XmlNodeTag, append?: TagAppend): IXmlElement;
     newElement(node: XmlNodeTag): IXmlElement;
-    append(node: XmlNodeTag): Null<IXmlElement>;
-    prepend(node: XmlNodeTag): Null<IXmlElement>;
+    append(node: XmlNodeTag, prepend?: boolean): Null<IXmlElement>;
     write(element: IXmlElement, options?: WriteOptions): boolean;
     save(): string;
     close(): string;
     update(node: XmlNodeTag, outerXml: string): void;
-    updateByTag(element: Required<TagIndex>, content: SourceContent): boolean;
     increment(node: XmlNodeTag): void;
     decrement(node: XmlNodeTag): XmlNodeTag[];
     renameTag(node: XmlNodeTag, tagName: string): void;
     indexTag(tagName: string, append?: boolean): boolean;
+    resetTag(tagName: string): void;
     getOuterXmlById(id: string, caseSensitive?: boolean): Undef<Required<SourceContent>>;
     setRawString(targetXml: string, outerXml: string): boolean;
     getRawString(index: SourceIndex): string;
@@ -67,6 +67,7 @@ export class IXmlWriter {
 }
 
 export interface XmlWriterConstructor {
+    getNodeId(node: XmlNodeTag, document: string): string;
     escapeXmlString(value: string): string;
     findCloseTag(source: string, startIndex?: number): number;
     getNewlineString(leading: string, trailing: string, newline?: string): string;

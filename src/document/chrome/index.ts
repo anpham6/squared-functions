@@ -292,7 +292,7 @@ const concatString = (values: Undef<string[]>) => values ? values.reduce((a, b) 
 const escapePosix = (value: string) => value.split(/[\\/]/).map(seg => escapeRegexp(seg)).join('[\\\\/]');
 const isObject = (value: unknown): value is PlainObject => typeof value === 'object' && value !== null;
 const isRemoved = (item: DocumentAsset) => item.exclude || item.bundleIndex !== undefined;
-const getErrorDOM = (tagName: string, tagIndex: number) => new Error(`${tagName.toUpperCase()} ${tagIndex}: Unable to parse DOM`);
+const getErrorDOM = (tagName: string, tagIndex: Undef<number>) => new Error(tagName.toUpperCase() + (tagIndex !== undefined && tagIndex >= 0 ? ' ' + tagIndex : '') + ': Unable to parse DOM');
 
 class ChromeDocument extends Document implements IChromeDocument {
     static async using(this: IFileManager, instance: ChromeDocument, file: DocumentAsset) {

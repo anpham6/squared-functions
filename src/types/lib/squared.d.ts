@@ -46,28 +46,28 @@ export interface ElementAction {
     element?: XmlNodeTag;
 }
 
-export interface TagIndex {
+export interface TagData {
     tagName: string;
-    tagCount: number;
+    tagCount?: number;
     tagIndex?: number;
 }
 
-export interface TagAppend extends TagIndex {
+export interface TagAppend extends TagData {
     order: number;
     id?: string;
     textContent?: string;
+    prepend?: boolean;
 }
 
-export interface XmlNode {
-    index: number;
+export interface XmlNode extends AttributeAction {
+    index?: number;
     outerXml?: string;
     innerXml?: string;
     lowerCase?: boolean;
 }
 
-export interface XmlNodeTag extends XmlNode, Required<TagIndex>, AttributeAction {
+export interface XmlNodeTag extends XmlNode, TagData {
     append?: TagAppend;
-    prepend?: TagAppend;
 }
 
 export interface LocationUri {

@@ -20,17 +20,17 @@ export class DomWriter extends XmlWriter implements IDomWriter {
     }
 
     static normalize(source: string) {
-        const pattern = /(?:<(\s*)((?:"[^"]*"|'[^']*'|[^"'>])+?)(\s*\/?\s*)>|<(\s*)\/([^>]+?)(\s*)>)/g;
+        const pattern = /(?:<((?:"[^"]*"|'[^']*'|[^"'>])+?)(\s*\/?\s*)>|<\/([^>]+?)(\s*)>)/g;
         let match: Null<RegExpExecArray>;
         while (match = pattern.exec(source)) {
             let value: Undef<string>;
-            if (match[2]) {
-                if (match[1] || match[3]) {
-                    value = `<${match[2]}>`;
+            if (match[1]) {
+                if (match[2]) {
+                    value = `<${match[1]}>`;
                 }
             }
-            else if (match[4] || match[6]) {
-                value = `</${match[5]}>`;
+            else if (match[4]) {
+                value = `</${match[3]}>`;
             }
             if (value) {
                 source = source.substring(0, match.index) + value + source.substring(match.index + match[0].length);
@@ -72,10 +72,10 @@ export class DomWriter extends XmlWriter implements IDomWriter {
                         result.element = nodes[index];
                     }
                 }
-                if (!result.element) {
-                    index = node.tagIndex;
-                    if (nodes.length === node.tagCount && nodes[index]) {
-                        result.element = nodes[index];
+                if (!result.element && nodes.length === node.tagCount) {
+                    const tagIndex = node.tagIndex;
+                    if (tagIndex !== undefined && (result.element = nodes[tagIndex])) {
+                        index = tagIndex;
                     }
                 }
                 if (result.element) {
@@ -150,7 +150,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
     }
     save() {
         if (this.modified) {
-            const match = (this.documentElement ? /\s*<\/html>$/ : /\s*<\/\s*html\s*>/i).exec(this.source);
+            const match = (this.documentElement ? /\s*<\/html>$/ : /\s*<\/html\s*>/i).exec(this.source);
             if (match) {
                 let innerXml: Undef<string>;
                 for (const item of this.elements) {
@@ -175,7 +175,11 @@ export class DomWriter extends XmlWriter implements IDomWriter {
                     if (outerXml) {
                         const nodes = domutils.getElementsByTagName(target.tagName, dom, true);
                         const tagIndex = nodes.findIndex(elem => elem === target);
-                        if (tagIndex !== -1 && this.updateByTag({ tagName: target.tagName, tagIndex, tagCount: nodes.length }, { startIndex: target.startIndex!, endIndex: target.endIndex!, outerXml })) {
+                        if (tagIndex !== -1) {
+                            const startIndex = target.startIndex!;
+                            const endIndex = target.endIndex!;
+                            this.spliceRawString({ startIndex, endIndex, outerXml });
+                            this.update({ index: -1, id: { [this.documentName]: target.attribs[this.nameOfId] }, tagName: target.tagName, tagIndex, tagCount: nodes.length, startIndex, endIndex }, outerXml);
                             ++result;
                             continue;
                         }
@@ -215,7 +219,7 @@ export class HtmlElement extends XmlElement {
         return this.getAttribute(getAttrId(this.documentName)) || '';
     }
     get outerXml() {
-        const append = this.node.prepend || this.node.append;
+        const append = this.node.append;
         let items: AttributeMap | [string, Optional<string>][],
             tagName: Undef<string>,
             textContent: Undef<string>;
