@@ -468,6 +468,8 @@ There are possible scenarios when a transformation may cause an asset type to ch
 ```
 
 ```javascript
+// Inline commands are not supported
+
 {
   "selector": "#sass-example",
   "type": "css",
@@ -486,9 +488,7 @@ There are possible scenarios when a transformation may cause an asset type to ch
 }
 ```
 
-Similar to JSON it is better to use double quotes (or &amp;quot;) and do not use unnecessary spaces around the opening and closing tags. It is also recommended to lower case every element tag name and attribute since the browser does this anyway when they interpret your HTML document. Inline commands are not supported.
-
-Tags that are not well-formed may fail to be replaced.
+Similar to JSON it is better to use double quotes (or &amp;quot;) and do not use unnecessary spaces around the opening and closing tags. It is also recommended to lower case every element tag name and attribute since the browser does this anyway when parsing your HTML document. Tags that are not well-formed may fail to be replaced.
 
 ```xml
 <!-- after -->

@@ -41,6 +41,7 @@ export class IXmlWriter {
     elements: XmlNodeTag[];
     readonly newline: string;
     readonly rootName?: string;
+    init(): void;
     insertNodes(nodes?: XmlNodeTag[]): void;
     fromNode(node: XmlNodeTag, append?: TagAppend): IXmlElement;
     newElement(node: XmlNodeTag): IXmlElement;
@@ -55,7 +56,7 @@ export class IXmlWriter {
     decrement(node: XmlNodeTag): XmlNodeTag[];
     renameTag(node: XmlNodeTag, tagName: string): void;
     indexTag(tagName: string, append?: boolean): boolean;
-    getOuterXmlById(id: string, caseSensitive?: boolean): Undef<SourceContent>;
+    getOuterXmlById(id: string, caseSensitive?: boolean): Undef<Required<SourceContent>>;
     setRawString(targetXml: string, outerXml: string): boolean;
     getRawString(index: SourceIndex): string;
     spliceRawString(content: SourceContent): string;
@@ -74,9 +75,10 @@ export interface XmlWriterConstructor {
 
 export class IXmlElement {
     newline: string;
+    tagVoid: boolean;
     readonly documentName: string;
     readonly node: XmlNodeTag;
-    parseOuterXml(tagName: string, outerXml: string): [string, string];
+    parseOuterXml(outerXml?: string): [string, string];
     setAttribute(name: string, value: string): void;
     getAttribute(name: string): Optional<string>;
     removeAttribute(...names: string[]): void;
@@ -88,7 +90,6 @@ export class IXmlElement {
     get id(): string;
     set tagName(value: string);
     get tagName(): string;
-    get tagVoid(): boolean;
     set innerXml(value: string);
     get innerXml(): string
     get outerXml(): string;
@@ -96,7 +97,7 @@ export class IXmlElement {
 }
 
 export interface XmlElementConstructor {
-    new(documentName: string, node: XmlNodeTag, attributes?: StandardMap, TAG_VOID?: string[]): IXmlElement;
+    new(documentName: string, node: XmlNodeTag, attributes?: StandardMap, tagVoid?: boolean): IXmlElement;
 }
 
 export class IDomWriter extends IXmlWriter {
@@ -105,7 +106,6 @@ export class IDomWriter extends IXmlWriter {
 }
 
 export interface DomWriterConstructor {
-    readonly TAG_VOID: string[];
     hasInnerXml(tagName: string): boolean;
     normalize(source: string): string;
     getDocumentElement(source: string): ParserResult;
