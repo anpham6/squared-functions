@@ -60,7 +60,7 @@ export abstract class XmlWriter implements IXmlWriter {
     }
 
     static getNewlineString(leading: string, trailing: string, newline?: string) {
-        return leading.includes('\n') || /(?:\r?\n){2,}$/.test(trailing) ? newline ? newline : (leading + trailing).includes('\r') ? '\r\n' : '\n' : '';
+        return leading.includes('\n') || /(?:\r?\n){2,}$/.test(trailing) ? newline || ((leading + trailing).includes('\r') ? '\r\n' : '\n') : '';
     }
 
     static findCloseTag(source: string, startIndex = 0) {
@@ -603,21 +603,22 @@ export abstract class XmlElement implements IXmlElement {
     abstract get nameOfId(): string;
 
     parseOuterXml(outerXml = this.node.outerXml): [string, string] {
-        let tagStart: Undef<string>;
+        let tagStart: Undef<string>,
+            innerXml: Undef<string>;
         if (outerXml) {
             const endIndex = XmlWriter.findCloseTag(outerXml) + 1;
             if (endIndex !== 0) {
                 if (this.tagVoid) {
                     return [endIndex === outerXml.length ? outerXml : outerXml.substring(0, endIndex), ''];
                 }
-                const lastIndex = outerXml.lastIndexOf('<');
                 tagStart = outerXml.substring(0, endIndex);
+                const lastIndex = outerXml.lastIndexOf('<');
                 if (endIndex < lastIndex) {
-                    return [tagStart, outerXml.substring(endIndex, lastIndex)];
+                    innerXml = outerXml.substring(endIndex, lastIndex);
                 }
             }
         }
-        return [tagStart || `<${this.tagName}>`, ''];
+        return [tagStart || `<${this.tagName}>`, innerXml || ''];
     }
     setAttribute(name: string, value: string) {
         if (this.node.lowerCase) {
@@ -685,9 +686,6 @@ export abstract class XmlElement implements IXmlElement {
                 }
                 else {
                     ++endIndex;
-                    if (remove) {
-                        trailing = '';
-                    }
                 }
                 if (!remove) {
                     node.startIndex = startIndex + leading.length;
@@ -705,11 +703,10 @@ export abstract class XmlElement implements IXmlElement {
             }
             const tagVoid = this.TAG_VOID.includes(tagName);
             const voidId = tagVoid && !!id;
-            const onlyId = tagIndex === -1 || !!append;
+            const onlyId = !isIndex(tagIndex) || !!append;
             const openTag: number[] = [];
             const hasId = (start: number, end?: number) => !!id && source.substring(start, end).includes(id);
-            const getTagStart = (start: number, checkId = true): Null<WriteResult> => {
-                const end = XmlWriter.findCloseTag(source, start);
+            const getTagStart = (start: number, checkId?: boolean, end = XmlWriter.findCloseTag(source, start)): Null<WriteResult> => {
                 return end !== -1 && (!checkId || hasId(start, end)) ? [spliceSource(start, end), outerXml, error] : null;
             };
             let tag = new RegExp(`<${escapeRegexp(tagName)}[\\s|>]`, lowerCase ? 'gi' : 'g'),
@@ -717,14 +714,22 @@ export abstract class XmlElement implements IXmlElement {
                 result: Null<WriteResult>,
                 match: Null<RegExpExecArray>;
             while (match = tag.exec(source)) {
-                if (voidId && (openCount === tagIndex || onlyId) && (result = getTagStart(match.index))) {
-                    return result;
+                const index = match.index;
+                const end = XmlWriter.findCloseTag(source, index);
+                if (end !== -1) {
+                    if (voidId && (openCount === tagIndex || onlyId) && (result = getTagStart(index, true, end))) {
+                        return result;
+                    }
+                    openCount = openTag.push(index);
+                    tag.lastIndex = end;
                 }
-                openCount = openTag.push(match.index);
+                else {
+                    break;
+                }
             }
             let sourceIndex: Undef<WriteSourceIndex>;
             if (tagVoid) {
-                if (openCount === tagCount && (result = getTagStart(openTag[tagIndex], false))) {
+                if (openCount === tagCount && (result = getTagStart(openTag[tagIndex]))) {
                     return result;
                 }
             }
