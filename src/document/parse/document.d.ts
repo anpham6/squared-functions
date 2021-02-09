@@ -58,8 +58,8 @@ export class IXmlWriter extends IXmlBase {
     update(node: XmlTagNode, outerXml: string): void;
     increment(node: XmlTagNode): void;
     decrement(node: XmlTagNode): XmlTagNode[];
-    renameTag(node: XmlTagNode, tagName: string): void;
-    indexTag(tagName: string, append?: boolean): boolean;
+    renameTag(node: XmlTagNode, tagName: string): Null<Error>;
+    indexTag(tagName: string, append?: boolean): Null<Error>;
     resetTag(tagName: string): void;
     getOuterXmlById(id: string, caseSensitive?: boolean): Undef<Required<SourceContent>>;
     setRawString(targetXml: string, outerXml: string): boolean;
