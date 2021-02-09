@@ -41,6 +41,7 @@ export class IXmlBase {
     readonly documentName: string;
     write(...args: unknown[]): unknown;
     save(...args: unknown[]): unknown;
+    reset(): void;
     get nameOfId(): string;
     get modified(): boolean;
 }
