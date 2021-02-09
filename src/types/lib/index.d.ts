@@ -2,7 +2,7 @@
 
 /* eslint no-shadow: "off" */
 
-import type { CompressFormat, LocationUri, ResponseData } from './squared';
+import type { CompressFormat, LocationUri, ResponseData, XmlTagNode } from './squared';
 
 import type { ExternalAsset, FileData, FileOutput, OutputData } from './asset';
 import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload } from './cloud';
@@ -188,6 +188,7 @@ declare namespace functions {
         hasDocument(instance: IModule, document: Undef<StringOfArray>): boolean;
         getDocumentAssets(instance: IModule): ExternalAsset[];
         getCloudAssets(instance: IModule): CloudDatabase[];
+        getElements(): XmlTagNode[];
         setLocalUri(file: ExternalAsset): FileOutput;
         getLocalUri(data: FileData): string;
         getMimeType(data: FileData): Undef<string>;

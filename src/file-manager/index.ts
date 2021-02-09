@@ -1,4 +1,4 @@
-import type { CompressFormat } from '../types/lib/squared';
+import type { CompressFormat, ElementAction } from '../types/lib/squared';
 
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, IPermission, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
@@ -346,6 +346,9 @@ class FileManager extends Module implements IFileManager {
     }
     getCloudAssets(instance: IModule) {
         return this.Cloud ? this.Cloud.database.filter(item => this.hasDocument(instance, item.document) && item.element) : [];
+    }
+    getElements() {
+        return (this.documentAssets as ElementAction[]).filter(item => item.element).concat((this.Cloud?.database || []) as ElementAction[]).filter(item => item.element).map(item => item.element!);
     }
     findAsset(uri: string, instance?: IModule) {
         if (uri) {

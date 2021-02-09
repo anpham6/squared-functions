@@ -1,4 +1,4 @@
-import type { AttributeMap, FindElementOptions, IDomWriter, ParserResult, SourceIndex, XmlNodeTag } from './document';
+import type { FindElementOptions, IDomWriter, ParserResult, SourceIndex, XmlTagNode } from './document';
 
 import htmlparser2 = require('htmlparser2');
 import domhandler = require('domhandler');
@@ -20,7 +20,10 @@ export class DomWriter extends XmlWriter implements IDomWriter {
     }
 
     static normalize(source: string) {
-        const pattern = /(?:<((?:"[^"]*"|'[^']*'|[^"'>])+?)(\s*\/?\s*)>|<\/([^>]+?)(\s*)>)/g;
+        for (const tag of TAG_VOID) {
+            source = source.replace(new RegExp(`</${tag}\\s*>`, 'gi'), '');
+        }
+        const pattern = /<(?:([^\s](?:[^=>]|=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)|=)+?)(\s*\/?\s*)|\/([^\s>]+)(\s*))>/g;
         let match: Null<RegExpExecArray>;
         while (match = pattern.exec(source)) {
             let value: Undef<string>;
@@ -54,7 +57,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         return { element, error };
     }
 
-    static findElement(source: string, node: XmlNodeTag, options?: FindElementOptions): ParserResult {
+    static findElement(source: string, node: XmlTagNode, options?: FindElementOptions) {
         let document: Undef<string>,
             id: Undef<string>;
         if (options) {
@@ -91,12 +94,12 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         return result;
     }
 
-    documentElement: Null<XmlNodeTag> = null;
+    documentElement: Null<XmlTagNode> = null;
     readonly rootName = 'html';
 
-    constructor(documentName: string, source: string, elements: XmlNodeTag[], normalize = true) {
+    constructor(documentName: string, source: string, elements: XmlTagNode[], normalize = true) {
         super(documentName, source, elements);
-        const items: XmlNodeTag[] = [];
+        const items: XmlTagNode[] = [];
         for (const item of elements) {
             item.lowerCase = true;
             if (item.tagName === 'html') {
@@ -145,7 +148,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         this.init();
     }
 
-    newElement(node: XmlNodeTag) {
+    newElement(node: XmlTagNode) {
         return new HtmlElement(this.documentName, node);
     }
     save() {
@@ -201,7 +204,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
 export class HtmlElement extends XmlElement {
     readonly TAG_VOID = TAG_VOID;
 
-    constructor(documentName: string, node: XmlNodeTag, attributes?: StandardMap) {
+    constructor(documentName: string, node: XmlTagNode, attributes?: StandardMap) {
         super(documentName, node, attributes, TAG_VOID.includes(node.tagName));
     }
 
@@ -219,44 +222,11 @@ export class HtmlElement extends XmlElement {
         return this.getAttribute(getAttrId(this.documentName)) || '';
     }
     get outerXml() {
-        const append = this.node.append;
-        let items: AttributeMap | [string, Optional<string>][],
-            tagName: Undef<string>,
-            textContent: Undef<string>;
-        if (append) {
-            let id: Undef<string>;
-            ({ tagName, textContent, id } = append);
-            const idKey = getAttrId(this.documentName);
-            items = Array.from(this._attributes).filter(item => item[0] !== idKey);
-            if (id) {
-                items.push([idKey, id]);
-            }
-        }
-        else {
-            tagName = this.tagName;
-            items = this._attributes;
-        }
-        let outerXml = '<' + tagName;
-        for (const [key, value] of items) {
-            if (value !== undefined) {
-                outerXml += ' ' + key + (value !== null ? `="${value.replace(/"/g, '&quot;')}"` : '');
-            }
-        }
-        outerXml += '>';
-        if (DomWriter.hasInnerXml(tagName) && tagName !== 'html') {
-            if (textContent) {
-                switch (tagName) {
-                    case 'script':
-                    case 'style':
-                        break;
-                    default:
-                        textContent = DomWriter.escapeXmlString(textContent);
-                        break;
-                }
-            }
-            outerXml += (textContent || this.innerXml) + `</${tagName}>`;
-        }
-        return outerXml;
+        const [tagName, items, textContent] = this.getContent(['style', 'script']);
+        return '<' + tagName + HtmlElement.writeAttributes(items) + '>' + (DomWriter.hasInnerXml(tagName) && tagName !== 'html' ? (textContent || this.innerXml) + `</${tagName}>` : '');
+    }
+    get nameOfId() {
+        return getAttrId(this.documentName);
     }
 }
 

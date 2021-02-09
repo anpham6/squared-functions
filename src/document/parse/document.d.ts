@@ -1,4 +1,4 @@
-import type { XmlNodeTag as IXmlNodeTag, TagAppend, TagData } from '../../types/lib/squared';
+import type { XmlTagNode as IXmlTagNode, TagAppend, TagData } from '../../types/lib/squared';
 
 import type { Element, Node } from 'domhandler';
 
@@ -7,14 +7,11 @@ export interface SourceIndex {
     endIndex: number;
 }
 
-export interface SourceContent extends SourceIndex {
+export interface SourceContent extends SourceIndex, Partial<TagData> {
     outerXml: string;
-    tagName?: string;
 }
 
-export interface XmlNodeTag extends IXmlNodeTag, Partial<SourceIndex> {
-    id?: StringMap;
-}
+export interface XmlTagNode extends IXmlTagNode, Partial<SourceIndex> {}
 
 export interface WriteOptions {
     remove?: boolean;
@@ -23,6 +20,7 @@ export interface WriteOptions {
 }
 
 export type AttributeMap = Map<string, Optional<string>>;
+export type AttributeList = [string, Optional<string>][];
 export type WriteResult = [string, string, Null<Error>?];
 export type SaveResult = [string, Null<Error>?];
 
@@ -36,24 +34,31 @@ export interface ParserResult extends Partial<TagData> {
     error: Null<Error>;
 }
 
-export class IXmlWriter {
-    documentName: string;
+export class IXmlBase {
+    newline: string;
+    readonly documentName: string;
+    write(...args: unknown[]): unknown;
+    save(...args: unknown[]): unknown;
+    get nameOfId(): string;
+    get modified(): boolean;
+}
+
+export class IXmlWriter extends IXmlBase {
     source: string;
-    elements: XmlNodeTag[];
-    readonly newline: string;
+    elements: XmlTagNode[];
     readonly rootName?: string;
     init(): void;
-    insertNodes(nodes?: XmlNodeTag[]): void;
-    fromNode(node: XmlNodeTag, append?: TagAppend): IXmlElement;
-    newElement(node: XmlNodeTag): IXmlElement;
-    append(node: XmlNodeTag, prepend?: boolean): Null<IXmlElement>;
+    insertNodes(nodes?: XmlTagNode[]): void;
+    fromNode(node: XmlTagNode, append?: TagAppend): IXmlElement;
+    newElement(node: XmlTagNode): IXmlElement;
+    append(node: XmlTagNode, prepend?: boolean): Null<IXmlElement>;
     write(element: IXmlElement, options?: WriteOptions): boolean;
     save(): string;
     close(): string;
-    update(node: XmlNodeTag, outerXml: string): void;
-    increment(node: XmlNodeTag): void;
-    decrement(node: XmlNodeTag): XmlNodeTag[];
-    renameTag(node: XmlNodeTag, tagName: string): void;
+    update(node: XmlTagNode, outerXml: string): void;
+    increment(node: XmlTagNode): void;
+    decrement(node: XmlTagNode): XmlTagNode[];
+    renameTag(node: XmlTagNode, tagName: string): void;
     indexTag(tagName: string, append?: boolean): boolean;
     resetTag(tagName: string): void;
     getOuterXmlById(id: string, caseSensitive?: boolean): Undef<Required<SourceContent>>;
@@ -62,23 +67,19 @@ export class IXmlWriter {
     spliceRawString(content: SourceContent): string;
     hasErrors(): boolean;
     get newId(): string;
-    get nameOfId(): string;
-    get modified(): boolean;
 }
 
 export interface XmlWriterConstructor {
-    getNodeId(node: XmlNodeTag, document: string): string;
+    getNodeId(node: XmlTagNode, document: string): string;
     escapeXmlString(value: string): string;
     findCloseTag(source: string, startIndex?: number): number;
     getNewlineString(leading: string, trailing: string, newline?: string): string;
-    new(documentName: string, source: string, elements: XmlNodeTag[]): IXmlWriter;
+    new(documentName: string, source: string, elements: XmlTagNode[]): IXmlWriter;
 }
 
-export class IXmlElement {
-    newline: string;
+export class IXmlElement extends IXmlBase {
     tagVoid: boolean;
-    readonly documentName: string;
-    readonly node: XmlNodeTag;
+    readonly node: XmlTagNode;
     parseOuterXml(outerXml?: string): [string, string];
     setAttribute(name: string, value: string): void;
     getAttribute(name: string): Optional<string>;
@@ -94,15 +95,15 @@ export class IXmlElement {
     set innerXml(value: string);
     get innerXml(): string
     get outerXml(): string;
-    get modified(): boolean;
 }
 
 export interface XmlElementConstructor {
-    new(documentName: string, node: XmlNodeTag, attributes?: StandardMap, tagVoid?: boolean): IXmlElement;
+    writeAttributes(attrs: AttributeMap | AttributeList, escapeEntities?: boolean): string;
+    new(documentName: string, node: XmlTagNode, attributes?: StandardMap, tagVoid?: boolean): IXmlElement;
 }
 
 export class IDomWriter extends IXmlWriter {
-    documentElement: Null<XmlNodeTag>;
+    documentElement: Null<XmlTagNode>;
     replaceAll(predicate: (elem: Element) => boolean, callback: (elem: Element, source: string) => Undef<string>): number;
 }
 
@@ -110,6 +111,6 @@ export interface DomWriterConstructor {
     hasInnerXml(tagName: string): boolean;
     normalize(source: string): string;
     getDocumentElement(source: string): ParserResult;
-    findElement(source: string, node: XmlNodeTag, options?: FindElementOptions): ParserResult;
-    new(documentName: string, source: string, elements: XmlNodeTag[], normalize?: boolean): IDomWriter;
+    findElement(source: string, node: XmlTagNode, options?: FindElementOptions): ParserResult;
+    new(documentName: string, source: string, elements: XmlTagNode[], normalize?: boolean): IDomWriter;
 }

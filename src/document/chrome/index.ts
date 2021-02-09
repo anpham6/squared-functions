@@ -1,4 +1,4 @@
-import type { ElementAction, LocationUri } from '../../types/lib/squared';
+import type { LocationUri } from '../../types/lib/squared';
 
 import type { IFileManager } from '../../types/lib';
 import type { FileData, OutputData } from '../../types/lib/asset';
@@ -349,23 +349,17 @@ class ChromeDocument extends Document implements IChromeDocument {
                 break;
             }
             case '@text/html': {
-                const assets = this.getDocumentAssets(instance) as DocumentAsset[];
-                const items = assets.filter(item => item.format === 'base64' && item.element);
+                const items = (this.getDocumentAssets(instance) as DocumentAsset[]).filter(item => item.format === 'base64' && item.element);
                 if (items.length) {
-                    const domBase = new DomWriter(
-                        instance.moduleName,
-                        this.getUTF8String(file, localUri),
-                        (assets as ElementAction[]).concat(this.getCloudAssets(instance)).filter(item => item.element).map(item => item.element!)
-                    );
+                    const domBase = new DomWriter(instance.moduleName, this.getUTF8String(file, localUri), this.getElements());
                     for (const item of items) {
-                        const element = item.element!;
-                        const domElement = new HtmlElement(instance.moduleName, element, item.attributes);
+                        const domElement = new HtmlElement(instance.moduleName, item.element!, item.attributes);
                         setElementAttribute.call(instance, file, item, domElement, item.inlineBase64 ||= uuid.v4());
                         if (domBase.write(domElement)) {
                             item.watch = false;
                         }
                         else {
-                            const { tagName, tagIndex } = element;
+                            const { tagName, tagIndex } = item.element!;
                             this.writeFail(['Element base64 attribute replacement', tagName], getErrorDOM(tagName, tagIndex));
                             delete item.inlineBase64;
                         }
@@ -442,12 +436,8 @@ class ChromeDocument extends Document implements IChromeDocument {
             this.formatMessage(this.logType.PROCESS, 'HTML', ['Rewriting content...', path.basename(localUri!)]);
             const time = Date.now();
             const cloud = this.Cloud;
+            const domBase = new DomWriter(moduleName, this.getUTF8String(html, localUri), this.getElements());
             const database = this.getCloudAssets(instance);
-            const domBase = new DomWriter(
-                moduleName,
-                this.getUTF8String(html, localUri),
-                (elements as ElementAction[]).concat(database).filter(item => item.element).map(item => item.element!)
-            );
             if (database.length) {
                 const cacheKey = uuid.v4();
                 const pattern = /\$\{\s*(\w+)\s*\}/g;

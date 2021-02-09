@@ -43,7 +43,7 @@ export interface AttributeAction {
 }
 
 export interface ElementAction {
-    element?: XmlNodeTag;
+    element?: XmlTagNode;
 }
 
 export interface TagData {
@@ -66,7 +66,8 @@ export interface XmlNode extends AttributeAction {
     lowerCase?: boolean;
 }
 
-export interface XmlNodeTag extends XmlNode, TagData {
+export interface XmlTagNode extends XmlNode, TagData {
+    id?: StringMap;
     append?: TagAppend;
 }
 
