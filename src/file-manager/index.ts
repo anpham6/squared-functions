@@ -505,8 +505,8 @@ class FileManager extends Module implements IFileManager {
         const { localUri, compress } = file;
         if (compress && this.has(localUri)) {
             const tasks: Promise<void>[] = [];
-            for (const item of compress) {
-                const format = item.format;
+            for (const data of compress) {
+                const format = data.format;
                 let valid = false;
                 switch (format) {
                     case 'gz':
@@ -514,21 +514,22 @@ class FileManager extends Module implements IFileManager {
                         break;
                     case 'br':
                         valid = this.supported(11, 7);
+                        data.mimeType ||= file.mimeType;
                         break;
                     default:
                         valid = typeof Compress.compressors[format] === 'function';
                         break;
                 }
-                if (valid && withinSizeRange(localUri, item.condition) && !fs.existsSync(localUri + '.' + format)) {
+                if (valid && withinSizeRange(localUri, data.condition) && !fs.existsSync(localUri + '.' + format)) {
                     tasks.push(
                         new Promise<void>(resolve => {
                             try {
-                                Compress.tryFile(localUri, item, null, (err?: Null<Error>, result?: string) => {
+                                Compress.tryFile(localUri, data, null, (err?: Null<Error>, result?: string) => {
                                     if (err) {
                                         throw err;
                                     }
                                     if (result) {
-                                        if (item.condition?.includes('%') && Module.getFileSize(result) >= Module.getFileSize(localUri)) {
+                                        if (data.condition?.includes('%') && Module.getFileSize(result) >= Module.getFileSize(localUri)) {
                                             try {
                                                 fs.unlinkSync(result);
                                             }

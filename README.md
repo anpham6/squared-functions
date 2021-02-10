@@ -96,11 +96,11 @@ Other formats can be compressed similarly using imagemin. Manual installation is
 }
 ```
 
-### Gulp
+### Tasks
 
-Tasks can be performed with Gulp to take advantage of their pre-built plugin repository. Gulp is the final stage preceding archiving or copying after file content has been downloaded and transformed.
+Tasks can be performed preceding archiving or copying after file content has been downloaded and also transformed.
 
-* [npm i -g gulp-cli && npm i gulp](https://gulpjs.com/docs/en/getting-started/quick-start)
+* Gulp: [npm i -g gulp-cli && npm i gulp](https://gulpjs.com/docs/en/getting-started/quick-start)
 
 ```javascript
 // squared.settings.json
@@ -145,7 +145,7 @@ const options = {
 
 ```xml
 <!-- chrome -->
-<script src="/common/system.js" data-chrome-tasks="gulp:minify+gulp:beautify:true"></script>
+<script src="/common/util.js" data-chrome-tasks="gulp:minify+gulp:beautify:true"></script>
 
 <!-- android -->
 <img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/12005/harbour1.jpg" data-android-tasks="gulp:compress">
@@ -166,7 +166,7 @@ gulp.task('minify', () => {
 });
 ```
 
-Renaming files with Gulp is not recommended. It is better to use the "saveAs" or "filename" attributes when the asset is part of the HTML page.
+Renaming files with Gulp is not recommended with Chrome. It is better to use the "saveAs" or "filename" attributes when the asset is part of the HTML page.
 
 ### Document: CHROME
 
@@ -418,8 +418,8 @@ JSON (json/js) configuration is optional and is provided for those who prefer to
 
 ```javascript
 interface OutputModifiers {
-    inline?: boolean; // type: js | css | image (base64)
-    blob?: boolean; // type: image (base64)
+    inline?: boolean; // type: js | css | base64: image | font
+    blob?: boolean; // type: image | font (base64)
     preserve?: boolean; // type: css | cross-origin: append/js | append/css
     ignore?: boolean;
     exclude?: boolean // type: js | css (remove from HTML)
@@ -436,6 +436,7 @@ interface AssetCommand extends OutputModifiers {
     process?: string[]; // type: js | css
     commands?: string[]; // type: image
     cloudStorage?: CloudService[];
+    document?: string | string[];
     attributes?: { [key: string]: value?: Null<string> };
     tasks?: string[];
     watch?: boolean | { interval?: number, expires?: string }; // type: js | css | image (expires: 1h 1m 1s)
@@ -446,6 +447,8 @@ interface AssetCommand extends OutputModifiers {
     };
 }
 ```
+
+Only one command per element is supported with the latter selectors taking precedence when there are conflicts. You can use a task if there are additional commands to perform.
 
 - [bundle.json](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.json)
 - [bundle.yml](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.yml)
@@ -924,7 +927,7 @@ squared.saveAs('index.zip', {
         script: { pathname: '../js', filename: 'bundle.js', format: 'es5+es5-minify' },
         link: { pathname: 'css', filename: 'bundle.css', preserve: true, inline: true },
         image: { inline: true },
-        base64: { commands: ['png'] }
+        font: { pathname: 'fonts', blob: true }
     }
 }); 
 ```

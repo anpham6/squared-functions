@@ -1,4 +1,4 @@
-import type { CompressFormat } from '../types/lib/squared';
+import type { CompressFormat, CompressLevel } from '../types/lib/squared';
 
 import type { ICompress } from '../types/lib';
 import type { CompressTryFileMethod, CompressTryImageCallback } from '../types/lib/compress';
@@ -29,27 +29,38 @@ const Compress = new class extends Module implements ICompress {
         const result = this.level[path.extname(output).substring(1).toLowerCase()];
         return !isNaN(result) ? result : fallback;
     }
-    createWriteStreamAsGzip(source: string, output: string, level?: number) {
-        return fs.createReadStream(source)
-            .pipe(zlib.createGzip({ level: level ?? this.getLevel(output, zlib.constants.Z_DEFAULT_LEVEL), chunkSize: this.chunkSize }))
+    createWriteStreamAsGzip(uri: string, output: string, options?: CompressLevel) {
+        let level: Undef<number>,
+            chunkSize: Undef<number>;
+        if (options) {
+            ({ level, chunkSize } = options);
+        }
+        return fs.createReadStream(uri)
+            .pipe(zlib.createGzip({ level: level ?? this.getLevel(output, zlib.constants.Z_DEFAULT_LEVEL), chunkSize: chunkSize ?? this.chunkSize }))
             .pipe(fs.createWriteStream(output));
     }
-    createWriteStreamAsBrotli(source: string, output: string, quality?: number, mimeType = '') {
-        return fs.createReadStream(source)
+    createWriteStreamAsBrotli(uri: string, output: string, options?: CompressLevel) {
+        let level: Undef<number>,
+            chunkSize: Undef<number>,
+            mimeType: Undef<string>;
+        if (options) {
+            ({ level, chunkSize, mimeType } = options);
+        }
+        return fs.createReadStream(uri)
             .pipe(
                 zlib.createBrotliCompress({
                     params: {
-                        [zlib.constants.BROTLI_PARAM_MODE]: mimeType.includes('text/') ? zlib.constants.BROTLI_MODE_TEXT : zlib.constants.BROTLI_MODE_GENERIC,
-                        [zlib.constants.BROTLI_PARAM_QUALITY]: quality ?? this.getLevel(output, zlib.constants.BROTLI_DEFAULT_QUALITY) as number,
-                        [zlib.constants.BROTLI_PARAM_SIZE_HINT]: Module.getFileSize(source)
+                        [zlib.constants.BROTLI_PARAM_MODE]: mimeType?.includes('text/') ? zlib.constants.BROTLI_MODE_TEXT : zlib.constants.BROTLI_MODE_GENERIC,
+                        [zlib.constants.BROTLI_PARAM_QUALITY]: level ?? this.getLevel(output, zlib.constants.BROTLI_DEFAULT_QUALITY) as number,
+                        [zlib.constants.BROTLI_PARAM_SIZE_HINT]: Module.getFileSize(uri)
                     },
-                    chunkSize: this.chunkSize
+                    chunkSize: chunkSize ?? this.chunkSize
                 })
             )
             .pipe(fs.createWriteStream(output));
     }
     tryFile(uri: string, data: CompressFormat, beforeAsync?: Null<PerformAsyncTaskMethod>, callback?: CompleteAsyncTaskCallback) {
-        const { format, level } = data;
+        const format = data.format;
         switch (format) {
             case 'gz':
             case 'br': {
@@ -59,7 +70,7 @@ const Compress = new class extends Module implements ICompress {
                 const output = uri + '.' + format;
                 this.formatMessage(this.logType.COMPRESS, format, 'Compressing file...', output, { titleColor: 'magenta' });
                 const time = Date.now();
-                this[format === 'gz' ? 'createWriteStreamAsGzip' : 'createWriteStreamAsBrotli'](uri, output, level)
+                this[format === 'gz' ? 'createWriteStreamAsGzip' : 'createWriteStreamAsBrotli'](uri, output, data)
                     .on('finish', () => {
                         this.writeTimeElapsed(format, path.basename(output), time);
                         if (callback) {

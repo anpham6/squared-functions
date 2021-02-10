@@ -2,7 +2,7 @@
 
 /* eslint no-shadow: "off" */
 
-import type { CompressFormat, LocationUri, ResponseData, XmlTagNode } from './squared';
+import type { CompressFormat, CompressLevel, LocationUri, ResponseData, XmlTagNode } from './squared';
 
 import type { ExternalAsset, FileData, FileOutput, OutputData } from './asset';
 import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload } from './cloud';
@@ -28,8 +28,8 @@ declare namespace functions {
         compressors: ObjectMap<CompressTryFileMethod>;
         chunkSize?: number;
         register(format: string, callback: CompressTryFileMethod): void;
-        createWriteStreamAsGzip(source: string, output: string, level?: number): WriteStream;
-        createWriteStreamAsBrotli(source: string, output: string, quality?: number, mimeType?: string): WriteStream;
+        createWriteStreamAsGzip(uri: string, output: string, options?: CompressLevel): WriteStream;
+        createWriteStreamAsBrotli(uri: string, output: string, options?: CompressLevel): WriteStream;
         tryFile: CompressTryFileMethod;
         tryImage(uri: string, data: CompressFormat, callback: CompressTryImageCallback): void;
     }

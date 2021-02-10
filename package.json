@@ -50,6 +50,6 @@
     "rimraf": "^3.0.2",
     "rollup": "^2.38.5",
     "tinify": "^1.6.0-beta.2",
-    "typescript": "^4.1.4"
+    "typescript": "^4.1.5"
   }
 }

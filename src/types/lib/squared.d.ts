@@ -80,9 +80,14 @@ export interface FileAsset<T = unknown> extends TextAsset, OutputAction<T> {
     base64?: string;
 }
 
-export interface CompressFormat {
-    format: string;
+export interface CompressLevel {
     level?: number;
+    chunkSize?: number;
+    mimeType?: string;
+}
+
+export interface CompressFormat extends CompressLevel {
+    format: string;
     condition?: string;
     plugin?: string;
     options?: PlainObject;
