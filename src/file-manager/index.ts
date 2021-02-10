@@ -833,7 +833,7 @@ class FileManager extends Module implements IFileManager {
                             fs.emptyDirSync(pathname);
                         }
                         catch (err) {
-                            this.writeFail(['Unable to empty directory', pathname], err);
+                            this.writeFail(['Unable to empty sub directory', pathname], err);
                         }
                     }
                     try {

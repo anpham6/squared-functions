@@ -73,6 +73,8 @@ export class IXmlWriter extends IXmlBase {
 }
 
 export interface XmlWriterConstructor {
+    PATTERN_TAGATTR: string;
+    PATTERN_TAGOPEN: string;
     getNodeId(node: XmlTagNode, document: string): string;
     escapeXmlString(value: string): string;
     findCloseTag(source: string, startIndex?: number): number;

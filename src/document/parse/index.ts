@@ -38,6 +38,9 @@ const isIndex = (value: Undef<unknown>): value is number => typeof value === 'nu
 const isCount = (value: Undef<unknown>): value is number => typeof value === 'number' && value > 0 && value !== Infinity;
 
 export abstract class XmlWriter implements IXmlWriter {
+    static readonly PATTERN_TAGATTR = `=\\s*(?:"[^"]*"|'[^']*'|[^\\s>]+)`;
+    static readonly PATTERN_TAGOPEN = `(?:[^=>]|${XmlWriter.PATTERN_TAGATTR}|=)`;
+
     static escapeXmlString(value: string) {
         return value.replace(/[<>"'&]/g, (...capture) => {
             switch (capture[0]) {
@@ -269,7 +272,7 @@ export abstract class XmlWriter implements IXmlWriter {
                 error = this.renameTag(node, element.tagName);
             }
             this.update(node, outerXml);
-            this.reset();
+            element.reset();
         }
         if (error) {
             ++this.failCount;
@@ -282,7 +285,7 @@ export abstract class XmlWriter implements IXmlWriter {
         for (const item of this.elements) {
             deletePosition(item, this.rootName);
         }
-        this.modifyCount = 0;
+        this.reset();
         return this.source;
     }
     update(node: XmlTagNode, outerXml: string) {
@@ -491,7 +494,7 @@ export abstract class XmlWriter implements IXmlWriter {
     }
     getOuterXmlById(id: string, tagName?: string, caseSensitive = true) {
         const source = this.source;
-        let match = new RegExp(`<(${tagName && escapeRegexp(tagName) || '[^\\s>]+'})(?:[^=>]|=\\s*(?:"[^"]*"|'[^']*'|[^\\s>]+)|=)+?${escapeRegexp(this.nameOfId)}="${escapeRegexp(id)}"`, caseSensitive ? '' : 'i').exec(source);
+        let match = new RegExp(`<(${tagName && escapeRegexp(tagName) || '[^\\s>]+'})${XmlWriter.PATTERN_TAGOPEN}+?${escapeRegexp(this.nameOfId)}="${escapeRegexp(id)}"`, caseSensitive ? '' : 'i').exec(source);
         if (match) {
             tagName ||= match[1];
             let endIndex = -1,

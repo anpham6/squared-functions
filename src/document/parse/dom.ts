@@ -1,5 +1,7 @@
 import type { FindElementOptions, IDomWriter, ParserResult, SourceIndex, XmlTagNode } from './document';
 
+import escapeRegexp = require('escape-string-regexp');
+
 import htmlparser2 = require('htmlparser2');
 import domhandler = require('domhandler');
 import domutils = require('domutils');
@@ -23,7 +25,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         for (const tag of TAG_VOID) {
             source = source.replace(new RegExp(`</${tag}\\s*>`, 'gi'), '');
         }
-        const pattern = /<(?:([^\s](?:[^=>]|=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)|=)+?)(\s*\/?\s*)|\/([^\s>]+)(\s*))>/g;
+        const pattern = new RegExp(`<(?:([^\\s]${XmlWriter.PATTERN_TAGOPEN}*?(\\s*\\/?\\s*)|\\/([^\\s>]+)(\\s*))>`, 'g');
         let match: Null<RegExpExecArray>;
         while (match = pattern.exec(source)) {
             let value: Undef<string>;
@@ -166,7 +168,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         return super.save();
     }
     close() {
-        this.source = this.source.replace(new RegExp(`\\s+${this.nameOfId}="[^"]+"`, 'g'), '');
+        this.source = this.source.replace(new RegExp(`\\s+${escapeRegexp(this.nameOfId)}="[^"]+"`, 'g'), '');
         return super.close();
     }
     replaceAll(predicate: (elem: domhandler.Element) => boolean, callback: (elem: domhandler.Element, source: string) => Undef<string>) {
