@@ -19,15 +19,15 @@ import Cloud from '../../cloud';
 import { DomWriter, HtmlElement } from '../parse/dom';
 
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
-const PATTERN_TRAILINGSPACE = '[ \\t]*((?:\\r?\\n)*)';
+const REGEXP_CSSCONTENT = /\b(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^)]+)\s*\))/ig;
 
 function removeDatasetNamespace(name: string, source: string) {
     if (source.includes('data-' + name)) {
         return source
-            .replace(new RegExp(`(\\s*)<(script|style)${DomWriter.PATTERN_TAGOPEN}+?data-${name}-file\\s*=\\s*(["'])?exclude\\3${DomWriter.PATTERN_TAGOPEN}*>[\\S\\s]*?<\\/\\2\\>` + PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[4]))
-            .replace(new RegExp(`(\\s*)<link${DomWriter.PATTERN_TAGOPEN}+?data-${name}-file\\s*=\\s*(["'])?exclude\\2${DomWriter.PATTERN_TAGOPEN}*>` + PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[3]))
-            .replace(new RegExp(`(\\s*)<script${DomWriter.PATTERN_TAGOPEN}+?data-${name}-template\\s*${DomWriter.PATTERN_TAGATTR + DomWriter.PATTERN_TAGOPEN}*>[\\S\\s]*?<\\/script>` + PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[2]))
-            .replace(new RegExp(`\\s+data-${name}-[a-z-]+\\s*` + DomWriter.PATTERN_TAGATTR, 'g'), '');
+            .replace(new RegExp(`(\\s*)<(script|style)${DomWriter.PATTERN_TAGOPEN}+?data-${name}-file\\s*=\\s*(["'])?exclude\\3${DomWriter.PATTERN_TAGOPEN}*>[\\S\\s]*?<\\/\\2\\>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[4]))
+            .replace(new RegExp(`(\\s*)<link${DomWriter.PATTERN_TAGOPEN}+?data-${name}-file\\s*=\\s*(["'])?exclude\\2${DomWriter.PATTERN_TAGOPEN}*>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[3]))
+            .replace(new RegExp(`(\\s*)<script${DomWriter.PATTERN_TAGOPEN}+?data-${name}-template\\s*${DomWriter.PATTERN_ATTRVALUE + DomWriter.PATTERN_TAGOPEN}*>[\\S\\s]*?<\\/script>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[2]))
+            .replace(new RegExp(`\\s+data-${name}-[a-z-]+\\s*` + DomWriter.PATTERN_ATTRVALUE, 'g'), '');
     }
     return source;
 }
@@ -74,26 +74,34 @@ function getObjectValue(data: unknown, key: string, joinString = ' ') {
 }
 
 function removeCss(source: string, styles: string[]) {
-    const leading = ['^', '}'];
-    let output: Undef<string>,
+    const replaceMap: StringMap = {};
+    let current = source,
+        output: Undef<string>,
         pattern: Undef<RegExp>,
         match: Null<RegExpExecArray>;
+    while (match = REGEXP_CSSCONTENT.exec(source)) {
+        if (match[0].includes('}')) {
+            const placeholder = uuid.v4();
+            replaceMap[placeholder] = match[0];
+            current = current.replace(match[0], placeholder);
+        }
+    }
     for (let value of styles) {
-        const block = `(\\s*)${value = escapeRegexp(value)}\\s*\\{[^}]*\\}` + PATTERN_TRAILINGSPACE;
+        const block = `(\\s*)${value = escapeRegexp(value)}\\s*\\{[^}]*\\}` + DomWriter.PATTERN_TRAILINGSPACE;
         for (let i = 0; i < 2; ++i) {
-            pattern = new RegExp(leading[i] + block, i === 0 ? 'm' : 'g');
-            while (match = pattern.exec(source)) {
-                output = (output || source).replace(match[0], (i === 1 ? '}' : '') + DomWriter.getNewlineString(match[1], match[2]));
+            pattern = new RegExp((i === 0 ? '^' : '}') + block, i === 0 ? 'm' : 'g');
+            while (match = pattern.exec(current)) {
+                output = (output || current).replace(match[0], (i === 0 ? '' : '}') + DomWriter.getNewlineString(match[1], match[2]));
                 if (i === 0) {
                     break;
                 }
             }
             if (output) {
-                source = output;
+                current = output;
             }
         }
         pattern = new RegExp(`(}?[^,{}]*?)((,?\\s*)${value}\\s*[,{](\\s*)).*?\\{?`, 'g');
-        while (match = pattern.exec(source)) {
+        while (match = pattern.exec(current)) {
             const segment = match[2];
             let outerXml = '';
             if (segment.trim().endsWith('{')) {
@@ -105,12 +113,18 @@ function removeCss(source: string, styles: string[]) {
             else if (match[1] === '}' && match[3] && !match[3].trim()) {
                 outerXml = match[3];
             }
-            output = (output || source).replace(match[0], match[0].replace(segment, outerXml));
+            output = (output || current).replace(match[0], match[0].replace(segment, outerXml));
         }
         if (output) {
-            source = output;
+            current = output;
         }
     }
+    if (output) {
+        for (const attr in replaceMap) {
+            output = output.replace(attr, replaceMap[attr]!);
+        }
+    }
+    REGEXP_CSSCONTENT.lastIndex = 0;
     return output;
 }
 

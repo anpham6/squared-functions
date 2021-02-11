@@ -5,8 +5,10 @@ import type { AttributeList, AttributeMap, IXmlElement, IXmlWriter, ReplaceOptio
 import escapeRegexp = require('escape-string-regexp');
 import uuid = require('uuid');
 
-const REGEXP_ATTRNAME = /[^<]\s+([^\s=>]+)/g;
-const REGEXP_ATTRVALUE = /([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]*))/g;
+const PATTERN_ATTRNAME = '([^\\s=>]+)';
+const PATTERN_ATTRVALUE = `=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]*))`;
+const REGEXP_ATTRVALUE = new RegExp(PATTERN_ATTRNAME + '\\s*' + PATTERN_ATTRVALUE, 'g');
+const REGEXP_ATTRNAME = new RegExp('\\s+' + PATTERN_ATTRNAME, 'g');
 
 function isSpace(ch: string) {
     const n = ch.charCodeAt(0);
@@ -38,8 +40,10 @@ const isIndex = (value: Undef<unknown>): value is number => typeof value === 'nu
 const isCount = (value: Undef<unknown>): value is number => typeof value === 'number' && value > 0 && value !== Infinity;
 
 export abstract class XmlWriter implements IXmlWriter {
-    static readonly PATTERN_TAGATTR = `=\\s*(?:"[^"]*"|'[^']*'|[^\\s>]+)`;
-    static readonly PATTERN_TAGOPEN = `(?:[^=>]|${XmlWriter.PATTERN_TAGATTR}|=)`;
+    static readonly PATTERN_ATTRNAME = PATTERN_ATTRNAME;
+    static readonly PATTERN_ATTRVALUE = PATTERN_ATTRVALUE;
+    static readonly PATTERN_TAGOPEN = `(?:[^=>]|${PATTERN_ATTRVALUE})`;
+    static readonly PATTERN_TRAILINGSPACE = '[ \\t]*((?:\\r?\\n)*)';
 
     static escapeXmlString(value: string) {
         return value.replace(/[<>"'&]/g, (...capture) => {
@@ -588,8 +592,6 @@ export abstract class XmlElement implements IXmlElement {
         if (node.outerXml) {
             const [tagStart, innerXml] = this.parseOuterXml(node.outerXml);
             if (tagStart) {
-                REGEXP_ATTRVALUE.lastIndex = 0;
-                REGEXP_ATTRNAME.lastIndex = 0;
                 let source = tagStart,
                     match: Null<RegExpExecArray>;
                 while (match = REGEXP_ATTRVALUE.exec(tagStart)) {
@@ -606,6 +608,8 @@ export abstract class XmlElement implements IXmlElement {
                     }
                 }
                 this._innerXml = innerXml;
+                REGEXP_ATTRVALUE.lastIndex = 0;
+                REGEXP_ATTRNAME.lastIndex = 0;
             }
         }
         else if (node.innerXml) {
