@@ -25,21 +25,21 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         for (const tag of TAG_VOID) {
             source = source.replace(new RegExp(`</${tag}\\s*>`, 'gi'), '');
         }
-        const pattern = new RegExp(`<(?:([^\\s]${XmlWriter.PATTERN_TAGOPEN}*?(\\s*\\/?\\s*)|\\/([^\\s>]+)(\\s*))>`, 'g');
+        const pattern = new RegExp(`<(?:([^\\s]${XmlWriter.PATTERN_TAGOPEN}*?)(\\s*\\/?\\s*)|\\/([^\\s>]+)(\\s*))>`, 'g');
         let match: Null<RegExpExecArray>;
         while (match = pattern.exec(source)) {
-            let value: Undef<string>;
+            let tag: Undef<string>;
             if (match[1]) {
                 if (match[2]) {
-                    value = `<${match[1]}>`;
+                    tag = `<${match[1]}>`;
                 }
             }
             else if (match[4]) {
-                value = `</${match[3]}>`;
+                tag = `</${match[3]}>`;
             }
-            if (value) {
-                source = source.substring(0, match.index) + value + source.substring(match.index + match[0].length);
-                pattern.lastIndex -= match[0].length - value.length;
+            if (tag) {
+                source = source.substring(0, match.index) + tag + source.substring(match.index + match[0].length);
+                pattern.lastIndex -= match[0].length - tag.length;
             }
         }
         return source;

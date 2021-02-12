@@ -158,10 +158,11 @@ declare namespace functions {
         cleared: boolean;
         Document: InstallData<IDocument, DocumentConstructor>[];
         Task: InstallData<ITask, TaskConstructor>[];
+        Image: Null<Map<string, ImageConstructor>>;
         Cloud: Null<ICloud>;
         Watch: Null<IWatch>;
-        Image: Null<Map<string, ImageConstructor>>;
         Compress: Null<ICompress>;
+        readonly startTime: number;
         readonly baseDirectory: string;
         readonly body: RequestBody;
         readonly assets: ExternalAsset[];
@@ -200,7 +201,7 @@ declare namespace functions {
         getAssetContent(file: ExternalAsset): Undef<string>;
         writeBuffer(file: ExternalAsset): Null<Buffer>;
         writeImage(document: StringOfArray, data: OutputData): boolean;
-        compressFile(file: ExternalAsset): Promise<unknown>;
+        compressFile(file: ExternalAsset, overwrite?: boolean): Promise<unknown>;
         addCopy(data: FileData, saveAs?: string, replace?: boolean): Undef<string>;
         findMime(data: FileData, rename?: boolean): Promise<string>;
         transformAsset(data: FileData, parent?: ExternalAsset): Promise<void>;

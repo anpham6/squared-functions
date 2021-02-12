@@ -31,6 +31,11 @@ export interface FindElementOptions {
     id?: string;
 }
 
+export interface OuterXmlByIdOptions {
+    tagName?: string;
+    tagVoid?: boolean;
+}
+
 export interface ParserResult extends Partial<TagData> {
     element: Null<Node>;
     error: Null<Error>;
@@ -64,7 +69,7 @@ export class IXmlWriter extends IXmlBase {
     renameTag(node: XmlTagNode, tagName: string): Null<Error>;
     indexTag(tagName: string, append?: boolean): Null<Error>;
     resetTag(tagName: string): void;
-    getOuterXmlById(id: string, tagName?: string, caseSensitive?: boolean): Undef<Required<SourceContent>>;
+    getOuterXmlById(id: string, caseSensitive?: boolean, options?: OuterXmlByIdOptions): Undef<Required<SourceContent>>;
     setRawString(targetXml: string, outerXml: string): boolean;
     getRawString(index: SourceIndex): string;
     spliceRawString(content: SourceContent): string;
@@ -87,6 +92,7 @@ export interface XmlWriterConstructor {
 export class IXmlElement extends IXmlBase {
     tagVoid: boolean;
     readonly node: XmlTagNode;
+    readonly TAG_VOID: string[];
     parseOuterXml(outerXml?: string): [string, string];
     setAttribute(name: string, value: string): void;
     getAttribute(name: string): Optional<string>;

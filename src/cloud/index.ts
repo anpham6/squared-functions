@@ -182,7 +182,7 @@ class Cloud extends Module implements ICloud {
                     }
                     if (!ignore) {
                         if (item.compress) {
-                            await this.compressFile(item);
+                            tasks.push(this.compressFile(item));
                         }
                         rawFiles.push(item);
                     }
@@ -193,6 +193,10 @@ class Cloud extends Module implements ICloud {
                     }
                 }
             }
+        }
+        if (tasks.length) {
+            await Module.allSettled(tasks, ['Compress files <finalize>', 'cloud storage'], this.errors);
+            tasks = [];
         }
         for (const service in bucketMap) {
             for (const [bucket, credential] of bucketMap[service]) {

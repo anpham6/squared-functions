@@ -103,12 +103,13 @@ class FileManager extends Module implements IFileManager {
 
     delayed = 0;
     cleared = false;
-    Image: Null<Map<string, ImageConstructor>> = null;
     Document: InstallData<IDocument, DocumentConstructor>[] = [];
     Task: InstallData<ITask, TaskConstructor>[] = [];
+    Image: Null<Map<string, ImageConstructor>> = null;
     Cloud: Null<ICloud> = null;
     Watch: Null<IWatch> = null;
     Compress: Null<ICompress> = null;
+    readonly startTime = Date.now();
     readonly assets: ExternalAsset[];
     readonly documentAssets: ExternalAsset[] = [];
     readonly taskAssets: ExternalAsset[] = [];
@@ -501,7 +502,7 @@ class FileManager extends Module implements IFileManager {
         }
         return mimeType;
     }
-    async compressFile(file: ExternalAsset) {
+    async compressFile(file: ExternalAsset, overwrite = true) {
         const { localUri, compress } = file;
         if (compress && this.has(localUri)) {
             const tasks: Promise<void>[] = [];
@@ -520,11 +521,15 @@ class FileManager extends Module implements IFileManager {
                         valid = typeof Compress.compressors[format] === 'function';
                         break;
                 }
-                if (valid && withinSizeRange(localUri, data.condition) && !fs.existsSync(localUri + '.' + format)) {
+                if (!valid || !withinSizeRange(localUri, data.condition)) {
+                    continue;
+                }
+                const output = localUri + '.' + format;
+                if (overwrite || !fs.existsSync(output) || fs.statSync(output).mtimeMs < this.startTime) {
                     tasks.push(
                         new Promise<void>(resolve => {
                             try {
-                                Compress.tryFile(localUri, data, null, (err?: Null<Error>, result?: string) => {
+                                Compress.tryFile(localUri, output, data, null, (err?: Null<Error>, result?: string) => {
                                     if (err) {
                                         throw err;
                                     }
@@ -665,6 +670,7 @@ class FileManager extends Module implements IFileManager {
                         queue = items.shift();
                     }
                     if (queue) {
+                        const { uri, content } = queue;
                         const verifyBundle = async (next: ExternalAsset, value: string) => {
                             if (bundleMain) {
                                 return this.setAssetContent(next, localUri, value, next.bundleIndex);
@@ -679,7 +685,6 @@ class FileManager extends Module implements IFileManager {
                             }
                         };
                         const resumeQueue = () => processQueue(queue!, localUri, bundleMain);
-                        const { uri, content } = queue;
                         if (content) {
                             verifyBundle(queue, content).then(resumeQueue);
                         }
@@ -1029,7 +1034,7 @@ class FileManager extends Module implements IFileManager {
         if (this.Compress) {
             for (const item of this.assets) {
                 if (item.compress && !item.invalid) {
-                    tasks.push(this.compressFile(item));
+                    tasks.push(this.compressFile(item, false));
                 }
             }
             if (tasks.length) {
