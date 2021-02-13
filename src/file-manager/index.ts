@@ -305,7 +305,7 @@ class FileManager extends Module implements IFileManager {
     }
     hasDocument(instance: IModule, document: Undef<StringOfArray>) {
         const moduleName = instance.moduleName;
-        return moduleName && document ? Array.isArray(document) && document.includes(moduleName) || document === moduleName : false;
+        return moduleName ? document === moduleName || Array.isArray(document) && document.includes(moduleName) : false;
     }
     setLocalUri(file: ExternalAsset) {
         const uri = file.uri;
@@ -342,14 +342,13 @@ class FileManager extends Module implements IFileManager {
         return Module.joinPosix(file.moveTo, file.pathname, filename);
     }
     getDocumentAssets(instance: IModule) {
-        const moduleName = instance.moduleName;
-        return moduleName ? this.documentAssets.filter(item => item.document!.includes(moduleName)) : [];
+        return this.documentAssets.filter(item => this.hasDocument(instance, item.document));
     }
     getCloudAssets(instance: IModule) {
-        return this.Cloud ? this.Cloud.database.filter(item => this.hasDocument(instance, item.document) && item.element) : [];
+        return this.Cloud ? this.Cloud.database.filter(item => this.hasDocument(instance, item.document)) : [];
     }
     getElements() {
-        return (this.documentAssets as ElementAction[]).filter(item => item.element).concat((this.Cloud?.database || []) as ElementAction[]).filter(item => item.element).map(item => item.element!);
+        return (this.documentAssets as ElementAction[]).concat((this.Cloud?.database || []) as ElementAction[]).filter(item => item.element).map(item => item.element!);
     }
     findAsset(uri: string, instance?: IModule) {
         if (uri) {

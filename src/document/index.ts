@@ -14,7 +14,7 @@ const getSourceMappingURL = (value: string) => `\n//# sourceMappingURL=${value}\
 
 abstract class Document extends Module implements IDocument {
     static async using(this: IFileManager, instance: IDocument, file: ExternalAsset) {}
-    static async finalize(this: IFileManager, instance: IDocument, assets: ExternalAsset[]) {}
+    static async finalize(this: IFileManager, instance: IDocument) {}
 
     static createSourceMap(value: string) {
         return Object.create({

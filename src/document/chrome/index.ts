@@ -453,7 +453,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             const cloud = this.Cloud;
             let source = this.getUTF8String(html, localUri);
             const domBase = new DomWriter(moduleName, source, this.getElements());
-            const database = this.getCloudAssets(instance);
+            const database = this.getCloudAssets(instance).filter(item => item.element);
             if (database.length) {
                 const cacheKey = uuid.v4();
                 const pattern = /\$\{\s*(\w+)\s*\}/g;
