@@ -956,12 +956,9 @@ class FileManager extends Module implements IFileManager {
                 this.replace(file, minFile);
             }
         }
-        if (this.documentAssets.length) {
-            for (const { instance, constructor } of this.Document) {
-                const assets = this.getDocumentAssets(instance);
-                if (assets.length) {
-                    await constructor.finalize.call(this, instance, assets);
-                }
+        for (const { instance, constructor } of this.Document) {
+            if (instance.assets.length) {
+                await constructor.finalize.call(this, instance);
             }
         }
         for (const item of this.assets) {

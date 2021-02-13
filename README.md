@@ -917,9 +917,12 @@ The entire page can similarly be transformed as a group using the "saveAs" attri
 
 ```javascript
 squared.saveAs('index.zip', {
-    removeUnusedStyles: false, // Use only when you are not switching classnames with JavaScript
     productionRelease: false, // Ignore local url rewriting and load assets using absolute paths
     preserveCrossOrigin: false, // Ignore downloading a local copy of assets hosted on other domains
+
+    removeUnusedClasses: false, // CSS classes that can be removed in current state
+    removeUnusedSelectors: false, // CSS selectors [:first-child] that can be removed in current state (not recommend for pages with forms [:valid] and active states [:hover])
+    retainUsedStyles: [/* css selectors */], // Styles that should be kept which are used later with JavaScript
 
     // All attributes are optional except "filename" for <script> and <link>.
     saveAs: {

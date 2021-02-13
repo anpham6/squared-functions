@@ -16,16 +16,16 @@ export interface DocumentAsset extends ExternalAsset, ChromeAsset {
 
 export interface IChromeDocument extends IDocument {
     assets: DocumentAsset[];
-    htmlFiles: DocumentAsset[];
+    htmlFile: Null<DocumentAsset>;
     cssFiles: DocumentAsset[];
     baseDirectory: string;
     baseUrl: string;
-    productionRelease: boolean;
     internalServerRoot: string;
     internalAssignUUID: string;
     unusedStyles?: string[];
+    readonly productionRelease: boolean;
 }
 
 export interface ChromeDocumentConstructor extends DocumentConstructor {
-    new(body: RequestBody, settings?: DocumentModule, productionRelease?: boolean): IChromeDocument;
+    new(settings: DocumentModule, assets?: DocumentAsset[], templateMap?: StandardMap, productionRelease?: boolean): IChromeDocument;
 }

@@ -24,7 +24,7 @@ const REGEXP_CSSCONTENT = /\b(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^
 function removeDatasetNamespace(name: string, source: string) {
     if (source.includes('data-' + name)) {
         return source
-            .replace(new RegExp(`(\\s*)<(script|style)${DomWriter.PATTERN_TAGOPEN}+?data-${name}-file\\s*=\\s*(["'])?exclude\\3${DomWriter.PATTERN_TAGOPEN}*>[\\S\\s]*?<\\/\\2\\>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[4]))
+            .replace(new RegExp(`(\\s*)<(script|style)${DomWriter.PATTERN_TAGOPEN}+?data-${name}-file\\s*=\\s*(["'])?exclude\\3${DomWriter.PATTERN_TAGOPEN}*>[\\S\\s]*?<\\/\\2>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[4]))
             .replace(new RegExp(`(\\s*)<link${DomWriter.PATTERN_TAGOPEN}+?data-${name}-file\\s*=\\s*(["'])?exclude\\2${DomWriter.PATTERN_TAGOPEN}*>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[3]))
             .replace(new RegExp(`(\\s*)<script${DomWriter.PATTERN_TAGOPEN}+?data-${name}-template\\s*${DomWriter.PATTERN_ATTRVALUE + DomWriter.PATTERN_TAGOPEN}*>[\\S\\s]*?<\\/script>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[2]))
             .replace(new RegExp(`\\s+data-${name}-[a-z-]+\\s*` + DomWriter.PATTERN_ATTRVALUE, 'g'), '');
@@ -363,7 +363,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 break;
             }
             case '@text/html': {
-                const items = (this.getDocumentAssets(instance) as DocumentAsset[]).filter(item => item.format === 'base64' && item.element);
+                const items = instance.assets.filter(item => item.format === 'base64' && item.element);
                 if (items.length) {
                     const domBase = new DomWriter(instance.moduleName, this.getUTF8String(file, localUri), this.getElements());
                     for (const item of items) {
@@ -400,8 +400,9 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
     }
 
-    static async finalize(this: IFileManager, instance: IChromeDocument, assets: DocumentAsset[]) {
+    static async finalize(this: IFileManager, instance: IChromeDocument) {
         const moduleName = instance.moduleName;
+        const html = instance.htmlFile;
         const inlineMap = new Set<DocumentAsset>();
         const base64Map: StringMap = {};
         const elements: DocumentAsset[] = [];
@@ -414,7 +415,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
             return source;
         };
-        for (const item of assets) {
+        for (const item of instance.assets) {
             if (item.inlineBase64) {
                 try {
                     base64Map[item.inlineBase64] = `data:${item.mimeType!};base64,${(item.buffer ? item.buffer.toString('base64') : fs.readFileSync(item.localUri!, 'base64')).trim()}`;
@@ -445,12 +446,13 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
             css.sourceUTF8 = source;
         }
-        for (const html of instance.htmlFiles) {
+        if (html) {
             const { format, localUri } = html;
             this.formatMessage(this.logType.PROCESS, 'HTML', ['Rewriting content...', path.basename(localUri!)]);
             const time = Date.now();
             const cloud = this.Cloud;
-            const domBase = new DomWriter(moduleName, this.getUTF8String(html, localUri), this.getElements());
+            let source = this.getUTF8String(html, localUri);
+            const domBase = new DomWriter(moduleName, source, this.getElements());
             const database = this.getCloudAssets(instance);
             if (database.length) {
                 const cacheKey = uuid.v4();
@@ -590,6 +592,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                     setElementAttribute.call(instance, html, item, domElement, value);
                     if (srcSet) {
+                        const length = srcSet.length;
                         let src = domElement.getAttribute('srcset') || '',
                             i = 0;
                         while (i < length) {
@@ -604,8 +607,11 @@ class ChromeDocument extends Document implements IChromeDocument {
                     delete item.inlineCloud;
                 }
             }
-            let source = replaceContent(removeDatasetNamespace(moduleName, domBase.close()));
-            source = transformCss.call(this, assets, html, source, true) || source;
+            if (domBase.modified) {
+                source = domBase.close();
+            }
+            source = replaceContent(removeDatasetNamespace(moduleName, source));
+            source = transformCss.call(this, instance.assets, html, source, true) || source;
             if (format) {
                 const result = await instance.transform('html', source, format);
                 if (result) {
@@ -630,7 +636,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     }
 
     assets: DocumentAsset[] = [];
-    htmlFiles: DocumentAsset[] = [];
+    htmlFile: Null<DocumentAsset> = null;
     cssFiles: DocumentAsset[] = [];
     baseDirectory = '';
     baseUrl = '';
@@ -643,12 +649,11 @@ class ChromeDocument extends Document implements IChromeDocument {
     private _cloudCssMap!: ObjectMap<DocumentAsset>;
     private _cloudUploaded!: Set<string>;
     private _cloudEndpoint!: Null<RegExp>;
-    private _cloudHtml: Undef<DocumentAsset>;
 
     constructor(
         settings: DocumentModule,
         templateMap?: StandardMap,
-        public productionRelease = false)
+        public readonly productionRelease = false)
     {
         super(settings, templateMap);
     }
@@ -669,22 +674,17 @@ class ChromeDocument extends Document implements IChromeDocument {
             if (a.bundleId && a.bundleId === b.bundleId) {
                 return a.bundleIndex! - b.bundleIndex!;
             }
-            switch (a.mimeType) {
-                case '@text/html':
-                case '@text/css':
-                    return -1;
-            }
-            switch (b.mimeType) {
-                case '@text/html':
-                case '@text/css':
-                    return 1;
-            }
             return 0;
         });
         for (const item of assets) {
             switch (item.mimeType) {
                 case '@text/html':
-                    this.htmlFiles.push(item);
+                    if (!this.htmlFile) {
+                        this.htmlFile = item;
+                    }
+                    else {
+                        item.mimeType = 'text/html';
+                    }
                     break;
                 case '@text/css':
                     this.cssFiles.push(item);
@@ -751,9 +751,8 @@ class ChromeDocument extends Document implements IChromeDocument {
         this._cloudCssMap = {};
         this._cloudUploaded = new Set();
         this._cloudEndpoint = null;
-        this._cloudHtml = this.htmlFiles[0];
-        if (this._cloudHtml) {
-            const endpoint = state.instance.getStorage('upload', this._cloudHtml.cloudStorage)?.upload?.endpoint;
+        if (this.htmlFile) {
+            const endpoint = state.instance.getStorage('upload', this.htmlFile.cloudStorage)?.upload?.endpoint;
             if (endpoint) {
                 this._cloudEndpoint = new RegExp(escapeRegexp(Document.toPosix(endpoint)) + '/', 'g');
             }
@@ -766,12 +765,12 @@ class ChromeDocument extends Document implements IChromeDocument {
         if (file.inlineCssCloud) {
             this._cloudCssMap[file.inlineCssCloud] = file;
         }
-        return this._cloudHtml === file || this.cssFiles.includes(file);
+        return this.htmlFile === file || this.cssFiles.includes(file);
     }
     async cloudUpload(state: CloudScopeOrigin, file: DocumentAsset, url: string, active: boolean) {
         if (active) {
             const host = state.host;
-            const html = this._cloudHtml;
+            const html = this.htmlFile;
             const { inlineCloud, inlineCssCloud } = file;
             let cloudUrl = this._cloudEndpoint ? url.replace(this._cloudEndpoint, '') : url;
             if (inlineCloud) {
@@ -801,7 +800,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     }
     async cloudFinalize(state: CloudScopeOrigin) {
         const { host, localStorage } = state;
-        const html = this._cloudHtml;
+        const html = this.htmlFile;
         const cloudMap = this._cloudMap;
         let tasks: Promise<unknown>[] = [];
         for (const item of this.cssFiles) {

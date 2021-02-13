@@ -103,6 +103,7 @@ abstract class Document extends Module implements IDocument {
     }
 
     abstract moduleName: string;
+    abstract assets: ExternalAsset[];
 
     private _packageMap: ObjectMap<Transformer> = {};
 
