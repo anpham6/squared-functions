@@ -505,7 +505,7 @@ export abstract class XmlWriter implements IXmlWriter {
                 closeTag = 0;
             if (!tagVoid) {
                 let openTag = 1;
-                const pattern = new RegExp(`(<${escapeRegexp(tagName)}\\b)|(</${escapeRegexp(tagName)}\\s*>)`, caseSensitive ? 'g' : 'gi');
+                const pattern = new RegExp(`(<${escapeRegexp(tagName)}\\s*)|(</${escapeRegexp(tagName)}\\s*>)`, caseSensitive ? 'g' : 'gi');
                 while (match = pattern.exec(source)) {
                     if (match[1]) {
                         ++openTag;

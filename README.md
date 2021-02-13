@@ -6,6 +6,7 @@ These are the available options when creating archives or copying files. Example
 
 Image conversion can be achieved using the "commands" array property in a FileAsset object. The supported formats are:
 
+```javascript
 * png - r/w
 * jpeg - r/w
 * webp - r/w
@@ -13,12 +14,11 @@ Image conversion can be achieved using the "commands" array property in a FileAs
 * gif - r
 * tiff - r
 
-NOTE: WebP support requires manual NPM installation of the binaries.
+// NOTE: WebP support requires manual NPM installation of the binaries.
 
-* dwebp - r
-* cwebp - w
-
-npm i dwebp-bin && npm i cwebp-bin
+* dwebp - r // npm i dwebp-bin
+* cwebp - w // npm i cwebp-bin
+```
 
 ```javascript
 // All commands are optional except "format". Outer groupings and inner brackets are required.

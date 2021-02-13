@@ -13,7 +13,7 @@ const DomHandler = domhandler.DomHandler;
 
 const TAG_VOID = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
 
-const formatHTML = (value: string) => value.replace(/<html\b/i, '<html');
+const formatHTML = (value: string) => value.replace(/<html(\s*)/i, (...capture) => '<html' + (capture[1] ? ' ' : ''));
 const getAttrId = (document: string) => `data-${document}-id`;
 
 export class DomWriter extends XmlWriter implements IDomWriter {

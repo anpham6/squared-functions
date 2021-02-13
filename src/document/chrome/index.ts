@@ -19,7 +19,7 @@ import Cloud from '../../cloud';
 import { DomWriter, HtmlElement } from '../parse/dom';
 
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
-const REGEXP_CSSCONTENT = /\b(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^)]+)\s*\))/ig;
+const REGEXP_CSSCONTENT = /\s*(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^)]+)\s*\))/ig;
 
 function removeDatasetNamespace(name: string, source: string) {
     if (source.includes('data-' + name)) {

@@ -1,6 +1,5 @@
 import type { IFileManager } from '../../types/lib';
 import type { ExternalAsset } from '../../types/lib/asset';
-import type { TaskModule } from '../../types/lib/module';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -122,10 +121,6 @@ class Gulp extends Task {
     }
 
     readonly moduleName = 'gulp';
-
-    constructor(module: TaskModule) {
-        super(module);
-    }
 
     execute(manager: IFileManager, gulp: GulpTask, callback: (value?: unknown) => void) {
         const { task, origDir, data } = gulp;

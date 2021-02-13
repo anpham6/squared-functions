@@ -31,34 +31,42 @@ cloud:
       serviceInstanceId: ""
       endpoint: ""
       region: ""
-gulp:
-  minify: "./gulpfile.js"
-chrome:
-  html:
-    prettier:
-      beautify:
-        parser: html
-        printWidth: 120
-        tabWidth: 4
-  js:
-    terser:
-      minify-example: |
-        function(context, value, options, resolve) {
-          resolve(context.minify(value, options.outputConfig).code);
-        }
-      minify-example-output:
-        keep_classnames: true
-    "@babel/core":
-      es5-example: "./es5.js"
-    rollup:
-      bundle: "./rollup.config.js"
-      bundle-es6:
-        external:
-        - lodash
-      bundle-es6-output: "./rollup.output.config.js"
-  css:
-    node-sass:
-      sass-example: |
-        function(context, value, options, resolve) {
-          return resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css);
-        }
+task:
+  gulp:
+    handler: "@squared-functions/task/gulp"
+    settings:
+      minify: "./gulpfile.js"
+document:
+  chrome:
+    handler: "@squared-functions/document/chrome"
+    eval_function: true
+    eval_template: true
+    settings:
+      html:
+        prettier:
+          beautify:
+            parser: html
+            printWidth: 120
+            tabWidth: 4
+      js:
+        terser:
+          minify-example: |
+            function(context, value, options, resolve) {
+              resolve(context.minify(value, options.outputConfig).code);
+            }
+          minify-example-output:
+            keep_classnames: true
+        "@babel/core":
+          es5-example: "./es5.js"
+        rollup:
+          bundle: "./rollup.config.js"
+          bundle-es6:
+            external:
+            - lodash
+          bundle-es6-output: "./rollup.output.config.js"
+      css:
+        node-sass:
+          sass-example: |
+            function(context, value, options, resolve) {
+              return resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css);
+            }

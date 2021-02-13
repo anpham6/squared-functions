@@ -1,60 +1,60 @@
 selector: "#picture1"
 type: image
 commands:
-- png(100x200){90,180,270}
+  - png(100x200){90,180,270}
 cloudStorage:
-- service: aws
-  bucket: squared-001
-  credential:
-    accessKeyId: "**********"
-    secretAccessKey: "**********"
-    region: us-west-2
-    sessionToken: "**********"
-  upload:
-    active: false
-    localStorage: true
-    filename: picture1.webp
-    all: false
-    overwrite: false
-  download:
-    filename: picture2.png
-    versionId: '12345'
-    pathname: download/images
-    active: false
-    overwrite: false
-    deleteObject: false
-- service: azure
-  bucket: squared-002
-  credential:
-    accountName: "**********"
-    accountKey: "**********"
-    connectionString: "**********"
-    sharedAccessSignature: "**********"
-  upload:
-    pathname: a/b/c/
-    endpoint: http://squaredjs.azureedge.net/squared-002
-- service: gcloud
-  bucket: squared-003
-  credential:
-    keyFilename: "./gcloud.json"
-  admin:
-    publicRead: false
-    emptyBucket: false
-    preservePath: false
-  upload:
-    active: true
-    publicRead: false
-- service: ibm
-  bucket: squared-004
-  credential:
-    apiKeyId: "**********"
-    serviceInstanceId: "**********"
-    region: us-south
-    endpoint: https://s3.us-south.cloud-object-storage.appdomain.cloud
-- service: oci
-  bucket: squared-005
-  credential:
-    region: us-phoenix-1
-    namespace: abcdefghijkl
-    accessKeyId: "**********"
-    secretAccessKey: "**********"
+  - service: aws
+    bucket: squared-001
+    credential:
+      accessKeyId: "**********"
+      secretAccessKey: "**********"
+      region: us-west-2
+      sessionToken: "**********"
+    upload:
+      active: false
+      localStorage: true
+      filename: picture1.webp
+      all: false
+      overwrite: false
+    download:
+      filename: picture2.png
+      versionId: '12345'
+      pathname: download/images
+      active: false
+      overwrite: false
+      deleteObject: false
+  - service: azure
+    bucket: squared-002
+    credential:
+      accountName: "**********"
+      accountKey: "**********"
+      connectionString: "**********"
+      sharedAccessSignature: "**********"
+    upload:
+      pathname: a/b/c/
+      endpoint: http://squaredjs.azureedge.net/squared-002
+  - service: gcloud
+    bucket: squared-003
+    credential:
+      keyFilename: "./gcloud.json"
+    admin:
+      publicRead: false
+      emptyBucket: false
+      preservePath: false
+    upload:
+      active: true
+      publicRead: false
+  - service: ibm
+    bucket: squared-004
+    credential:
+      apiKeyId: "**********"
+      serviceInstanceId: "**********"
+      region: us-south
+      endpoint: https://s3.us-south.cloud-object-storage.appdomain.cloud
+  - service: oci
+    bucket: squared-005
+    credential:
+      region: us-phoenix-1
+      namespace: abcdefghijkl
+      accessKeyId: "**********"
+      secretAccessKey: "**********"
