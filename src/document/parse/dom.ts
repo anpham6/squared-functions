@@ -184,7 +184,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
                             const startIndex = target.startIndex!;
                             const endIndex = target.endIndex!;
                             this.spliceRawString({ startIndex, endIndex, outerXml });
-                            this.update({ index: -1, id: { [this.documentName]: target.attribs[this.nameOfId] }, tagName: target.tagName, tagIndex, tagCount: nodes.length, startIndex, endIndex }, outerXml);
+                            this.update({ id: { [this.documentName]: target.attribs[this.nameOfId] }, tagName: target.tagName, tagIndex, tagCount: nodes.length, startIndex, endIndex }, outerXml);
                             ++result;
                             continue;
                         }

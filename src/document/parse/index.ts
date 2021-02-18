@@ -1,6 +1,6 @@
 import type { TagAppend } from '../../types/lib/squared';
 
-import type { AttributeList, AttributeMap, IXmlElement, IXmlWriter, OuterXmlByIdOptions, ReplaceOptions, SaveResult, SourceContent, SourceIndex, WriteOptions, WriteResult, XmlTagNode } from './document';
+import type { AttributeList, AttributeMap, IXmlElement, IXmlWriter, OuterXmlByIdOptions, ReplaceOptions, SaveResult, SourceContent, SourceIndex, SourceTagNode, WriteOptions, WriteResult, XmlTagNode } from './document';
 
 import escapeRegexp = require('escape-string-regexp');
 import uuid = require('uuid');
@@ -23,8 +23,8 @@ function applyAttributes(attrs: AttributeMap, data: Undef<StandardMap>, lowerCas
     }
 }
 
-function deletePosition(item: XmlTagNode, rootName: Undef<string>) {
-    if (item.tagName !== rootName) {
+function deletePosition(item: XmlTagNode, rootName: Undef<string>, startIndex?: number) {
+    if (isIndex(item.startIndex) && (!isIndex(startIndex) || item.startIndex >= startIndex) && item.tagName !== rootName) {
         delete item.startIndex;
         delete item.endIndex;
     }
@@ -241,6 +241,9 @@ export abstract class XmlWriter implements IXmlWriter {
         if (output) {
             this.source = output;
             ++this.modifyCount;
+            if (!this.elements.includes(node)) {
+                this.elements.push(node);
+            }
             if (append) {
                 if (!append.prepend && isIndex(node.index)) {
                     ++node.index;
@@ -280,9 +283,6 @@ export abstract class XmlWriter implements IXmlWriter {
         return true;
     }
     save() {
-        for (const item of this.elements) {
-            deletePosition(item, this.rootName);
-        }
         this.reset();
         return this.source;
     }
@@ -307,8 +307,8 @@ export abstract class XmlWriter implements IXmlWriter {
                     elements.splice(i--, 1);
                 }
             }
-            else if (item.tagName !== rootName && (!isIndex(startIndex) || isIndex(item.startIndex) && item.startIndex >= startIndex)) {
-                deletePosition(item, rootName);
+            else {
+                deletePosition(item, rootName, startIndex);
             }
         }
     }
@@ -484,6 +484,12 @@ export abstract class XmlWriter implements IXmlWriter {
             }
         }
     }
+    resetPosition(startIndex?: number) {
+        const rootName = this.rootName;
+        for (const item of this.elements) {
+            deletePosition(item, rootName, startIndex);
+        }
+    }
     close() {
         const source = this.source;
         this.source = '';
@@ -520,15 +526,14 @@ export abstract class XmlWriter implements IXmlWriter {
                 endIndex = XmlWriter.findCloseTag(source, startIndex);
             }
             if (endIndex !== -1) {
-                return { tagName, outerXml: source.substring(startIndex, endIndex + 1), startIndex, endIndex } as Required<SourceContent>;
+                return { tagName, outerXml: source.substring(startIndex, endIndex + 1), startIndex, endIndex, lowerCase: !caseSensitive } as SourceTagNode;
             }
         }
     }
     setRawString(targetXml: string, outerXml: string) {
-        const source = this.source.replace(targetXml, outerXml);
-        if (source !== this.source) {
-            ++this.modifyCount;
-            this.source = source;
+        const startIndex = this.source.indexOf(targetXml);
+        if (startIndex !== -1) {
+            this.spliceRawString({ startIndex, endIndex: startIndex + targetXml.length - 1, outerXml });
             return true;
         }
         return false;
@@ -537,8 +542,11 @@ export abstract class XmlWriter implements IXmlWriter {
         const { startIndex, endIndex } = index;
         return this.source.substring(startIndex, endIndex + 1);
     }
-    spliceRawString(content: SourceContent) {
+    spliceRawString(content: SourceContent, reset = true) {
         const { startIndex, endIndex, outerXml } = content;
+        if (reset) {
+            this.resetPosition(startIndex);
+        }
         ++this.modifyCount;
         return this.source = this.source.substring(0, startIndex) + outerXml + this.source.substring(endIndex + 1);
     }
@@ -549,6 +557,7 @@ export abstract class XmlWriter implements IXmlWriter {
         this.modifyCount = 0;
         this.failCount = 0;
         this.errors.length = 0;
+        this.resetPosition();
     }
     get newId() {
         return uuid.v4();

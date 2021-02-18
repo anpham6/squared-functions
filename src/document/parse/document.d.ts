@@ -7,8 +7,12 @@ export interface SourceIndex {
     endIndex: number;
 }
 
-export interface SourceContent extends SourceIndex, Partial<TagData> {
+export interface SourceContent extends SourceIndex {
     outerXml: string;
+}
+
+export interface SourceTagNode extends SourceContent, TagData {
+    lowerCase?: boolean;
 }
 
 export interface XmlTagNode extends IXmlTagNode, Partial<SourceIndex> {}
@@ -69,10 +73,11 @@ export class IXmlWriter extends IXmlBase {
     renameTag(node: XmlTagNode, tagName: string): Null<Error>;
     indexTag(tagName: string, append?: boolean): Null<Error>;
     resetTag(tagName: string): void;
-    getOuterXmlById(id: string, caseSensitive?: boolean, options?: OuterXmlByIdOptions): Undef<Required<SourceContent>>;
+    resetPosition(startIndex?: number): void;
+    getOuterXmlById(id: string, caseSensitive?: boolean, options?: OuterXmlByIdOptions): Undef<SourceTagNode>;
     setRawString(targetXml: string, outerXml: string): boolean;
     getRawString(index: SourceIndex): string;
-    spliceRawString(content: SourceContent): string;
+    spliceRawString(content: SourceContent, reset?: boolean): string;
     hasErrors(): boolean;
     get newId(): string;
 }
