@@ -785,7 +785,7 @@ interface CloudDatabase {
     "table": "demo",
     "partitionKey": "Pictures", // optional
     "query": "SELECT * FROM c WHERE c.id = '1'", // OR: storedProcedureId + partitionKey? + params?
-    "value": "<b>${title}</b>: ${description}"
+    "value": "<b>${__index__}. ${title}</b>: ${description}" // "__index__": Result row index value
   }
 }
 

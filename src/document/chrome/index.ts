@@ -474,10 +474,10 @@ class ChromeDocument extends Document implements IChromeDocument {
                             if (DomWriter.hasInnerXml(element!.tagName)) {
                                 let output = '',
                                     match: Null<RegExpExecArray>;
-                                for (const row of result) {
+                                for (let i = 0; i < result.length; ++i) {
                                     let value = template;
                                     while (match = pattern.exec(template)) {
-                                        value = value.replace(match[0], getObjectValue(row, match[1]));
+                                        value = value.replace(match[0], match[0] === '${__index__}' ? (i + 1).toString() : getObjectValue(result[i], match[1]));
                                     }
                                     output += value;
                                     pattern.lastIndex = 0;
