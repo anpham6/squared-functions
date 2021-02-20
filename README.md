@@ -816,6 +816,7 @@ interface CloudDatabase {
     },
     "query": "SELECT name, count FROM `demo.names_2014` WHERE gender = 'M' ORDER BY count DESC LIMIT 10",
     "limit": 5 // optional
+    "removeEmpty": false, // optional
     "value": "<b>${name}</b>: ${count}"
   }
 }

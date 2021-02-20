@@ -467,9 +467,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                         });
                     })
                 )).forEach((result, index) => {
+                    const { element, value: template, removeEmpty } = database[index];
+                    const domElement = new HtmlElement(moduleName, element!);
                     if (result.length) {
-                        const { element, value: template } = database[index];
-                        const domElement = new HtmlElement(moduleName, element!);
                         if (typeof template === 'string') {
                             if (DomWriter.hasInnerXml(element!.tagName)) {
                                 let output = '',
@@ -517,6 +517,10 @@ class ChromeDocument extends Document implements IChromeDocument {
                         }
                     }
                     else {
+                        if (removeEmpty && typeof template === 'string' && !domBase.write(domElement, { remove: true })) {
+                            const { tagName, tagIndex } = element!;
+                            this.writeFail(['Cloud text removal when empty', tagName], getErrorDOM(tagName, tagIndex));
+                        }
                         const { service, table, id, query } = database[index];
                         let queryString = '';
                         if (id) {
