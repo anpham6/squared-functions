@@ -467,11 +467,13 @@ class ChromeDocument extends Document implements IChromeDocument {
                         });
                     })
                 )).forEach((result, index) => {
-                    const { element, value: template, removeEmpty } = database[index];
-                    const domElement = new HtmlElement(moduleName, element!);
+                    const item = database[index];
+                    const element = item.element!;
+                    const domElement = new HtmlElement(moduleName, element);
+                    const template = item.value || domElement.innerXml;
                     if (result.length) {
                         if (typeof template === 'string') {
-                            if (DomWriter.hasInnerXml(element!.tagName)) {
+                            if (!domElement.tagVoid) {
                                 let output = '',
                                     match: Null<RegExpExecArray>;
                                 for (let i = 0; i < result.length; ++i) {
@@ -512,13 +514,13 @@ class ChromeDocument extends Document implements IChromeDocument {
                             }
                         }
                         if (!domBase.write(domElement)) {
-                            const { tagName, tagIndex } = element!;
+                            const { tagName, tagIndex } = element;
                             this.writeFail(['Cloud text replacement', tagName], getErrorDOM(tagName, tagIndex));
                         }
                     }
                     else {
-                        if (removeEmpty && typeof template === 'string' && !domBase.write(domElement, { remove: true })) {
-                            const { tagName, tagIndex } = element!;
+                        if (item.removeEmpty && !domBase.write(domElement, { remove: true })) {
+                            const { tagName, tagIndex } = element;
                             this.writeFail(['Cloud text removal when empty', tagName], getErrorDOM(tagName, tagIndex));
                         }
                         const { service, table, id, query } = database[index];

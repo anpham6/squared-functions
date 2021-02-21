@@ -734,11 +734,9 @@ Basic text replacement can be achieved using any of these cloud based document d
 ```
 
 ```javascript
-// NOTE: Attribute "table" is required except when using BigQuery
-
 interface CloudDatabase {
-    table: string;
-    value: string | ObjectMap<string | string[]>;
+    table?: string; // Required except when using BigQuery
+    value?: string | ObjectMap<string | string[]>; // Uses innerHTML for replacement when undefined
     name?: string;
     id?: string;
     query?: string | PlainObject | any[];
@@ -767,7 +765,7 @@ interface CloudDatabase {
       "ExpressionAttributeValues": { ":value": "1" }
     },
     "limit": 1, // optional
-    "value": "<b>${title}</b>: ${description}" // Only one field per template literal
+    "value": "<b>${title}</b>: ${description}" // Only one field per template literal (optional)
   }
 }
 
