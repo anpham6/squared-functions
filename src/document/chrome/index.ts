@@ -20,6 +20,8 @@ import { DomWriter, HtmlElement } from '../parse/dom';
 
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
 const REGEXP_CSSCONTENT = /\s*(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^)]+)\s*\))/ig;
+const REGEXP_OBJECTPROPERTY = /\$\{\s*(\w+)\s*\}/g;
+const REGEXP_TEMPLATECONDITIONAL = /(?:\n\s+)?\{\{\s*if\s+(!)?\s*([^}\s]+)\s*\}\}([\S\s]*?)(?:\s*\{\{\s*else\s*\}\}([\S\s]*?)\s*)?\s*\{\{\s*end\s*\}\}/g;
 
 function removeDatasetNamespace(name: string, source: string) {
     if (source.includes('data-' + name)) {
@@ -32,7 +34,7 @@ function removeDatasetNamespace(name: string, source: string) {
     return source;
 }
 
-function getObjectValue(data: unknown, key: string, joinString = ' ') {
+function getObjectValue(data: unknown, key: string) {
     const pattern = /([^[.\s]+)((?:\s*\[[^\]]+\]\s*)+)?\s*\.?\s*/g;
     const indexPattern = /\[\s*(["'])?(.+?)\1\s*\]/g;
     let found = false,
@@ -61,16 +63,18 @@ function getObjectValue(data: unknown, key: string, joinString = ' ') {
         }
         return '';
     }
-    if (found) {
-        if (Array.isArray(value)) {
-            return value.join(joinString);
-        }
-        else if (typeof value === 'object') {
-            return JSON.stringify(value);
-        }
-        return (value as string).toString();
+    return found ? value : '';
+}
+
+function valueAsString(value: unknown, joinString = ' ') {
+    switch (typeof value) {
+        case 'string':
+        case 'number':
+        case 'boolean':
+            return value.toString();
+        default:
+            return Array.isArray(value) ? value.join(joinString) : JSON.stringify(value);
     }
-    return '';
 }
 
 function removeCss(source: string, styles: string[]) {
@@ -456,7 +460,6 @@ class ChromeDocument extends Document implements IChromeDocument {
             const database = this.getCloudAssets(instance).filter(item => item.element);
             if (database.length) {
                 const cacheKey = uuid.v4();
-                const pattern = /\$\{\s*(\w+)\s*\}/g;
                 (await Promise.all(
                     database.map(item => {
                         return cloud!.getDatabaseRows(item, cacheKey).catch(err => {
@@ -477,12 +480,22 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 let output = '',
                                     match: Null<RegExpExecArray>;
                                 for (let i = 0; i < result.length; ++i) {
-                                    let value = template;
-                                    while (match = pattern.exec(template)) {
-                                        value = value.replace(match[0], match[0] === '${__index__}' ? (i + 1).toString() : getObjectValue(result[i], match[1]));
+                                    const data = result[i];
+                                    let segment = template;
+                                    while (match = REGEXP_OBJECTPROPERTY.exec(template)) {
+                                        segment = segment.replace(match[0], match[0] === '${__index__}' ? (i + 1).toString() : valueAsString(getObjectValue(data, match[1])));
                                     }
-                                    output += value;
-                                    pattern.lastIndex = 0;
+                                    const current = segment;
+                                    while (match = REGEXP_TEMPLATECONDITIONAL.exec(current)) {
+                                        let value = new Boolean(getObjectValue(data, match[2]));
+                                        if (match[1]) {
+                                            value = !value;
+                                        }
+                                        segment = segment.replace(match[0], value ? match[3] : match[4] || '');
+                                    }
+                                    output += segment;
+                                    REGEXP_OBJECTPROPERTY.lastIndex = 0;
+                                    REGEXP_TEMPLATECONDITIONAL.lastIndex = 0;
                                 }
                                 domElement.innerXml = output;
                             }
@@ -504,7 +517,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             }
                                             continue;
                                         }
-                                        value += (value ? joinString : '') + getObjectValue(row, col, joinString);
+                                        value += (value ? joinString : '') + valueAsString(getObjectValue(row, col), joinString);
                                     }
                                     if (value) {
                                         domElement.setAttribute(attr, value);

@@ -799,7 +799,7 @@ interface CloudDatabase {
     "table": "demo",
     "query": [["group", "==", "Firestore"], ["id", "==", "1"]], // where
     "orderBy": [["title", "asc"]], // optional
-    "value": "<b>${title}</b>: ${description}"
+    "value": "{{if !expired}}<b>${title}</b>: ${description}{{else}}Expired{{end}}" // Non-nested conditional truthy property checks
   }
 }
 
