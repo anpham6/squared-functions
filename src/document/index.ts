@@ -1,6 +1,6 @@
 import type { IDocument, IFileManager } from '../types/lib';
 import type { ExternalAsset } from '../types/lib/asset';
-import type { ConfigOrTransformer, PluginConfig, SourceMap, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOptions, TransformOutput, TransformResult, Transformer } from '../types/lib/document';
+import type { ConfigOrTransformer, PluginConfig, SourceMap, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOptions, TransformOutput, TransformResult, Transformer, ViewEngine } from '../types/lib/document';
 import type { DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
 
@@ -198,6 +198,32 @@ abstract class Document extends Module implements IDocument {
                 break;
         }
         delete data[name];
+    }
+    async parseTemplate(viewEngine: ViewEngine | string, template: string, data: PlainObject[]) {
+        if (typeof viewEngine === 'string') {
+            const view = (this.module.settings?.view as Undef<StandardMap>)?.[viewEngine] as Undef<ViewEngine>;
+            if (!view) {
+                this.writeFail('View engine not found', new Error(`Unknown view engine <${viewEngine}>`));
+                return null;
+            }
+            viewEngine = view;
+        }
+        const { name, options = {} } = viewEngine;
+        let result = '';
+        try {
+            const context = require(name);
+            const render = await context.compile(template, options.compile) as FunctionType<string>;
+            for (let i = 0; i < data.length; ++i) {
+                const row = data[i];
+                row['__index__'] = i + 1;
+                result += render(options.output ? { ...options.output, ...row } : row);
+            }
+        }
+        catch (err) {
+            this.writeFail(['View engine incompatible', name], err);
+            return null;
+        }
+        return result;
     }
     async transform(type: string, code: string, format: string, options: TransformOutput = {}): Promise<Void<TransformResult>> {
         const data = this.module.settings?.[type] as StandardMap;

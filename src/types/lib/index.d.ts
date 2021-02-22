@@ -7,7 +7,7 @@ import type { CompressFormat, CompressLevel, LocationUri, ResponseData, XmlTagNo
 import type { ExternalAsset, FileData, FileOutput, OutputData } from './asset';
 import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload } from './cloud';
 import type { CompressTryFileMethod, CompressTryImageCallback } from './compress';
-import type { ConfigOrTransformer, PluginConfig, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
+import type { ConfigOrTransformer, PluginConfig, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult, ViewEngine } from './document';
 import type { CompleteAsyncTaskCallback, InstallData, PerformAsyncTaskMethod } from './filemanager';
 import type { CropData, QualityData, ResizeData, RotateData } from './image';
 import type { LOG_TYPE, LogMessageOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
@@ -115,6 +115,7 @@ declare namespace functions {
         init(assets: ExternalAsset[], body: RequestBody): void;
         findConfig(settings: StandardMap, name: string, type?: string): PluginConfig;
         loadConfig(data: StandardMap, name: string): Optional<ConfigOrTransformer>;
+        parseTemplate(viewEngine: ViewEngine | string, template: string, data: PlainObject[]): Promise<Null<string>>;
         transform(type: string, code: string, format: string, options?: TransformOutput): Promise<Void<TransformResult>>;
         setLocalUri?(file: Partial<LocationUri>, manager?: IFileManager): void;
         formatContent?(file: ExternalAsset, content: string, manager?: IFileManager): Promise<string>;

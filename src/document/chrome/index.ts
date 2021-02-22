@@ -1,8 +1,8 @@
 import type { LocationUri } from '../../types/lib/squared';
 
-import type { IFileManager, IModule } from '../../types/lib';
+import type { IFileManager } from '../../types/lib';
 import type { FileData, OutputData } from '../../types/lib/asset';
-import type { SourceMapOutput, ViewEngine } from '../../types/lib/document';
+import type { SourceMapOutput } from '../../types/lib/document';
 import type { DocumentModule } from '../../types/lib/module';
 import type { RequestBody } from '../../types/lib/node';
 
@@ -309,24 +309,6 @@ function setElementAttribute(this: ChromeDocument, htmlFile: DocumentAsset, asse
     }
 }
 
-function getTemplateValue(this: IModule, viewEngine: ViewEngine, template: string, data: PlainObject[]) {
-    let result = '';
-    const { name, options = {} } = viewEngine;
-    try {
-        const render = require(name).compile(template, options.compile) as FunctionType<string>;
-        for (let i = 0; i < data.length; ++i) {
-            const row = data[i];
-            row['__index__'] = i + 1;
-            result += render(options.output ? { ...options.output, ...row } : row);
-        }
-    }
-    catch (err) {
-        this.writeFail(['Cloud view engine incompatible', name], err);
-        return null;
-    }
-    return result;
-}
-
 const concatString = (values: Undef<string[]>) => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const escapePosix = (value: string) => value.split(/[\\/]/).map(seg => escapeRegexp(seg)).join('[\\\\/]');
 const isObject = (value: unknown): value is PlainObject => typeof value === 'object' && value !== null;
@@ -490,7 +472,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             return [];
                         });
                     })
-                )).forEach((result, index) => {
+                )).forEach(async (result, index) => {
                     const item = database[index];
                     const element = item.element!;
                     const domElement = new HtmlElement(moduleName, element);
@@ -507,7 +489,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 if (typeof template === 'string' && !domElement.tagVoid) {
                                     let innerXml = '';
                                     if (item.viewEngine) {
-                                        const content = getTemplateValue.call(this, item.viewEngine, template, result);
+                                        const content = await instance.parseTemplate(item.viewEngine, template, result);
                                         if (content !== null) {
                                             innerXml = content;
                                         }
@@ -549,7 +531,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             valid: Undef<boolean>;
                                         if (item.viewEngine) {
                                             if (typeof segment === 'string') {
-                                                const content = getTemplateValue.call(this, item.viewEngine, segment, result);
+                                                const content = await instance.parseTemplate(item.viewEngine, segment, result);
                                                 if (content !== null) {
                                                     value = content;
                                                     valid = true;

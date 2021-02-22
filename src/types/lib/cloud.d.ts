@@ -18,7 +18,7 @@ export interface CloudDatabase<T = string | PlainObject | any[]> extends CloudSe
     removeEmpty?: boolean;
     params?: unknown[];
     options?: PlainObject;
-    viewEngine?: ViewEngine;
+    viewEngine?: ViewEngine | string;
     document?: StringOfArray;
 }
 
