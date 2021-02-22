@@ -279,7 +279,7 @@ You can also define your own optimizations in squared.settings.json:
 * [npm i html-minifier-terser](https://github.com/DanielRuf/html-minifier-terser)
 * [npm i html-minifier](https://github.com/kangax/html-minifier)
 
-These particular plugins can be configured using a plain object literal. Manual installation is required when using any of these packages [<b>npm run install-chrome</b>]. Transpiling with Babel is also configurable with a .babelrc file in the base folder for any presets and additional settings. Other non-builtin minifiers can similarly be applied and chained by defining a custom string-based function.
+These particular plugins can be configured using a plain object literal. Manual installation is required when using any of these packages [<b>npm run install-chrome</b>]. Other non-builtin minifiers can similarly be applied and chained by defining a custom string-based function.
 
 Custom plugins can also be installed from NPM. The function has to be named "transform" for validation purposes and can be asynchronous. The only difference is the context object is set to the Document module. Examples can be found in the "chrome/packages" folder.
 
@@ -316,7 +316,7 @@ Custom plugins can also be installed from NPM. The function has to be named "tra
     },
     "js": { // custom function (chrome -> eval_function: true)
       "terser": {
-        "minify-example": "function (context, value, options, resolve) { resolve(context.minify(value, options.outputConfig).code); }", // "minify-example-output" creates variable "options.outputConfig"
+        "minify-example": "async function (context, value, options) { return await context.minify(value, options.outputConfig).code; }", // "minify-example-output" creates variable "options.outputConfig"
         "minify-example-output": {
           "keep_classnames": true
         }
@@ -346,12 +346,14 @@ Custom plugins can also be installed from NPM. The function has to be named "tra
         }
       },
       "sass": { // npm i sass
-        "sass-example": "function (context, value, options, resolve) { resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css); }"
+        "sass-example": "function (context, value, options, resolve) { resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css); }" // Synchronous with Promise
       }
     }
   }
 }
 ```
+
+Custom asynchronous functions in settings is supported as of @squared-functions 0.14 (squared 2.5).
 
 ```javascript
 // es5.js
@@ -366,12 +368,12 @@ interface TransformOutput {
 
 interface TransformOptions extends TransformOutput {
     baseConfig: StandardMap;
-    outputConfig: StandardMap;
+    outputConfig: StandardMap; // Same as baseConfig when using an inline transformer
     sourceMap: SourceMapInput;
     writeFail: ModuleWriteFailMethod;
 }
 
-// Custom inline and template functions use Promise "resolve" callbacks
+// Example using Promise "resolve" callbacks
 
 function (context, value, options, resolve) {
     context.transform(value, options.outputConfig, function(err, result) {
@@ -391,21 +393,20 @@ The same concept can be used inline anywhere using a &lt;script&gt; tag with the
 // "es5-example" is a custom name (chrome -> eval_template: true)
 
 <script type="text/template" data-chrome-template="js::@babel/core::es5-example">
-function (context, value, options, resolve) {
+async function (context, value, options) {
     const options = { ...options.outputConfig, presets: ['@babel/preset-env'], sourceMaps: true }; // <https://babeljs.io/docs/en/options>
-    const result = context.transformSync(value, options);
+    const result = await context.transform(value, options);
     if (result) {
         if (result.map) {
             options.sourceMap.nextMap('babel', result.code, result.map);
         }
-        resolve(result.code);
-    }
-    else {
-        resolve();
+        return result.code;
     }
 }
 </script>
 ```
+
+Transpiling with Babel is also configurable with a .babelrc file in the base folder.
 
 Here is the equivalent configuration in YAML and when available has higher precedence than JSON.
 
@@ -747,7 +748,7 @@ interface CloudDatabase {
         name: string; // npm package name
         options?: {
             compile?: PlainObject; // template = engine.compile(value, options)
-            output?: PlainObject; // template({ ...options, ...data })
+            output?: PlainObject; // template({ ...options, ...result })
         };
     };
     document?: string | string[];
@@ -882,7 +883,7 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
     "value": { // Result: { src: '', data: {} }
       "src": "src", // Use direct property access
       "alt": "{{if !expired}}data.alt{{else}}:text(Expired){{end}}", // Only one conditional per attribute
-      "style": [":join(; )" /* optional: " " */, "data.style[0]", "data.style[1]"] // Same as: [":join(; )", "data.style"]
+      "style": [":join(; )" /* optional: " " */, "data.style[0]", "data.style[1]", ":text(display: none)"] // Same as: [":join(; )", "data.style", ":text(display: none)"]
     }
   }
 }

@@ -9,7 +9,7 @@ import fs = require('fs-extra');
 
 import Module from '../module';
 
-const isString = (value: any): value is string => !!value && typeof value === 'string';
+const isString = (value: any): value is string => typeof value === 'string' && value.length > 0;
 const getSourceMappingURL = (value: string) => `\n//# sourceMappingURL=${value}\n`;
 
 abstract class Document extends Module implements IDocument {
@@ -34,7 +34,7 @@ abstract class Document extends Module implements IDocument {
                         return false;
                     }
                 }
-                if (typeof map === 'object' && map.mappings) {
+                if (typeof map === 'object' && isString(map.mappings)) {
                     this.code = code;
                     this.map = map;
                     if (sourceMappingURL) {
@@ -122,7 +122,7 @@ abstract class Document extends Module implements IDocument {
             if (data) {
                 for (const attr in data) {
                     const item = data[attr] as Undef<StandardMap>;
-                    if (item && item[name]) {
+                    if (item?.[name]) {
                         const options = this.loadConfig(item, name);
                         if (options) {
                             return [attr, options, this.loadConfig(item, name + '-output')];
@@ -203,7 +203,7 @@ abstract class Document extends Module implements IDocument {
         if (typeof viewEngine === 'string') {
             const view = (this.module.settings?.view as Undef<StandardMap>)?.[viewEngine] as Undef<ViewEngine>;
             if (!view) {
-                this.writeFail('View engine not found', new Error(`Unknown view engine <${viewEngine}>`));
+                this.writeFail(['View engine not found', viewEngine], new Error(`Unknown view engine <${viewEngine}>`));
                 return null;
             }
             viewEngine = view;
@@ -212,11 +212,11 @@ abstract class Document extends Module implements IDocument {
         let result = '';
         try {
             const context = require(name);
-            const render = await context.compile(template, options.compile) as FunctionType<string>;
+            const render = await context.compile(template, options.compile) as FunctionType<Promise<string> | string>;
             for (let i = 0; i < data.length; ++i) {
                 const row = data[i];
-                row['__index__'] = i + 1;
-                result += render(options.output ? { ...options.output, ...row } : row);
+                row['__index__'] ||= i + 1;
+                result += await render(options.output ? { ...options.output, ...row } : row);
             }
         }
         catch (err) {
@@ -257,7 +257,7 @@ abstract class Document extends Module implements IDocument {
                             try {
                                 if (typeof baseConfig === 'function') {
                                     output.baseConfig = outputConfig;
-                                    next(await new Promise<Undef<string>>(resolve => baseConfig(context, code, output, resolve)));
+                                    next(baseConfig.toString().startsWith('async') ? await baseConfig(context, code, output) : await new Promise<Undef<string>>(resolve => baseConfig(context, code, output, resolve)));
                                 }
                                 else {
                                     let transformer = this._packageMap[plugin];

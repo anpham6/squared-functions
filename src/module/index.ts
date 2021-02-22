@@ -22,6 +22,7 @@ export enum LOG_TYPE { // eslint-disable-line no-shadow
     TIME_ELAPSED = 128
 }
 
+const ASYNC_FUNCTION = Object.getPrototypeOf(async () => {}).constructor as Constructor<FunctionType<Promise<string>, string>>;
 let SETTINGS: LoggerModule = {};
 
 function allSettled<T>(values: readonly (T | PromiseLike<T>)[]) {
@@ -139,7 +140,7 @@ abstract class Module implements IModule {
         this.formatMessage(LOG_TYPE.SYSTEM, 'FAIL', value, message, applyFailStyle());
     }
 
-    static parseFunction(value: string, name?: string): Undef<FunctionType<string>> {
+    static parseFunction(value: string, name = '', sync = true): Undef<FunctionType<Promise<string> | string>> {
         const uri = Module.fromLocalPath(value = value.trim());
         if (uri) {
             try {
@@ -149,6 +150,15 @@ abstract class Module implements IModule {
                 this.writeFail(['Could not load function', value], err);
                 return;
             }
+        }
+        const match = /^(async\s+)?(function\s+([^(]*)\(([^)]*)\)\s*\{([\S\s]+)\})$/.exec(value);
+        if (match) {
+            if (!sync || match[1]) {
+                const args = match[4].trim().split(',').map(arg => arg.trim());
+                args.push(match[5]);
+                return new ASYNC_FUNCTION(...args);
+            }
+            value = match[2];
         }
         if (value.startsWith('function')) {
             return (0, eval)(`(${value})`);

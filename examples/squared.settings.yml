@@ -51,8 +51,8 @@ document:
       js:
         terser:
           minify-example: |
-            function(context, value, options, resolve) {
-              resolve(context.minify(value, options.outputConfig).code);
+            async function(context, value, options) {
+              return await context.minify(value, options.outputConfig).code;
             }
           minify-example-output:
             keep_classnames: true

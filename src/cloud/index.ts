@@ -491,23 +491,19 @@ class Cloud extends Module implements ICloud {
         return false;
     }
     getUploadHandler(service: string, credential: PlainObject): UploadCallback {
-        return (CLOUD_UPLOAD[service] ||= require(this.resolveService(service) + '/upload') as UploadHost).call(this, credential, service);
+        return (CLOUD_UPLOAD[service] ||= require(this.resolveService(service, 'upload')) as UploadHost).call(this, credential, service);
     }
     getDownloadHandler(service: string, credential: PlainObject): DownloadCallback {
-        return (CLOUD_DOWNLOAD[service] ||= require(this.resolveService(service) + '/download') as DownloadHost).call(this, credential, service);
+        return (CLOUD_DOWNLOAD[service] ||= require(this.resolveService(service, 'download')) as DownloadHost).call(this, credential, service);
     }
-    resolveService(service: string) {
-        let result = '../cloud/' + service;
-        if (!fs.pathExistsSync(path.resolve(result))) {
-            result = '@squared-functions/cloud/' + service;
-            try {
-                require(result);
-            }
-            catch {
-                return service;
-            }
+    resolveService(service: string, folder?: string) {
+        let result = path.join(__dirname, service),
+            sep = path.sep;
+        if (!fs.pathExistsSync(result)) {
+            result = service;
+            sep = '/';
         }
-        return result;
+        return result + (folder ? sep + folder : '');
     }
 }
 

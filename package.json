@@ -39,9 +39,9 @@
     "@types/oracledb": "^5.1.0",
     "@types/request": "^2.48.5",
     "@types/uuid": "^8.3.0",
-    "@typescript-eslint/eslint-plugin": "^4.15.1",
-    "@typescript-eslint/parser": "^4.15.1",
-    "aws-sdk": "^2.848.0",
+    "@typescript-eslint/eslint-plugin": "^4.15.2",
+    "@typescript-eslint/parser": "^4.15.2",
+    "aws-sdk": "^2.849.0",
     "copyfiles": "^2.4.1",
     "eslint": "^7.20.0",
     "file-type": "^16.2.0",
@@ -49,7 +49,7 @@
     "ibm-cos-sdk": "^1.9.0",
     "jimp": "^0.16.1",
     "rimraf": "^3.0.2",
-    "rollup": "^2.39.0",
+    "rollup": "^2.39.1",
     "tinify": "^1.6.0-beta.2",
     "typescript": "^4.1.5"
   }

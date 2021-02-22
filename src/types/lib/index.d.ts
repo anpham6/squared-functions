@@ -88,7 +88,7 @@ declare namespace functions {
         getCredential(data: CloudService): PlainObject;
         getUploadHandler(service: string, credential: unknown): FunctionType<Promise<void>>;
         getDownloadHandler(service: string, credential: unknown): FunctionType<Promise<void>>;
-        resolveService(service: string): string;
+        resolveService(service: string, folder?: string): string;
     }
 
     interface CloudConstructor extends ModuleConstructor {
@@ -241,7 +241,7 @@ declare namespace functions {
         LOG_STYLE_FAIL: LogMessageOptions;
         formatMessage: ModuleFormatMessageMethod;
         writeFail: ModuleWriteFailMethod;
-        parseFunction(value: string, name?: string): Undef<FunctionType<string>>;
+        parseFunction(value: string, name?: string, sync?: boolean): Undef<FunctionType<Promise<string> | string>>;
         toPosix(value: string, filename?: string): string;
         renameExt(value: string, ext: string): string;
         fromLocalPath(value: string): string;
