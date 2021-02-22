@@ -754,7 +754,7 @@ interface CloudDatabase {
 }
 ```
 
-View engines with a "compile" template string to function (e.g. [EJS](https://ejs.co)) can be used instead of the template literal format. Manual NPM installation (npm i ejs) is required.
+View engines with a "compile" template string to function (e.g. [EJS](https://ejs.co)) can be used instead for "text" and "attribute". Manual NPM installation (npm i ejs) is required.
 
 ```javascript
 /* AWS: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GettingStarted.NodeJs.html */
@@ -879,9 +879,10 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
     "table": "demo",
     "id": "2", // OCI (server assigned)
     "partitionKey": "Pictures", // AWS (required) | Azure and IBM (optional)
-    "value": {
-      "src": "imageData.src", // Template literal syntax is not supported
-      "style": [":join(; )" /* optional: " " */, "imageData.style[0]", "imageData.style[1]"]
+    "value": { // Result: { src: '', data: {} }
+      "src": "src", // Use direct property access
+      "alt": "{{if !expired}}data.alt{{else}}:text(Expired){{end}}", // Only one conditional per attribute
+      "style": [":join(; )" /* optional: " " */, "data.style[0]", "data.style[1]"] // Same as: [":join(; )", "data.style"]
     }
   }
 }

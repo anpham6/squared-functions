@@ -1,11 +1,14 @@
 import type { ElementAction, LocationUri } from './squared';
 
+import type { ViewEngine } from './document';
+
 export interface CloudService extends ObjectMap<unknown> {
     service: string;
     credential: string | PlainObject;
 }
 
 export interface CloudDatabase<T = string | PlainObject | any[]> extends CloudService, ElementAction {
+    type: string;
     table?: string;
     name?: string;
     value?: string | ObjectMap<StringOfArray>;
@@ -15,13 +18,7 @@ export interface CloudDatabase<T = string | PlainObject | any[]> extends CloudSe
     removeEmpty?: boolean;
     params?: unknown[];
     options?: PlainObject;
-    viewEngine?: {
-        name: string;
-        options?: {
-            compile?: PlainObject;
-            output?: PlainObject;
-        };
-    };
+    viewEngine?: ViewEngine;
     document?: StringOfArray;
 }
 

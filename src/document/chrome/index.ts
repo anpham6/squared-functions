@@ -1,8 +1,8 @@
 import type { LocationUri } from '../../types/lib/squared';
 
-import type { IFileManager } from '../../types/lib';
+import type { IFileManager, IModule } from '../../types/lib';
 import type { FileData, OutputData } from '../../types/lib/asset';
-import type { SourceMapOutput } from '../../types/lib/document';
+import type { SourceMapOutput, ViewEngine } from '../../types/lib/document';
 import type { DocumentModule } from '../../types/lib/module';
 import type { RequestBody } from '../../types/lib/node';
 
@@ -52,7 +52,7 @@ function getObjectValue(data: unknown, key: string) {
                         value = value[attr];
                     }
                     else {
-                        return '';
+                        return null;
                     }
                 }
             }
@@ -61,12 +61,15 @@ function getObjectValue(data: unknown, key: string) {
                 continue;
             }
         }
-        return '';
+        return null;
     }
-    return found ? value : '';
+    return found ? value : null;
 }
 
 function valueAsString(value: unknown, joinString = ' ') {
+    if (value === undefined || value === null) {
+        return '';
+    }
     switch (typeof value) {
         case 'string':
         case 'number':
@@ -306,6 +309,24 @@ function setElementAttribute(this: ChromeDocument, htmlFile: DocumentAsset, asse
     }
 }
 
+function getTemplateValue(this: IModule, viewEngine: ViewEngine, template: string, data: PlainObject[]) {
+    let result = '';
+    const { name, options = {} } = viewEngine;
+    try {
+        const render = require(name).compile(template, options.compile) as FunctionType<string>;
+        for (let i = 0; i < data.length; ++i) {
+            const row = data[i];
+            row['__index__'] = i + 1;
+            result += render(options.output ? { ...options.output, ...row } : row);
+        }
+    }
+    catch (err) {
+        this.writeFail(['Cloud view engine incompatible', name], err);
+        return null;
+    }
+    return result;
+}
+
 const concatString = (values: Undef<string[]>) => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const escapePosix = (value: string) => value.split(/[\\/]/).map(seg => escapeRegexp(seg)).join('[\\\\/]');
 const isObject = (value: unknown): value is PlainObject => typeof value === 'object' && value !== null;
@@ -473,81 +494,127 @@ class ChromeDocument extends Document implements IChromeDocument {
                     const item = database[index];
                     const element = item.element!;
                     const domElement = new HtmlElement(moduleName, element);
-                    const template = item.value || element.textContent || domElement.innerXml;
-                    let tagOffset: Undef<ObjectMap<Undef<number>>>;
+                    let invalid: Undef<boolean>,
+                        tagOffset: Undef<ObjectMap<Undef<number>>>;
                     if (result.length) {
-                        if (typeof template === 'string') {
-                            if (!domElement.tagVoid) {
-                                let innerXml = '';
-                                if (item.viewEngine) {
-                                    const { name, options = {} } = item.viewEngine;
-                                    try {
-                                        const render = require(name).compile(template, options.compile) as FunctionType<string>;
-                                        for (let i = 0; i < result.length; ++i) {
-                                            const row = result[i];
-                                            row['__index__'] = i + 1;
-                                            innerXml += render(options.output ? { ...options.output, ...row } : row);
+                        const template = item.value || element.textContent || domElement.innerXml;
+                        const isTruthy = (data: PlainObject, attr: string, falsey: Undef<string>) => {
+                            const value = !!getObjectValue(data, attr);
+                            return falsey ? !value : value;
+                        };
+                        switch (item.type) {
+                            case 'text':
+                                if (typeof template === 'string' && !domElement.tagVoid) {
+                                    let innerXml = '';
+                                    if (item.viewEngine) {
+                                        const content = getTemplateValue.call(this, item.viewEngine, template, result);
+                                        if (content !== null) {
+                                            innerXml = content;
+                                        }
+                                        else {
+                                            ++domBase.failCount;
+                                            return;
                                         }
                                     }
-                                    catch (err) {
-                                        ++domBase.failCount;
-                                        this.writeFail(['Cloud view engine incompatible', name], err);
-                                        return;
+                                    else {
+                                        let match: Null<RegExpExecArray>;
+                                        for (let i = 0; i < result.length; ++i) {
+                                            const row = result[i];
+                                            let segment = template;
+                                            while (match = REGEXP_OBJECTPROPERTY.exec(template)) {
+                                                segment = segment.replace(match[0], match[0] === '${__index__}' ? (i + 1).toString() : valueAsString(getObjectValue(row, match[1])));
+                                            }
+                                            const current = segment;
+                                            while (match = REGEXP_TEMPLATECONDITIONAL.exec(current)) {
+                                                const col = isTruthy(row, match[3], match[2]) ? 5 : 7;
+                                                segment = segment.replace(match[0], match[col] ? (match[col - 1].includes('\n') ? '' : match[1]) + match[col - 1] + match[col] : '');
+                                            }
+                                            innerXml += segment;
+                                            REGEXP_OBJECTPROPERTY.lastIndex = 0;
+                                            REGEXP_TEMPLATECONDITIONAL.lastIndex = 0;
+                                        }
+                                    }
+                                    tagOffset = DomWriter.getTagCount(domElement.innerXml, innerXml);
+                                    domElement.innerXml = innerXml;
+                                }
+                                else {
+                                    invalid = true;
+                                }
+                                break;
+                            case 'attribute':
+                                if (isObject(template)) {
+                                    for (const attr in template) {
+                                        let segment = template[attr]!,
+                                            value = '',
+                                            valid: Undef<boolean>;
+                                        if (item.viewEngine) {
+                                            if (typeof segment === 'string') {
+                                                const content = getTemplateValue.call(this, item.viewEngine, segment, result);
+                                                if (content !== null) {
+                                                    value = content;
+                                                    valid = true;
+                                                }
+                                            }
+                                            else {
+                                                invalid = true;
+                                                break;
+                                            }
+                                        }
+                                        else {
+                                            if (typeof segment === 'string') {
+                                                segment = [segment];
+                                            }
+                                            let joinString = ' ';
+                                            for (const row of result) {
+                                                for (let seg of segment) {
+                                                    if (seg[0] === ':') {
+                                                        const join = /^:join\((.*)\)$/.exec(seg);
+                                                        if (join) {
+                                                            joinString = join[1];
+                                                        }
+                                                        continue;
+                                                    }
+                                                    const match = REGEXP_TEMPLATECONDITIONAL.exec(seg);
+                                                    if (match) {
+                                                        seg = isTruthy(row, match[3], match[2]) ? match[5] : match[7] || '';
+                                                    }
+                                                    if (seg = seg.trim()) {
+                                                        const text = /^:text\((.*)\)$/.exec(seg);
+                                                        if (text) {
+                                                            value += text[1];
+                                                            valid = true;
+                                                        }
+                                                        else {
+                                                            const data = getObjectValue(row, seg);
+                                                            if (data !== null) {
+                                                                value += (value ? joinString : '') + valueAsString(data, joinString);
+                                                                valid = true;
+                                                            }
+                                                        }
+                                                    }
+                                                    else {
+                                                        valid = true;
+                                                    }
+                                                    REGEXP_TEMPLATECONDITIONAL.lastIndex = 0;
+                                                }
+                                                if (valid) {
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        if (valid) {
+                                            domElement.setAttribute(attr, value);
+                                        }
                                     }
                                 }
                                 else {
-                                    let match: Null<RegExpExecArray>;
-                                    for (let i = 0; i < result.length; ++i) {
-                                        const row = result[i];
-                                        let segment = template;
-                                        while (match = REGEXP_OBJECTPROPERTY.exec(template)) {
-                                            segment = segment.replace(match[0], match[0] === '${__index__}' ? (i + 1).toString() : valueAsString(getObjectValue(row, match[1])));
-                                        }
-                                        const current = segment;
-                                        while (match = REGEXP_TEMPLATECONDITIONAL.exec(current)) {
-                                            let value = new Boolean(getObjectValue(row, match[3]));
-                                            if (match[2]) {
-                                                value = !value;
-                                            }
-                                            const index = value ? 5 : 7;
-                                            segment = segment.replace(match[0], match[index] ? (match[index - 1].includes('\n') ? '' : match[1]) + match[index - 1] + match[index] : '');
-                                        }
-                                        innerXml += segment;
-                                        REGEXP_OBJECTPROPERTY.lastIndex = 0;
-                                        REGEXP_TEMPLATECONDITIONAL.lastIndex = 0;
-                                    }
+                                    invalid = true;
                                 }
-                                tagOffset = DomWriter.getTagCount(domElement.innerXml, innerXml);
-                                domElement.innerXml = innerXml;
-                            }
+                                break;
+                            default:
+                                return;
                         }
-                        else {
-                            for (const attr in template) {
-                                let columns = template[attr]!;
-                                if (typeof columns === 'string') {
-                                    columns = [columns];
-                                }
-                                for (const row of result) {
-                                    let value = '',
-                                        joinString = ' ';
-                                    for (const col of columns) {
-                                        if (col[0] === ':') {
-                                            const join = /^:join\((.*)\)$/.exec(col);
-                                            if (join) {
-                                                joinString = join[1];
-                                            }
-                                            continue;
-                                        }
-                                        value += (value ? joinString : '') + valueAsString(getObjectValue(row, col), joinString);
-                                    }
-                                    if (value) {
-                                        domElement.setAttribute(attr, value);
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                        if (!domBase.write(domElement, { tagOffset })) {
+                        if (invalid || !domBase.write(domElement, { tagOffset })) {
                             const { tagName, tagIndex } = element;
                             this.writeFail(['Cloud text replacement', tagName], getErrorDOM(tagName, tagIndex));
                         }

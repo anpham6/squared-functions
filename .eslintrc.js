@@ -42,7 +42,7 @@ module.exports = {
         "no-lonely-if": "error",
         "no-loss-of-precision": "error",
         "no-multi-spaces": "error",
-        "no-new-wrappers": "off",
+        "no-new-wrappers": "error",
         "no-shadow": "error",
         "no-throw-literal": "error",
         "no-trailing-spaces": "error",

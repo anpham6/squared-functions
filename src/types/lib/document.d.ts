@@ -50,6 +50,14 @@ export interface SourceMap {
     sourcesContent?: Null<string>[];
 }
 
+export interface ViewEngine {
+    name: string;
+    options?: {
+        compile?: PlainObject;
+        output?: PlainObject;
+    };
+}
+
 export type Transformer = FunctionType<Undef<string>>;
 export type ConfigOrTransformer = StandardMap | Transformer;
 export type PluginConfig = [string, Undef<ConfigOrTransformer>, Undef<StandardMap>] | [];
