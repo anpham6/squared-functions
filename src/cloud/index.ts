@@ -382,7 +382,7 @@ class Cloud extends Module implements ICloud {
         }
     }
     createBucket(service: string, credential: PlainObject, bucket: string, publicRead?: boolean): Promise<boolean> {
-        const createHandler = (CLOUD_SERVICE[service] ||= require('../cloud/' + service) as ICloudServiceClient).createBucket?.bind(this);
+        const createHandler = (CLOUD_SERVICE[service] ||= require(this.resolveService(service)) as ICloudServiceClient).createBucket?.bind(this);
         if (createHandler) {
             return createHandler.call(this, credential, bucket, publicRead);
         }
@@ -390,7 +390,7 @@ class Cloud extends Module implements ICloud {
         return Promise.resolve(false);
     }
     deleteObjects(service: string, credential: PlainObject, bucket: string): Promise<void> {
-        const deleteHandler = (CLOUD_SERVICE[service] ||= require('../cloud/' + service) as ICloudServiceClient).deleteObjects?.bind(this);
+        const deleteHandler = (CLOUD_SERVICE[service] ||= require(this.resolveService(service)) as ICloudServiceClient).deleteObjects?.bind(this);
         if (deleteHandler) {
             return deleteHandler.call(this, credential, bucket, service);
         }
@@ -477,7 +477,7 @@ class Cloud extends Module implements ICloud {
     }
     hasCredential(feature: CloudFeatures, data: CloudService) {
         try {
-            const client = CLOUD_SERVICE[data.service] ||= require('../cloud/' + data.service) as ICloudServiceClient;
+            const client = CLOUD_SERVICE[data.service] ||= require(this.resolveService(data.service)) as ICloudServiceClient;
             const credential = this.getCredential(data);
             switch (feature) {
                 case 'storage':
@@ -492,10 +492,14 @@ class Cloud extends Module implements ICloud {
         return false;
     }
     getUploadHandler(service: string, credential: PlainObject): UploadCallback {
-        return (CLOUD_UPLOAD[service] ||= require(`../cloud/${service}/upload`) as UploadHost).call(this, credential, service);
+        return (CLOUD_UPLOAD[service] ||= require(this.resolveService(service) + '/upload') as UploadHost).call(this, credential, service);
     }
     getDownloadHandler(service: string, credential: PlainObject): DownloadCallback {
-        return (CLOUD_DOWNLOAD[service] ||= require(`../cloud/${service}/download`) as DownloadHost).call(this, credential, service);
+        return (CLOUD_DOWNLOAD[service] ||= require(this.resolveService(service) + '/download') as DownloadHost).call(this, credential, service);
+    }
+    resolveService(service: string) {
+        const packageName = path.resolve('../cloud/' + service);
+        return fs.pathExistsSync(packageName) ? packageName : service;
     }
 }
 

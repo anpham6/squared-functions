@@ -88,6 +88,7 @@ declare namespace functions {
         getCredential(data: CloudService): PlainObject;
         getUploadHandler(service: string, credential: unknown): FunctionType<Promise<void>>;
         getDownloadHandler(service: string, credential: unknown): FunctionType<Promise<void>>;
+        resolveService(service: string): string;
     }
 
     interface CloudConstructor extends ModuleConstructor {
