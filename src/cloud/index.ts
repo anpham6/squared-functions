@@ -356,7 +356,7 @@ class Cloud extends Module implements ICloud {
                                             const location = trailingFolder + value;
                                             filenameMap[location] ||= 1;
                                             const index = value.indexOf('.');
-                                            trailing.filename = value.substring(0, index !== -1 ? index : Infinity) + `_${filenameMap[location]++}` + (index !== -1 ? value.substring(index) : '');
+                                            trailing.filename = value.substring(0, index !== -1 ? index : Infinity) + '_' + filenameMap[location]++ + (index !== -1 ? value.substring(index) : '');
                                         };
                                         if (basename && basename === leading.filename && leadingFolder === trailingFolder) {
                                             renameTrailing(basename);
@@ -386,7 +386,7 @@ class Cloud extends Module implements ICloud {
         if (createHandler) {
             return createHandler.call(this, credential, bucket, publicRead);
         }
-        this.writeFail(['Create bucket not supported', service], new Error(`Insufficent privelege <${service}:${bucket}>`));
+        this.writeFail(['Create bucket not supported', service], new Error(`Create not supported <${service}:${bucket}>`));
         return Promise.resolve(false);
     }
     deleteObjects(service: string, credential: PlainObject, bucket: string): Promise<void> {
@@ -394,7 +394,7 @@ class Cloud extends Module implements ICloud {
         if (deleteHandler) {
             return deleteHandler.call(this, credential, bucket, service);
         }
-        this.writeFail(['Delete objects not supported', service], new Error(`Insufficent privelege <${service}:${bucket}>`));
+        this.writeFail(['Delete objects not supported', service], new Error(`Delete not supported <${service}:${bucket}>`));
         return Promise.resolve();
     }
     downloadObject(service: string, credential: PlainObject, bucket: string, download: CloudStorageDownload, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string) {
@@ -442,8 +442,7 @@ class Cloud extends Module implements ICloud {
             (CLOUD_USERCACHE[userKey] ||= {})[queryString] = [Date.now() + timeout * 1000, result];
         }
         else if (cacheKey) {
-            cacheKey += queryString;
-            (CLOUD_DBCACHE[userKey] ||= {})[cacheKey] = result;
+            (CLOUD_DBCACHE[userKey] ||= {})[cacheKey += queryString] = result;
             setTimeout(() => delete CLOUD_DBCACHE[userKey][cacheKey!], this.cacheExpires);
         }
     }
@@ -498,8 +497,17 @@ class Cloud extends Module implements ICloud {
         return (CLOUD_DOWNLOAD[service] ||= require(this.resolveService(service) + '/download') as DownloadHost).call(this, credential, service);
     }
     resolveService(service: string) {
-        const packageName = path.resolve('../cloud/' + service);
-        return fs.pathExistsSync(packageName) ? packageName : service;
+        let result = '../cloud/' + service;
+        if (!fs.pathExistsSync(path.resolve(result))) {
+            result = '@squared-functions/cloud/' + service;
+            try {
+                require(result);
+            }
+            catch {
+                return service;
+            }
+        }
+        return result;
     }
 }
 

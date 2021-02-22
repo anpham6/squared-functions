@@ -474,10 +474,11 @@ class ChromeDocument extends Document implements IChromeDocument {
                     const element = item.element!;
                     const domElement = new HtmlElement(moduleName, element);
                     const template = item.value || element.textContent || domElement.innerXml;
+                    let tagOffset: Undef<ObjectMap<Undef<number>>>;
                     if (result.length) {
                         if (typeof template === 'string') {
                             if (!domElement.tagVoid) {
-                                let output = '';
+                                let innerXml = '';
                                 if (item.viewEngine) {
                                     const { name, options = {} } = item.viewEngine;
                                     try {
@@ -485,7 +486,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         for (let i = 0; i < result.length; ++i) {
                                             const row = result[i];
                                             row['__index__'] = i + 1;
-                                            output += render(options.output ? { ...options.output, ...row } : row);
+                                            innerXml += render(options.output ? { ...options.output, ...row } : row);
                                         }
                                     }
                                     catch (err) {
@@ -508,19 +509,16 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             if (match[2]) {
                                                 value = !value;
                                             }
-                                            if (value) {
-                                                segment = segment.replace(match[0], (match[4].includes('\n') ? '' : match[1]) + match[4] + match[5]);
-                                            }
-                                            else {
-                                                segment = segment.replace(match[0], match[7] ? (match[6].includes('\n') ? '' : match[1]) + match[6] + match[7] : '');
-                                            }
+                                            const index = value ? 5 : 7;
+                                            segment = segment.replace(match[0], match[index] ? (match[index - 1].includes('\n') ? '' : match[1]) + match[index - 1] + match[index] : '');
                                         }
-                                        output += segment;
+                                        innerXml += segment;
                                         REGEXP_OBJECTPROPERTY.lastIndex = 0;
                                         REGEXP_TEMPLATECONDITIONAL.lastIndex = 0;
                                     }
                                 }
-                                domElement.innerXml = output;
+                                tagOffset = DomWriter.getTagCount(domElement.innerXml, innerXml);
+                                domElement.innerXml = innerXml;
                             }
                         }
                         else {
@@ -549,7 +547,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 }
                             }
                         }
-                        if (!domBase.write(domElement)) {
+                        if (!domBase.write(domElement, { tagOffset })) {
                             const { tagName, tagIndex } = element;
                             this.writeFail(['Cloud text replacement', tagName], getErrorDOM(tagName, tagIndex));
                         }

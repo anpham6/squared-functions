@@ -1,4 +1,4 @@
-import type { FindElementOptions, IDomWriter, ParserResult, SourceIndex, XmlTagNode } from './document';
+import type { FindElementOptions, IDomWriter, IXmlElement, ParserResult, SourceIndex, WriteOptions, XmlTagNode } from './document';
 
 import escapeRegexp = require('escape-string-regexp');
 
@@ -96,6 +96,34 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         return result;
     }
 
+    static getTagCount(source: string, sourceOffset?: string) {
+        const result: ObjectMap<Undef<number>> = {};
+        new Parser({
+            onopentag(name) {
+                if (result[name] === undefined) {
+                    result[name] = 1;
+                }
+                else {
+                    result[name]!++;
+                }
+            }
+        }).end(source);
+        if (sourceOffset) {
+            const modified = DomWriter.getTagCount(sourceOffset);
+            let revised: Undef<boolean>;
+            for (const tagName of new Set([...Object.keys(result), ...Object.keys(modified)])) {
+                if (result[tagName] !== modified[tagName]) {
+                    result[tagName] = (modified[tagName] || 0) - (result[tagName] || 0);
+                    revised = true;
+                }
+            }
+            if (!revised) {
+                return {};
+            }
+        }
+        return result;
+    }
+
     documentElement: Null<XmlTagNode> = null;
     readonly rootName = 'html';
 
@@ -152,6 +180,18 @@ export class DomWriter extends XmlWriter implements IDomWriter {
 
     newElement(node: XmlTagNode) {
         return new HtmlElement(this.documentName, node);
+    }
+    write(element: IXmlElement, options?: WriteOptions) {
+        if (options?.remove && element.innerXml && !options.tagOffset) {
+            const tagCount = DomWriter.getTagCount(element.innerXml);
+            if (Object.keys(tagCount).length) {
+                for (const tagName in tagCount) {
+                    tagCount[tagName]! *= -1;
+                }
+                options.tagOffset = tagCount;
+            }
+        }
+        return super.write(element, options);
     }
     save() {
         if (this.modified) {

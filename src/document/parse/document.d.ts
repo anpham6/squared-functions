@@ -21,6 +21,7 @@ export interface WriteOptions {
     remove?: boolean;
     rename?: boolean;
     append?: TagAppend;
+    tagOffset?: ObjectMap<Undef<number>>;
 }
 
 export interface ReplaceOptions extends WriteOptions, SourceIndex {}
@@ -132,5 +133,6 @@ export interface DomWriterConstructor {
     normalize(source: string): string;
     getDocumentElement(source: string): ParserResult;
     findElement(source: string, node: XmlTagNode, options?: FindElementOptions): ParserResult;
+    getTagCount(source: string, sourceOffset?: string): ObjectMap<number>;
     new(documentName: string, source: string, elements: XmlTagNode[], normalize?: boolean): IDomWriter;
 }

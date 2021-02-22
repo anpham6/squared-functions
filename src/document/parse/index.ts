@@ -216,9 +216,10 @@ export abstract class XmlWriter implements IXmlWriter {
     write(element: IXmlElement, options?: WriteOptions) {
         let remove: Undef<boolean>,
             rename: Undef<boolean>,
-            append: Undef<TagAppend>;
+            append: Undef<TagAppend>,
+            tagOffset: Undef<ObjectMap<Undef<number>>>;
         if (options) {
-            ({ remove, rename, append } = options);
+            ({ remove, rename, append, tagOffset } = options);
         }
         if (!remove && !append && !element.modified) {
             return true;
@@ -272,7 +273,7 @@ export abstract class XmlWriter implements IXmlWriter {
             else if (rename && element.tagName !== node.tagName) {
                 error = this.renameTag(node, element.tagName);
             }
-            this.update(node, outerXml);
+            this.update(node, outerXml, tagOffset);
             element.reset();
         }
         if (error) {
@@ -286,9 +287,9 @@ export abstract class XmlWriter implements IXmlWriter {
         this.reset();
         return this.source;
     }
-    update(node: XmlTagNode, outerXml: string) {
-        const { tagName, tagIndex, tagCount, index, startIndex, endIndex } = node;
+    update(node: XmlTagNode, outerXml: string, tagOffset?: ObjectMap<Undef<number>>) {
         const { elements, documentName, rootName } = this;
+        const { index, tagName, tagIndex, tagCount, startIndex, endIndex } = node;
         const id = XmlWriter.getNodeId(node, documentName);
         for (let i = 0; i < elements.length; ++i) {
             const item = elements[i];
@@ -309,6 +310,20 @@ export abstract class XmlWriter implements IXmlWriter {
             }
             else {
                 deletePosition(item, rootName, startIndex);
+            }
+            if (tagOffset) {
+                const offset = tagOffset[item.tagName];
+                if (offset && isIndex(item.tagIndex) && isCount(item.tagCount)) {
+                    if (isIndex(index) && isIndex(item.index)) {
+                        if (item.index > index) {
+                            item.tagIndex += offset;
+                        }
+                        item.tagCount += offset;
+                    }
+                    else {
+                        resetTagPosition(item);
+                    }
+                }
             }
         }
     }
