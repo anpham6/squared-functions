@@ -21,7 +21,7 @@ import { DomWriter, HtmlElement } from '../parse/dom';
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
 const REGEXP_CSSCONTENT = /\s*(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^)]+)\s*\))/ig;
 const REGEXP_OBJECTPROPERTY = /\$\{\s*(\w+)\s*\}/g;
-const REGEXP_TEMPLATECONDITIONAL = /(?:\n\s+)?\{\{\s*if\s+(!)?\s*([^}\s]+)\s*\}\}([\S\s]*?)(?:\s*\{\{\s*else\s*\}\}([\S\s]*?)\s*)?\s*\{\{\s*end\s*\}\}/g;
+const REGEXP_TEMPLATECONDITIONAL = /(\n\s+)?\{\{\s*if\s+(!)?\s*([^}\s]+)\s*\}\}(\s*)([\S\s]*?)(?:\s*\{\{\s*else\s*\}\}(\s*)([\S\s]*?)\s*)?\s*\{\{\s*end\s*\}\}/g;
 
 function removeDatasetNamespace(name: string, source: string) {
     if (source.includes('data-' + name)) {
@@ -473,29 +473,52 @@ class ChromeDocument extends Document implements IChromeDocument {
                     const item = database[index];
                     const element = item.element!;
                     const domElement = new HtmlElement(moduleName, element);
-                    const template = item.value || domElement.innerXml;
+                    const template = item.value || element.textContent || domElement.innerXml;
                     if (result.length) {
                         if (typeof template === 'string') {
                             if (!domElement.tagVoid) {
-                                let output = '',
-                                    match: Null<RegExpExecArray>;
-                                for (let i = 0; i < result.length; ++i) {
-                                    const data = result[i];
-                                    let segment = template;
-                                    while (match = REGEXP_OBJECTPROPERTY.exec(template)) {
-                                        segment = segment.replace(match[0], match[0] === '${__index__}' ? (i + 1).toString() : valueAsString(getObjectValue(data, match[1])));
-                                    }
-                                    const current = segment;
-                                    while (match = REGEXP_TEMPLATECONDITIONAL.exec(current)) {
-                                        let value = new Boolean(getObjectValue(data, match[2]));
-                                        if (match[1]) {
-                                            value = !value;
+                                let output = '';
+                                if (item.viewEngine) {
+                                    const { name, options = {} } = item.viewEngine;
+                                    try {
+                                        const render = require(name).compile(template, options.compile) as FunctionType<string>;
+                                        for (let i = 0; i < result.length; ++i) {
+                                            const row = result[i];
+                                            row['__index__'] = i + 1;
+                                            output += render(options.output ? { ...options.output, ...row } : row);
                                         }
-                                        segment = segment.replace(match[0], value ? match[3] : match[4] || '');
                                     }
-                                    output += segment;
-                                    REGEXP_OBJECTPROPERTY.lastIndex = 0;
-                                    REGEXP_TEMPLATECONDITIONAL.lastIndex = 0;
+                                    catch (err) {
+                                        ++domBase.failCount;
+                                        this.writeFail(['Cloud view engine incompatible', name], err);
+                                        return;
+                                    }
+                                }
+                                else {
+                                    let match: Null<RegExpExecArray>;
+                                    for (let i = 0; i < result.length; ++i) {
+                                        const row = result[i];
+                                        let segment = template;
+                                        while (match = REGEXP_OBJECTPROPERTY.exec(template)) {
+                                            segment = segment.replace(match[0], match[0] === '${__index__}' ? (i + 1).toString() : valueAsString(getObjectValue(row, match[1])));
+                                        }
+                                        const current = segment;
+                                        while (match = REGEXP_TEMPLATECONDITIONAL.exec(current)) {
+                                            let value = new Boolean(getObjectValue(row, match[3]));
+                                            if (match[2]) {
+                                                value = !value;
+                                            }
+                                            if (value) {
+                                                segment = segment.replace(match[0], (match[4].includes('\n') ? '' : match[1]) + match[4] + match[5]);
+                                            }
+                                            else {
+                                                segment = segment.replace(match[0], match[7] ? (match[6].includes('\n') ? '' : match[1]) + match[6] + match[7] : '');
+                                            }
+                                        }
+                                        output += segment;
+                                        REGEXP_OBJECTPROPERTY.lastIndex = 0;
+                                        REGEXP_TEMPLATECONDITIONAL.lastIndex = 0;
+                                    }
                                 }
                                 domElement.innerXml = output;
                             }

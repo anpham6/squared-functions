@@ -296,7 +296,7 @@ Custom plugins can also be installed from NPM. The function has to be named "tra
       "posthtml": {
         "transform": {
           "plugins": [
-            ["posthtml-doctype", { "doctype": "HTML 5" }], // Plugins have be installed with NPM manually
+            ["posthtml-doctype", { "doctype": "HTML 5" }], // Plugins have to be installed with NPM manually
             ["posthtml-include", { "root": "./", "encoding": "utf-8" }]
           ]
         },
@@ -342,7 +342,7 @@ Custom plugins can also be installed from NPM. The function has to be named "tra
     "css": {
       "postcss": {
         "transform": {
-          "plugins": ["autoprefixer", "cssnano"] // Plugins have be installed with NPM manually
+          "plugins": ["autoprefixer", "cssnano"] // Plugins have to be installed with NPM manually
         }
       },
       "sass": { // npm i sass
@@ -743,9 +743,20 @@ interface CloudDatabase {
     limit?: number;
     params?: unknown[];
     options?: PlainObject;
+    viewEngine?: {
+        name: string; // npm package name
+        options?: {
+            compile?: PlainObject; // template = engine.compile(value, options)
+            output?: PlainObject; // template({ ...options, ...data })
+        };
+    };
     document?: string | string[];
 }
+```
 
+View engines with a "compile" template string to function (e.g. [EJS](https://ejs.co)) can be used instead of the template literal format. Manual NPM installation (npm i ejs) is required.
+
+```javascript
 /* AWS: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GettingStarted.NodeJs.html */
 {
   "selector": ".card:nth-of-type(1) p",
