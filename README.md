@@ -476,7 +476,7 @@ There are possible scenarios when a transformation may cause an asset type to ch
 {
   "selector": "#sass-example",
   "type": "css",
-  "filename": "prod.css",
+  "filename": "prod.css", // UUID filename: __assign__.css
   "attributes": {
       "id": undefined,
       "rel": "stylesheet",
@@ -914,7 +914,7 @@ Reusing configuration templates is possible using URL query parameters. Output v
   "service": "azure",
   "credential": "db-main",
   "name": "squared",
-  "table": "{{table}}", // Params should always be quoted
+  "table": "{{table}}",
   "partitionKey": "Pictures",
   "query": "SELECT * FROM c WHERE c.id = '{{id}}'",
   "value": "<b>${title}</b>: ${description}" // Not parsed

@@ -305,23 +305,31 @@ export abstract class XmlWriter implements IXmlWriter {
                     }
                 }
                 else {
+                    item.removed = true;
                     elements.splice(i--, 1);
                 }
             }
             else {
                 deletePosition(item, rootName, startIndex);
             }
-            if (tagOffset) {
-                const offset = tagOffset[item.tagName];
-                if (offset && isIndex(item.tagIndex) && isCount(item.tagCount)) {
-                    if (isIndex(index) && isIndex(item.index)) {
-                        if (item.index > index) {
-                            item.tagIndex += offset;
+        }
+        if (tagOffset) {
+            for (const attr in tagOffset) {
+                const offset = tagOffset[attr];
+                if (offset) {
+                    for (const item of elements) {
+                        if (item.tagName === attr) {
+                            if (isIndex(index) && isIndex(item.index) && isIndex(item.tagIndex) && isCount(item.tagCount)) {
+                                if (item.index > index) {
+                                    item.tagIndex += offset;
+                                }
+                                item.tagCount += offset;
+                            }
+                            else {
+                                this.resetTag(attr);
+                                break;
+                            }
                         }
-                        item.tagCount += offset;
-                    }
-                    else {
-                        resetTagPosition(item);
                     }
                 }
             }
@@ -332,7 +340,7 @@ export abstract class XmlWriter implements IXmlWriter {
         let invalid: Undef<boolean>;
         for (const item of this.elements) {
             if (item !== node) {
-                if (!invalid && item.tagName === tagName) {
+                if (!invalid && item.tagName === tagName && tagIndex !== Infinity) {
                     if (isIndex(tagIndex) && isIndex(item.tagIndex) && isCount(item.tagCount)) {
                         if (item.tagIndex >= tagIndex) {
                             ++item.tagIndex;
@@ -355,10 +363,9 @@ export abstract class XmlWriter implements IXmlWriter {
         }
         if (invalid) {
             this.resetTag(tagName);
-            delete this._tagCount[tagName];
         }
         else if (tagName in this._tagCount) {
-            --this._tagCount[tagName];
+            ++this._tagCount[tagName];
         }
     }
     decrement(node: XmlTagNode, remove?: boolean) {
@@ -367,14 +374,13 @@ export abstract class XmlWriter implements IXmlWriter {
         const hasIndex = isIndex(tagIndex) && isCount(tagCount);
         const result: XmlTagNode[] = [];
         const elements = this.elements;
-        let invalid: Undef<boolean>;
         for (let i = 0; i < elements.length; ++i) {
             const item = elements[i];
-            if (!invalid && item.tagName === tagName) {
+            if (item.tagName === tagName) {
                 if (item === node || isNode(item, index, tagIndex, tagCount, id, this.documentName)) {
                     if (remove) {
+                        item.removed = true;
                         elements.splice(i--, 1);
-                        continue;
                     }
                     else {
                         result.push(item);
@@ -387,22 +393,10 @@ export abstract class XmlWriter implements IXmlWriter {
                     --item.tagCount;
                 }
                 else {
-                    invalid = true;
+                    this.resetTag(tagName);
+                    return [];
                 }
             }
-            if (remove && isIndex(item.index)) {
-                if (!isIndex(index)) {
-                    item.index = -1;
-                }
-                else if (item.index > index) {
-                    --item.index;
-                }
-            }
-        }
-        if (invalid) {
-            this.resetTag(tagName);
-            delete this._tagCount[tagName];
-            return [];
         }
         if (tagName in this._tagCount) {
             --this._tagCount[tagName];
@@ -498,6 +492,7 @@ export abstract class XmlWriter implements IXmlWriter {
                 resetTagPosition(item);
             }
         }
+        delete this._tagCount[tagName];
     }
     resetPosition(startIndex?: number) {
         const rootName = this.rootName;

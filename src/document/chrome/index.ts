@@ -569,7 +569,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                 });
             }
-            for (const item of elements.filter(asset => !(asset.invalid && !asset.exclude && asset.bundleIndex === undefined)).sort((a, b) => isRemoved(a) ? -1 : isRemoved(b) ? 1 : 0)) {
+            for (const item of elements.filter(asset => !(asset.invalid && !asset.exclude && asset.bundleIndex === undefined && !asset.element!.removed)).sort((a, b) => isRemoved(a) ? -1 : isRemoved(b) ? 1 : 0)) {
                 const { element, bundleIndex, inlineContent, attributes } = item;
                 const { tagName, tagIndex } = element!;
                 const domElement = new HtmlElement(moduleName, element!, attributes);
@@ -616,7 +616,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
             }
             for (const item of elements) {
-                if (item.invalid || !item.attributes && (item === html || !item.uri && !item.srcSet) || item.content || item.inlineContent || item.format === 'base64' || item.bundleIndex !== undefined || isRemoved(item)) {
+                if (item.invalid || item.element!.removed || !item.attributes && (item === html || !item.uri && !item.srcSet) || item.content || item.inlineContent || item.format === 'base64' || item.bundleIndex !== undefined || isRemoved(item)) {
                     continue;
                 }
                 const { element, attributes, uri, srcSet } = item;

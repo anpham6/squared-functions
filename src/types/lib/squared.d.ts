@@ -70,6 +70,7 @@ export interface XmlTagNode extends XmlNode, TagData {
     id?: StringMap;
     textContent?: string;
     append?: TagAppend;
+    removed?: boolean;
 }
 
 export interface LocationUri {
