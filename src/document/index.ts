@@ -159,18 +159,18 @@ abstract class Document extends Module implements IDocument {
                 if (uri) {
                     try {
                         const contents = fs.readFileSync(uri, 'utf8').trim();
-                        const transformer = Module.parseFunction(contents);
-                        if (transformer) {
-                            if (evaluate) {
-                                data[name] = transformer;
-                                return transformer;
+                        if (contents) {
+                            const transformer = Module.parseFunction(contents);
+                            if (transformer) {
+                                if (evaluate) {
+                                    return data[name] = transformer;
+                                }
                             }
-                        }
-                        else {
-                            const result = JSON.parse(contents);
-                            if (result && typeof result === 'object') {
-                                data[name] = result as StandardMap;
-                                return JSON.parse(JSON.stringify(result));
+                            else {
+                                const result = JSON.parse(contents) as Null<StandardMap>;
+                                if (result && typeof result === 'object') {
+                                    return JSON.parse(JSON.stringify(data[name] = result));
+                                }
                             }
                         }
                     }
@@ -184,8 +184,7 @@ abstract class Document extends Module implements IDocument {
                 else if (evaluate) {
                     const transformer = Module.parseFunction(value);
                     if (transformer) {
-                        data[name] = transformer;
-                        return transformer;
+                        return data[name] = transformer;
                     }
                 }
                 break;
@@ -217,7 +216,7 @@ abstract class Document extends Module implements IDocument {
             const render = await context.compile(template, options.compile) as FunctionType<Promise<string> | string>;
             for (let i = 0; i < data.length; ++i) {
                 const row = data[i];
-                row['__index__'] ||= i + 1;
+                row['__index__'] ??= i + 1;
                 result += await render(options.output ? { ...options.output, ...row } : row);
             }
         }
@@ -274,7 +273,7 @@ abstract class Document extends Module implements IDocument {
                                             context = this;
                                         }
                                         else {
-                                            this.writeFail(['Transformer was not executed', plugin], errorMessage(plugin, process, 'Invalid function'));
+                                            this.writeFail(['Transformer not compatible', plugin], errorMessage(plugin, process, 'Invalid function name'));
                                             continue;
                                         }
                                     }

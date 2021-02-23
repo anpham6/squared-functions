@@ -17,6 +17,7 @@ import escapeRegexp = require('escape-string-regexp');
 import request = require('request-promise-native');
 import yaml = require('js-yaml');
 import toml = require('toml');
+import jp = require('jsonpath');
 import uuid = require('uuid');
 
 import Document from '../../document';
@@ -469,12 +470,18 @@ class ChromeDocument extends Document implements IChromeDocument {
                 const cacheKey = uuid.v4();
                 await Document.allSettled(dataSource.map(item => {
                     return new Promise<void>(async (resolve, reject) => {
-                        const element = item.element!;
-                        const domElement = new HtmlElement(moduleName, element);
+                        const { element, limit, index } = item;
+                        const domElement = new HtmlElement(moduleName, element!);
+                        const removeElement = () => {
+                            if (item.removeEmpty && !domBase.write(domElement, { remove: true })) {
+                                const { tagName, tagIndex } = element!;
+                                this.writeFail('Unable to remove element', getErrorDOM(tagName, tagIndex));
+                            }
+                        };
                         let result: PlainObject[];
                         switch (item.source) {
                             case 'uri': {
-                                const { format, uri } = item as UriDataSource;
+                                const { format, uri, query } = item as UriDataSource;
                                 let content: Optional<string>;
                                 if (Document.isFileHTTP(uri)) {
                                     content = await request(uri).catch(err => {
@@ -488,6 +495,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         content = fs.readFileSync(pathname, 'utf8');
                                     }
                                     else {
+                                        removeElement();
                                         reject(new Error(`Insufficient read permissions (${uri})`));
                                         return;
                                     }
@@ -508,14 +516,19 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                 data = toml.parse(content);
                                                 break;
                                             default:
+                                                removeElement();
                                                 reject(new Error(`Data source format invalid (${format})`));
                                                 return;
                                         }
                                     }
                                     catch (err) {
                                         this.writeFail(['Unable to load data source', format], err);
+                                        removeElement();
                                         resolve();
                                         return;
+                                    }
+                                    if (data && query) {
+                                        data = jp.query(data, query, limit);
                                     }
                                     if (Array.isArray(data)) {
                                         result = data;
@@ -524,13 +537,15 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         result = [data];
                                     }
                                     else {
+                                        removeElement();
                                         reject(new Error(`Data source uri invalid (${uri})`));
                                         return;
                                     }
                                 }
                                 else {
+                                    removeElement();
                                     if (content !== null) {
-                                        reject(new Error('Data source response empty'));
+                                        reject(new Error('Data source response was empty'));
                                     }
                                     else {
                                         resolve();
@@ -540,19 +555,32 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 break;
                             }
                             case 'cloud':
-                                result = await cloud!.getDatabaseRows(item as CloudDatabase, cacheKey).catch(err => {
-                                    if (err instanceof Error && err.message) {
-                                        this.errors.push(err.message);
-                                    }
-                                    return [];
-                                });
+                                if (cloud) {
+                                    result = await cloud.getDatabaseRows(item as CloudDatabase, cacheKey).catch(err => {
+                                        if (err instanceof Error && err.message) {
+                                            this.errors.push(err.message);
+                                        }
+                                        return [];
+                                    });
+                                }
+                                else {
+                                    result = [];
+                                }
                                 break;
                             default:
+                                removeElement();
                                 reject(new Error('Data source action type invalid'));
                                 return;
                         }
+                        if (index !== undefined) {
+                            const data = result[index];
+                            result = data ? [data] : [];
+                        }
+                        else if (limit !== undefined && result.length > limit) {
+                            result.length = limit;
+                        }
                         if (result.length) {
-                            const template = item.value || element.textContent || domElement.innerXml;
+                            const template = item.value || element!.textContent || domElement.innerXml;
                             const isTruthy = (data: PlainObject, attr: string, falsey: Undef<string>) => {
                                 const value = !!getObjectValue(data, attr);
                                 return falsey ? !value : value;
@@ -570,6 +598,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             }
                                             else {
                                                 ++domBase.failCount;
+                                                removeElement();
                                                 resolve();
                                                 return;
                                             }
@@ -676,19 +705,17 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     }
                                     break;
                                 default:
+                                    removeElement();
                                     reject(new Error('Element action type invalid'));
                                     return;
                             }
                             if (!domBase.write(domElement, { tagOffset }) || invalid) {
-                                const { tagName, tagIndex } = element;
+                                const { tagName, tagIndex } = element!;
                                 this.writeFail('Unable to replace ' + item.type, getErrorDOM(tagName, tagIndex));
                             }
                         }
                         else {
-                            if (item.removeEmpty && !domBase.write(domElement, { remove: true })) {
-                                const { tagName, tagIndex } = element;
-                                this.writeFail('Unable to remove element', getErrorDOM(tagName, tagIndex));
-                            }
+                            removeElement();
                             switch (item.source) {
                                 case 'uri': {
                                     const { format, uri } = item as UriDataSource;

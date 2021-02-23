@@ -59,7 +59,7 @@ webp~2x(1024x768)
   }
 }
 
-// HTML configuration (json/yaml)
+// HTML configuration (json/yaml/toml)
 {
   "selector": ".card:nth-of-type(1) img",
   "type": "image",
@@ -179,7 +179,7 @@ Bundling options are available with these HTML tag names.
 Files with the same path and filename will automatically create a bundle assuming there are no conflicts in call ordering.
 
 ```javascript
-// HTML configuration (json/yaml) is recommended
+// HTML configuration (json/yaml/toml) is recommended
 
 {
   "selector": "head > script:nth-of-type(2), head > script:nth-of-type(3)",
@@ -233,7 +233,7 @@ NOTE: Whitespace can be used between anything for readability.
 
 Bundling with "exportAs" gives you the ability to debug source code inside &lt;script&gt; elements.
 
-### Raw assets
+#### Raw assets
 
 ```xml
 <!-- img | video | audio | source | track | object | embed | iframe -->
@@ -436,15 +436,15 @@ interface AssetCommand extends OutputModifiers {
     filename?: string; // type: html | ...image
     process?: string[]; // type: js | css
     commands?: string[]; // type: image
+    cloudStorage?: CloudService[];
+    cloudDatabase?: CloudDatabase;
     dataUri?: { // type: text | attribute
         format: string; // json | yaml
         uri: string;
         value?: string | ObjectMap<string | string[]>;
     };
-    cloudDatabase?: CloudDatabase;
-    cloudStorage?: CloudService[];
     document?: string | string[];
-    attributes?: { [key: string]: value?: Null<string> };
+    attributes?: ObjectMap<Optional<string>>;
     tasks?: string[];
     watch?: boolean | { interval?: number, expires?: string }; // type: js | css | image (expires: 1h 1m 1s)
     template?: {
@@ -455,7 +455,7 @@ interface AssetCommand extends OutputModifiers {
 }
 ```
 
-Only one command per element is supported with the latter selectors taking precedence when there are conflicts. You can use a task if there are additional commands to perform.
+Only one command per element is supported (except data sources) with the latter selectors taking precedence when there are conflicts. You can use a task if there are additional commands to perform.
 
 - [bundle.json](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.json)
 - [bundle.yml](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.yml)
@@ -742,14 +742,15 @@ Basic text replacement can be achieved using any of these cloud based document d
 
 ```javascript
 interface CloudDatabase {
+    name?: string;
     table?: string; // Required except when using BigQuery
     value?: string | ObjectMap<string | string[]>; // Uses innerHTML for replacement when undefined
-    name?: string;
     id?: string;
     query?: string | PlainObject | any[];
-    limit?: number;
     params?: unknown[];
     options?: PlainObject;
+    index?: number;
+    limit?: number;
     viewEngine?: {
         name: string; // npm package name
         options?: {
@@ -757,7 +758,6 @@ interface CloudDatabase {
             output?: PlainObject; // template({ ...options, ...result })
         };
     };
-    document?: string | string[];
 }
 ```
 
@@ -886,10 +886,10 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
     "table": "demo",
     "id": "2", // OCI (server assigned)
     "partitionKey": "Pictures", // AWS (required) | Azure and IBM (optional)
-    "value": { // Result: { src: '', data: {} }
+    "value": { // Result: { src: '', other: {} }
       "src": "src", // Use direct property access
-      "alt": "{{if !expired}}data.alt{{else}}:text(Expired){{end}}", // Only one conditional per attribute
-      "style": [":join(; )" /* optional: " " */, "data.style[0]", "data.style[1]", ":text(display: none)"] // Same as: [":join(; )", "data.style", ":text(display: none)"]
+      "alt": "{{if !expired}}other.alt{{else}}:text(Expired){{end}}", // Only one conditional per attribute
+      "style": [":join(; )" /* optional: " " */, "other.style[0]", "other.style[1]", ":text(display: none)"] // Same as: [":join(; )", "other.style", ":text(display: none)"]
     }
   }
 }
@@ -916,7 +916,7 @@ Results are cached using the supplied credentials and queries will individually 
 Reusing configuration templates is possible using URL query parameters. Output values cannot be modified with the {{param}} syntax.
 
 ```javascript
-// http://localhost:3000/index.html?table=demo&id=1
+// http://localhost:3000/project/index.html?table=demo&id=1
 
 {
   "service": "azure",
@@ -929,9 +929,47 @@ Reusing configuration templates is possible using URL query parameters. Output v
 }
 ```
 
+### Data Source: JSON/YAML/TOML
+
+Using the same concept from cloud databases you can also read data from external or local text files.
+
+```javascript
+interface UriDataSource {
+    format: string; // json | yaml | toml
+    uri: string;
+    query?: string; // Uses JSONPath <https://github.com/dchester/jsonpath>
+
+    // Same as CloudDatabase
+    value?: string | ObjectMap<string | string[]>;
+    index?: number;
+    limit?: number;
+    viewEngine?: ViewEngine | string;
+}
+```
+
+```javascript
+// http://localhost:3000/project/index.html?file=demo
+
+{
+  "selector": ".card:nth-of-type(1) img",
+  "type": "attribute",
+  "dataUri": {
+    "format": "json",
+    "uri": "http://localhost:3000/project/{{file}}.json", // Local files require read permissions
+    "query": "$[1]" // Row #2 in result array (optional)
+    "value": { // Result: { src: '', other: {} }
+      "src": "src",
+      "alt": "other.alt"
+    }
+  }
+}
+```
+
+View engines can also be used to format the element "value" or innerHTML.
+
 ### Options: Development / Production
 
-The entire page can similarly be transformed as a group using the "saveAs" attribute in options. Cloud storage can be used for all assets except HTML using the same configuration as element selectors.
+The entire page can similarly be transformed as a group using the "saveAs" attribute in options. Cloud storage can be used for all assets (except HTML) using the same configuration as element selectors.
 
 ```javascript
 squared.saveAs('index.zip', {
@@ -1017,6 +1055,8 @@ You can similarly prevent an asset from being downloaded or transformed using th
 ```xml
 <iframe src="https://www.google.com/maps" data-chrome-file="ignore"></iframe>
 ```
+
+These commands are also available in JSON/YAML/TOML configuration files.
 
 ### LICENSE
 
