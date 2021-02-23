@@ -17,30 +17,30 @@ export default function download(this: IModule, credential: AzureStorageCredenti
                 const blobClient = blobServiceClient.getContainerClient(Bucket);
                 blobClient.getBlockBlobClient(Key).downloadToBuffer()
                     .then(buffer => {
-                        this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Download success', location);
+                        this.formatMessage(this.logType.CLOUD, service, 'Download success', location);
                         success(buffer);
                         if (Download.deleteObject) {
                             blobClient.delete()
-                                .then(() => this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Delete success', location, { titleColor: 'grey' }))
+                                .then(() => this.formatMessage(this.logType.CLOUD, service, 'Delete success', location, { titleColor: 'grey' }))
                                 .catch(err => {
                                     if (err.code !== 'BlobNotFound') {
-                                        this.formatFail(this.logType.CLOUD_STORAGE, service, ['Delete failed', location], err);
+                                        this.formatFail(this.logType.CLOUD, service, ['Delete failed', location], err);
                                     }
                                 });
                         }
                     })
                     .catch(err => {
-                        this.formatFail(this.logType.CLOUD_STORAGE, service, ['Download failed', location], err);
+                        this.formatFail(this.logType.CLOUD, service, ['Download failed', location], err);
                         success(null);
                     });
             }
             catch (err) {
-                this.formatFail(this.logType.CLOUD_STORAGE, service, 'Unknown', err);
+                this.formatFail(this.logType.CLOUD, service, 'Unknown', err);
                 success(null);
             }
         }
         else {
-            const writeFail = (prop: string) => this.formatFail(this.logType.CLOUD_STORAGE, service, prop + ' not specified', new Error(`Missing property <${service}:${prop.toLowerCase()}>`));
+            const writeFail = (prop: string) => this.formatFail(this.logType.CLOUD, service, prop + ' not specified', new Error(`Missing property <${service}:${prop.toLowerCase()}>`));
             if (!Bucket) {
                 writeFail('Bucket');
             }

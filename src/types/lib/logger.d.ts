@@ -9,8 +9,8 @@ export enum LOG_TYPE {
     PROCESS = 4,
     COMPRESS = 8,
     WATCH = 16,
-    CLOUD_STORAGE = 32,
-    CLOUD_DATABASE = 64,
+    FILE = 32,
+    CLOUD = 64,
     TIME_ELAPSED = 128
 }
 

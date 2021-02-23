@@ -43,7 +43,7 @@ export interface LoggerModule {
     process?: boolean;
     compress?: boolean;
     watch?: boolean;
-    cloud_storage?: boolean;
-    cloud_database?: boolean;
+    file?: boolean;
+    cloud?: boolean;
     time_elapsed?: boolean;
 }

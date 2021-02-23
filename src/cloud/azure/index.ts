@@ -65,16 +65,16 @@ export async function createBucket(this: IModule, credential: AzureStorageCreden
         if (!await containerClient.exists()) {
             const response = await containerClient.create({ access: publicRead ? 'blob' : 'container' });
             if (response.errorCode) {
-                this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Container created with errors', 'Error code: ' + response.errorCode], bucket, { titleColor: 'yellow' });
+                this.formatMessage(this.logType.CLOUD, service, ['Container created with errors', 'Error code: ' + response.errorCode], bucket, { titleColor: 'yellow' });
             }
             else {
-                this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Container created', bucket, { titleColor: 'blue' });
+                this.formatMessage(this.logType.CLOUD, service, 'Container created', bucket, { titleColor: 'blue' });
             }
         }
     }
     catch (err) {
         if (err.code !== 'ContainerAlreadyExists') {
-            this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to create container', bucket], err);
+            this.formatFail(this.logType.CLOUD, service, ['Unable to create container', bucket], err);
             return false;
         }
     }
@@ -91,17 +91,17 @@ export async function deleteObjects(this: IModule, credential: AzureStorageCrede
             tasks.push(
                 containerClient.deleteBlob(blob.name, { versionId: blob.versionId })
                     .catch(err => {
-                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to delete blob', bucket], err, { titleColor: 'yellow' });
+                        this.formatMessage(this.logType.CLOUD, service, ['Unable to delete blob', bucket], err, { titleColor: 'yellow' });
                         --fileCount;
                         return err;
                     })
             );
         }
         fileCount = tasks.length;
-        return Promise.all(tasks).then(() => this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Container emptied', fileCount + ' files'], bucket, { titleColor: 'blue' }));
+        return Promise.all(tasks).then(() => this.formatMessage(this.logType.CLOUD, service, ['Container emptied', fileCount + ' files'], bucket, { titleColor: 'blue' }));
     }
     catch (err) {
-        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to empty container', bucket], err, { titleColor: 'yellow' });
+        this.formatMessage(this.logType.CLOUD, service, ['Unable to empty container', bucket], err, { titleColor: 'yellow' });
     }
 }
 

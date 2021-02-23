@@ -39,10 +39,10 @@ function getPublicReadPolicy(bucket: string) {
 function setPublicRead(this: IModule, s3: aws.S3, Bucket: string, service = 'aws') {
     const callback = (err: Null<Error>) => {
         if (!err) {
-            this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Grant public-read', Bucket, { titleColor: 'blue' });
+            this.formatMessage(this.logType.CLOUD, service, 'Grant public-read', Bucket, { titleColor: 'blue' });
         }
         else {
-            this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to grant public-read', Bucket], err, { titleColor: 'yellow' });
+            this.formatMessage(this.logType.CLOUD, service, ['Unable to grant public-read', Bucket], err, { titleColor: 'yellow' });
         }
     };
     switch (service) {
@@ -128,7 +128,7 @@ export async function createBucket(this: IModule, credential: ConfigurationOptio
             }
             return await s3.createBucket(bucketRequest).promise()
                 .then(() => {
-                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Bucket created', Bucket, { titleColor: 'blue' });
+                    this.formatMessage(this.logType.CLOUD, service, 'Bucket created', Bucket, { titleColor: 'blue' });
                     if (publicRead) {
                         setPublicRead.call(this, s3, Bucket, service);
                     }
@@ -136,7 +136,7 @@ export async function createBucket(this: IModule, credential: ConfigurationOptio
                 })
                 .catch(err => {
                     if (err.code !== 'BucketAlreadyExists' && err.code !== 'BucketAlreadyOwnedByYou') {
-                        this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to create bucket', Bucket], err);
+                        this.formatFail(this.logType.CLOUD, service, ['Unable to create bucket', Bucket], err);
                         return false;
                     }
                     return true;
@@ -152,13 +152,13 @@ export async function deleteObjects(this: IModule, credential: AWSStorageCredent
             return s3.deleteObjects({ Bucket, Delete: { Objects: Contents.map(data => ({ Key: data.Key! })) } }).promise()
                 .then(data => {
                     if (data.Deleted) {
-                        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Bucket emptied', data.Deleted.length + ' files'], Bucket, { titleColor: 'blue' });
+                        this.formatMessage(this.logType.CLOUD, service, ['Bucket emptied', data.Deleted.length + ' files'], Bucket, { titleColor: 'blue' });
                     }
                 });
         }
     }
     catch (err) {
-        this.formatMessage(this.logType.CLOUD_STORAGE, service, ['Unable to empty bucket', Bucket], err, { titleColor: 'yellow' });
+        this.formatMessage(this.logType.CLOUD, service, ['Unable to empty bucket', Bucket], err, { titleColor: 'yellow' });
     }
 }
 

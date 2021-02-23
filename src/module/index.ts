@@ -17,8 +17,8 @@ export enum LOG_TYPE { // eslint-disable-line no-shadow
     PROCESS = 4,
     COMPRESS = 8,
     WATCH = 16,
-    CLOUD_STORAGE = 32,
-    CLOUD_DATABASE = 64,
+    FILE = 32,
+    CLOUD = 64,
     TIME_ELAPSED = 128
 }
 
@@ -73,13 +73,13 @@ abstract class Module implements IModule {
                     return;
                 }
                 break;
-            case LOG_TYPE.CLOUD_STORAGE:
-                if (SETTINGS.cloud_storage === false) {
+            case LOG_TYPE.FILE:
+                if (SETTINGS.file === false) {
                     return;
                 }
                 break;
-            case LOG_TYPE.CLOUD_DATABASE:
-                if (SETTINGS.cloud_database === false) {
+            case LOG_TYPE.CLOUD:
+                if (SETTINGS.cloud === false) {
                     return;
                 }
                 break;

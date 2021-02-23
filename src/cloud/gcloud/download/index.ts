@@ -29,31 +29,31 @@ export default function download(this: IModule, credential: GCloudStorageCredent
                 const file = bucket.file(Key, { generation: Download.versionId });
                 file.download({ destination })
                     .then(() => {
-                        this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Download success', location);
+                        this.formatMessage(this.logType.CLOUD, service, 'Download success', location);
                         success(destination);
                         if (Download.deleteObject) {
                             file.delete({ ignoreNotFound: true }, err => {
                                 if (!err) {
-                                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Delete success', location, { titleColor: 'grey' });
+                                    this.formatMessage(this.logType.CLOUD, service, 'Delete success', location, { titleColor: 'grey' });
                                 }
                                 else {
-                                    this.formatFail(this.logType.CLOUD_STORAGE, service, ['Delete failed', location], err);
+                                    this.formatFail(this.logType.CLOUD, service, ['Delete failed', location], err);
                                 }
                             });
                         }
                     })
                     .catch((err: Error) => {
-                        this.formatFail(this.logType.CLOUD_STORAGE, service, ['Download failed', location], err);
+                        this.formatFail(this.logType.CLOUD, service, ['Download failed', location], err);
                         success('');
                     });
             }
             catch (err) {
-                this.formatFail(this.logType.CLOUD_STORAGE, service, 'Unknown', err);
+                this.formatFail(this.logType.CLOUD, service, 'Unknown', err);
                 success('');
             }
         }
         else {
-            const writeFail = (prop: string) => this.formatFail(this.logType.CLOUD_STORAGE, service, prop + ' not specified', new Error(`Missing property <${service}:${prop.toLowerCase()}>`));
+            const writeFail = (prop: string) => this.formatFail(this.logType.CLOUD, service, prop + ' not specified', new Error(`Missing property <${service}:${prop.toLowerCase()}>`));
             if (!Bucket) {
                 writeFail('Bucket');
             }

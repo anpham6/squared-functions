@@ -2,12 +2,12 @@
 
 /* eslint no-shadow: "off" */
 
-import type { CompressFormat, CompressLevel, LocationUri, ResponseData, XmlTagNode } from './squared';
+import type { CompressFormat, CompressLevel, DataSource, LocationUri, ResponseData, ViewEngine, XmlTagNode } from './squared';
 
 import type { ExternalAsset, FileData, FileOutput, OutputData } from './asset';
 import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload } from './cloud';
 import type { CompressTryFileMethod, CompressTryImageCallback } from './compress';
-import type { ConfigOrTransformer, PluginConfig, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult, ViewEngine } from './document';
+import type { ConfigOrTransformer, PluginConfig, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
 import type { CompleteAsyncTaskCallback, InstallData, PerformAsyncTaskMethod } from './filemanager';
 import type { CropData, QualityData, ResizeData, RotateData } from './image';
 import type { LOG_TYPE, LogMessageOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
@@ -171,6 +171,7 @@ declare namespace functions {
         readonly assets: ExternalAsset[];
         readonly documentAssets: ExternalAsset[];
         readonly taskAssets: ExternalAsset[];
+        readonly dataSourceItems: DataSource[];
         readonly files: Set<string>;
         readonly filesQueued: Set<string>;
         readonly filesToRemove: Set<string>;
@@ -191,7 +192,7 @@ declare namespace functions {
         performFinalize(): void;
         hasDocument(instance: IModule, document: Undef<StringOfArray>): boolean;
         getDocumentAssets(instance: IModule): ExternalAsset[];
-        getCloudAssets(instance: IModule): CloudDatabase[];
+        getDataSourceItems(instance: IModule): DataSource[];
         getElements(): XmlTagNode[];
         setLocalUri(file: ExternalAsset): FileOutput;
         getLocalUri(data: FileData): string;

@@ -436,6 +436,12 @@ interface AssetCommand extends OutputModifiers {
     filename?: string; // type: html | ...image
     process?: string[]; // type: js | css
     commands?: string[]; // type: image
+    dataUri?: { // type: text | attribute
+        format: string; // json | yaml
+        uri: string;
+        value?: string | ObjectMap<string | string[]>;
+    };
+    cloudDatabase?: CloudDatabase;
     cloudStorage?: CloudService[];
     document?: string | string[];
     attributes?: { [key: string]: value?: Null<string> };
@@ -755,7 +761,7 @@ interface CloudDatabase {
 }
 ```
 
-View engines with a "compile" template string to function (e.g. [EJS](https://ejs.co)) can be used instead for "text" and "attribute". Manual NPM installation (npm i ejs) is required.
+View engines with a "compile" template string to function (e.g. [EJS](https://ejs.co)) can be used instead for "text" and "attribute". Manual NPM installation (npm i ejs) is required. Results from any data sources are treated as an array with multiple rows being concatenated.
 
 ```javascript
 /* AWS: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GettingStarted.NodeJs.html */

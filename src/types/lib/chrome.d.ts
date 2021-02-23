@@ -1,6 +1,15 @@
 /// <reference path="type.d.ts" />
 
-import type { AttributeMap, ElementAction } from './squared';
+import type { AttributeMap, ElementAction, DataSource as IDataSource, ViewEngine } from './squared';
+
+interface DataSourceAction {
+    type: "text" | "attribute";
+}
+
+interface TemplateAction extends DataSourceAction {
+    viewEngine?: ViewEngine | string;
+    value?: string | ObjectMap<unknown>;
+}
 
 export type UnusedStyles = string[];
 
@@ -23,3 +32,12 @@ export interface RequestData {
     templateMap?: TemplateMap;
     unusedStyles?: string[];
 }
+
+export interface DataSource extends IDataSource, DataSourceAction, TemplateAction {}
+
+export interface UriDataSource extends DataSource, TemplateAction {
+    format: string;
+    uri: string;
+}
+
+export interface CloudDataSource extends DataSource, TemplateAction, PlainObject {}

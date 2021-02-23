@@ -2,12 +2,11 @@ import type { RequestData } from './squared';
 import type * as chrome from './chrome';
 
 import type { ExternalAsset } from './asset';
-import type { CloudDatabase } from './cloud';
 import type { CloudModule, CompressModule, DocumentModule, ImageModule, LoggerModule, TaskModule, WatchModule } from './module';
 
 type BoolString = boolean | string;
 
-export interface RequestBody extends RequestData<CloudDatabase>, chrome.RequestData {
+export interface RequestBody extends RequestData, chrome.RequestData {
     assets: ExternalAsset[];
 }
 

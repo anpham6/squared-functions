@@ -67,11 +67,11 @@ export default function upload(this: IModule, credential: AWSStorageCredential, 
                 }
                 while (exists && ++i);
                 if (i > 0) {
-                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'File renamed', filename, { titleColor: 'yellow' });
+                    this.formatMessage(this.logType.CLOUD, service, 'File renamed', filename, { titleColor: 'yellow' });
                 }
             }
             catch (err) {
-                this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', path.basename(localUri)], err);
+                this.formatFail(this.logType.CLOUD, service, ['Unable to rename file', path.basename(localUri)], err);
                 success('');
                 return;
             }
@@ -92,13 +92,13 @@ export default function upload(this: IModule, credential: AWSStorageCredential, 
             s3.upload({ Bucket, Key: pathname + Key[i], ACL, Body: Body[i], ContentType: ContentType[i] }, (err, result) => {
                 if (!err) {
                     const url = endpoint ? Module.joinPosix(endpoint, result.Key) : result.Location;
-                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Upload success', url);
+                    this.formatMessage(this.logType.CLOUD, service, 'Upload success', url);
                     if (i === 0) {
                         success(url);
                     }
                 }
                 else if (i === 0) {
-                    this.formatFail(this.logType.CLOUD_STORAGE, service, ['Upload failed', path.basename(localUri)], err);
+                    this.formatFail(this.logType.CLOUD, service, ['Upload failed', path.basename(localUri)], err);
                     success('');
                 }
             });

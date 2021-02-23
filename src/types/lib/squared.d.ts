@@ -14,6 +14,11 @@ interface TextAsset extends Asset, LocationUri {
     content?: string;
 }
 
+export interface DataSource extends ElementAction, DocumentAction, PlainObject {
+    source: "uri" | "cloud";
+    removeEmpty?: boolean;
+}
+
 export interface OutputAction<T = unknown> extends DocumentAction {
     moveTo?: string;
     commands?: string[];
@@ -82,6 +87,14 @@ export interface FileAsset<T = unknown> extends TextAsset, OutputAction<T> {
     base64?: string;
 }
 
+export interface ViewEngine {
+    name: string;
+    options?: {
+        compile?: PlainObject;
+        output?: PlainObject;
+    };
+}
+
 export interface CompressLevel {
     level?: number;
     chunkSize?: number;
@@ -100,9 +113,9 @@ export interface WatchInterval {
     expires?: string;
 }
 
-export interface RequestData<T = unknown> extends PlainObject {
+export interface RequestData extends PlainObject {
     assets?: FileAsset[];
-    database?: T[];
+    dataSource?: DataSource[];
     document?: string[];
     task?: string[];
 }

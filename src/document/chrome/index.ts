@@ -1,7 +1,9 @@
 import type { LocationUri } from '../../types/lib/squared';
+import type { DataSource, UriDataSource } from '../../types/lib/chrome';
 
 import type { IFileManager } from '../../types/lib';
 import type { FileData, OutputData } from '../../types/lib/asset';
+import type { CloudDatabase } from '../../types/lib/cloud';
 import type { SourceMapOutput } from '../../types/lib/document';
 import type { DocumentModule } from '../../types/lib/module';
 import type { RequestBody } from '../../types/lib/node';
@@ -12,6 +14,8 @@ import type { DocumentAsset, IChromeDocument } from './document';
 import path = require('path');
 import fs = require('fs-extra');
 import escapeRegexp = require('escape-string-regexp');
+import request = require('request-promise-native');
+import yaml = require('js-yaml');
 import uuid = require('uuid');
 
 import Document from '../../document';
@@ -432,7 +436,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     this.writeFail(['Unable to read base64 buffer', moduleName], err);
                 }
             }
-            if (item.element) {
+            if (html && item.element) {
                 elements.push(item);
             }
         }
@@ -459,19 +463,88 @@ class ChromeDocument extends Document implements IChromeDocument {
             const cloud = this.Cloud;
             let source = this.getUTF8String(html, localUri);
             const domBase = new DomWriter(moduleName, source, this.getElements());
-            const database = this.getCloudAssets(instance).filter(item => item.element);
-            if (database.length) {
+            const dataSource = this.getDataSourceItems(instance).filter(item => item.element) as DataSource[];
+            if (dataSource.length) {
                 const cacheKey = uuid.v4();
-                await Document.allSettled(database.map(item => {
-                    return new Promise<void>(async resolve => {
+                await Document.allSettled(dataSource.map(item => {
+                    return new Promise<void>(async (resolve, reject) => {
                         const element = item.element!;
                         const domElement = new HtmlElement(moduleName, element);
-                        const result = await cloud!.getDatabaseRows(item, cacheKey).catch(err => {
-                            if (err instanceof Error && err.message) {
-                                this.errors.push(err.message);
+                        let result: PlainObject[];
+                        switch (item.source) {
+                            case 'uri': {
+                                const { format, uri } = item as UriDataSource;
+                                let content: Optional<string>;
+                                if (Document.isFileHTTP(uri)) {
+                                    content = await request(uri).catch(err => {
+                                        this.writeFail(['Unable to request data source', uri], err);
+                                        return null;
+                                    });
+                                }
+                                else {
+                                    const pathname = Document.resolveUri(uri);
+                                    if (fs.existsSync(pathname) && (Document.isFileUNC(pathname) ? this.permission.hasUNCRead() : this.permission.hasDiskRead())) {
+                                        content = fs.readFileSync(pathname, 'utf8');
+                                    }
+                                    else {
+                                        reject(new Error(`Insufficient read permissions (${uri})`));
+                                        return;
+                                    }
+                                }
+                                if (content) {
+                                    let data: Undef<unknown>;
+                                    try {
+                                        switch (format) {
+                                            case 'json':
+                                                data = JSON.parse(content);
+                                                break;
+                                            case 'yaml':
+                                                data = yaml.load(content);
+                                                break;
+                                            default:
+                                                reject(new Error(`Data source format invalid (${format})`));
+                                                return;
+                                        }
+                                    }
+                                    catch (err) {
+                                        this.writeFail(['Unable to load data source', uri], err);
+                                        resolve();
+                                        return;
+                                    }
+                                    if (Array.isArray(data)) {
+                                        result = data;
+                                    }
+                                    else if (isObject(data)) {
+                                        result = [data];
+                                    }
+                                    else {
+                                        reject(new Error(`Data source uri invalid (${uri})`));
+                                        return;
+                                    }
+                                }
+                                else {
+                                    if (content !== null) {
+                                        reject(new Error('Data source response empty'));
+                                    }
+                                    else {
+                                        resolve();
+                                    }
+                                    return;
+                                }
+                                break;
                             }
-                            return [];
-                        });
+                            case 'cloud':
+                                result = await cloud!.getDatabaseRows(item as CloudDatabase, cacheKey).catch(err => {
+                                    if (err instanceof Error && err.message) {
+                                        this.errors.push(err.message);
+                                    }
+                                    return [];
+                                });
+                                break;
+                            default:
+                                reject(new Error('Data source action type invalid'));
+                                return;
+                        }
                         if (result.length) {
                             const template = item.value || element.textContent || domElement.innerXml;
                             const isTruthy = (data: PlainObject, attr: string, falsey: Undef<string>) => {
@@ -536,12 +609,16 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                 }
                                                 else {
                                                     invalid = true;
-                                                    break;
+                                                    continue;
                                                 }
                                             }
                                             else {
                                                 if (typeof segment === 'string') {
                                                     segment = [segment];
+                                                }
+                                                if (!Array.isArray(segment)) {
+                                                    invalid = true;
+                                                    continue;
                                                 }
                                                 let joinString = ' ';
                                                 for (const row of result) {
@@ -593,32 +670,42 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     }
                                     break;
                                 default:
-                                    resolve();
+                                    reject(new Error('Element action type invalid'));
                                     return;
                             }
-                            if (invalid || !domBase.write(domElement, { tagOffset })) {
+                            if (!domBase.write(domElement, { tagOffset }) || invalid) {
                                 const { tagName, tagIndex } = element;
-                                this.writeFail(['Cloud text replacement', tagName], getErrorDOM(tagName, tagIndex));
+                                this.writeFail('Unable to replace ' + item.type, getErrorDOM(tagName, tagIndex));
                             }
                         }
                         else {
                             if (item.removeEmpty && !domBase.write(domElement, { remove: true })) {
                                 const { tagName, tagIndex } = element;
-                                this.writeFail(['Cloud text removal', tagName], getErrorDOM(tagName, tagIndex));
+                                this.writeFail('Unable to remove element', getErrorDOM(tagName, tagIndex));
                             }
-                            const { service, table, id, query } = item;
-                            let queryString = '';
-                            if (id) {
-                                queryString = 'id: ' + id;
+                            switch (item.source) {
+                                case 'uri': {
+                                    const { format, uri } = item as UriDataSource;
+                                    this.formatFail(this.logType.FILE, format, ['URI data source had no results', uri], new Error('Empty: ' + uri));
+                                    break;
+                                }
+                                case 'cloud': {
+                                    const { service, table, id, query } = item as CloudDatabase;
+                                    let queryString = '';
+                                    if (id) {
+                                        queryString = 'id: ' + id;
+                                    }
+                                    else if (query) {
+                                        queryString = typeof query !== 'string' ? JSON.stringify(query) : query;
+                                    }
+                                    this.formatFail(this.logType.CLOUD, service, ['Database query had no results', table ? 'table: ' + table : ''], new Error('Empty: ' + queryString));
+                                    break;
+                                }
                             }
-                            else if (query) {
-                                queryString = typeof query !== 'string' ? JSON.stringify(query) : query;
-                            }
-                            this.formatFail(this.logType.CLOUD_DATABASE, service, ['Query had no results', table ? 'table: ' + table : ''], new Error(queryString));
                         }
                         resolve();
                     });
-                }), 'Cloud text replacement', this.errors);
+                }), 'Element text or attribute replacement', this.errors);
             }
             for (const item of elements.filter(asset => !(asset.invalid && !asset.exclude && asset.bundleIndex === undefined && !asset.element!.removed)).sort((a, b) => isRemoved(a) ? -1 : isRemoved(b) ? 1 : 0)) {
                 const { element, bundleIndex, inlineContent, attributes } = item;

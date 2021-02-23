@@ -1,8 +1,8 @@
-import type { CompressFormat, ElementAction } from '../types/lib/squared';
+import type { CompressFormat, DataSource, ElementAction } from '../types/lib/squared';
 
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, IPermission, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
-import type { CloudService } from '../types/lib/cloud';
+import type { CloudDatabase, CloudService } from '../types/lib/cloud';
 import type { InstallData } from '../types/lib/filemanager';
 import type { CloudModule, DocumentModule } from '../types/lib/module';
 import type { PermissionSettings, RequestBody, Settings } from '../types/lib/node';
@@ -113,6 +113,7 @@ class FileManager extends Module implements IFileManager {
     readonly assets: ExternalAsset[];
     readonly documentAssets: ExternalAsset[] = [];
     readonly taskAssets: ExternalAsset[] = [];
+    readonly dataSourceItems: DataSource[] = [];
     readonly files = new Set<string>();
     readonly filesQueued = new Set<string>();
     readonly filesToRemove = new Set<string>();
@@ -138,6 +139,9 @@ class FileManager extends Module implements IFileManager {
                 this.taskAssets.push(item);
             }
         }
+        if (this.body.dataSource) {
+            this.dataSourceItems.push(...this.body.dataSource);
+        }
         if (postFinalize) {
             this.postFinalize = postFinalize.bind(this);
         }
@@ -162,7 +166,7 @@ class FileManager extends Module implements IFileManager {
                 break;
             case 'cloud':
                 if (isObject<CloudModule>(target)) {
-                    this.Cloud = new Cloud(target, this.body.database);
+                    this.Cloud = new Cloud(target, this.dataSourceItems.filter(item => item.source === 'cloud') as Undef<CloudDatabase[]>);
                 }
                 break;
             case 'watch': {
@@ -344,8 +348,8 @@ class FileManager extends Module implements IFileManager {
     getDocumentAssets(instance: IModule) {
         return this.documentAssets.filter(item => this.hasDocument(instance, item.document));
     }
-    getCloudAssets(instance: IModule) {
-        return this.Cloud ? this.Cloud.database.filter(item => this.hasDocument(instance, item.document)) : [];
+    getDataSourceItems(instance: IModule) {
+        return this.dataSourceItems.filter(item => this.hasDocument(instance, item.document));
     }
     getElements() {
         return (this.documentAssets as ElementAction[]).concat((this.Cloud?.database || []) as ElementAction[]).filter(item => item.element).map(item => item.element!);

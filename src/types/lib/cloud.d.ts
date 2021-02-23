@@ -1,24 +1,20 @@
-import type { ElementAction, LocationUri } from './squared';
-
-import type { ViewEngine } from './document';
+import type { LocationUri } from './squared';
+import type { CloudDataSource } from './chrome';
 
 export interface CloudService extends ObjectMap<unknown> {
     service: string;
     credential: string | PlainObject;
 }
 
-export interface CloudDatabase<T = string | PlainObject | any[]> extends CloudService, ElementAction {
-    type: string;
+export interface CloudDatabase<T = string | PlainObject | any[]> extends CloudService, CloudDataSource {
     table?: string;
     name?: string;
     value?: string | ObjectMap<StringOfArray>;
     id?: string;
     query?: T;
     limit?: number;
-    removeEmpty?: boolean;
     params?: unknown[];
     options?: PlainObject;
-    viewEngine?: ViewEngine | string;
     document?: StringOfArray;
 }
 

@@ -68,11 +68,11 @@ export default function upload(this: IModule, credential: AzureStorageCredential
                 }
                 while (exists && ++i);
                 if (i > 0) {
-                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'File renamed', filename, { titleColor: 'yellow' });
+                    this.formatMessage(this.logType.CLOUD, service, 'File renamed', filename, { titleColor: 'yellow' });
                 }
             }
             catch (err) {
-                this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', path.basename(localUri)], err);
+                this.formatFail(this.logType.CLOUD, service, ['Unable to rename file', path.basename(localUri)], err);
                 success('');
                 return;
             }
@@ -90,14 +90,14 @@ export default function upload(this: IModule, credential: AzureStorageCredential
             containerClient.getBlockBlobClient(blobName).upload(Body[i], Body[i].byteLength, { blobHTTPHeaders: { blobContentType: ContentType[i] } })
                 .then(() => {
                     const url = Module.joinPosix(endpoint ? endpoint : `https://${credential.accountName!}.blob.core.windows.net/${bucket}`, blobName);
-                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Upload success', url);
+                    this.formatMessage(this.logType.CLOUD, service, 'Upload success', url);
                     if (i === 0) {
                         success(url);
                     }
                 })
                 .catch(err => {
                     if (i === 0) {
-                        this.formatFail(this.logType.CLOUD_STORAGE, service, ['Upload failed', Key[i]], err);
+                        this.formatFail(this.logType.CLOUD, service, ['Upload failed', Key[i]], err);
                         success('');
                     }
                 });

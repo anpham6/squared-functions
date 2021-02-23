@@ -61,11 +61,11 @@ export default function upload(this: IModule, credential: GCloudStorageCredentia
                 }
                 while (exists && ++i);
                 if (i > 0) {
-                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'File renamed', filename, { titleColor: 'yellow' });
+                    this.formatMessage(this.logType.CLOUD, service, 'File renamed', filename, { titleColor: 'yellow' });
                 }
             }
             catch (err) {
-                this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to rename file', path.basename(localUri)], err);
+                this.formatFail(this.logType.CLOUD, service, ['Unable to rename file', path.basename(localUri)], err);
                 success('');
                 return;
             }
@@ -86,7 +86,7 @@ export default function upload(this: IModule, credential: GCloudStorageCredentia
                     fs.mkdirpSync(path.dirname(srcUri));
                 }
                 catch (err) {
-                    this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to create directory', srcUri], err);
+                    this.formatFail(this.logType.CLOUD, service, ['Unable to create directory', srcUri], err);
                     success('');
                     return;
                 }
@@ -99,7 +99,7 @@ export default function upload(this: IModule, credential: GCloudStorageCredentia
                     }
                 }
                 catch (err) {
-                    this.formatFail(this.logType.CLOUD_STORAGE, service, ['Unable to write buffer', path.basename(localUri)], err);
+                    this.formatFail(this.logType.CLOUD, service, ['Unable to write buffer', path.basename(localUri)], err);
                     success('');
                     return;
                 }
@@ -108,7 +108,7 @@ export default function upload(this: IModule, credential: GCloudStorageCredentia
                 if (file) {
                     const { active, endpoint, publicRead } = data.upload;
                     const url = Module.joinPosix(endpoint ? endpoint : 'https://storage.googleapis.com/' + bucket, file.name);
-                    this.formatMessage(this.logType.CLOUD_STORAGE, service, 'Upload success', url);
+                    this.formatMessage(this.logType.CLOUD, service, 'Upload success', url);
                     if (i === 0) {
                         success(url);
                     }
@@ -117,7 +117,7 @@ export default function upload(this: IModule, credential: GCloudStorageCredentia
                     }
                 }
                 else if (i === 0) {
-                    this.formatFail(this.logType.CLOUD_STORAGE, service, ['Upload failed', path.basename(srcUri)], err);
+                    this.formatFail(this.logType.CLOUD, service, ['Upload failed', path.basename(srcUri)], err);
                     success('');
                 }
             });
