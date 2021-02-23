@@ -16,6 +16,7 @@ import fs = require('fs-extra');
 import escapeRegexp = require('escape-string-regexp');
 import request = require('request-promise-native');
 import yaml = require('js-yaml');
+import toml = require('toml');
 import uuid = require('uuid');
 
 import Document from '../../document';
@@ -495,11 +496,16 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     let data: Undef<unknown>;
                                     try {
                                         switch (format) {
+                                            case 'js':
                                             case 'json':
                                                 data = JSON.parse(content);
                                                 break;
+                                            case 'yml':
                                             case 'yaml':
                                                 data = yaml.load(content);
+                                                break;
+                                            case 'toml':
+                                                data = toml.parse(content);
                                                 break;
                                             default:
                                                 reject(new Error(`Data source format invalid (${format})`));
@@ -507,7 +513,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         }
                                     }
                                     catch (err) {
-                                        this.writeFail(['Unable to load data source', uri], err);
+                                        this.writeFail(['Unable to load data source', format], err);
                                         resolve();
                                         return;
                                     }

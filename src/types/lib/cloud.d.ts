@@ -12,7 +12,6 @@ export interface CloudDatabase<T = string | PlainObject | any[]> extends CloudSe
     value?: string | ObjectMap<StringOfArray>;
     id?: string;
     query?: T;
-    limit?: number;
     params?: unknown[];
     options?: PlainObject;
     document?: StringOfArray;

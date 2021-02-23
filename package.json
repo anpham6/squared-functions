@@ -53,6 +53,7 @@
     "rimraf": "^3.0.2",
     "rollup": "^2.39.1",
     "tinify": "^1.6.0-beta.2",
+    "toml": "^3.0.0",
     "typescript": "^4.1.5"
   }
 }

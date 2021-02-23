@@ -38,6 +38,7 @@ export interface DataSource extends IDataSource, DataSourceAction, TemplateActio
 export interface UriDataSource extends DataSource, TemplateAction {
     format: string;
     uri: string;
+    query?: string;
 }
 
 export interface CloudDataSource extends DataSource, TemplateAction, PlainObject {}
