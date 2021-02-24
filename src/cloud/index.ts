@@ -94,7 +94,7 @@ class Cloud extends Module implements ICloud {
                                             fileGroup.push([storage.service === 'gcloud' ? group[i] : fs.readFileSync(group[i]), path.extname(group[i])]);
                                         }
                                         catch (err) {
-                                            this.writeFail('File not found', err);
+                                            this.writeFail(['Unable to read file', path.basename(group[i])], err, this.logType.FILE);
                                         }
                                     }
                                 }
@@ -120,6 +120,7 @@ class Cloud extends Module implements ICloud {
                                                 uploadHandler({ buffer, upload, localUri, fileGroup, bucket, bucketGroup, filename, mimeType }, success);
                                             }
                                             else {
+                                                this.writeFail(['Unable to read file', path.basename(localUri)], err, this.logType.FILE);
                                                 success('');
                                             }
                                         });
@@ -195,7 +196,7 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, ['Compress files <finalize>', 'cloud storage'], this.errors);
+            await Module.allSettled(tasks, ['Compress files', 'cloud storage'], this.errors);
             tasks = [];
         }
         for (const service in bucketMap) {
@@ -204,14 +205,14 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, ['Empty bucket <finalize>', 'cloud storage'], this.errors);
+            await Module.allSettled(tasks, ['Empty bucket', 'cloud storage'], this.errors);
             tasks = [];
         }
         for (const item of rawFiles) {
             tasks.push(...Cloud.uploadAsset.call(this, state, item));
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, ['Upload raw assets <finalize>', 'cloud storage'], this.errors);
+            await Module.allSettled(tasks, ['Upload raw assets', 'cloud storage'], this.errors);
             tasks = [];
         }
         for (const { instance } of this.Document) {
@@ -227,7 +228,7 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, ['Delete temporary files <finalize>', 'cloud storage'], this.errors);
+            await Module.allSettled(tasks, ['Delete temporary files', 'cloud storage'], this.errors);
             tasks = [];
         }
         for (const item of this.assets) {
@@ -264,10 +265,11 @@ class Cloud extends Module implements ICloud {
                                     try {
                                         tasks.push(cloud.downloadObject(data.service, cloud.getCredential(data), data.bucket!, data.download!, (value: Null<Buffer | string>) => {
                                             if (value) {
+                                                let destUri = '';
                                                 try {
                                                     const items = Array.from(downloadMap[location]);
                                                     for (let i = 0, length = items.length; i < length; ++i) {
-                                                        const destUri = items[i];
+                                                        destUri = items[i];
                                                         if (typeof value === 'string') {
                                                             fs[i === length - 1 ? 'moveSync' : 'copySync'](value, destUri, { overwrite: true });
                                                         }
@@ -278,7 +280,7 @@ class Cloud extends Module implements ICloud {
                                                     }
                                                 }
                                                 catch (err) {
-                                                    this.writeFail(['Unable to write buffer', data.service], err);
+                                                    this.writeFail(['Unable to write file', path.basename(destUri)], err, this.logType.FILE);
                                                 }
                                             }
                                         }, bucketGroup));
@@ -295,7 +297,7 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, ['Download objects <finalize>', 'cloud storage'], this.errors);
+            await Module.allSettled(tasks, ['Download objects', 'cloud storage'], this.errors);
         }
     }
 

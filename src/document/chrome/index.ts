@@ -164,7 +164,7 @@ function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: Docum
                 }
             }
             catch (err) {
-                this.writeFail(['Unable to copy file', path.basename(moveUri)], err);
+                this.writeFail(['Unable to copy file', path.basename(moveUri)], err, this.logType.FILE);
             }
         }
         fileDir = Document.joinPosix(cssFile.moveTo, cssFile.pathname);
@@ -435,7 +435,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     this.removeAsset(item);
                 }
                 catch (err) {
-                    this.writeFail(['Unable to read base64 buffer', moduleName], err);
+                    this.writeFail(['Unable to read file', path.basename(item.localUri!)], err, this.logType.FILE);
                 }
             }
             if (html && item.element) {
@@ -492,7 +492,12 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 else {
                                     const pathname = Document.resolveUri(uri);
                                     if (fs.existsSync(pathname) && (Document.isFileUNC(pathname) ? this.permission.hasUNCRead() : this.permission.hasDiskRead())) {
-                                        content = fs.readFileSync(pathname, 'utf8');
+                                        try {
+                                            content = fs.readFileSync(pathname, 'utf8');
+                                        }
+                                        catch (err) {
+                                            this.writeFail(['Unable to read file', path.basename(pathname)], err, this.logType.FILE);
+                                        }
                                     }
                                     else {
                                         removeElement();
@@ -672,9 +677,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                             valid = true;
                                                         }
                                                         if (seg) {
-                                                            const text = /^:text\((.*)\)$/.exec(seg);
+                                                            const text = seg[0] === ':' && /^:text\((.*)\)$/.exec(seg);
                                                             if (text) {
-                                                                value += text[1];
+                                                                value += (value ? joinString : '') + text[1];
                                                                 valid = true;
                                                             }
                                                             else {
@@ -686,9 +691,6 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                             }
                                                         }
                                                         REGEXP_TEMPLATECONDITIONAL.lastIndex = 0;
-                                                    }
-                                                    if (valid) {
-                                                        break;
                                                     }
                                                 }
                                             }
@@ -719,7 +721,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             switch (item.source) {
                                 case 'uri': {
                                     const { format, uri } = item as UriDataSource;
-                                    this.formatFail(this.logType.FILE, format, ['URI data source had no results', uri], new Error('Empty: ' + uri));
+                                    this.formatFail(this.logType.PROCESS, format, ['URI data source had no results', uri], new Error('Empty: ' + uri));
                                     break;
                                 }
                                 case 'cloud': {
@@ -1059,7 +1061,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     fs.writeFileSync(html.localUri!, source, 'utf8');
                 }
                 catch (err) {
-                    this.writeFail(['Update "text/html" <cloud storage>', this.moduleName], err);
+                    this.writeFail(['Unable to write file', path.basename(html.localUri!)], err, this.logType.FILE);
                 }
             }
             if (html.cloudStorage) {

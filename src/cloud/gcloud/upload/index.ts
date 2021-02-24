@@ -99,7 +99,7 @@ export default function upload(this: IModule, credential: GCloudStorageCredentia
                     }
                 }
                 catch (err) {
-                    this.formatFail(this.logType.CLOUD, service, ['Unable to write buffer', path.basename(localUri)], err);
+                    this.writeFail(['Unable to write file', path.basename(localUri)], err, this.logType.FILE);
                     success('');
                     return;
                 }

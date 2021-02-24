@@ -73,7 +73,7 @@ abstract class Document extends Module implements IDocument {
         if (!sourceMappingURL.endsWith('.map')) {
             sourceMappingURL += '.map';
         }
-        let uri: Undef<string>,
+        let uri = '',
             code = sourceMap.code,
             found = false,
             inlineMap = false;
@@ -95,7 +95,7 @@ abstract class Document extends Module implements IDocument {
                 fs.writeFileSync(uri, JSON.stringify(map), 'utf8');
             }
             catch (err) {
-                this.writeFail('Unable to write source map', err);
+                this.writeFail(['Unable to write file', path.basename(uri)], err, this.LOG_TYPE.FILE);
             }
         }
         if (uri) {
@@ -175,7 +175,7 @@ abstract class Document extends Module implements IDocument {
                         }
                     }
                     catch (err) {
-                        this.writeFail(['Could not load config', value], err);
+                        this.writeFail(['Unable to read file', path.basename(uri)], err, this.logType.FILE);
                     }
                 }
                 else if (path.isAbsolute(value)) {

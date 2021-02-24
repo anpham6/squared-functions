@@ -355,7 +355,8 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                                     try {
                                         fs.unlinkSync(result);
                                     }
-                                    catch {
+                                    catch (err_3) {
+                                        this.writeFail(['Unable to delete file', path.basename(result)], err_3, this.logType.FILE);
                                     }
                                 });
                             }
@@ -394,9 +395,9 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                     callback(err, output);
                 }
                 else if (webp !== output) {
-                    fs.unlink(output, error => {
-                        if (error) {
-                            this.writeFail(['Unable to delete source image', this.moduleName], error);
+                    fs.unlink(output, err_1 => {
+                        if (err_1) {
+                            this.writeFail(['Unable to delete file', path.basename(output)], err_1, this.logType.FILE);
                         }
                         callback(null, webp);
                     });

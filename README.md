@@ -1038,7 +1038,7 @@ File watching is available and uses HTTP HEAD requests to determine modification
 
 ### Asset exclusion
 
-You can exclude unnecessary processing files using the dataset attribute in &lt;script|link|style&gt; tags.
+You can exclude unnecessary processing files using the dataset attribute in &lt;script|link|style&gt; tags. Other elements can only be excluded when using a configuration file.
 
 ```xml
 <script data-chrome-file="exclude" src="/dist/squared.js"></script>
@@ -1050,13 +1050,11 @@ You can exclude unnecessary processing files using the dataset attribute in &lt;
 </script>
 ```
 
-You can similarly prevent an asset from being downloaded or transformed using the "ignore" command.
+You can similarly prevent any element from being downloaded or transformed using the "ignore" command.
 
 ```xml
 <iframe src="https://www.google.com/maps" data-chrome-file="ignore"></iframe>
 ```
-
-These commands are also available in JSON/YAML/TOML configuration files.
 
 ### LICENSE
 

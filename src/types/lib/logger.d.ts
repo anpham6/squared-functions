@@ -26,5 +26,5 @@ export interface LogMessageOptions {
 }
 
 export type LogValue = string | [string, Optional<string>];
-export type ModuleWriteFailMethod = (value: string | [string, string], message?: Null<Error>) => void;
+export type ModuleWriteFailMethod = (value: string | [string, string], message?: Null<Error>, type?: LOG_TYPE) => void;
 export type ModuleFormatMessageMethod = (type: LOG_TYPE, title: string, value: string | [string, string], message?: unknown, options?: LogMessageOptions) => void;

@@ -109,14 +109,14 @@ const Compress = new class extends Module implements ICompress {
         const loadBuffer = () => {
             fs.readFile(uri, (err, buffer) => {
                 if (!err) {
-                    tinify.fromBuffer(buffer).toBuffer((error, result) => {
-                        if (result && !error) {
+                    tinify.fromBuffer(buffer).toBuffer((err_1, result) => {
+                        if (!err_1 && result) {
                             writeFile(result);
                         }
                         else {
                             delete tinify['_key'];
-                            if (error) {
-                                throw error;
+                            if (err_1) {
+                                throw err_1;
                             }
                         }
                     });
@@ -140,12 +140,12 @@ const Compress = new class extends Module implements ICompress {
         if (apiKey) {
             if (tinify['_key'] !== apiKey) {
                 tinify.key = apiKey;
-                tinify.validate(error => {
-                    if (!error) {
+                tinify.validate(err => {
+                    if (!err) {
                         loadBuffer();
                     }
                     else {
-                        throw error;
+                        throw err;
                     }
                 });
             }

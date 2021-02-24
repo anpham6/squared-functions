@@ -248,7 +248,7 @@ class FileManager extends Module implements IFileManager {
                     fs.renameSync(replaceWith, localUri);
                 }
                 catch (err) {
-                    this.writeFail(['Unable to rename file', path.basename(replaceWith)], err);
+                    this.writeFail(['Unable to rename file', path.basename(replaceWith)], err, this.logType.FILE);
                 }
             }
             else {
@@ -268,16 +268,16 @@ class FileManager extends Module implements IFileManager {
     removeAsyncTask() {
         --this.delayed;
     }
-    completeAsyncTask(err: Null<Error> = null, localUri?: string, parent?: ExternalAsset) {
+    completeAsyncTask(err: Null<Error> = null, localUri = '', parent?: ExternalAsset) {
         if (this.delayed !== Infinity) {
-            if (localUri) {
+            if (!err && localUri) {
                 this.add(localUri, parent);
             }
             this.removeAsyncTask();
             this.performFinalize();
         }
         if (err) {
-            this.writeFail('Unknown', err);
+            this.writeFail(['Unknown', path.basename(localUri)], err, this.logType.FILE);
         }
     }
     performFinalize() {
@@ -375,7 +375,7 @@ class FileManager extends Module implements IFileManager {
                     file.sourceUTF8 = fs.readFileSync(localUri, 'utf8');
                 }
                 catch (err) {
-                    this.writeFail(['File not found', path.basename(localUri)], err);
+                    this.writeFail(['Unable to read file', path.basename(localUri)], err, this.logType.FILE);
                 }
             }
         }
@@ -418,7 +418,7 @@ class FileManager extends Module implements IFileManager {
                 return file.buffer = buffer;
             }
             catch (err) {
-                this.writeFail(['Unable to write buffer', file.localUri!], err);
+                this.writeFail(['Unable to write file', path.basename(file.localUri!)], err, this.logType.FILE);
             }
         }
         return null;
@@ -459,7 +459,7 @@ class FileManager extends Module implements IFileManager {
                     fs.copyFileSync(localUri, output);
                 }
                 catch (err) {
-                    this.writeFail(['Unable to copy file', path.basename(localUri)], err);
+                    this.writeFail(['Unable to copy file', path.basename(localUri)], err, this.logType.FILE);
                     return;
                 }
             }
@@ -544,7 +544,8 @@ class FileManager extends Module implements IFileManager {
                                             try {
                                                 fs.unlinkSync(result);
                                             }
-                                            catch {
+                                            catch (err_1) {
+                                                this.writeFail(['Unable to delete file', path.basename(result)], err_1, this.logType.FILE);
                                             }
                                         }
                                         else {
@@ -555,7 +556,7 @@ class FileManager extends Module implements IFileManager {
                                 });
                             }
                             catch (err) {
-                                this.writeFail(['Unable to compress file', path.basename(localUri)], err);
+                                this.writeFail(['Unable to compress file', path.basename(localUri)], err, this.logType.FILE);
                                 resolve();
                             }
                         })
@@ -612,7 +613,7 @@ class FileManager extends Module implements IFileManager {
                     fs.unlinkSync(localUri);
                 }
                 catch (err) {
-                    this.writeFail(['Unable to delete file', path.basename(localUri)], err);
+                    this.writeFail(['Unable to delete file', path.basename(localUri)], err, this.logType.FILE);
                 }
             }
             this.completeAsyncTask();
@@ -767,7 +768,7 @@ class FileManager extends Module implements IFileManager {
                                             for (const queue of uriMap.get(copyUri)!) {
                                                 queue.invalid = true;
                                             }
-                                            this.writeFail(['Unable to copy downloaded file', localUri], err);
+                                            this.writeFail(['Unable to copy file', path.basename(localUri)], err, this.logType.FILE);
                                         })
                                 );
                             }
@@ -816,7 +817,8 @@ class FileManager extends Module implements IFileManager {
                     stream.close();
                     fs.unlink(localUri);
                 }
-                catch {
+                catch (err_1) {
+                    this.writeFail(['Unable to delete file', path.basename(localUri)], err_1, this.logType.FILE);
                 }
             }
             this.writeFail(['Unable to download file', uri], err);
@@ -835,7 +837,7 @@ class FileManager extends Module implements IFileManager {
                     processQueue(item, localUri);
                 }
                 else {
-                    this.completeAsyncTask(err);
+                    this.completeAsyncTask(err, localUri);
                 }
             };
             const createFolder = () => {
@@ -973,7 +975,7 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, 'Write modified files <finalize>', this.errors);
+            await Module.allSettled(tasks, 'Write modified files', this.errors);
             tasks = [];
         }
         for (const value of this.filesToRemove) {
@@ -982,7 +984,7 @@ class FileManager extends Module implements IFileManager {
                     .then(() => this.delete(value))
                     .catch(err => {
                         if (err.code !== 'ENOENT') {
-                            this.writeFail(['Unable to delete file', value], err);
+                            this.writeFail(['Unable to delete file', path.basename(value)], err, this.logType.FILE);
                         }
                     })
             );
@@ -1008,7 +1010,7 @@ class FileManager extends Module implements IFileManager {
                                             Compress.tryImage(file, image, resolve);
                                         }
                                         catch (err) {
-                                            this.writeFail(['Unable to compress image', path.basename(file)], err);
+                                            this.writeFail(['Unable to compress image', path.basename(file)], err, this.logType.FILE);
                                             resolve(null);
                                         }
                                     }));
@@ -1041,7 +1043,7 @@ class FileManager extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Module.allSettled(tasks, 'Compress files <finalize>', this.errors);
+                await Module.allSettled(tasks, 'Compress files', this.errors);
                 tasks = [];
             }
         }

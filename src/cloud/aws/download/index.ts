@@ -23,12 +23,12 @@ export default function download(this: IModule, credential: AWSStorageCredential
                         this.formatMessage(this.logType.CLOUD, service, 'Download success', location);
                         success(result.Body as Buffer);
                         if (Download.deleteObject) {
-                            s3.deleteObject(params, error => {
-                                if (!error) {
+                            s3.deleteObject(params, err_1 => {
+                                if (!err_1) {
                                     this.formatMessage(this.logType.CLOUD, service, 'Delete success', location, { titleColor: 'grey' });
                                 }
                                 else {
-                                    this.formatFail(this.logType.CLOUD, service, ['Delete failed', location], error);
+                                    this.formatFail(this.logType.CLOUD, service, ['Delete failed', location], err_1);
                                 }
                             });
                         }

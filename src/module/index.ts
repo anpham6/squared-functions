@@ -136,8 +136,8 @@ abstract class Module implements IModule {
         console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase().padEnd(7)) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
     }
 
-    static writeFail(value: LogValue, message?: Null<Error>) {
-        this.formatMessage(LOG_TYPE.SYSTEM, 'FAIL', value, message, applyFailStyle());
+    static writeFail(value: LogValue, message?: Null<Error>, type?: number) {
+        this.formatMessage(type || LOG_TYPE.SYSTEM, 'FAIL', value, message, applyFailStyle());
     }
 
     static parseFunction(value: string, name = '', sync = true): Undef<FunctionType<Promise<string> | string>> {
@@ -147,7 +147,7 @@ abstract class Module implements IModule {
                 value = fs.readFileSync(uri, 'utf8').trim();
             }
             catch (err) {
-                this.writeFail(['Could not load function', value], err);
+                this.writeFail(['Unable to read file', path.basename(uri)], err, LOG_TYPE.FILE);
                 return;
             }
         }
@@ -357,8 +357,8 @@ abstract class Module implements IModule {
     getTempDir(uuidDir?: boolean, filename = '') {
         return process.cwd() + path.sep + this.tempDir + path.sep + (uuidDir ? uuid.v4() + path.sep : '') + (filename[0] === '.' ? uuid.v4() : '') + filename;
     }
-    writeFail(value: LogValue, message?: Null<Error>) {
-        this.formatFail(LOG_TYPE.SYSTEM, ' FAIL! ', value, message);
+    writeFail(value: LogValue, message?: Null<Error>, type?: number) {
+        this.formatFail(type || LOG_TYPE.SYSTEM, ' FAIL! ', value, message);
     }
     writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions) {
         Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Completed', (Date.now() - time) / 1000 + 's'], value, options);

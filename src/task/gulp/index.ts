@@ -116,7 +116,7 @@ class Gulp extends Task {
             }));
         }
         if (tasks.length) {
-            await Task.allSettled(tasks, ['Execute tasks <finalize>', instance.moduleName], this.errors);
+            await Task.allSettled(tasks, ['Execute tasks', instance.moduleName], this.errors);
         }
     }
 
@@ -148,30 +148,30 @@ class Gulp extends Task {
                                                 this.writeTimeElapsed('gulp', task, time);
                                                 callback();
                                             })
-                                            .catch(error => {
-                                                this.writeFail(['Unable to replace files <exec>', errorHint], error);
+                                            .catch(err_1 => {
+                                                this.writeFail(['Unable to replace files', errorHint], err_1, this.logType.FILE);
                                                 callback();
                                             });
                                         }
                                     )
-                                    .catch(error => {
-                                        this.writeFail(['Unable to read directory <exec>', errorHint], error);
+                                    .catch(err_1 => {
+                                        this.writeFail(['Unable to read directory', errorHint], err_1);
                                         callback();
                                     });
                                 })
-                                .catch(error => {
-                                    this.writeFail(['Unable to delete files <exec>', errorHint], error);
+                                .catch(err_1 => {
+                                    this.writeFail(['Unable to delete files', errorHint], err_1, this.logType.FILE);
                                     callback();
                                 });
                         }
                         else {
-                            this.writeFail(['Unknown <exec>', errorHint], err);
+                            this.writeFail(['Unknown', errorHint], err);
                             callback();
                         }
                     });
                 })
                 .catch(err => {
-                    this.writeFail(['Unable to copy original files', errorHint], err);
+                    this.writeFail(['Unable to copy files', errorHint], err, this.logType.FILE);
                     callback();
                 });
         }
