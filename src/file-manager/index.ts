@@ -182,6 +182,9 @@ class FileManager extends Module implements IFileManager {
                     if (this.Cloud) {
                         manager.install('cloud', this.Cloud.settings);
                     }
+                    if (this.Image) {
+                        manager.install('image', this.Image);
+                    }
                     if (this.Compress) {
                         manager.install('compress', this.Compress);
                     }
