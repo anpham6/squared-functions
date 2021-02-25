@@ -153,14 +153,14 @@ class FileManager extends Module implements IFileManager {
         switch (name) {
             case 'document':
                 if (isFunction<DocumentConstructor>(target) && target.prototype instanceof Document) {
-                    const instance = new target(params[0] as DocumentModule, this.body.templateMap, ...params.slice(1));
+                    const instance = new target(params[0] as DocumentModule, ...params.slice(1));
                     instance.init(this.getDocumentAssets(instance), this.body);
                     this.Document.push({ instance, constructor: target, params });
                 }
                 break;
             case 'task':
                 if (isFunction<TaskConstructor>(target) && target.prototype instanceof Task && isObject(params[0])) {
-                    const instance = new target(params[0]);
+                    const instance = new target(params[0], ...params.slice(1));
                     this.Task.push({ instance, constructor: target, params });
                 }
                 break;

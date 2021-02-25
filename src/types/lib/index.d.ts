@@ -67,7 +67,7 @@ declare namespace functions {
 
     interface TaskConstructor extends ModuleConstructor {
         using(this: IFileManager, task: ITask, assets: ExternalAsset[], beforeStage?: boolean): Promise<void>;
-        new(module: DocumentModule): ITask;
+        new(module: DocumentModule, ...args: unknown[]): ITask;
     }
 
     interface ICloud extends IModule {
@@ -111,7 +111,7 @@ declare namespace functions {
         module: DocumentModule;
         moduleName: string;
         assets: ExternalAsset[];
-        templateMap?: StandardMap;
+        configData?: StandardMap;
         init(assets: ExternalAsset[], body: RequestBody): void;
         findConfig(settings: StandardMap, name: string, type?: string): PluginConfig;
         loadConfig(data: StandardMap, name: string): Optional<ConfigOrTransformer>;
@@ -132,7 +132,7 @@ declare namespace functions {
         finalize(this: IFileManager, instance: IDocument): Promise<void>;
         createSourceMap(code: string, file?: ExternalAsset): SourceMapInput;
         writeSourceMap(localUri: string, sourceMap: SourceMapOutput, options?: SourceMapOptions): Undef<string>;
-        new(module: DocumentModule, templateMap?: Undef<StandardMap>, ...args: unknown[]): IDocument;
+        new(module: DocumentModule, ...args: unknown[]): IDocument;
     }
 
     interface IWatch extends IModule {

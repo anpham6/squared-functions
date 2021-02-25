@@ -1,5 +1,5 @@
-import type { ChromeDocumentConstructor } from './document';
+import type { DocumentConstructor } from '../../types/lib';
 
-declare const ChromeDocument: ChromeDocumentConstructor;
+declare const ChromeDocument: DocumentConstructor;
 
 export = ChromeDocument;

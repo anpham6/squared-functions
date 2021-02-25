@@ -1,12 +1,11 @@
 import type { LocationUri } from '../../types/lib/squared';
-import type { DataSource, UriDataSource } from '../../types/lib/chrome';
+import type { DataSource, RequestData, UriDataSource } from '../../types/lib/chrome';
 
 import type { IFileManager } from '../../types/lib';
 import type { FileData, OutputData } from '../../types/lib/asset';
 import type { CloudDatabase } from '../../types/lib/cloud';
 import type { SourceMapOutput } from '../../types/lib/document';
-import type { DocumentModule } from '../../types/lib/module';
-import type { RequestBody } from '../../types/lib/node';
+import type { RequestBody as IRequestBody } from '../../types/lib/node';
 
 import type { CloudScopeOrigin } from '../../cloud';
 import type { DocumentAsset, IChromeDocument } from './document';
@@ -23,6 +22,8 @@ import uuid = require('uuid');
 import Document from '../../document';
 import Cloud from '../../cloud';
 import { DomWriter, HtmlElement } from '../parse/dom';
+
+interface RequestBody extends IRequestBody, RequestData {}
 
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
 const REGEXP_CSSCONTENT = /\s*(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^)]+)\s*\))/ig;
@@ -259,7 +260,7 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
     return output;
 }
 
-function setElementAttribute(this: ChromeDocument, htmlFile: DocumentAsset, asset: DocumentAsset, element: HtmlElement, value: string) {
+function setElementAttribute(this: IChromeDocument, htmlFile: DocumentAsset, asset: DocumentAsset, element: HtmlElement, value: string) {
     switch (element.tagName) {
         case 'a':
         case 'area':
@@ -852,8 +853,9 @@ class ChromeDocument extends Document implements IChromeDocument {
     htmlFile: Null<DocumentAsset> = null;
     cssFiles: DocumentAsset[] = [];
     baseDirectory = '';
-    baseUrl = '';
+    baseUrl?: string;
     unusedStyles?: string[];
+    productionRelease?: boolean;
     moduleName = 'chrome';
     internalAssignUUID = '__assign__';
     internalServerRoot = '__serverroot__';
@@ -863,26 +865,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     private _cloudUploaded!: Set<string>;
     private _cloudEndpoint!: Null<RegExp>;
 
-    constructor(
-        settings: DocumentModule,
-        templateMap?: StandardMap,
-        public readonly productionRelease = false)
-    {
-        super(settings, templateMap);
-    }
-
     init(assets: DocumentAsset[], body: RequestBody) {
-        const { baseUrl, unusedStyles } = body;
-        if (baseUrl) {
-            try {
-                const { origin, pathname } = new URL(baseUrl);
-                this.baseDirectory = origin + pathname.substring(0, pathname.lastIndexOf('/') + 1);
-                this.baseUrl = baseUrl;
-            }
-            catch {
-            }
-        }
-        this.unusedStyles = unusedStyles;
         assets.sort((a, b) => {
             if (a.bundleId && a.bundleId === b.bundleId) {
                 return a.bundleIndex! - b.bundleIndex!;
@@ -915,6 +898,18 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
         this.assets = assets;
+        this.baseUrl = body.baseUrl;
+        this.unusedStyles = body.unusedStyles;
+        this.configData = body.templateMap;
+        this.productionRelease = body.productionRelease;
+        if (this.baseUrl) {
+            try {
+                const { origin, pathname } = new URL(this.baseUrl);
+                this.baseDirectory = origin + pathname.substring(0, pathname.lastIndexOf('/') + 1);
+            }
+            catch {
+            }
+        }
     }
     setLocalUri(file: Partial<LocationUri>) {
         const { pathname, filename } = file;

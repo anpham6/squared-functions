@@ -18,13 +18,9 @@ export interface IChromeDocument extends IDocument {
     htmlFile: Null<DocumentAsset>;
     cssFiles: DocumentAsset[];
     baseDirectory: string;
-    baseUrl: string;
     internalServerRoot: string;
     internalAssignUUID: string;
+    baseUrl?: string;
     unusedStyles?: string[];
-    readonly productionRelease: boolean;
-}
-
-export interface ChromeDocumentConstructor extends DocumentConstructor {
-    new(settings: DocumentModule, assets?: DocumentAsset[], templateMap?: StandardMap, productionRelease?: boolean): IChromeDocument;
+    productionRelease?: boolean;
 }

@@ -104,23 +104,22 @@ abstract class Document extends Module implements IDocument {
         return uri;
     }
 
+    public configData?: Undef<StandardMap>;
+
     abstract moduleName: string;
     abstract assets: ExternalAsset[];
 
     private _packageMap: ObjectMap<Transformer> = {};
 
-    constructor(
-        public module: DocumentModule,
-        public templateMap?: Undef<StandardMap>)
-    {
+    constructor(public module: DocumentModule) {
         super();
     }
 
     abstract init(assets: ExternalAsset[], body: RequestBody): void;
 
     findConfig(settings: StandardMap, name: string, type?: string): PluginConfig {
-        if (this.module.eval_template && this.templateMap && type) {
-            const data = this.templateMap[type] as Undef<StandardMap>;
+        if (this.configData && type && this.module.eval_template) {
+            const data = this.configData[type] as Undef<StandardMap>;
             if (data) {
                 for (const attr in data) {
                     const item = data[attr] as Undef<StandardMap>;
