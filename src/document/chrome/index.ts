@@ -849,13 +849,33 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
     }
 
+    static async cleanup(this: IFileManager, instance: IChromeDocument) {
+        const productionRelease = instance.productionRelease;
+        if (typeof productionRelease === 'string') {
+            if (path.isAbsolute(productionRelease) && fs.pathExistsSync(productionRelease)) {
+                try {
+                    const src = path.join(this.baseDirectory, instance.internalServerRoot);
+                    if (fs.pathExistsSync(src)) {
+                        fs.moveSync(src, productionRelease, { overwrite: true });
+                    }
+                }
+                catch (err) {
+                    this.writeFail(['Unable to move files', productionRelease], err, this.logType.FILE);
+                }
+            }
+            else {
+                this.writeFail(['Path not found', instance.moduleName], new Error('Invalid root directory: ' + productionRelease));
+            }
+        }
+    }
+
     assets: DocumentAsset[] = [];
     htmlFile: Null<DocumentAsset> = null;
     cssFiles: DocumentAsset[] = [];
     baseDirectory = '';
     baseUrl?: string;
     unusedStyles?: string[];
-    productionRelease?: boolean;
+    productionRelease?: boolean | string;
     moduleName = 'chrome';
     internalAssignUUID = '__assign__';
     internalServerRoot = '__serverroot__';

@@ -31,7 +31,7 @@ export interface RequestData {
     baseUrl?: string;
     templateMap?: TemplateMap;
     unusedStyles?: string[];
-    productionRelease?: boolean;
+    productionRelease?: boolean | string;
 }
 
 export interface DataSource extends IDataSource, DataSourceAction, TemplateAction {}

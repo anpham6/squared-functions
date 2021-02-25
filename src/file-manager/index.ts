@@ -1057,6 +1057,11 @@ class FileManager extends Module implements IFileManager {
             catch {
             }
         }
+        for (const { instance, constructor } of this.Document) {
+            if (instance.assets.length) {
+                await constructor.cleanup.call(this, instance);
+            }
+        }
     }
 }
 

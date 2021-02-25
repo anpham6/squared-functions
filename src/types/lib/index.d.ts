@@ -130,6 +130,7 @@ declare namespace functions {
     interface DocumentConstructor extends ModuleConstructor {
         using(this: IFileManager, instance: IDocument, file: ExternalAsset): Promise<void>;
         finalize(this: IFileManager, instance: IDocument): Promise<void>;
+        cleanup(this: IFileManager, instance: IDocument): Promise<void>;
         createSourceMap(code: string, file?: ExternalAsset): SourceMapInput;
         writeSourceMap(localUri: string, sourceMap: SourceMapOutput, options?: SourceMapOptions): Undef<string>;
         new(module: DocumentModule, ...args: unknown[]): IDocument;

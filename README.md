@@ -973,7 +973,7 @@ The entire page can similarly be transformed as a group using the "saveAs" attri
 
 ```javascript
 squared.saveAs('index.zip', {
-    productionRelease: false, // Ignore local url rewriting and load assets using absolute paths
+    productionRelease: false || true || '/absolute/path/wwwroot/', // Ignore local url rewriting and load assets using absolute paths
     preserveCrossOrigin: false, // Ignore downloading a local copy of assets hosted on other domains
 
     removeUnusedClasses: false, // CSS classes that can be removed in current state
