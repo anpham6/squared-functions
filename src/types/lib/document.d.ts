@@ -50,6 +50,6 @@ export interface SourceMap {
     sourcesContent?: Null<string>[];
 }
 
-export type Transformer = FunctionType<Undef<string>>;
+export type Transformer = FunctionType<Undef<Promise<string> | string>>;
 export type ConfigOrTransformer = StandardMap | Transformer;
 export type PluginConfig = [string, Undef<ConfigOrTransformer>, Undef<StandardMap>] | [];

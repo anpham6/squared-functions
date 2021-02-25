@@ -591,8 +591,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 const value = !!getObjectValue(data, attr);
                                 return falsey ? !value : value;
                             };
-                            let invalid: Undef<boolean>,
-                                tagOffset: Undef<ObjectMap<Undef<number>>>;
+                            let invalid: Undef<boolean>;
                             switch (item.type) {
                                 case 'text':
                                     if (typeof template === 'string' && !domElement.tagVoid) {
@@ -627,7 +626,6 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                 REGEXP_TEMPLATECONDITIONAL.lastIndex = 0;
                                             }
                                         }
-                                        tagOffset = DomWriter.getTagCount(domElement.innerXml, innerXml);
                                         domElement.innerXml = innerXml;
                                     }
                                     else {
@@ -712,7 +710,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     reject(new Error('Element action type invalid'));
                                     return;
                             }
-                            if (!domBase.write(domElement, { tagOffset }) || invalid) {
+                            if (!domBase.write(domElement) || invalid) {
                                 const { tagName, tagIndex } = element!;
                                 this.writeFail('Unable to replace ' + item.type, getErrorDOM(tagName, tagIndex));
                             }
@@ -769,9 +767,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                         value = item.relativeUri!;
                     }
                     switch (tagName) {
-                        case 'link':
                         case 'style':
                             domElement.tagName = 'link';
+                        case 'link':
                             domElement.setAttribute('rel', 'stylesheet');
                             domElement.setAttribute('href', value);
                             break;

@@ -1,7 +1,6 @@
-import type { FindElementOptions, IDomWriter, IXmlElement, ParserResult, SourceIndex, WriteOptions, XmlTagNode } from './document';
+import type { FindElementOptions, IDomWriter, ParserResult, SourceIndex, XmlTagNode } from './document';
 
 import escapeRegexp = require('escape-string-regexp');
-
 import htmlparser2 = require('htmlparser2');
 import domhandler = require('domhandler');
 import domutils = require('domutils');
@@ -96,34 +95,6 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         return result;
     }
 
-    static getTagCount(source: string, sourceOffset?: string) {
-        const result: ObjectMap<Undef<number>> = {};
-        new Parser({
-            onopentag(name) {
-                if (result[name] === undefined) {
-                    result[name] = 1;
-                }
-                else {
-                    result[name]!++;
-                }
-            }
-        }).end(source);
-        if (sourceOffset) {
-            const modified = DomWriter.getTagCount(sourceOffset);
-            let revised: Undef<boolean>;
-            for (const tagName of new Set([...Object.keys(result), ...Object.keys(modified)])) {
-                if (result[tagName] !== modified[tagName]) {
-                    result[tagName] = (modified[tagName] || 0) - (result[tagName] || 0);
-                    revised = true;
-                }
-            }
-            if (!revised) {
-                return {};
-            }
-        }
-        return result;
-    }
-
     documentElement: Null<XmlTagNode> = null;
     readonly rootName = 'html';
 
@@ -180,18 +151,6 @@ export class DomWriter extends XmlWriter implements IDomWriter {
 
     newElement(node: XmlTagNode) {
         return new HtmlElement(this.documentName, node);
-    }
-    write(element: IXmlElement, options?: WriteOptions) {
-        if (options?.remove && element.innerXml && !options.tagOffset) {
-            const tagCount = DomWriter.getTagCount(element.innerXml);
-            if (Object.keys(tagCount).length) {
-                for (const tagName in tagCount) {
-                    tagCount[tagName]! *= -1;
-                }
-                options.tagOffset = tagCount;
-            }
-        }
-        return super.write(element, options);
     }
     save() {
         if (this.modified) {
@@ -250,6 +209,16 @@ export class HtmlElement extends XmlElement {
         super(documentName, node, attributes, TAG_VOID.includes(node.tagName));
     }
 
+    getTagOffset(source?: string) {
+        switch (this.tagName) {
+            case 'html':
+            case 'style':
+            case 'script':
+                return;
+            default:
+                return super.getTagOffset(source);
+        }
+    }
     findIndexOf(source: string) {
         const { element } = DomWriter.findElement(source, this.node, { document: this.documentName, id: this.id });
         if (element) {
@@ -264,7 +233,7 @@ export class HtmlElement extends XmlElement {
         return this.getAttribute(getAttrId(this.documentName)) || '';
     }
     get outerXml() {
-        const [tagName, items, textContent] = this.getContent(['style', 'script']);
+        const [tagName, items, textContent] = this.getContent();
         return '<' + tagName + HtmlElement.writeAttributes(items) + '>' + (DomWriter.hasInnerXml(tagName) && tagName !== 'html' ? (textContent || this.innerXml) + `</${tagName}>` : '');
     }
     get nameOfId() {

@@ -97,6 +97,7 @@ abstract class Document extends Module implements IDocument {
             }
             catch (err) {
                 this.writeFail(['Unable to write file', path.basename(uri)], err, this.LOG_TYPE.FILE);
+                return '';
             }
         }
         if (uri) {

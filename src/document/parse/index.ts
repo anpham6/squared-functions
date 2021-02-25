@@ -1,9 +1,12 @@
 import type { TagAppend } from '../../types/lib/squared';
 
-import type { AttributeList, AttributeMap, IXmlElement, IXmlWriter, OuterXmlByIdOptions, ReplaceOptions, SaveResult, SourceContent, SourceIndex, SourceTagNode, WriteOptions, WriteResult, XmlTagNode } from './document';
+import type { AttributeList, AttributeMap, IXmlElement, IXmlWriter, OuterXmlByIdOptions, ReplaceOptions, SaveResult, SourceContent, SourceIndex, SourceTagNode, TagOffsetMap, WriteOptions, WriteResult, XmlTagNode } from './document';
 
 import escapeRegexp = require('escape-string-regexp');
 import uuid = require('uuid');
+import htmlparser2 = require('htmlparser2');
+
+const Parser = htmlparser2.Parser;
 
 const PATTERN_ATTRNAME = '([^\\s=>]+)';
 const PATTERN_ATTRVALUE = `=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]*))`;
@@ -116,6 +119,29 @@ export abstract class XmlWriter implements IXmlWriter {
         return -1;
     }
 
+    static getTagOffset(source: string, sourceNext?: string) {
+        const result: TagOffsetMap = {};
+        new Parser({
+            onopentag(name) {
+                result[name] = (result[name] || 0) + 1;
+            }
+        }).end(source);
+        if (typeof sourceNext === 'string') {
+            const next = sourceNext ? this.getTagOffset(sourceNext) : {};
+            let revised: Undef<boolean>;
+            for (const tagName of new Set([...Object.keys(result), ...Object.keys(next)])) {
+                if (result[tagName] !== next[tagName]) {
+                    result[tagName] = (next[tagName] || 0) - (result[tagName] || 0);
+                    revised = true;
+                }
+            }
+            if (!revised) {
+                return {};
+            }
+        }
+        return result;
+    }
+
     static getNodeId(node: XmlTagNode, document: string) {
         return node.id?.[document] || '';
     }
@@ -216,13 +242,21 @@ export abstract class XmlWriter implements IXmlWriter {
     write(element: IXmlElement, options?: WriteOptions) {
         let remove: Undef<boolean>,
             rename: Undef<boolean>,
-            append: Undef<TagAppend>,
-            tagOffset: Undef<ObjectMap<Undef<number>>>;
+            append: Undef<TagAppend>;
         if (options) {
-            ({ remove, rename, append, tagOffset } = options);
+            ({ remove, rename, append } = options);
         }
         if (!remove && !append && !element.modified) {
             return true;
+        }
+        if (remove) {
+            const tagOffset = element.getTagOffset();
+            if (tagOffset) {
+                for (const tagName in tagOffset) {
+                    tagOffset[tagName]! *= -1;
+                }
+                element.tagOffset = tagOffset;
+            }
         }
         const getReplaceOptions = (position: SourceIndex): ReplaceOptions => ({ remove, append, startIndex: position.startIndex, endIndex: position.endIndex });
         const node = element.node;
@@ -273,7 +307,7 @@ export abstract class XmlWriter implements IXmlWriter {
             else if (rename && element.tagName !== node.tagName) {
                 error = this.renameTag(node, element.tagName);
             }
-            this.update(node, outerXml, tagOffset);
+            this.update(node, outerXml, element.tagOffset);
             element.reset();
         }
         if (error) {
@@ -317,6 +351,7 @@ export abstract class XmlWriter implements IXmlWriter {
             for (const attr in tagOffset) {
                 const offset = tagOffset[attr];
                 if (offset) {
+                    let offsetCount = -1;
                     for (const item of elements) {
                         if (item.tagName === attr) {
                             if (isIndex(index) && isIndex(item.index) && isIndex(item.tagIndex) && isCount(item.tagCount)) {
@@ -324,12 +359,24 @@ export abstract class XmlWriter implements IXmlWriter {
                                     item.tagIndex += offset;
                                 }
                                 item.tagCount += offset;
+                                if (offsetCount === -1) {
+                                    offsetCount = item.tagCount;
+                                }
+                                else if (offsetCount !== item.tagCount) {
+                                    offsetCount = -1;
+                                    this.resetTag(attr);
+                                    break;
+                                }
                             }
                             else {
+                                offsetCount = -1;
                                 this.resetTag(attr);
                                 break;
                             }
                         }
+                    }
+                    if (offsetCount !== -1) {
+                        this._tagCount[attr] = offsetCount;
                     }
                 }
             }
@@ -593,6 +640,8 @@ export abstract class XmlElement implements IXmlElement {
     protected _modified = false;
     protected _tagName = '';
     protected _innerXml = '';
+    protected _tagOffset?: TagOffsetMap;
+    protected _prevInnerXml?: string;
     protected readonly _attributes = new Map<string, Optional<string>>();
 
     abstract readonly TAG_VOID: string[];
@@ -660,6 +709,11 @@ export abstract class XmlElement implements IXmlElement {
             }
         }
         return [tagStart || `<${this.tagName}>`, innerXml || ''];
+    }
+    getTagOffset(nextXml?: string): Undef<TagOffsetMap> {
+        if (!this.tagVoid) {
+            return XmlWriter.getTagOffset(this.innerXml, nextXml);
+        }
     }
     setAttribute(name: string, value: string) {
         if (this.node.lowerCase) {
@@ -899,12 +953,14 @@ export abstract class XmlElement implements IXmlElement {
         return [output, error];
     }
     reset() {
+        delete this._tagOffset;
+        delete this._prevInnerXml;
         this._modified = false;
     }
     hasPosition() {
         return isIndex(this.node.startIndex) && isIndex(this.node.endIndex);
     }
-    protected getContent(escapeTags?: string[]): [string, AttributeMap | AttributeList, Undef<string>] {
+    protected getContent(): [string, AttributeMap | AttributeList, Undef<string>] {
         const append = this.node.append;
         let tagName: Undef<string>,
             items: AttributeMap | AttributeList,
@@ -917,13 +973,13 @@ export abstract class XmlElement implements IXmlElement {
             if (id) {
                 items.push([idKey, id]);
             }
+            if (textContent) {
+                this.innerXml = textContent;
+            }
         }
         else {
             tagName = this.tagName;
             items = this._attributes;
-        }
-        if (textContent && escapeTags && !escapeTags.includes(tagName)) {
-            textContent = XmlWriter.escapeXmlString(textContent);
         }
         return [tagName, items, textContent];
     }
@@ -945,12 +1001,28 @@ export abstract class XmlElement implements IXmlElement {
     }
     set innerXml(value) {
         if (value !== this._innerXml) {
+            if (typeof this._prevInnerXml === 'string') {
+                this._innerXml = this._prevInnerXml;
+            }
+            this._tagOffset = this.getTagOffset(value);
+            this._prevInnerXml = this._innerXml;
             this._innerXml = value;
             this._modified = true;
         }
     }
     get innerXml() {
         return this._innerXml;
+    }
+    set tagOffset(value) {
+        if (value && Object.keys(value).length) {
+            this._tagOffset = value;
+        }
+        else {
+            delete this._tagOffset;
+        }
+    }
+    get tagOffset() {
+        return this._tagOffset;
     }
     get modified() {
         return this._modified;

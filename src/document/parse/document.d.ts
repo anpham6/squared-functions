@@ -21,13 +21,13 @@ export interface WriteOptions {
     remove?: boolean;
     rename?: boolean;
     append?: TagAppend;
-    tagOffset?: ObjectMap<Undef<number>>;
 }
 
 export interface ReplaceOptions extends WriteOptions, SourceIndex {}
 
 export type AttributeMap = Map<string, Optional<string>>;
 export type AttributeList = [string, Optional<string>][];
+export type TagOffsetMap = ObjectMap<Undef<number>>;
 export type WriteResult = [string, string, Null<Error>?];
 export type SaveResult = [string, Null<Error>?];
 
@@ -88,10 +88,11 @@ export interface XmlWriterConstructor {
     PATTERN_ATTRNAME: string;
     PATTERN_ATTRVALUE: string;
     PATTERN_TRAILINGSPACE: string;
-    getNodeId(node: XmlTagNode, document: string): string;
     escapeXmlString(value: string): string;
-    findCloseTag(source: string, startIndex?: number): number;
     getNewlineString(leading: string, trailing: string, newline?: string): string;
+    findCloseTag(source: string, startIndex?: number): number;
+    getTagOffset(source: string, sourceNext?: string): ObjectMap<number>;
+    getNodeId(node: XmlTagNode, document: string): string;
     new(documentName: string, source: string, elements: XmlTagNode[]): IXmlWriter;
 }
 
@@ -100,6 +101,7 @@ export class IXmlElement extends IXmlBase {
     readonly node: XmlTagNode;
     readonly TAG_VOID: string[];
     parseOuterXml(outerXml?: string): [string, string];
+    getTagOffset(nextXml?: string): Undef<TagOffsetMap>;
     setAttribute(name: string, value: string): void;
     getAttribute(name: string): Optional<string>;
     removeAttribute(...names: string[]): void;
@@ -116,6 +118,8 @@ export class IXmlElement extends IXmlBase {
     set innerXml(value: string);
     get innerXml(): string
     get outerXml(): string;
+    set tagOffset(value: Undef<TagOffsetMap>);
+    get tagOffset(): Undef<TagOffsetMap>;
 }
 
 export interface XmlElementConstructor {
@@ -133,6 +137,5 @@ export interface DomWriterConstructor {
     normalize(source: string): string;
     getDocumentElement(source: string): ParserResult;
     findElement(source: string, node: XmlTagNode, options?: FindElementOptions): ParserResult;
-    getTagCount(source: string, sourceOffset?: string): ObjectMap<number>;
     new(documentName: string, source: string, elements: XmlTagNode[], normalize?: boolean): IDomWriter;
 }

@@ -525,7 +525,6 @@ You can append or prepend a sibling element (not child) that can be processed si
     <!-- End Google Analytics -->
 </head>
 <body>
-  <!-- HTML reserved characters "<" or ">" will be encoded as "&lt;" or "&gt;" -->
 </body>
 </html>
 ```
