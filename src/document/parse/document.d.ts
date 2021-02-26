@@ -18,7 +18,6 @@ export interface SourceTagNode extends SourceContent, TagData {
 export interface XmlTagNode extends IXmlTagNode, Partial<SourceIndex> {}
 
 export interface WriteOptions {
-    rename?: boolean;
     append?: TagAppend;
 }
 
@@ -102,7 +101,7 @@ export class IXmlElement extends IXmlBase {
     readonly node: XmlTagNode;
     readonly TAG_VOID: string[];
     parseOuterXml(outerXml?: string): [string, string];
-    getTagOffset(nextXml?: string): Undef<TagOffsetMap>;
+    getTagOffset(nextXml?: string): Null<TagOffsetMap>;
     setAttribute(name: string, value: string): void;
     getAttribute(name: string): Optional<string>;
     removeAttribute(...names: string[]): void;
@@ -121,8 +120,8 @@ export class IXmlElement extends IXmlBase {
     get outerXml(): string;
     set remove(value);
     get remove(): boolean;
-    set tagOffset(value: Undef<TagOffsetMap>);
-    get tagOffset(): Undef<TagOffsetMap>;
+    set tagOffset(value: Null<TagOffsetMap>);
+    get tagOffset(): Null<TagOffsetMap>;
 }
 
 export interface XmlElementConstructor {

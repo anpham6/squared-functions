@@ -103,6 +103,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         const items: XmlTagNode[] = [];
         for (const item of elements) {
             item.lowerCase = true;
+            item.tagName = item.tagName.toLowerCase();
             if (item.tagName === 'html') {
                 items.push(item);
             }
@@ -214,10 +215,11 @@ export class HtmlElement extends XmlElement {
             case 'html':
             case 'style':
             case 'script':
-                return;
+                break;
             default:
                 return super.getTagOffset(source);
         }
+        return null;
     }
     findIndexOf(source: string) {
         const { element } = DomWriter.findElement(source, this.node, { document: this.documentName, id: this.id });

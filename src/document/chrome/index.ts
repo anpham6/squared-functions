@@ -752,7 +752,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     domElement.tagName = inlineContent;
                     domElement.innerXml = this.getUTF8String(item).trim();
                     domElement.removeAttribute('src', 'href');
-                    if (domBase.write(domElement, { rename: tagName === 'link' })) {
+                    if (domBase.write(domElement)) {
                         inlineMap.add(item);
                         item.watch = false;
                     }
@@ -781,7 +781,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             break;
                     }
                     domElement.innerXml = '';
-                    if (!domBase.write(domElement, { rename: tagName === 'style' })) {
+                    if (!domBase.write(domElement)) {
                         this.writeFail(['Bundle tag replacement', tagName], getErrorDOM(tagName, tagIndex));
                         delete item.inlineCloud;
                     }
