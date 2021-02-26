@@ -240,26 +240,16 @@ export abstract class XmlWriter implements IXmlWriter {
         return null;
     }
     write(element: IXmlElement, options?: WriteOptions) {
-        let remove: Undef<boolean>,
-            rename: Undef<boolean>,
+        let rename: Undef<boolean>,
             append: Undef<TagAppend>;
         if (options) {
-            ({ remove, rename, append } = options);
+            ({ rename, append } = options);
         }
-        if (!remove && !append && !element.modified) {
+        if (!element.modified && !append) {
             return true;
         }
-        if (remove) {
-            const tagOffset = element.getTagOffset();
-            if (tagOffset) {
-                for (const tagName in tagOffset) {
-                    tagOffset[tagName]! *= -1;
-                }
-                element.tagOffset = tagOffset;
-            }
-        }
+        const { node, remove } = element;
         const getReplaceOptions = (position: SourceIndex): ReplaceOptions => ({ remove, append, startIndex: position.startIndex, endIndex: position.endIndex });
-        const node = element.node;
         let output: Undef<string>,
             outerXml = '',
             error: Optional<Error>;
@@ -589,15 +579,10 @@ export abstract class XmlWriter implements IXmlWriter {
     }
     setRawString(targetXml: string, outerXml: string) {
         const startIndex = this.source.indexOf(targetXml);
-        if (startIndex !== -1) {
-            this.spliceRawString({ startIndex, endIndex: startIndex + targetXml.length - 1, outerXml });
-            return true;
-        }
-        return false;
+        return startIndex !== -1 ? this.spliceRawString({ startIndex, endIndex: startIndex + targetXml.length - 1, outerXml }) : '';
     }
     getRawString(index: SourceIndex) {
-        const { startIndex, endIndex } = index;
-        return this.source.substring(startIndex, endIndex + 1);
+        return this.source.substring(index.startIndex, index.endIndex + 1);
     }
     spliceRawString(content: SourceContent, reset = true) {
         const { startIndex, endIndex, outerXml } = content;
@@ -640,6 +625,7 @@ export abstract class XmlElement implements IXmlElement {
     protected _modified = false;
     protected _tagName = '';
     protected _innerXml = '';
+    protected _remove = false;
     protected _tagOffset?: TagOffsetMap;
     protected _prevInnerXml?: string;
     protected readonly _attributes = new Map<string, Optional<string>>();
@@ -812,11 +798,11 @@ export abstract class XmlElement implements IXmlElement {
         return [source.substring(0, startIndex) + leading + outerXml + trailing + source.substring(endIndex), outerXml];
     }
     write(source: string, options?: WriteOptions): WriteResult {
-        let remove: Undef<boolean>,
-            append: Undef<TagAppend>;
+        let append: Undef<TagAppend>;
         if (options) {
-            ({ remove, append } = options);
+            ({ append } = options);
         }
+        const remove = this.remove;
         if (this._modified || remove || append) {
             if (this.hasPosition()) {
                 return this.replace(source, { remove, append, startIndex: this.node.startIndex!, endIndex: this.node.endIndex! });
@@ -1023,6 +1009,25 @@ export abstract class XmlElement implements IXmlElement {
     }
     get tagOffset() {
         return this._tagOffset;
+    }
+    set remove(value) {
+        if (value) {
+            const tagOffset = this.getTagOffset();
+            if (tagOffset) {
+                for (const tagName in tagOffset) {
+                    tagOffset[tagName]! *= -1;
+                }
+                this._tagOffset = tagOffset;
+            }
+            this._modified = true;
+        }
+        else {
+            delete this._tagOffset;
+        }
+        this._remove = value;
+    }
+    get remove() {
+        return this._remove;
     }
     get modified() {
         return this._modified;

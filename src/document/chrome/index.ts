@@ -474,9 +474,12 @@ class ChromeDocument extends Document implements IChromeDocument {
                         const { element, limit, index } = item;
                         const domElement = new HtmlElement(moduleName, element!);
                         const removeElement = () => {
-                            if (item.removeEmpty && !domBase.write(domElement, { remove: true })) {
-                                const { tagName, tagIndex } = element!;
-                                this.writeFail('Unable to remove element', getErrorDOM(tagName, tagIndex));
+                            if (item.removeEmpty) {
+                                domElement.remove = true;
+                                if (!domBase.write(domElement)) {
+                                    const { tagName, tagIndex } = element!;
+                                    this.writeFail('Unable to remove element', getErrorDOM(tagName, tagIndex));
+                                }
                             }
                         };
                         let result: PlainObject[];
@@ -783,8 +786,11 @@ class ChromeDocument extends Document implements IChromeDocument {
                         delete item.inlineCloud;
                     }
                 }
-                else if (isRemoved(item) && !domBase.write(domElement, { remove: true })) {
-                    this.writeFail(['Exclude tag removal', tagName], getErrorDOM(tagName, tagIndex));
+                else if (isRemoved(item)) {
+                    domElement.remove = true;
+                    if (!domBase.write(domElement)) {
+                        this.writeFail(['Exclude tag removal', tagName], getErrorDOM(tagName, tagIndex));
+                    }
                 }
             }
             for (const item of elements) {

@@ -18,12 +18,13 @@ export interface SourceTagNode extends SourceContent, TagData {
 export interface XmlTagNode extends IXmlTagNode, Partial<SourceIndex> {}
 
 export interface WriteOptions {
-    remove?: boolean;
     rename?: boolean;
     append?: TagAppend;
 }
 
-export interface ReplaceOptions extends WriteOptions, SourceIndex {}
+export interface ReplaceOptions extends WriteOptions, SourceIndex {
+    remove?: boolean;
+}
 
 export type AttributeMap = Map<string, Optional<string>>;
 export type AttributeList = [string, Optional<string>][];
@@ -76,7 +77,7 @@ export class IXmlWriter extends IXmlBase {
     resetTag(tagName: string): void;
     resetPosition(startIndex?: number): void;
     getOuterXmlById(id: string, caseSensitive?: boolean, options?: OuterXmlByIdOptions): Undef<SourceTagNode>;
-    setRawString(targetXml: string, outerXml: string): boolean;
+    setRawString(targetXml: string, outerXml: string): string;
     getRawString(index: SourceIndex): string;
     spliceRawString(content: SourceContent, reset?: boolean): string;
     hasErrors(): boolean;
@@ -118,6 +119,8 @@ export class IXmlElement extends IXmlBase {
     set innerXml(value: string);
     get innerXml(): string
     get outerXml(): string;
+    set remove(value);
+    get remove(): boolean;
     set tagOffset(value: Undef<TagOffsetMap>);
     get tagOffset(): Undef<TagOffsetMap>;
 }
