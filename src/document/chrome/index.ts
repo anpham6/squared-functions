@@ -432,7 +432,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         for (const item of instance.assets) {
             if (item.inlineBase64) {
                 try {
-                    base64Map[item.inlineBase64] = `data:${item.mimeType!};base64,${(item.buffer ? item.buffer.toString('base64') : fs.readFileSync(item.localUri!, 'base64')).trim()}`;
+                    base64Map[item.inlineBase64] = `data:${item.mimeType};base64,${(item.buffer ? item.buffer.toString('base64') : fs.readFileSync(item.localUri!, 'base64')).trim()}`;
                     this.removeAsset(item);
                 }
                 catch (err) {

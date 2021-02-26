@@ -210,15 +210,16 @@ abstract class Document extends Module implements IDocument {
             }
             viewEngine = view;
         }
-        const { name, options = {} } = viewEngine;
-        let result = '';
+        let result = '',
+            name = '';
         try {
-            const context = require(name);
-            const render = await context.compile(template, options.compile) as FunctionType<Promise<string> | string>;
+            const context = require(name = viewEngine.name);
+            const { compile, output } = viewEngine.options || {};
+            const render = await context.compile(template, compile) as FunctionType<Promise<string> | string>;
             for (let i = 0; i < data.length; ++i) {
                 const row = data[i];
                 row['__index__'] ??= i + 1;
-                result += await render(options.output ? { ...options.output, ...row } : row);
+                result += await render(output ? { ...output, ...row } : row);
             }
         }
         catch (err) {

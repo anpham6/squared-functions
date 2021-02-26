@@ -138,6 +138,7 @@ class FileManager extends Module implements IFileManager {
             if (item.tasks) {
                 this.taskAssets.push(item);
             }
+            item.mimeType ||= mime.lookup(item.uri || item.filename) || '';
         }
         if (this.body.dataSource) {
             this.dataSourceItems.push(...this.body.dataSource);
@@ -336,7 +337,6 @@ class FileManager extends Module implements IFileManager {
         const localUri = path.join(pathname, file.filename);
         file.localUri = localUri;
         file.relativeUri = this.getRelativeUri(file);
-        file.mimeType ||= mime.lookup(uri || localUri) || '';
         return { pathname, localUri } as FileOutput;
     }
     getLocalUri(data: FileData) {
@@ -584,7 +584,7 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (this.Image) {
-            let mimeType = file.mimeType || '';
+            let mimeType = file.mimeType;
             if (!mimeType && file.commands || mimeType === 'image/unknown') {
                 mimeType = await this.findMime(data, true);
             }
