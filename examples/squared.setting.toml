@@ -1,0 +1,69 @@
+[cloud.aws.main]
+accessKeyId = ""
+secretAccessKey = ""
+
+[cloud.azure.main]
+accountName = ""
+accountKey = ""
+
+[cloud.azure.db-main]
+endpoint = ""
+key = ""
+
+[cloud.gcloud.main]
+keyFilename = ""
+
+[cloud.gcloud.db-main]
+keyFilename = ""
+
+[cloud.oci.main]
+region = ""
+namespace = ""
+accessKeyId = ""
+secretAccessKey = ""
+
+[cloud.oci.db-main]
+user = ""
+password = ""
+connectionString = ""
+
+[cloud.ibm.main]
+apiKeyId = ""
+serviceInstanceId = ""
+endpoint = ""
+region = ""
+
+[task.gulp]
+handler = "@squared-functions/task/gulp"
+
+  [task.gulp.settings]
+  minify = "./gulpfile.js"
+
+[document.chrome]
+handler = "@squared-functions/document/chrome"
+eval_function = true
+eval_template = true
+
+[document.chrome.settings.html.prettier.beautify]
+parser = "html"
+printWidth = 120
+tabWidth = 4
+
+[document.chrome.settings.js.terser]
+minify-example = "async function(context, value, options) { return await context.minify(value, options.outputConfig).code; }"
+
+  [document.chrome.settings.js.terser.minify-example-output]
+  keep_classnames = true
+
+[document.chrome.settings.js."@babel/core"]
+es5-example = "./es5.js"
+
+[document.chrome.settings.js.rollup]
+bundle = "./rollup.config.js"
+bundle-es6-output = "./rollup.output.config.js"
+
+  [document.chrome.settings.js.rollup.bundle-es6]
+  external = [ "lodash" ]
+
+[document.chrome.settings.css.node-sass]
+sass-example = "function (context, value, options, resolve) { resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css); }"

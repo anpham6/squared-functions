@@ -457,8 +457,9 @@ interface AssetCommand extends OutputModifiers {
 
 Only one command per element is supported (except data sources) with the latter selectors taking precedence when there are conflicts. You can use a task if there are additional commands to perform.
 
-- [bundle.json](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.json)
-- [bundle.yml](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.yml)
+- [JSON](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.json)
+- [YAML](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.yml)
+- [TOML](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.toml)
 
 ```javascript
 squared.saveAs('bundle.zip', { configUri: 'http://localhost:3000/chrome/bundle.yml' });
@@ -674,7 +675,8 @@ Other service providers can be integrated similarly except for credential verifi
 
 NOTE: Using S3 and OCI at the same time with identical bucket names causes a conflict with the S3 region cache.
 
-- [cloud.selector.yml](https://github.com/anpham6/squared-functions/blob/master/examples/cloud.selector.yml)
+- [YAML](https://github.com/anpham6/squared-functions/blob/master/examples/cloud.selector.yml)
+- [TOML](https://github.com/anpham6/squared-functions/blob/master/examples/cloud.selector.toml)
 
 Serving CSS files from cloud storage or CDN requires every image inside the file to be hosted with an absolute URL.
 
