@@ -65,6 +65,7 @@ export interface TagAppend extends TagData {
     id?: string;
     textContent?: string;
     prepend?: boolean;
+    nextSibling?: number;
 }
 
 export interface XmlNode extends AttributeAction {

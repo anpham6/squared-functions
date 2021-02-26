@@ -224,14 +224,11 @@ export abstract class XmlWriter implements IXmlWriter {
         const append = node.append;
         if (append) {
             const element = this.fromNode(node, append);
-            const index = this.elements.findIndex(item => item === node);
             if (this.write(element, { append })) {
-                if (index === -1) {
-                    this.elements.push(node);
-                }
                 delete node.append;
                 return element;
             }
+            const index = this.elements.findIndex(item => item === node);
             if (index !== -1) {
                 this.elements.splice(index, 1);
             }
@@ -270,10 +267,10 @@ export abstract class XmlWriter implements IXmlWriter {
                 this.elements.push(node);
             }
             if (append) {
-                if (!append.prepend && isIndex(node.index)) {
-                    ++node.index;
+                const { id = '', tagName, prepend, nextSibling } = append;
+                if (!prepend) {
+                    node.index = nextSibling ?? -1;
                 }
-                const { id = '', tagName } = append;
                 (node.id ||= {})[this.documentName] = id;
                 element.id = id;
                 if (tagName !== node.tagName) {
@@ -392,8 +389,14 @@ export abstract class XmlWriter implements IXmlWriter {
                     if (!isIndex(index)) {
                         item.index = -1;
                     }
-                    else if (item.index >= index) {
-                        ++item.index;
+                    else {
+                        if (item.index >= index) {
+                            ++item.index;
+                        }
+                        const nextSibling = item.append?.nextSibling;
+                        if (isIndex(nextSibling) && nextSibling >= index) {
+                            ++item.append!.nextSibling!;
+                        }
                     }
                 }
             }
@@ -698,7 +701,7 @@ export abstract class XmlElement implements IXmlElement {
     }
     getTagOffset(nextXml?: string): Undef<TagOffsetMap> {
         if (!this.tagVoid) {
-            return XmlWriter.getTagOffset(this.innerXml, nextXml);
+            return this.node.append ? XmlWriter.getTagOffset(nextXml!) : XmlWriter.getTagOffset(this.innerXml, nextXml);
         }
     }
     setAttribute(name: string, value: string) {
@@ -857,28 +860,28 @@ export abstract class XmlElement implements IXmlElement {
                         for (let i = 0; i < openCount; ++i) {
                             let j = 0,
                                 valid: Undef<boolean>;
-                            if (i === closeCount - 1 && openCount === closeCount) {
-                                j = i;
-                                valid = true;
-                            }
-                            else {
-                                closed: {
-                                    const k = openTag[i];
-                                    let start = i + 1;
-                                    for ( ; j < closeCount; ++j) {
-                                        const l = closeTag[j];
-                                        if (l > k) {
-                                            for (let m = start; m < openCount; ++m) {
-                                                const n = openTag[m];
-                                                if (n < l) {
-                                                    ++start;
-                                                    break;
-                                                }
-                                                else if (n > l) {
-                                                    valid = true;
-                                                    break closed;
-                                                }
+                            found: {
+                                const k = openTag[i];
+                                let start = i + 1,
+                                    opened = 1,
+                                    closed = 0;
+                                for ( ; j < closeCount; ++j) {
+                                    const l = closeTag[j];
+                                    if (l > k) {
+                                        ++closed;
+                                        for (let m = start; m < openCount; ++m) {
+                                            const n = openTag[m];
+                                            if (n < l) {
+                                                ++opened;
+                                                ++start;
                                             }
+                                            else {
+                                                break;
+                                            }
+                                        }
+                                        if (opened === closed) {
+                                            valid = true;
+                                            break found;
                                         }
                                     }
                                 }
