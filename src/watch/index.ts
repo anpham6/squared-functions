@@ -1,5 +1,8 @@
 import type { IPermission, IWatch } from '../types/lib';
 import type { ExternalAsset } from '../types/lib/asset';
+import type { FileWatch } from '../types/lib/watch';
+
+import type { Server } from 'ws';
 
 import Module from '../module';
 
@@ -7,29 +10,40 @@ import path = require('path');
 import fs = require('fs');
 import request = require('request');
 
-interface FileWatch {
-    uri: string;
-    assets: ExternalAsset[];
-    start: number;
-    expires: number;
-    interval: number;
-    etag?: string;
-}
+import WebSocket = require('ws');
 
 type FileWatchMap = ObjectMap<Map<string, { data: FileWatch; timeout: [Null<NodeJS.Timeout>, number] }>>;
 
 const HTTP_MAP: FileWatchMap = {};
 const DISK_MAP: FileWatchMap = {};
+const PORT_MAP: ObjectMap<Server> = {};
+
+function getPostFinalize(watch: FileWatch) {
+    const { socketId, port } = watch;
+    if (socketId && port) {
+        const server = PORT_MAP[port];
+        if (server) {
+            return (errors: string[]) => {
+                const data = JSON.stringify({ socketId: watch.socketId, module: 'watch', type: 'modified', errors });
+                for (const client of server.clients) {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(data);
+                    }
+                }
+            };
+        }
+    }
+}
 
 const getInterval = (file: ExternalAsset) => Math.max(typeof file.watch === 'object' && file.watch.interval || 0, 0);
 const formatDate = (value: number) => new Date(value).toLocaleString().replace(/\/20\d+, /, '@').replace(/:\d+ (AM|PM)$/, (...match) => match[1]);
 
 class Watch extends Module implements IWatch {
-    constructor(public interval = 200) {
+    constructor(public interval = 200, public port = 8080) {
         super();
     }
 
-    whenModified?: (assets: ExternalAsset[]) => void;
+    whenModified?: (assets: ExternalAsset[], postFinalize?: FunctionType<void>) => void;
 
     start(assets: ExternalAsset[], permission?: IPermission) {
         const destMap: ObjectMap<ExternalAsset[]> = {};
@@ -50,19 +64,11 @@ class Watch extends Module implements IWatch {
                 continue;
             }
             items = items.map(item => ({ ...item }));
-            items.sort((a, b) => {
-                if (a.bundleId && !b.bundleId) {
-                    return -1;
-                }
-                if (!a.bundleId && b.bundleId) {
-                    return 1;
-                }
-                return 0;
-            });
+            let leading: Undef<ExternalAsset>;
             if (!isNaN(+dest)) {
                 dest = items[0].relativeUri!;
+                leading = items.find(item => getInterval(item) > 0);
             }
-            const leading = items.find(item => item.bundleId && getInterval(item) > 0);
             const watchInterval = leading ? getInterval(leading) : 0;
             for (const item of items) {
                 const { watch, uri, etag } = item;
@@ -88,27 +94,45 @@ class Watch extends Module implements IWatch {
                     }
                     const start = Date.now();
                     const interval = getInterval(item) || watchInterval || this.interval;
-                    const fileModified = (input: FileWatch) => this.formatMessage(this.logType.WATCH, 'WATCH', 'File modified', input.uri, { titleColor: 'yellow' });
                     const watchExpired = (map: FileWatchMap, input: FileWatch, message = 'Expired') => {
                         this.formatMessage(this.logType.WATCH, 'WATCH', [message, 'since ' + formatDate(input.start)], input.uri, { titleColor: 'grey' });
                         delete map[input.uri];
                     };
-                    let expires = 0;
-                    if (typeof watch === 'object' && watch.expires) {
-                        const match = /^\s*(?:([\d.]+)\s*h)?(?:\s*([\d.]+)\s*m)?(?:\s*([\d.]+)\s*s)?\s*$/i.exec(watch.expires);
-                        if (match) {
-                            if (match[1]) {
-                                expires += parseFloat(match[1]) * 1000 * 60 * 60;
+                    let expires = 0,
+                        port: Undef<number>,
+                        socketId: Undef<string>;
+                    if (typeof watch === 'object') {
+                        if (watch.expires) {
+                            const match = /^\s*(?:([\d.]+)\s*h)?(?:\s*([\d.]+)\s*m)?(?:\s*([\d.]+)\s*s)?\s*$/i.exec(watch.expires);
+                            if (match) {
+                                if (match[1]) {
+                                    expires += parseFloat(match[1]) * 1000 * 60 * 60;
+                                }
+                                if (match[2]) {
+                                    expires += parseFloat(match[2]) * 1000 * 60;
+                                }
+                                if (match[3]) {
+                                    expires += parseFloat(match[3]) * 1000;
+                                }
+                                if (!isNaN(expires) && expires > 0) {
+                                    expires += start;
+                                }
                             }
-                            if (match[2]) {
-                                expires += parseFloat(match[2]) * 1000 * 60;
-                            }
-                            if (match[3]) {
-                                expires += parseFloat(match[3]) * 1000;
-                            }
-                            if (!isNaN(expires) && expires > 0) {
-                                expires += start;
-                            }
+                        }
+                        const reload = watch.reload;
+                        if (typeof reload === 'object' && (socketId = reload.socketId)) {
+                            port = reload.port || this.port;
+                            PORT_MAP[port] ||= new WebSocket.Server({ port })
+                                .on('error', function(this: Server, err) {
+                                    for (const client of this.clients) {
+                                        client.send(JSON.stringify(err));
+                                    }
+                                })
+                                .on('close', function(this: Server) {
+                                    for (const client of this.clients) {
+                                        client.terminate();
+                                    }
+                                });
                         }
                     }
                     const data = {
@@ -117,6 +141,8 @@ class Watch extends Module implements IWatch {
                         assets: items,
                         start,
                         interval,
+                        socketId,
+                        port,
                         expires
                     } as FileWatch;
                     if (Module.isFileHTTP(uri)) {
@@ -145,10 +171,7 @@ class Watch extends Module implements IWatch {
                                                 const value = (res.headers['etag'] || res.headers['last-modified']) as string;
                                                 if (value && value !== next.etag) {
                                                     next.etag = value;
-                                                    if (this.whenModified) {
-                                                        this.whenModified(next.assets);
-                                                    }
-                                                    fileModified(next);
+                                                    this.modified(next);
                                                 }
                                             }
                                             else if (expired) {
@@ -193,11 +216,7 @@ class Watch extends Module implements IWatch {
                             switch (event) {
                                 case 'change':
                                     for (const input of DISK_MAP[uri].values()) {
-                                        const next = input.data;
-                                        if (this.whenModified) {
-                                            this.whenModified(next.assets);
-                                        }
-                                        fileModified(next);
+                                        this.modified(input.data);
                                     }
                                     break;
                                 case 'rename':
@@ -218,6 +237,12 @@ class Watch extends Module implements IWatch {
                 }
             }
         }
+    }
+    modified(watch: FileWatch) {
+        if (this.whenModified) {
+            this.whenModified(watch.assets, getPostFinalize(watch));
+        }
+        this.formatMessage(this.logType.WATCH, 'WATCH', 'File modified', watch.uri, { titleColor: 'yellow' });
     }
 }
 

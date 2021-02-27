@@ -32,10 +32,6 @@ export interface CloudModule {
     oci?: ObjectMap<StringMap>;
 }
 
-export interface WatchModule {
-    interval?: number;
-}
-
 export interface LoggerModule {
     unknown?: boolean;
     system?: boolean;

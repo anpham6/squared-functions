@@ -984,15 +984,21 @@ squared.saveAs("index.zip", {
 }); 
 ```
 
+File watching is available with "copy" methods and uses HTTP HEAD requests to determine modifications. Hot reload uses WebSockets and will automatically reload your browser when the file modification has been fully transformed.
+
 ```javascript
 // js | css | image | video | audio
 
 {
-  "selector": "script",
-  "type": "js",
+  "selector": "link",
+  "type": "css",
   "watch": {
     "interval": 100,
-    "expires": "1h 1m 1s"
+    "expires": "1h 1m 1s",
+    "reload": { // true
+      "socketId": "111-111-111" // Use same ID to reload multiple pages (optional)
+      "port": 8080 // optional
+    }
   },
   "process": [
     "bundle",
@@ -1021,13 +1027,13 @@ squared.copyTo("/local/user/www", {
 
 ```xml
 <!-- chrome -->
-<script src="/common/util.js" data-chrome-watch="true"></script>
+<script src="/common/util.js" data-chrome-watch="1000::1h 30m::111-111-111:8080"></script> <!-- "~" can be used for default value -->
 
 <!-- android -->
-<img src="images/harbour1.jpg" data-android-watch="1000::1h 30m">
+<img src="images/harbour1.jpg" data-android-watch="true">
 ```
 
-File watching is available with "copy" methods and uses HTTP HEAD requests to determine modifications. You can also watch any file that is served with HTTP on a different server or computer. The HTML page itself or any inlined assets cannot be watched since changes to the DOM structure requires a complete browser reload.
+You can also watch any file that is served with HTTP including files from a different server. The HTML page itself or any inlined assets cannot be watched since changing the DOM structure requires a browser reload.
 
 ### Asset exclusion
 

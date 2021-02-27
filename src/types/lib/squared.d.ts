@@ -115,6 +115,13 @@ export interface CompressFormat extends CompressLevel {
 export interface WatchInterval {
     interval?: number;
     expires?: string;
+    reload?: WatchReload;
+}
+
+export interface WatchReload {
+    socketId: string;
+    secure?: boolean;
+    port?: number;
 }
 
 export interface RequestData extends PlainObject {

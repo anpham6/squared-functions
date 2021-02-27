@@ -69,10 +69,10 @@ export class IXmlWriter extends IXmlBase {
     save(): string;
     close(): string;
     update(node: XmlTagNode, outerXml: string): void;
-    increment(node: XmlTagNode): void;
+    increment(node: XmlTagNode, offset?: number): void;
     decrement(node: XmlTagNode): XmlTagNode[];
     renameTag(node: XmlTagNode, tagName: string): Null<Error>;
-    indexTag(tagName: string, append?: boolean): Null<Error>;
+    indexTag(tagName: string, append?: TagAppend, offset?: number): Null<Error>;
     resetTag(tagName: string): void;
     resetPosition(startIndex?: number): void;
     getOuterXmlById(id: string, caseSensitive?: boolean, options?: OuterXmlByIdOptions): Undef<SourceTagNode>;

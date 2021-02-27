@@ -13,6 +13,7 @@ import type { CropData, QualityData, ResizeData, RotateData } from './image';
 import type { LOG_TYPE, LogMessageOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
 import type { CloudModule, DocumentModule } from './module';
 import type { PermissionSettings, RequestBody, Settings } from './node';
+import type { FileWatch } from './watch';
 
 import type { PathLike, WriteStream } from 'fs';
 import type { FileTypeResult } from 'file-type';
@@ -138,12 +139,14 @@ declare namespace functions {
 
     interface IWatch extends IModule {
         interval: number;
-        whenModified?: (assets: ExternalAsset[]) => void;
+        port: number;
+        whenModified?: (assets: ExternalAsset[], postFinalize?: FunctionType<void>) => void;
         start(assets: ExternalAsset[], permission?: IPermission): void;
+        modified(watch: FileWatch): void;
     }
 
     interface WatchConstructor extends ModuleConstructor {
-        new(interval?: number): IWatch;
+        new(interval?: number, port?: number): IWatch;
     }
 
     interface IPermission {

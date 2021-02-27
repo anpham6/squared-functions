@@ -17,6 +17,7 @@
   "dependencies": {
     "@squared-functions/module": "^0.13.3",
     "@squared-functions/types": "^0.13.3",
-    "request": "^2.88.2"
+    "request": "^2.88.2",
+    "ws": "^7.4.3"
   }
 }

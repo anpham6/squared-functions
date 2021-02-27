@@ -272,19 +272,20 @@ export abstract class XmlWriter implements IXmlWriter {
                 }
                 (node.id ||= {})[this.documentName] = id;
                 element.id = id;
+                const offset = element.tagOffset && element.tagOffset[tagName] || 0;
                 if (tagName !== node.tagName) {
                     node.tagName = tagName;
                     node.tagIndex = Infinity;
                     node.tagCount = 0;
-                    this.increment(node);
-                    error = this.indexTag(tagName, true);
+                    this.increment(node, offset);
+                    error = this.indexTag(tagName, append, offset);
                 }
                 else {
-                    if (!append.prepend && isIndex(node.tagIndex) && isCount(node.tagCount)) {
+                    if (!prepend && isIndex(node.tagIndex) && isCount(node.tagCount)) {
                         ++node.tagIndex;
                         ++node.tagCount;
                     }
-                    this.increment(node);
+                    this.increment(node, offset);
                 }
             }
             else if (remove) {
@@ -368,15 +369,16 @@ export abstract class XmlWriter implements IXmlWriter {
             }
         }
     }
-    increment(node: XmlTagNode) {
+    increment(node: XmlTagNode, offset = 0) {
         const { index, tagName, tagIndex } = node;
         let invalid: Undef<boolean>;
         for (const item of this.elements) {
             if (item !== node) {
                 if (!invalid && item.tagName === tagName && tagIndex !== Infinity) {
-                    if (isIndex(tagIndex) && isIndex(item.tagIndex) && isCount(item.tagCount)) {
-                        if (item.tagIndex >= tagIndex) {
-                            ++item.tagIndex;
+                    const siblingIndex = item.tagIndex;
+                    if (isIndex(tagIndex) && isIndex(siblingIndex) && isCount(item.tagCount)) {
+                        if (siblingIndex >= tagIndex) {
+                            item.tagIndex = siblingIndex + offset + 1;
                         }
                         ++item.tagCount;
                     }
@@ -460,7 +462,7 @@ export abstract class XmlWriter implements IXmlWriter {
         }
         return null;
     }
-    indexTag(tagName: string, append?: boolean) {
+    indexTag(tagName: string, append?: TagAppend, offset = 0) {
         if (tagName in this._tagCount) {
             const elements: XmlTagNode[] = [];
             const revised: XmlTagNode[] = [];
@@ -499,22 +501,31 @@ export abstract class XmlWriter implements IXmlWriter {
                         return null;
                     }
                 }
-                else if (index.size === tagCount) {
+                else {
                     if (documentIndex !== -1) {
-                        let i = tagCount - 1;
+                        let i = tagCount - 1,
+                            last = true;
                         index.clear();
                         for (const item of elements) {
+                            let j = 0;
                             if (item.index! > documentIndex) {
-                                ++item.tagIndex!;
+                                item.tagIndex = item.tagIndex! + 1;
+                                j = offset;
+                                last = false;
                             }
-                            index.add(item.tagIndex!);
+                            index.add(item.tagIndex! + j);
                             item.tagCount = tagCount;
                         }
-                        while (index.has(i)) {
-                            --i;
+                        if (!last) {
+                            while (index.has(i)) {
+                                --i;
+                            }
+                        }
+                        else {
+                            offset = 0;
                         }
                         for (const target of revised) {
-                            target.tagIndex = i;
+                            target.tagIndex = i - offset;
                             target.tagCount = tagCount;
                         }
                     }

@@ -1,7 +1,7 @@
 import type { RequestData } from './squared';
 
 import type { ExternalAsset } from './asset';
-import type { CloudModule, CompressModule, DocumentModule, ImageModule, LoggerModule, TaskModule, WatchModule } from './module';
+import type { CloudModule, CompressModule, DocumentModule, ImageModule, LoggerModule, TaskModule } from './module';
 
 type BoolString = boolean | string;
 
@@ -22,7 +22,6 @@ export interface Settings extends PermissionSettings {
     image?: ImageModule;
     document?: ObjectMap<DocumentModule>;
     task?: ObjectMap<TaskModule>;
-    watch?: WatchModule;
     cloud?: CloudModule;
     logger?: LoggerModule;
 }

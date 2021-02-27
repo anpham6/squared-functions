@@ -171,9 +171,10 @@ class FileManager extends Module implements IFileManager {
                 }
                 break;
             case 'watch': {
-                const watch = new Watch(typeof target === 'number' && target > 0 ? target : undefined);
-                watch.whenModified = (assets: ExternalAsset[]) => {
-                    const manager = new FileManager(this.baseDirectory, { ...this.body, assets });
+                const port = params[0];
+                const watch = new Watch(typeof target === 'number' && target > 0 ? target : undefined, typeof port === 'number' && port > 0 ? port : undefined);
+                watch.whenModified = (assets: ExternalAsset[], postFinalize?: FunctionType<void>) => {
+                    const manager = new FileManager(this.baseDirectory, { ...this.body, assets }, postFinalize);
                     for (const { constructor, params } of this.Document) { // eslint-disable-line no-shadow
                         manager.install('document', constructor, ...params);
                     }
@@ -189,6 +190,7 @@ class FileManager extends Module implements IFileManager {
                     if (this.Compress) {
                         manager.install('compress', this.Compress);
                     }
+
                     manager.processAssets();
                 };
                 this.Watch = watch;
