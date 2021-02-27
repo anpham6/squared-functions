@@ -35,13 +35,16 @@ class Watch extends Module implements IWatch {
         const destMap: ObjectMap<ExternalAsset[]> = {};
         for (const item of assets) {
             if (!item.invalid) {
-                const { uri, relativeUri } = item;
-                if (uri && relativeUri) {
+                const { bundleId, uri, relativeUri } = item;
+                if (bundleId) {
+                    (destMap[bundleId] ||= []).push(item);
+                }
+                else if (uri && relativeUri) {
                     (destMap[relativeUri] ||= []).push(item);
                 }
             }
         }
-        for (const dest in destMap) {
+        for (let dest in destMap) {
             let items = destMap[dest];
             if (!items.some(item => item.watch)) {
                 continue;
@@ -56,6 +59,9 @@ class Watch extends Module implements IWatch {
                 }
                 return 0;
             });
+            if (!isNaN(+dest)) {
+                dest = items[0].relativeUri!;
+            }
             const leading = items.find(item => item.bundleId && getInterval(item) > 0);
             const watchInterval = leading ? getInterval(leading) : 0;
             for (const item of items) {

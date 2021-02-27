@@ -140,7 +140,7 @@ class FileManager extends Module implements IFileManager {
             }
             item.mimeType ||= mime.lookup(item.uri || item.filename) || '';
         }
-        if (this.body.dataSource) {
+        if (Array.isArray(this.body.dataSource)) {
             this.dataSourceItems.push(...this.body.dataSource);
         }
         if (postFinalize) {
@@ -286,10 +286,9 @@ class FileManager extends Module implements IFileManager {
             this.delayed = Infinity;
             this.finalize().then(() => {
                 if (this.postFinalize) {
-                    const errors = this.errors.slice(0);
                     const addErrors = (list: string[]) => {
                         if (list.length) {
-                            errors.push(...list);
+                            this.errors.push(...list);
                             list.length = 0;
                         }
                     };
@@ -305,9 +304,9 @@ class FileManager extends Module implements IFileManager {
                     if (this.Watch) {
                         addErrors(this.Watch.errors);
                     }
-                    this.postFinalize(errors);
-                    this.errors.length = 0;
+                    this.postFinalize(this.errors);
                 }
+                this.errors.length = 0;
             });
         }
     }

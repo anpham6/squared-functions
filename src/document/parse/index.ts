@@ -18,7 +18,7 @@ function isSpace(ch: string) {
     return n === 32 || n < 14 && n > 8;
 }
 
-function applyAttributes(attrs: AttributeMap, data: Undef<StandardMap>, lowerCase?: boolean) {
+function applyAttributes(attrs: AttributeMap, data: Undef<StandardMap>, lowerCase: boolean) {
     if (data) {
         for (const key in data) {
             attrs.set(lowerCase ? key.toLowerCase() : key, data[key]);
@@ -631,6 +631,7 @@ export abstract class XmlElement implements IXmlElement {
     protected _tagOffset: Null<TagOffsetMap> = null;
     protected _prevTagName: Null<string> = null;
     protected _prevInnerXml: Null<string> = null;
+    protected _lowerCase: boolean;
     protected readonly _attributes = new Map<string, Optional<string>>();
 
     abstract readonly TAG_VOID: string[];
@@ -641,10 +642,11 @@ export abstract class XmlElement implements IXmlElement {
         attributes?: StandardMap,
         public tagVoid = false)
     {
-        const lowerCase = node.lowerCase;
+        const lowerCase = node.lowerCase || false;
         const attrs = this._attributes;
         applyAttributes(attrs, node.attributes, lowerCase);
         applyAttributes(attrs, attributes, lowerCase);
+        this._lowerCase = lowerCase;
         this._modified = attrs.size > 0;
         if (node.outerXml) {
             const [tagStart, innerXml] = this.parseOuterXml(node.outerXml);
@@ -713,7 +715,7 @@ export abstract class XmlElement implements IXmlElement {
         return null;
     }
     setAttribute(name: string, value: string) {
-        if (this.node.lowerCase) {
+        if (this._lowerCase) {
             name = name.toLowerCase();
         }
         if (this._attributes.get(name) !== value) {
@@ -722,23 +724,19 @@ export abstract class XmlElement implements IXmlElement {
         }
     }
     getAttribute(name: string) {
-        return this._attributes.get(this.node.lowerCase ? name.toLowerCase() : name);
+        return this._attributes.get(this._lowerCase ? name.toLowerCase() : name);
     }
     removeAttribute(...names: string[]) {
-        const lowerCase = this.node.lowerCase;
         const attrs = this._attributes;
-        for (let key of names) {
-            if (lowerCase) {
-                key = key.toLowerCase();
-            }
-            if (attrs.has(key)) {
-                attrs.delete(key);
+        for (let name of names) {
+            if (attrs.has(this._lowerCase ? name = name.toLowerCase() : name)) {
+                attrs.delete(name);
                 this._modified = true;
             }
         }
     }
     hasAttribute(name: string) {
-        return this._attributes.has(this.node.lowerCase ? name.toLowerCase() : name);
+        return this._attributes.has(this._lowerCase ? name.toLowerCase() : name);
     }
     replace(source: string, options: ReplaceOptions): WriteResult {
         let { startIndex, endIndex } = options,

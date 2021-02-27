@@ -129,18 +129,16 @@ Tasks can be performed preceding archiving or copying after file content has bee
 }
 
 // android
-const options = {
-    assets: [
-        {
-            pathname: 'images',
-            filename: 'pencil.png',
-            mimeType: 'image/png',
-            commands: ['jpeg', 'bmp@(50000,100000)'],
-            tasks: [{ handler: 'gulp', task: 'compress' }],
-            uri: 'http://localhost:3000/common/images/pencil.png'
-        }
-    ]
-};
+squared.saveAs("index.zip", {
+    assets: [{
+        pathname: "images",
+        filename: "pencil.png",
+        mimeType: "image/png",
+        commands: ["jpeg", "bmp@(50000,100000)"],
+        tasks: [{ handler: "gulp", task: "compress" }],
+        uri: "http://localhost:3000/common/images/pencil.png"
+    }]
+});
 ```
 
 ```xml
@@ -377,12 +375,7 @@ interface TransformOptions extends TransformOutput {
 
 function (context, value, options, resolve) {
     context.transform(value, options.outputConfig, function(err, result) {
-        if (!err && result) {
-            resolve(result.code);
-        }
-        else {
-            resolve();
-        }
+        resolve(!err && result ? result.code : '');
     });
 }
 ```
@@ -486,13 +479,12 @@ There are possible scenarios when a transformation may cause an asset type to ch
   "type": "css",
   "filename": "prod.css", // UUID filename: __assign__.css
   "attributes": {
-      "id": undefined,
-      "rel": "stylesheet",
-      "type": "text/css",
-      "title": "",
-      "disabled": null
-    }
-  ],
+    "id": undefined,
+    "rel": "stylesheet",
+    "type": "text/css",
+    "title": "",
+    "disabled": null
+  },
   "process": [
     "node-sass"
   ]
@@ -973,8 +965,8 @@ View engines can also be used to format the element "value" or innerHTML.
 The entire page can similarly be transformed as a group using the "saveAs" attribute in options. Cloud storage can be used for all assets (except HTML) using the same configuration as element selectors.
 
 ```javascript
-squared.saveAs('index.zip', {
-    productionRelease: false || true || '/absolute/path/wwwroot/', // Ignore local url rewriting and load assets using absolute paths
+squared.saveAs("index.zip", {
+    productionRelease: false || true || "/absolute/path/wwwroot/", // Ignore local url rewriting and load assets using absolute paths
     preserveCrossOrigin: false, // Ignore downloading a local copy of assets hosted on other domains
 
     removeUnusedClasses: false, // CSS classes that can be removed in current state
@@ -983,11 +975,11 @@ squared.saveAs('index.zip', {
 
     // All attributes are optional except "filename" for <script> and <link>.
     saveAs: {
-        html: { filename: 'index.html', format: 'beautify', attributes: [{ name: 'lang', value: 'en' }] },
-        script: { pathname: '../js', filename: 'bundle.js', format: 'es5+es5-minify' },
-        link: { pathname: 'css', filename: 'bundle.css', preserve: true, inline: true },
+        html: { filename: "index.html", format: "beautify", attributes: [{ name: "lang", value: "en" }] },
+        script: { pathname: "../js", filename: "bundle.js", format: "es5+es5-minify" },
+        link: { pathname: "css", filename: "bundle.css", preserve: true, inline: true },
         image: { inline: true },
-        font: { pathname: 'fonts', blob: true }
+        font: { pathname: "fonts", blob: true }
     }
 }); 
 ```
@@ -1018,11 +1010,11 @@ squared.saveAs('index.zip', {
   ]
 }
 
-squared.copyTo('/local/user/www', {
+squared.copyTo("/local/user/www", {
     watch: true,
     saveAs: {
-        script: { pathname: '../js', format: 'es5+es5-minify', watch: true },
-        link: { pathname: 'css', filename: 'bundle.css', watch: { interval: 500 } }
+        script: { pathname: "../js", format: "es5+es5-minify", watch: true },
+        link: { pathname: "css", filename: "bundle.css", watch: { interval: 500 } }
     }
 });
 ```
@@ -1035,7 +1027,7 @@ squared.copyTo('/local/user/www', {
 <img src="images/harbour1.jpg" data-android-watch="1000::1h 30m">
 ```
 
-File watching is available and uses HTTP HEAD requests to determine modifications. You can also watch any file that is served using HTTP on a different server or computer. The HTML page itself or any inlined assets cannot be watched since changes to the DOM structure requires a complete browser reload.
+File watching is available with "copy" methods and uses HTTP HEAD requests to determine modifications. You can also watch any file that is served with HTTP on a different server or computer. The HTML page itself or any inlined assets cannot be watched since changes to the DOM structure requires a complete browser reload.
 
 ### Asset exclusion
 
