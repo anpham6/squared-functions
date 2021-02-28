@@ -140,9 +140,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
     static async transform(uri: string, command: string, mimeType?: string, tempFile?: boolean) {
         const [outputType, saveAs, finalAs] = this.parseFormat(command, mimeType);
         if (outputType) {
-            return await performCommand(uri, command, outputType, finalAs)
-                .then(handler => handler.getBuffer(tempFile, saveAs, finalAs))
-                .catch(() => tempFile ? '' : null);
+            return await performCommand(uri, command, outputType, finalAs).then(handler => handler.getBuffer(tempFile, saveAs, finalAs)).catch(() => tempFile ? '' : null);
         }
         return super.transform(uri, command, mimeType, tempFile);
     }

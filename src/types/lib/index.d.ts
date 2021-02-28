@@ -140,9 +140,12 @@ declare namespace functions {
     interface IWatch extends IModule {
         interval: number;
         port: number;
+        securePort: number;
         whenModified?: (assets: ExternalAsset[], postFinalize?: FunctionType<void>) => void;
         start(assets: ExternalAsset[], permission?: IPermission): void;
         modified(watch: FileWatch): void;
+        setSSLKey(value: string): void;
+        setSSLCert(value: string): void;
     }
 
     interface WatchConstructor extends ModuleConstructor {
@@ -184,7 +187,7 @@ declare namespace functions {
         readonly emptyDir: Set<string>;
         readonly permission: IPermission;
         readonly postFinalize?: (errors: string[]) => void;
-        install(name: string, ...params: unknown[]): void;
+        install(name: string, ...params: unknown[]): Undef<IModule>;
         add(value: string, parent?: ExternalAsset): void;
         delete(value: string, emptyDir?: boolean): void;
         has(value: Undef<string>): value is string;

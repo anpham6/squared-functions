@@ -997,7 +997,8 @@ File watching is available with "copy" methods and uses HTTP HEAD requests to de
     "expires": "1h 1m 1s",
     "reload": { // true
       "socketId": "111-111-111" // Use same ID to reload multiple pages (optional)
-      "port": 8080 // optional
+      "port": 80 // optional,
+      "secure": false // Requires SSL key and cert (optional)
     }
   },
   "process": [

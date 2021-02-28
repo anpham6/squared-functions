@@ -10,6 +10,7 @@ import Module from '../module';
 
 import path = require('path');
 import fs = require('fs');
+import https = require('https');
 import request = require('request');
 
 import WebSocket = require('ws');
@@ -19,11 +20,12 @@ type FileWatchMap = ObjectMap<Map<string, { data: FileWatch; timeout: [Null<Node
 const HTTP_MAP: FileWatchMap = {};
 const DISK_MAP: FileWatchMap = {};
 const PORT_MAP: ObjectMap<Server> = {};
+const SECURE_MAP: ObjectMap<Server> = {};
 
 function getPostFinalize(watch: FileWatch) {
     const { socketId, port } = watch;
     if (socketId && port) {
-        const server = PORT_MAP[port];
+        const server = watch.secure ? SECURE_MAP[port] : PORT_MAP[port];
         if (server) {
             return (errors: string[]) => {
                 const data = JSON.stringify({ socketId: watch.socketId, module: 'watch', type: 'modified', errors });
@@ -42,10 +44,33 @@ function getInterval(file: ExternalAsset) {
     return Math.max(Module.isObject<WatchInterval>(watch) && watch.interval || 0, 0);
 }
 
+function clearCache(items: ExternalAsset[]) {
+    for (const item of items) {
+        for (const attr in item) {
+            switch (attr) {
+                case 'buffer':
+                case 'sourceUTF8':
+                case 'transforms':
+                case 'invalid':
+                    delete item[attr];
+                    break;
+                default:
+                    if (attr.startsWith('inline')) {
+                        delete item[attr];
+                    }
+                    break;
+            }
+        }
+    }
+}
+
 const formatDate = (value: number) => new Date(value).toLocaleString().replace(/\/20\d+, /, '@').replace(/:\d+ (AM|PM)$/, (...match) => match[1]);
 
 class Watch extends Module implements IWatch {
-    constructor(public interval = 200, public port = 8080) {
+    private _sslKey = '';
+    private _sslCert = '';
+
+    constructor(public interval = 200, public port = 80, public securePort = 443) {
         super();
     }
 
@@ -83,21 +108,6 @@ class Watch extends Module implements IWatch {
                         item.filename = item.originalName;
                         delete item.originalName;
                     }
-                    for (const attr in item) {
-                        switch (attr) {
-                            case 'buffer':
-                            case 'sourceUTF8':
-                            case 'transforms':
-                            case 'invalid':
-                                delete item[attr];
-                                break;
-                            default:
-                                if (attr.startsWith('inline')) {
-                                    delete item[attr];
-                                }
-                                break;
-                        }
-                    }
                     const start = Date.now();
                     const interval = getInterval(item) || watchInterval || this.interval;
                     const watchExpired = (map: FileWatchMap, input: FileWatch, message = 'Expired') => {
@@ -106,7 +116,8 @@ class Watch extends Module implements IWatch {
                     };
                     let expires = 0,
                         port: Undef<number>,
-                        socketId: Undef<string>;
+                        socketId: Undef<string>,
+                        secure: Undef<boolean>;
                     if (typeof watch === 'object') {
                         if (watch.expires) {
                             const match = /^\s*(?:([\d.]+)\s*h)?(?:\s*([\d.]+)\s*m)?(?:\s*([\d.]+)\s*s)?\s*$/i.exec(watch.expires);
@@ -130,18 +141,45 @@ class Watch extends Module implements IWatch {
                         }
                         const reload = watch.reload;
                         if (Module.isObject<WatchReload>(reload) && (socketId = reload.socketId)) {
-                            port = reload.port || this.port;
-                            PORT_MAP[port] ||= new WebSocket.Server({ port })
-                                .on('error', function(this: Server, err) {
+                            let wss: Server;
+                            port = reload.port;
+                            if (reload.secure) {
+                                port ||= this.securePort;
+                                wss = SECURE_MAP[port];
+                                if (!wss) {
+                                    if (this._sslCert && this._sslKey) {
+                                        try {
+                                            const server = https.createServer({ cert: fs.readFileSync(this._sslCert), key: fs.readFileSync(this._sslKey) });
+                                            server.listen(port);
+                                            wss = new WebSocket.Server({ server });
+                                            SECURE_MAP[port] = wss;
+                                        }
+                                        catch (err) {
+                                            this.writeFail('Unable to start WSS secure server', err);
+                                        }
+                                    }
+                                    else {
+                                        this.writeFail('SSL key and certificate not found', new Error('Missing SSL credentials'));
+                                    }
+                                }
+                                secure = true;
+                            }
+                            else {
+                                port ||= this.port;
+                                wss = PORT_MAP[port] ||= new WebSocket.Server({ port });
+                            }
+                            if (wss) {
+                                wss.on('error', function(this: Server, err) {
                                     for (const client of this.clients) {
                                         client.send(JSON.stringify(err));
                                     }
-                                })
-                                .on('close', function(this: Server) {
+                                });
+                                wss.on('close', function(this: Server) {
                                     for (const client of this.clients) {
                                         client.terminate();
                                     }
                                 });
+                            }
                         }
                     }
                     const data = {
@@ -152,6 +190,7 @@ class Watch extends Module implements IWatch {
                         interval,
                         socketId,
                         port,
+                        secure,
                         expires
                     } as FileWatch;
                     if (Module.isFileHTTP(uri)) {
@@ -249,9 +288,22 @@ class Watch extends Module implements IWatch {
     }
     modified(watch: FileWatch) {
         if (this.whenModified) {
+            clearCache(watch.assets);
             this.whenModified(watch.assets, getPostFinalize(watch));
         }
         this.formatMessage(this.logType.WATCH, 'WATCH', 'File modified', watch.uri, { titleColor: 'yellow' });
+    }
+    setSSLKey(value: string) {
+        value = path.resolve(value);
+        if (fs.existsSync(value)) {
+            this._sslKey = value;
+        }
+    }
+    setSSLCert(value: string) {
+        value = path.resolve(value);
+        if (fs.existsSync(value)) {
+            this._sslCert = value;
+        }
     }
 }
 

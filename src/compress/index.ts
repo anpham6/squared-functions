@@ -95,6 +95,7 @@ const Compress = new class extends Module implements ICompress {
     }
     tryImage(uri: string, data: CompressFormat, callback: CompressTryImageCallback) {
         const ext = path.extname(uri).substring(1);
+        const time = Date.now();
         const writeFile = (result: Buffer | Uint8Array) => {
             fs.writeFile(uri, result, err => {
                 if (!err) {
@@ -136,7 +137,6 @@ const Compress = new class extends Module implements ICompress {
             }
         }
         this.formatMessage(this.logType.COMPRESS, ext, ['Compressing image...', data.plugin], uri, { titleColor: 'magenta' });
-        const time = Date.now();
         if (apiKey) {
             if (tinify['_key'] !== apiKey) {
                 tinify.key = apiKey;

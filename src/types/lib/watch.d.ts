@@ -8,5 +8,6 @@ interface FileWatch {
     interval: number;
     port?: number;
     socketId?: string;
+    secure?: boolean;
     etag?: string;
 }

@@ -148,7 +148,7 @@ class FileManager extends Module implements IFileManager {
         this.permission = new Permission(settings);
     }
 
-    install(name: string, ...params: unknown[]) {
+    install(name: string, ...params: unknown[]): Undef<IModule> {
         const target = params.shift();
         switch (name) {
             case 'document':
@@ -156,23 +156,25 @@ class FileManager extends Module implements IFileManager {
                     const instance = new target(params[0] as DocumentModule, ...params.slice(1));
                     instance.init(this.getDocumentAssets(instance), this.body);
                     this.Document.push({ instance, constructor: target, params });
+                    return instance;
                 }
                 break;
             case 'task':
                 if (isFunction<TaskConstructor>(target) && target.prototype instanceof Task && Module.isObject(params[0])) {
                     const instance = new target(params[0], ...params.slice(1));
                     this.Task.push({ instance, constructor: target, params });
+                    return instance;
                 }
                 break;
             case 'cloud':
                 if (Module.isObject<CloudModule>(target)) {
-                    this.Cloud = new Cloud(target, this.dataSourceItems.filter(item => item.source === 'cloud') as Undef<CloudDatabase[]>);
+                    return this.Cloud = new Cloud(target, this.dataSourceItems.filter(item => item.source === 'cloud') as Undef<CloudDatabase[]>);
                 }
                 break;
             case 'watch': {
-                const port = params[0];
-                const watch = new Watch(typeof target === 'number' && target > 0 ? target : undefined, typeof port === 'number' && port > 0 ? port : undefined);
-                watch.whenModified = (assets: ExternalAsset[], postFinalize?: FunctionType<void>) => {
+                const [port, securePort] = params;
+                const instance = new Watch(typeof target === 'number' && target > 0 ? target : undefined, typeof port === 'number' && port > 0 ? port : undefined, typeof securePort === 'number' && securePort > 0 ? securePort : undefined);
+                instance.whenModified = (assets: ExternalAsset[], postFinalize?: FunctionType<void>) => {
                     const manager = new FileManager(this.baseDirectory, { ...this.body, assets }, postFinalize);
                     for (const { constructor, params } of this.Document) { // eslint-disable-line no-shadow
                         manager.install('document', constructor, ...params);
@@ -189,11 +191,9 @@ class FileManager extends Module implements IFileManager {
                     if (this.Compress) {
                         manager.install('compress', this.Compress);
                     }
-
                     manager.processAssets();
                 };
-                this.Watch = watch;
-                break;
+                return this.Watch = instance;
             }
             case 'image':
                 if (target instanceof Map) {
@@ -208,8 +208,7 @@ class FileManager extends Module implements IFileManager {
                 }
                 break;
             case 'compress':
-                this.Compress = Compress;
-                break;
+                return this.Compress = Compress;
         }
     }
     add(value: string, parent?: ExternalAsset) {
