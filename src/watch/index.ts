@@ -28,7 +28,20 @@ function getPostFinalize(watch: FileWatch) {
         const server = watch.secure ? SECURE_MAP[port] : PORT_MAP[port];
         if (server) {
             return (errors: string[]) => {
-                const data = JSON.stringify({ socketId: watch.socketId, module: 'watch', type: 'modified', errors });
+                const { mimeType, relativeUri } = watch.assets[0];
+                const type = mimeType.replace('@', '');
+                let src = '',
+                    hot = '';
+                if (relativeUri) {
+                    src = relativeUri;
+                    if (watch.hot && (type === 'text/css' || type.startsWith('image/'))) {
+                        if (!src.includes('?')) {
+                            hot += '?';
+                        }
+                        hot += 'q=' + Date.now();
+                    }
+                }
+                const data = JSON.stringify({ socketId, module: 'watch', action: 'modified', src, type, hot, errors });
                 for (const client of server.clients) {
                     if (client.readyState === WebSocket.OPEN) {
                         client.send(data);
@@ -117,7 +130,8 @@ class Watch extends Module implements IWatch {
                     let expires = 0,
                         port: Undef<number>,
                         socketId: Undef<string>,
-                        secure: Undef<boolean>;
+                        secure: Undef<boolean>,
+                        hot: Undef<boolean>;
                     if (typeof watch === 'object') {
                         if (watch.expires) {
                             const match = /^\s*(?:([\d.]+)\s*h)?(?:\s*([\d.]+)\s*m)?(?:\s*([\d.]+)\s*s)?\s*$/i.exec(watch.expires);
@@ -143,6 +157,7 @@ class Watch extends Module implements IWatch {
                         if (Module.isObject<WatchReload>(reload) && (socketId = reload.socketId)) {
                             let wss: Server;
                             port = reload.port;
+                            hot = reload.module;
                             if (reload.secure) {
                                 port ||= this.securePort;
                                 wss = SECURE_MAP[port];
@@ -191,6 +206,7 @@ class Watch extends Module implements IWatch {
                         socketId,
                         port,
                         secure,
+                        hot,
                         expires
                     } as FileWatch;
                     if (Module.isFileHTTP(uri)) {

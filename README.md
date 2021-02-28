@@ -987,7 +987,7 @@ squared.saveAs("index.zip", {
 File watching is available with "copy" methods and uses HTTP HEAD requests to determine modifications. Hot reload uses WebSockets and will automatically reload your browser when the file modification has been fully transformed.
 
 ```javascript
-// js | css | image | video | audio
+// js | css | image
 
 {
   "selector": "link",
@@ -997,8 +997,9 @@ File watching is available with "copy" methods and uses HTTP HEAD requests to de
     "expires": "1h 1m 1s",
     "reload": { // true
       "socketId": "111-111-111" // Use same ID to reload multiple pages (optional)
-      "port": 80 // optional,
+      "port": 80 // optional
       "secure": false // Requires SSL key and cert (optional)
+      "module": false // "img" and "link" only (optional)
     }
   },
   "process": [
@@ -1025,6 +1026,8 @@ squared.copyTo("/local/user/www", {
     }
 });
 ```
+
+Hot module replacement is only available for LINK and IMG elements. It is disabled by default due to possible conflicts with preloaded JavaScript.
 
 ```xml
 <!-- chrome -->

@@ -122,6 +122,7 @@ export interface WatchReload {
     socketId: string;
     secure?: boolean;
     port?: number;
+    module?: boolean;
 }
 
 export interface RequestData extends PlainObject {

@@ -9,5 +9,6 @@ interface FileWatch {
     port?: number;
     socketId?: string;
     secure?: boolean;
+    hot?: boolean;
     etag?: string;
 }
