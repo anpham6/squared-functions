@@ -245,7 +245,7 @@ export abstract class XmlWriter implements IXmlWriter {
             return true;
         }
         const { node, remove } = element;
-        const getReplaceOptions = (position: SourceIndex): ReplaceOptions => ({ remove, append, startIndex: position.startIndex, endIndex: position.endIndex });
+        const getReplaceOptions = (position: SourceIndex): ReplaceOptions => ({ startIndex: position.startIndex, endIndex: position.endIndex, append, remove });
         let output: Undef<string>,
             outerXml = '',
             error: Optional<Error>;
@@ -265,6 +265,7 @@ export abstract class XmlWriter implements IXmlWriter {
             if (!this.elements.includes(node)) {
                 this.elements.push(node);
             }
+            const tagOffset = element.tagOffset;
             if (append) {
                 const { id = '', tagName, prepend, nextSibling } = append;
                 if (!prepend) {
@@ -272,29 +273,26 @@ export abstract class XmlWriter implements IXmlWriter {
                 }
                 (node.id ||= {})[this.documentName] = id;
                 element.id = id;
-                const offset = element.tagOffset && element.tagOffset[tagName] || 0;
+                const offset = tagOffset && tagOffset[tagName] || 0;
                 if (tagName !== node.tagName) {
                     node.tagName = tagName;
                     node.tagIndex = Infinity;
                     node.tagCount = 0;
-                    this.increment(node, offset);
-                    error = this.indexTag(tagName, append, offset);
+                    this.indexTag(tagName, append, offset);
                 }
-                else {
-                    if (!prepend && isIndex(node.tagIndex) && isCount(node.tagCount)) {
-                        ++node.tagIndex;
-                        ++node.tagCount;
-                    }
-                    this.increment(node, offset);
+                else if (!prepend && isIndex(node.tagIndex) && isCount(node.tagCount)) {
+                    ++node.tagIndex;
+                    ++node.tagCount;
                 }
+                this.increment(node, offset);
             }
             else if (remove) {
-                this.decrement(node, true);
+                this.decrement(node, tagOffset && tagOffset[element.tagName] || 0, true);
             }
             else if (element.tagName !== node.tagName) {
-                error = this.renameTag(node, element.tagName);
+                this.renameTag(node, element.tagName);
             }
-            this.update(node, outerXml, element.tagOffset);
+            this.update(node, outerXml, append, tagOffset);
             element.reset();
         }
         if (error) {
@@ -308,10 +306,11 @@ export abstract class XmlWriter implements IXmlWriter {
         this.reset();
         return this.source;
     }
-    update(node: XmlTagNode, outerXml: string, tagOffset?: Null<ObjectMap<Undef<number>>>) {
+    update(node: XmlTagNode, outerXml: string, append?: TagAppend, offsetMap?: Null<ObjectMap<Undef<number>>>) {
         const { elements, documentName, rootName } = this;
         const { index, tagName, tagIndex, tagCount, startIndex, endIndex } = node;
         const id = XmlWriter.getNodeId(node, documentName);
+        const items: [boolean, Undef<number>, TagAppend][] = [];
         for (let i = 0; i < elements.length; ++i) {
             const item = elements[i];
             if (item === node || item.tagName === tagName && isNode(item, index, tagIndex, tagCount, id, documentName)) {
@@ -328,38 +327,56 @@ export abstract class XmlWriter implements IXmlWriter {
                 else {
                     item.removed = true;
                     elements.splice(i--, 1);
+                    continue;
                 }
             }
             else {
                 deletePosition(item, rootName, startIndex);
             }
+            if (offsetMap && item.append) {
+                items.push([true, item.index, item.append]);
+            }
         }
-        if (tagOffset) {
-            for (const attr in tagOffset) {
-                const offset = tagOffset[attr];
+        if (offsetMap) {
+            items.push(...elements.map(item => [false, item.index, item]) as [boolean, Undef<number>, TagAppend][]);
+            for (const attr in offsetMap) {
+                const offset = offsetMap[attr];
                 if (offset) {
+                    const updated = !!append && tagName === attr;
                     let offsetCount = -1;
-                    for (const item of elements) {
+                    for (const [appended, itemIndex, item] of items) {
                         if (item.tagName === attr) {
-                            if (isIndex(index) && isIndex(item.index) && isIndex(item.tagIndex) && isCount(item.tagCount)) {
-                                if (item.index > index) {
-                                    item.tagIndex += offset;
+                            if (isIndex(index) && isIndex(itemIndex) && isCount(item.tagCount)) {
+                                if (appended) {
+                                    if (updated) {
+                                        item.tagCount = this._tagCount[attr];
+                                    }
+                                    else {
+                                        item.tagCount += offset;
+                                    }
                                 }
-                                item.tagCount += offset;
+                                else if (isIndex(item.tagIndex)) {
+                                    if (!updated) {
+                                        if (itemIndex > index) {
+                                            item.tagIndex += offset;
+                                        }
+                                        item.tagCount += offset;
+                                    }
+                                }
+                                else {
+                                    offsetCount = Infinity;
+                                }
                                 if (offsetCount === -1) {
                                     offsetCount = item.tagCount;
+                                    continue;
                                 }
-                                else if (offsetCount !== item.tagCount) {
-                                    offsetCount = -1;
-                                    this.resetTag(attr);
-                                    break;
+                                else if (offsetCount === item.tagCount) {
+                                    continue;
                                 }
                             }
-                            else {
-                                offsetCount = -1;
-                                this.resetTag(attr);
-                                break;
-                            }
+                            offsetCount = -1;
+                            this.resetTag(attr);
+                            break;
                         }
                     }
                     if (offsetCount !== -1) {
@@ -370,17 +387,22 @@ export abstract class XmlWriter implements IXmlWriter {
         }
     }
     increment(node: XmlTagNode, offset = 0) {
-        const { index, tagName, tagIndex } = node;
+        const documentName = this.documentName;
+        const { index, tagName, tagIndex, tagCount } = node;
+        const id = XmlWriter.getNodeId(node, documentName);
         let invalid: Undef<boolean>;
+        ++offset;
         for (const item of this.elements) {
             if (item !== node) {
-                if (!invalid && item.tagName === tagName && tagIndex !== Infinity) {
-                    const siblingIndex = item.tagIndex;
-                    if (isIndex(tagIndex) && isIndex(siblingIndex) && isCount(item.tagCount)) {
-                        if (siblingIndex >= tagIndex) {
-                            item.tagIndex = siblingIndex + offset + 1;
+                if (item.tagName === tagName) {
+                    if (isNode(item, index, tagIndex, tagCount, id, documentName)) {
+                        continue;
+                    }
+                    if (!invalid && isIndex(tagIndex) && isIndex(item.tagIndex) && isCount(item.tagCount)) {
+                        if (item.tagIndex >= tagIndex) {
+                            item.tagIndex += offset;
                         }
-                        ++item.tagCount;
+                        item.tagCount += offset;
                     }
                     else {
                         invalid = true;
@@ -394,9 +416,11 @@ export abstract class XmlWriter implements IXmlWriter {
                         if (item.index >= index) {
                             ++item.index;
                         }
-                        const nextSibling = item.append?.nextSibling;
-                        if (isIndex(nextSibling) && nextSibling >= index) {
-                            ++item.append!.nextSibling!;
+                        if (item.append) {
+                            const nextSibling = item.append.nextSibling;
+                            if (isIndex(nextSibling) && nextSibling >= index) {
+                                item.append.nextSibling! = nextSibling + 1;
+                            }
                         }
                     }
                 }
@@ -406,19 +430,20 @@ export abstract class XmlWriter implements IXmlWriter {
             this.resetTag(tagName);
         }
         else if (tagName in this._tagCount) {
-            ++this._tagCount[tagName];
+            this._tagCount[tagName] += offset;
         }
     }
-    decrement(node: XmlTagNode, remove?: boolean) {
+    decrement(node: XmlTagNode, offset = 0, remove?: boolean) {
+        const { elements, documentName } = this;
         const { index, tagName, tagIndex, tagCount } = node;
-        const id = XmlWriter.getNodeId(node, this.documentName);
+        const id = XmlWriter.getNodeId(node, documentName);
         const hasIndex = isIndex(tagIndex) && isCount(tagCount);
         const result: XmlTagNode[] = [];
-        const elements = this.elements;
+        ++offset;
         for (let i = 0; i < elements.length; ++i) {
             const item = elements[i];
             if (item.tagName === tagName) {
-                if (item === node || isNode(item, index, tagIndex, tagCount, id, this.documentName)) {
+                if (item === node || isNode(item, index, tagIndex, tagCount, id, documentName)) {
                     if (remove) {
                         item.removed = true;
                         elements.splice(i--, 1);
@@ -429,9 +454,9 @@ export abstract class XmlWriter implements IXmlWriter {
                 }
                 else if (hasIndex && isIndex(item.tagIndex) && isCount(item.tagCount)) {
                     if (item.tagIndex > tagIndex!) {
-                        --item.tagIndex;
+                        item.tagIndex -= offset;
                     }
-                    --item.tagCount;
+                    item.tagCount -= offset;
                 }
                 else {
                     this.resetTag(tagName);
@@ -440,34 +465,38 @@ export abstract class XmlWriter implements IXmlWriter {
             }
         }
         if (tagName in this._tagCount) {
-            --this._tagCount[tagName];
+            this._tagCount[tagName] -= offset;
         }
         return result;
     }
     renameTag(node: XmlTagNode, tagName: string) {
         const revised = this.decrement(node);
         if (revised.includes(node)) {
-            for (const item of revised) {
-                item.tagName = tagName;
-                item.tagIndex = Infinity;
-            }
             if (tagName in this._tagCount) {
-                ++this._tagCount[tagName];
-                return this.indexTag(tagName);
+                for (const item of revised) {
+                    item.tagName = tagName;
+                    item.tagIndex = Infinity;
+                    item.tagCount = 0;
+                }
+                this.indexTag(tagName);
+                this.increment(node);
+            }
+            else {
+                this.resetTag(tagName);
             }
         }
         else {
             node.tagName = tagName;
             resetTagPosition(node);
         }
-        return null;
     }
     indexTag(tagName: string, append?: TagAppend, offset = 0) {
         if (tagName in this._tagCount) {
             const elements: XmlTagNode[] = [];
             const revised: XmlTagNode[] = [];
             const index = new Set<number>();
-            let documentIndex = -1;
+            let documentIndex = -1,
+                minIndex = -1;
             for (const item of this.elements) {
                 if (item.tagName === tagName) {
                     if (isIndex(item.index)) {
@@ -480,66 +509,71 @@ export abstract class XmlWriter implements IXmlWriter {
                         else if (isIndex(item.tagIndex)) {
                             elements.push(item);
                             index.add(item.tagIndex);
+                            minIndex = Math.max(minIndex, item.index);
                             continue;
                         }
                     }
-                    documentIndex = Infinity;
-                    break;
+                    this.resetTag(tagName);
+                    return;
                 }
             }
-            if (documentIndex === Infinity) {
-                this.resetTag(tagName);
-            }
-            else {
+            if (revised.length) {
                 const tagCount = this._tagCount[tagName];
-                if (append && tagCount === 1) {
-                    if (!elements.length) {
+                if (!elements.length) {
+                    if (append && !tagCount) {
                         for (const item of revised) {
                             item.tagIndex = 0;
                             item.tagCount = 1;
                         }
-                        return null;
+                        this._tagCount[tagName] = 1;
+                        return;
                     }
                 }
-                else {
-                    if (documentIndex !== -1) {
-                        let i = tagCount - 1,
-                            last = true;
-                        index.clear();
-                        for (const item of elements) {
-                            let j = 0;
-                            if (item.index! > documentIndex) {
-                                item.tagIndex = item.tagIndex! + 1;
-                                j = offset;
-                                last = false;
-                            }
-                            index.add(item.tagIndex! + j);
-                            item.tagCount = tagCount;
+                else if (documentIndex < minIndex) {
+                    if (elements.some(item => item.tagIndex === 0)) {
+                        for (const item of revised) {
+                            item.tagIndex = 0;
+                            item.tagCount = tagCount + offset + 1;
                         }
-                        if (!last) {
-                            while (index.has(i)) {
-                                --i;
-                            }
-                        }
-                        else {
-                            offset = 0;
-                        }
-                        for (const target of revised) {
-                            target.tagIndex = i - offset;
-                            target.tagCount = tagCount;
-                        }
+                        return;
                     }
-                    return null;
                 }
+                else if (index.size === tagCount + 1) {
+                    let i = tagCount,
+                        last = true;
+                    index.clear();
+                    for (const item of elements) {
+                        let j = item.tagIndex!;
+                        if (item.index! > documentIndex) {
+                            j += offset + 1;
+                            last = false;
+                        }
+                        index.add(j);
+                    }
+                    if (!last) {
+                        while (index.has(i)) {
+                            --i;
+                        }
+                        i -= offset;
+                    }
+                    for (const target of revised) {
+                        target.tagIndex = i;
+                        target.tagCount = tagCount + offset + 1;
+                    }
+                    return;
+                }
+                this.resetTag(tagName);
             }
-            return new Error(`Warning: Unable to index ${tagName.toUpperCase()}`);
         }
-        return null;
     }
     resetTag(tagName: string) {
         for (const item of this.elements) {
             if (item.tagName === tagName) {
                 resetTagPosition(item);
+            }
+            const append = item.append;
+            if (append?.tagName === tagName) {
+                delete append.tagCount;
             }
         }
         delete this._tagCount[tagName];

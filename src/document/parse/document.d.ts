@@ -68,11 +68,11 @@ export class IXmlWriter extends IXmlBase {
     write(element: IXmlElement, options?: WriteOptions): boolean;
     save(): string;
     close(): string;
-    update(node: XmlTagNode, outerXml: string): void;
+    update(node: XmlTagNode, outerXml: string, append?: TagAppend, offsetMap?: Null<TagOffsetMap>): void;
     increment(node: XmlTagNode, offset?: number): void;
-    decrement(node: XmlTagNode): XmlTagNode[];
-    renameTag(node: XmlTagNode, tagName: string): Null<Error>;
-    indexTag(tagName: string, append?: TagAppend, offset?: number): Null<Error>;
+    decrement(node: XmlTagNode, offset?: number, remove?: boolean): XmlTagNode[];
+    renameTag(node: XmlTagNode, tagName: string): void;
+    indexTag(tagName: string, append?: TagAppend, offset?: number): void;
     resetTag(tagName: string): void;
     resetPosition(startIndex?: number): void;
     getOuterXmlById(id: string, caseSensitive?: boolean, options?: OuterXmlByIdOptions): Undef<SourceTagNode>;
