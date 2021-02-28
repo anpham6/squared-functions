@@ -18,8 +18,8 @@ export default async function transform(context: any, value: string, options: Tr
     }
     else {
         sourceFile ||= options.file?.localUri;
-        if (baseConfig.map && typeof baseConfig.map === 'object' || sourceMap.map && (baseConfig.map = {})) {
-            baseConfig.map.prev = sourceMap.map;
+        if (sourceMap.map) {
+            (baseConfig.map ||= {}).prev = sourceMap.map;
         }
     }
     if (Array.isArray(plugins)) {

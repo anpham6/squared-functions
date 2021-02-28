@@ -37,7 +37,7 @@ abstract class Document extends Module implements IDocument {
                         return false;
                     }
                 }
-                if (typeof map === 'object' && isString(map.mappings)) {
+                if (Module.isObject<SourceMap>(map) && isString(map.mappings)) {
                     this.code = code;
                     this.map = map;
                     if (sourceMappingURL) {
@@ -169,7 +169,7 @@ abstract class Document extends Module implements IDocument {
                             }
                             else {
                                 const result = JSON.parse(contents) as Null<StandardMap>;
-                                if (result && typeof result === 'object') {
+                                if (Module.isObject(result)) {
                                     return JSON.parse(JSON.stringify(data[name] = result));
                                 }
                             }

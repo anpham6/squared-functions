@@ -70,7 +70,7 @@ export async function executeQuery(this: ICloud, credential: IBMDatabaseCredenti
                 const item = await scope.get((partitionKey ? partitionKey + ':' : '') + id);
                 result = [item];
             }
-            else if (typeof query === 'object' && query !== null) {
+            else if (query && typeof query === 'object') {
                 queryString += JSON.stringify(query) + limit;
                 result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
                 if (result) {

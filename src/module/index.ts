@@ -42,6 +42,10 @@ abstract class Module implements IModule {
     static LOG_TYPE = LOG_TYPE;
     static LOG_STYLE_FAIL: LogMessageOptions = { titleColor: 'white', titleBgColor: 'bgRed' };
 
+    static isObject<T = PlainObject>(value: unknown): value is T {
+        return typeof value === 'object' && value !== null;
+    }
+
     static formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
         switch (type) {
             case LOG_TYPE.SYSTEM:

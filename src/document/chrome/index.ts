@@ -49,13 +49,13 @@ function getObjectValue(data: unknown, key: string) {
         index: Null<RegExpMatchArray>,
         match: Null<RegExpMatchArray>;
     while (match = pattern.exec(key)) {
-        if (isObject(value)) {
+        if (Document.isObject(value)) {
             value = value[match[1]];
             if (match[2]) {
                 indexPattern.lastIndex = 0;
                 while (index = indexPattern.exec(match[2])) {
                     const attr = index[1] ? index[2] : index[2].trim();
-                    if (index[1] && isObject(value) || /^\d+$/.test(attr) && (typeof value === 'string' || Array.isArray(value))) {
+                    if (index[1] && Document.isObject(value) || /^\d+$/.test(attr) && (typeof value === 'string' || Array.isArray(value))) {
                         value = value[attr];
                     }
                     else {
@@ -318,7 +318,6 @@ function setElementAttribute(this: IChromeDocument, htmlFile: DocumentAsset, ass
 
 const concatString = (values: Undef<string[]>) => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const escapePosix = (value: string) => value.split(/[\\/]/).map(seg => escapeRegexp(seg)).join('[\\\\/]');
-const isObject = (value: unknown): value is PlainObject => typeof value === 'object' && value !== null;
 const isRemoved = (item: DocumentAsset) => item.exclude || item.bundleIndex !== undefined;
 const getErrorDOM = (tagName: string, tagIndex: Undef<number>) => new Error(tagName.toUpperCase() + (tagIndex !== undefined && tagIndex >= 0 ? ' ' + tagIndex : '') + ': Unable to parse DOM');
 
@@ -542,7 +541,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     if (Array.isArray(data)) {
                                         result = data;
                                     }
-                                    else if (isObject(data)) {
+                                    else if (Document.isObject(data)) {
                                         result = [data];
                                     }
                                     else {
@@ -636,7 +635,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     }
                                     break;
                                 case 'attribute':
-                                    if (isObject(template)) {
+                                    if (Document.isObject(template)) {
                                         for (const attr in template) {
                                             let segment = template[attr]!,
                                                 value = '',

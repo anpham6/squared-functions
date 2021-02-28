@@ -181,7 +181,7 @@ export async function executeQuery(this: ICloud, credential: AWSDatabaseCredenti
                     result = [output.Item];
                 }
             }
-            else if (typeof query === 'object' && query !== null) {
+            else if (query && typeof query === 'object') {
                 queryString += JSON.stringify(query) + limit;
                 result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
                 if (result) {

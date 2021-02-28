@@ -246,6 +246,7 @@ declare namespace functions {
         LOG_STYLE_FAIL: LogMessageOptions;
         formatMessage: ModuleFormatMessageMethod;
         writeFail: ModuleWriteFailMethod;
+        isObject<T = PlainObject>(value: unknown): value is T;
         parseFunction(value: string, name?: string, sync?: boolean): Undef<FunctionType<Promise<string> | string>>;
         toPosix(value: string, filename?: string): string;
         renameExt(value: string, ext: string): string;

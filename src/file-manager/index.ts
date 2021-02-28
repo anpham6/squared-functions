@@ -43,7 +43,6 @@ function withinSizeRange(uri: string, value: Undef<string>) {
 
 const concatString = (values: Undef<string[]>) => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const findFormat = (compress: Undef<CompressFormat[]>, format: string) => compress ? compress.filter(item => item.format === format) : [];
-const isObject = <T = PlainObject>(value: unknown): value is T => typeof value === 'object' && value !== null;
 const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
 
 class FileManager extends Module implements IFileManager {
@@ -160,13 +159,13 @@ class FileManager extends Module implements IFileManager {
                 }
                 break;
             case 'task':
-                if (isFunction<TaskConstructor>(target) && target.prototype instanceof Task && isObject(params[0])) {
+                if (isFunction<TaskConstructor>(target) && target.prototype instanceof Task && Module.isObject(params[0])) {
                     const instance = new target(params[0], ...params.slice(1));
                     this.Task.push({ instance, constructor: target, params });
                 }
                 break;
             case 'cloud':
-                if (isObject<CloudModule>(target)) {
+                if (Module.isObject<CloudModule>(target)) {
                     this.Cloud = new Cloud(target, this.dataSourceItems.filter(item => item.source === 'cloud') as Undef<CloudDatabase[]>);
                 }
                 break;

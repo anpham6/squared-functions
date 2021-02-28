@@ -1,3 +1,5 @@
+import type { WatchInterval, WatchReload } from '../types/lib/squared';
+
 import type { IPermission, IWatch } from '../types/lib';
 import type { ExternalAsset } from '../types/lib/asset';
 import type { FileWatch } from '../types/lib/watch';
@@ -35,7 +37,11 @@ function getPostFinalize(watch: FileWatch) {
     }
 }
 
-const getInterval = (file: ExternalAsset) => Math.max(typeof file.watch === 'object' && file.watch.interval || 0, 0);
+function getInterval(file: ExternalAsset) {
+    const watch = file.watch;
+    return Math.max(Module.isObject<WatchInterval>(watch) && watch.interval || 0, 0);
+}
+
 const formatDate = (value: number) => new Date(value).toLocaleString().replace(/\/20\d+, /, '@').replace(/:\d+ (AM|PM)$/, (...match) => match[1]);
 
 class Watch extends Module implements IWatch {
@@ -106,21 +112,24 @@ class Watch extends Module implements IWatch {
                             const match = /^\s*(?:([\d.]+)\s*h)?(?:\s*([\d.]+)\s*m)?(?:\s*([\d.]+)\s*s)?\s*$/i.exec(watch.expires);
                             if (match) {
                                 if (match[1]) {
-                                    expires += parseFloat(match[1]) * 1000 * 60 * 60;
+                                    expires += parseFloat(match[1]) * 1000 * 60 * 60 || 0;
                                 }
                                 if (match[2]) {
-                                    expires += parseFloat(match[2]) * 1000 * 60;
+                                    expires += parseFloat(match[2]) * 1000 * 60 || 0;
                                 }
                                 if (match[3]) {
-                                    expires += parseFloat(match[3]) * 1000;
+                                    expires += parseFloat(match[3]) * 1000 || 0;
                                 }
-                                if (!isNaN(expires) && expires > 0) {
+                                if (expires > 0) {
                                     expires += start;
+                                }
+                                else {
+                                    expires = 0;
                                 }
                             }
                         }
                         const reload = watch.reload;
-                        if (typeof reload === 'object' && (socketId = reload.socketId)) {
+                        if (Module.isObject<WatchReload>(reload) && (socketId = reload.socketId)) {
                             port = reload.port || this.port;
                             PORT_MAP[port] ||= new WebSocket.Server({ port })
                                 .on('error', function(this: Server, err) {
