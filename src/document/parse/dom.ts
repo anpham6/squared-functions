@@ -219,7 +219,6 @@ export class HtmlElement extends XmlElement {
             default:
                 return super.getTagOffset(source);
         }
-        return null;
     }
     findIndexOf(source: string) {
         const { element } = DomWriter.findElement(source, this.node, { document: this.documentName, id: this.id });

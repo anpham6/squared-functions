@@ -1,4 +1,4 @@
-import type { CompressFormat, DataSource, ElementAction } from '../types/lib/squared';
+import type { CompressFormat, DataSource, ElementAction, XmlTagNode } from '../types/lib/squared';
 
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, IPermission, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
@@ -354,7 +354,13 @@ class FileManager extends Module implements IFileManager {
         return this.dataSourceItems.filter(item => this.hasDocument(instance, item.document));
     }
     getElements() {
-        return (this.documentAssets as ElementAction[]).concat((this.Cloud?.database || []) as ElementAction[]).filter(item => item.element).map(item => item.element!);
+        const result: XmlTagNode[] = [];
+        for (const item of (this.documentAssets as ElementAction[]).concat(this.dataSourceItems as ElementAction[])) {
+            if (item.element) {
+                result.push(item.element);
+            }
+        }
+        return result;
     }
     findAsset(uri: string, instance?: IModule) {
         if (uri) {

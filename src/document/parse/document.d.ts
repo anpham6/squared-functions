@@ -69,7 +69,7 @@ export class IXmlWriter extends IXmlBase {
     save(): string;
     close(): string;
     update(node: XmlTagNode, outerXml: string, append?: TagAppend, offsetMap?: Null<TagOffsetMap>): void;
-    increment(node: XmlTagNode, offset?: number): void;
+    increment(nodes: XmlTagNode[], offset?: number): void;
     decrement(node: XmlTagNode, offset?: number, remove?: boolean): XmlTagNode[];
     renameTag(node: XmlTagNode, tagName: string): void;
     indexTag(tagName: string, append?: TagAppend, offset?: number): void;
@@ -101,7 +101,7 @@ export class IXmlElement extends IXmlBase {
     readonly node: XmlTagNode;
     readonly TAG_VOID: string[];
     parseOuterXml(outerXml?: string): [string, string];
-    getTagOffset(nextXml?: string): Null<TagOffsetMap>;
+    getTagOffset(nextXml?: string): Undef<TagOffsetMap>;
     setAttribute(name: string, value: string): void;
     getAttribute(name: string): Optional<string>;
     removeAttribute(...names: string[]): void;
@@ -120,8 +120,8 @@ export class IXmlElement extends IXmlBase {
     get outerXml(): string;
     set remove(value);
     get remove(): boolean;
-    set tagOffset(value: Null<TagOffsetMap>);
-    get tagOffset(): Null<TagOffsetMap>;
+    set tagOffset(value: Undef<TagOffsetMap>);
+    get tagOffset(): Undef<TagOffsetMap>;
 }
 
 export interface XmlElementConstructor {

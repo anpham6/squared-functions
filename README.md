@@ -1027,7 +1027,7 @@ squared.copyTo("/local/user/www", {
 });
 ```
 
-Hot module replacement is only available for LINK and IMG elements. It is disabled by default due to possible conflicts with preloaded JavaScript.
+Hot module replacement is only available for LINK[href] and IMG[src] elements. It is disabled by default due to possible conflicts with preloaded JavaScript.
 
 ```xml
 <!-- chrome -->
