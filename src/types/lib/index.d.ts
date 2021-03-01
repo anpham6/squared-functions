@@ -82,9 +82,9 @@ declare namespace functions {
         downloadObject(service: string, credential: unknown, bucket: string, download: CloudStorageDownload, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string): Promise<void>;
         getStorage(action: CloudFunctions, data: Undef<CloudStorage[]>): Undef<CloudStorage>;
         hasStorage(action: CloudFunctions, storage: CloudStorage): CloudStorageUpload | false;
-        getDatabaseRows(data: CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
-        getDatabaseResult(service: string, credential: unknown, queryString: string, cacheKey?: string): Undef<any[]>;
-        setDatabaseResult(service: string, credential: unknown, queryString: string, result: any[], cacheKey?: string): void;
+        getDatabaseRows(data: CloudDatabase, cacheKey?: string): Promise<unknown[]>;
+        getDatabaseResult(service: string, credential: unknown, queryString: string, cacheKey?: string): Undef<unknown[]>;
+        setDatabaseResult(service: string, credential: unknown, queryString: string, result: unknown[], cacheKey?: string): void;
         hasCredential(feature: CloudFeatures, data: CloudService): boolean;
         getCredential(data: CloudService): PlainObject;
         getUploadHandler(service: string, credential: unknown): FunctionType<Promise<void>>;
@@ -105,7 +105,7 @@ declare namespace functions {
         createDatabaseClient?<T>(this: IModule, credential: unknown, data?: CloudService): T;
         createBucket?(this: IModule, credential: unknown, bucket: string, publicRead?: boolean, service?: string, sdk?: string): Promise<boolean>;
         deleteObjects?(this: IModule, credential: unknown, bucket: string, service?: string, sdk?: string): Promise<void>;
-        executeQuery?(this: ICloud, credential: unknown, data: CloudDatabase, cacheKey?: string): Promise<PlainObject[]>;
+        executeQuery?(this: ICloud, credential: unknown, data: CloudDatabase, cacheKey?: string): Promise<unknown[]>;
     }
 
     interface IDocument<T = IFileManager, U = ICloud> extends IModule {

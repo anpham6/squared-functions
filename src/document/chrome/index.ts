@@ -316,7 +316,7 @@ function setElementAttribute(this: IChromeDocument, htmlFile: DocumentAsset, ass
     }
 }
 
-const concatString = (values: Undef<string[]>) => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
+const concatString = (values: Undef<string[]>): string => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const escapePosix = (value: string) => value.split(/[\\/]/).map(seg => escapeRegexp(seg)).join('[\\\\/]');
 const isRemoved = (item: DocumentAsset) => item.exclude || item.bundleIndex !== undefined;
 const getErrorDOM = (tagName: string, tagIndex: Undef<number>) => new Error(tagName.toUpperCase() + (tagIndex !== undefined && tagIndex >= 0 ? ' ' + tagIndex : '') + ': Unable to parse DOM');
@@ -348,15 +348,12 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
                 break;
             case 'text/javascript': {
-                const bundle = this.getAssetContent(file);
                 const trailing = concatString(file.trailingContent);
+                const bundle = this.getAssetContent(file);
                 if (!bundle && !trailing && !format) {
                     break;
                 }
-                let source = this.getUTF8String(file, localUri);
-                if (trailing) {
-                    source += trailing;
-                }
+                let source = this.getUTF8String(file, localUri) + trailing;
                 if (bundle) {
                     source += bundle;
                 }
@@ -398,16 +395,12 @@ class ChromeDocument extends Document implements IChromeDocument {
                 break;
             }
             case '@text/css': {
-                const trailing = concatString(file.trailingContent);
                 const bundle = this.getAssetContent(file);
-                let source = await instance.formatContent(file, this.getUTF8String(file, localUri), this);
-                if (trailing) {
-                    source += trailing;
-                }
+                let source = this.getUTF8String(file, localUri) + concatString(file.trailingContent);
                 if (bundle) {
                     source += bundle;
                 }
-                file.sourceUTF8 = source;
+                file.sourceUTF8 = await instance.formatContent(file, source, this);
                 break;
             }
         }
@@ -569,7 +562,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             this.errors.push(err.message);
                                         }
                                         return [];
-                                    });
+                                    }) as PlainObject[];
                                 }
                                 else {
                                     result = [];
@@ -1010,12 +1003,13 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
                 this._cloudUploaded.add(inlineCloud);
             }
+            file.cloudUrl = cloudUrl;
             if (inlineCssCloud) {
                 const pattern = new RegExp(escapeRegexp(inlineCssCloud), 'g');
                 if (html) {
                     html.sourceUTF8 = host.getUTF8String(html).replace(pattern, cloudUrl);
                 }
-                if (this._cloudEndpoint && cloudUrl.indexOf('/') !== -1) {
+                if (this._cloudEndpoint && cloudUrl.includes('/')) {
                     cloudUrl = url;
                 }
                 for (const item of this.cssFiles) {
@@ -1025,8 +1019,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
                 this._cloudUploaded.add(inlineCssCloud);
             }
-            file.cloudUrl = cloudUrl;
-        }
+          }
         return false;
     }
     async cloudFinalize(state: CloudScopeOrigin) {

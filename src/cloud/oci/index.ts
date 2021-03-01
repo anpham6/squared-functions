@@ -58,7 +58,7 @@ export async function executeQuery(this: ICloud, credential: OCIDatabaseCredenti
         this.writeFail(['Unable to execute DB query', data.service], err);
         throw new Error('');
     });
-    let result: Undef<any[]>,
+    let result: Undef<unknown[]>,
         queryString = '';
     try {
         const { table, id, query, limit = 0 } = data;

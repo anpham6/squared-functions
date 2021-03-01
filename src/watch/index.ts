@@ -28,19 +28,10 @@ function getPostFinalize(watch: FileWatch) {
         const server = watch.secure ? SECURE_MAP[port] : PORT_MAP[port];
         if (server) {
             return (errors: string[]) => {
-                const { mimeType, relativeUri } = watch.assets[0];
-                const type = mimeType.replace('@', '');
-                let src = '',
-                    hot = '';
-                if (relativeUri) {
-                    src = relativeUri;
-                    if (watch.hot && (type === 'text/css' || type.startsWith('image/'))) {
-                        if (!src.includes('?')) {
-                            hot += '?';
-                        }
-                        hot += 'q=' + Date.now();
-                    }
-                }
+                const { mimeType, relativeUri, cloudUrl } = watch.assets[0];
+                const type = mimeType.replace(/^@/, '');
+                const src = cloudUrl || relativeUri || '';
+                const hot = watch.hot && src && (type === 'text/css' || type.startsWith('image/')) ? (src.includes('?') ? '' : '?') + 'q=' + Date.now() : '';
                 const data = JSON.stringify({ socketId, module: 'watch', action: 'modified', src, type, hot, errors });
                 for (const client of server.clients) {
                     if (client.readyState === WebSocket.OPEN) {

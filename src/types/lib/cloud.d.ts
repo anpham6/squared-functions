@@ -6,7 +6,7 @@ export interface CloudService extends ObjectMap<unknown> {
     credential: string | PlainObject;
 }
 
-export interface CloudDatabase<T = string | PlainObject | any[]> extends CloudService, CloudDataSource {
+export interface CloudDatabase<T = string | PlainObject | unknown[]> extends CloudService, CloudDataSource {
     table?: string;
     name?: string;
     value?: string | ObjectMap<StringOfArray>;

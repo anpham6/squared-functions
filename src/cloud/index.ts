@@ -408,7 +408,7 @@ class Cloud extends Module implements ICloud {
             });
         });
     }
-    getDatabaseRows(data: CloudDatabase, cacheKey?: string): Promise<PlainObject[]> {
+    getDatabaseRows(data: CloudDatabase, cacheKey?: string): Promise<unknown[]> {
         if (this.hasCredential('database', data)) {
             const host = CLOUD_SERVICE[data.service];
             if (host.executeQuery) {
@@ -437,7 +437,7 @@ class Cloud extends Module implements ICloud {
             }
         }
     }
-    setDatabaseResult(service: string, credential: PlainObject, queryString: string, result: any[], cacheKey?: string) {
+    setDatabaseResult(service: string, credential: PlainObject, queryString: string, result: unknown[], cacheKey?: string) {
         const userKey = service + JSON.stringify(credential);
         const timeout = this._cache[service];
         if (timeout > 0) {

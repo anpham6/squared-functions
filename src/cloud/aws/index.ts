@@ -164,7 +164,7 @@ export async function deleteObjects(this: IModule, credential: AWSStorageCredent
 
 export async function executeQuery(this: ICloud, credential: AWSDatabaseCredential, data: AWSDatabaseQuery, cacheKey?: string) {
     const client = createDatabaseClient.call(this, credential);
-    let result: Undef<any[]>,
+    let result: Undef<unknown[]>,
         queryString = '';
     try {
         const { table: TableName, id, query, partitionKey, limit = 0 } = data;

@@ -11,7 +11,7 @@ import fs = require('fs-extra');
 
 import Module from '../module';
 
-const isString = (value: any): value is string => typeof value === 'string' && value.length > 0;
+const isString = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
 const getSourceMappingURL = (value: string) => `\n//# sourceMappingURL=${value}\n`;
 
 abstract class Document extends Module implements IDocument {

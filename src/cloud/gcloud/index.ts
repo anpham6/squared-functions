@@ -94,7 +94,7 @@ export async function deleteObjects(this: IModule, credential: GCloudStorageCred
 
 export async function executeQuery(this: ICloud, credential: GCloudDatabaseCredential, data: GCloudDatabaseQuery, cacheKey?: string) {
     const client = createDatabaseClient.call(this, credential, data);
-    let result: Undef<any[]>,
+    let result: Undef<unknown[]>,
         queryString = '';
     try {
         const { table, id, query, orderBy, limit = 0 } = data;

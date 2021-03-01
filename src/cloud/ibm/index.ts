@@ -54,7 +54,7 @@ export async function deleteObjects(this: IModule, credential: IBMStorageCredent
 
 export async function executeQuery(this: ICloud, credential: IBMDatabaseCredential, data: IBMDatabaseQuery, cacheKey?: string) {
     const client = createDatabaseClient.call(this, credential);
-    let result: Undef<any[]>,
+    let result: Undef<unknown[]>,
         queryString = '';
     try {
         const { table, id, query, partitionKey = '', limit = 0 } = data;

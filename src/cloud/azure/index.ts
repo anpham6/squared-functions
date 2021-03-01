@@ -107,7 +107,7 @@ export async function deleteObjects(this: IModule, credential: AzureStorageCrede
 
 export async function executeQuery(this: ICloud, credential: AzureDatabaseCredential, data: AzureDatabaseQuery, cacheKey?: string) {
     const client = createDatabaseClient.call(this, credential);
-    let result: Undef<any[]>,
+    let result: Undef<unknown[]>,
         queryString = '';
     try {
         const { name, table, id, query, storedProcedureId, params, partitionKey = '', limit = 0 } = data;
