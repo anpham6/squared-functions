@@ -140,11 +140,11 @@ abstract class Module implements IModule {
         console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase().padEnd(7)) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
     }
 
-    static writeFail(value: LogValue, message?: Null<Error>, type?: number) {
+    static writeFail(value: LogValue, message?: Null<Error>, type?: LOG_TYPE) {
         this.formatMessage(type || LOG_TYPE.SYSTEM, 'FAIL', value, message, applyFailStyle());
     }
 
-    static parseFunction(value: string, name = '', sync = true): Undef<FunctionType<Promise<string> | string>> {
+    static parseFunction(value: string, name?: string, sync = true): Undef<FunctionType<Promise<string> | string>> {
         const uri = Module.fromLocalPath(value = value.trim());
         if (uri) {
             try {
@@ -361,7 +361,7 @@ abstract class Module implements IModule {
     getTempDir(uuidDir?: boolean, filename = '') {
         return process.cwd() + path.sep + this.tempDir + path.sep + (uuidDir ? uuid.v4() + path.sep : '') + (filename[0] === '.' ? uuid.v4() : '') + filename;
     }
-    writeFail(value: LogValue, message?: Null<Error>, type?: number) {
+    writeFail(value: LogValue, message?: Null<Error>, type?: LOG_TYPE) {
         this.formatFail(type || LOG_TYPE.SYSTEM, ' FAIL! ', value, message);
     }
     writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions) {

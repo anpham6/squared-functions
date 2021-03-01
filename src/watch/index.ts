@@ -17,10 +17,10 @@ import WebSocket = require('ws');
 
 type FileWatchMap = ObjectMap<Map<string, { data: FileWatch; timeout: [Null<NodeJS.Timeout>, number] }>>;
 
-const HTTP_MAP: FileWatchMap = {};
-const DISK_MAP: FileWatchMap = {};
-const PORT_MAP: ObjectMap<Server> = {};
-const SECURE_MAP: ObjectMap<Server> = {};
+let HTTP_MAP: FileWatchMap = {};
+let DISK_MAP: FileWatchMap = {};
+let PORT_MAP: ObjectMap<Server> = {};
+let SECURE_MAP: ObjectMap<Server> = {};
 
 function getPostFinalize(watch: FileWatch) {
     const { socketId, port } = watch;
@@ -71,6 +71,32 @@ function clearCache(items: ExternalAsset[]) {
 const formatDate = (value: number) => new Date(value).toLocaleString().replace(/\/20\d+, /, '@').replace(/:\d+ (AM|PM)$/, (...match) => match[1]);
 
 class Watch extends Module implements IWatch {
+    static shutdown() {
+        for (const item of [HTTP_MAP, DISK_MAP]) {
+            for (const uri in item) {
+                for (const { timeout } of item[uri].values()) {
+                    if (timeout[0]) {
+                        clearInterval(timeout[0]);
+                    }
+                }
+            }
+        }
+        for (const item of [PORT_MAP, SECURE_MAP]) {
+            for (const port in item) {
+                try {
+                    item[port].close();
+                }
+                catch (err) {
+                    this.writeFail([`Unable to shutdown ${item === PORT_MAP ? 'WS' : 'WSS'} server`, 'Port: ' + port], err);
+                }
+            }
+        }
+        HTTP_MAP = {};
+        DISK_MAP = {};
+        PORT_MAP = {};
+        SECURE_MAP = {};
+    }
+
     private _sslKey = '';
     private _sslCert = '';
 
@@ -155,7 +181,7 @@ class Watch extends Module implements IWatch {
                                 if (!wss) {
                                     if (this._sslCert && this._sslKey) {
                                         try {
-                                            const server = https.createServer({ cert: fs.readFileSync(this._sslCert), key: fs.readFileSync(this._sslKey) });
+                                            const server = https.createServer({ key: fs.readFileSync(this._sslKey), cert: fs.readFileSync(this._sslCert) });
                                             server.listen(port);
                                             wss = new WebSocket.Server({ server });
                                             SECURE_MAP[port] = wss;
@@ -165,7 +191,7 @@ class Watch extends Module implements IWatch {
                                         }
                                     }
                                     else {
-                                        this.writeFail('SSL key and certificate not found', new Error('Missing SSL credentials'));
+                                        this.writeFail('SSL key and cert not found', new Error('Missing SSL credentials'));
                                     }
                                 }
                                 secure = true;
@@ -288,7 +314,7 @@ class Watch extends Module implements IWatch {
                     else {
                         continue;
                     }
-                    this.formatMessage(this.logType.WATCH, 'WATCH', ['Start', `${interval}ms ${expires ? formatDate(expires) : 'never'}`], uri, { titleColor: 'blue' });
+                    this.formatMessage(this.logType.WATCH, 'WATCH', ['Start', interval + 'ms ' + (expires ? formatDate(expires) : 'never')], uri, { titleColor: 'blue' });
                 }
             }
         }

@@ -79,12 +79,7 @@ export async function executeQuery(this: ICloud, credential: IBMDatabaseCredenti
                 if (limit > 0) {
                     query.limit = limit;
                 }
-                if (partitionKey) {
-                    result = (await scope.partitionedFind(partitionKey, query)).docs;
-                }
-                else {
-                    result = (await scope.find(query)).docs;
-                }
+                result = (partitionKey ? await scope.partitionedFind(partitionKey, query) : await scope.find(query)).docs;
             }
         }
     }
