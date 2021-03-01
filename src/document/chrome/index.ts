@@ -1,5 +1,5 @@
 import type { LocationUri } from '../../types/lib/squared';
-import type { DataSource, RequestData, UriDataSource } from '../../types/lib/chrome';
+import type { DataSource, MongoDataSource, RequestData, UriDataSource } from '../../types/lib/chrome';
 
 import type { IFileManager } from '../../types/lib';
 import type { FileData, OutputData } from '../../types/lib/asset';
@@ -19,11 +19,15 @@ import toml = require('toml');
 import jp = require('jsonpath');
 import uuid = require('uuid');
 
+import mongodb = require('mongodb');
+
 import Document from '../../document';
 import Cloud from '../../cloud';
 import { DomWriter, HtmlElement } from '../parse/dom';
 
 interface RequestBody extends IRequestBody, RequestData {}
+
+const MongoClient = mongodb.MongoClient;
 
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
 const REGEXP_CSSCONTENT = /\s*(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^)]+)\s*\))/ig;
@@ -474,31 +478,31 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 }
                             }
                         };
-                        let result: PlainObject[];
+                        let result: PlainObject[] = [];
                         switch (item.source) {
                             case 'uri': {
                                 const { format, uri, query } = item as UriDataSource;
                                 let content: Optional<string>;
                                 if (Document.isFileHTTP(uri)) {
                                     content = await request(uri).catch(err => {
-                                        this.writeFail(['Unable to request data source', uri], err);
+                                        this.writeFail(['Unable to request URL data source', uri], err);
                                         return null;
                                     });
                                 }
                                 else {
                                     const pathname = Document.resolveUri(uri);
-                                    if (fs.existsSync(pathname) && (Document.isFileUNC(pathname) ? this.permission.hasUNCRead() : this.permission.hasDiskRead())) {
-                                        try {
+                                    try {
+                                        if (fs.existsSync(pathname) && (Document.isFileUNC(pathname) ? this.permission.hasUNCRead() : this.permission.hasDiskRead())) {
                                             content = fs.readFileSync(pathname, 'utf8');
                                         }
-                                        catch (err) {
-                                            this.writeFail(['Unable to read file', path.basename(pathname)], err, this.logType.FILE);
+                                        else {
+                                            removeElement();
+                                            reject(new Error(`Insufficient read permissions (${uri})`));
+                                            return;
                                         }
                                     }
-                                    else {
-                                        removeElement();
-                                        reject(new Error(`Insufficient read permissions (${uri})`));
-                                        return;
+                                    catch (err) {
+                                        this.writeFail(['Unable to read file', path.basename(pathname)], err, this.logType.FILE);
                                     }
                                 }
                                 if (content) {
@@ -539,7 +543,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     }
                                     else {
                                         removeElement();
-                                        reject(new Error(`Data source uri invalid (${uri})`));
+                                        reject(new Error(`Data source URI invalid (${uri})`));
                                         return;
                                     }
                                 }
@@ -564,13 +568,36 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         return [];
                                     }) as PlainObject[];
                                 }
-                                else {
-                                    result = [];
+                                break;
+                            case 'mongodb': {
+                                const { uri, name, table, query, options } = item as MongoDataSource;
+                                if (uri && name && table) {
+                                    let client: Null<mongodb.MongoClient> = null;
+                                    try {
+                                        client = await new MongoClient(uri, options).connect();
+                                        const collection = client.db(name).collection(table);
+                                        result = limit === 1 && query ? [await collection.findOne(query)] : await collection.find(query).toArray();
+                                    }
+                                    catch (err) {
+                                        this.writeFail(['Unable to execute MongoDB query', name + ':' + table], err);
+                                    }
+                                    if (client) {
+                                        try {
+                                            await client.close();
+                                        }
+                                        catch {
+                                        }
+                                    }
+                                }
+                                else if (!uri) {
+                                    reject(new Error('Missing URI connection string (MongoDB)'));
+                                    return;
                                 }
                                 break;
+                            }
                             default:
                                 removeElement();
-                                reject(new Error('Data source action type invalid'));
+                                reject(new Error('Data source type invalid'));
                                 return;
                         }
                         if (index !== undefined) {
@@ -730,6 +757,11 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     this.formatFail(this.logType.CLOUD, service, ['Database query had no results', table ? 'table: ' + table : ''], new Error('Empty: ' + queryString));
                                     break;
                                 }
+                                case 'mongodb': {
+                                    const { uri, name, table } = item as MongoDataSource;
+                                    this.formatFail(this.logType.PROCESS, name || 'MONGO', ['MongoDB query had no results', table ? 'table: ' + table : ''], new Error('Empty: ' + uri));
+                                    break;
+                                }
                             }
                         }
                         resolve();
@@ -786,12 +818,13 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
             }
             for (const item of elements) {
-                if (item.invalid || item.element!.removed || !item.attributes && (item === html || !item.uri && !item.srcSet) || item.content || item.inlineContent || item.format === 'base64' || item.bundleIndex !== undefined || isRemoved(item)) {
+                const crossorigin = item.format === 'crossorigin';
+                if (item.invalid && !crossorigin || item.element!.removed || !item.attributes && (item === html || !item.uri && !item.srcSet || crossorigin) || item.content || item.inlineContent || item.format === 'base64' || item.bundleIndex !== undefined || isRemoved(item)) {
                     continue;
                 }
                 const { element, attributes, uri, srcSet } = item;
                 const domElement = new HtmlElement(moduleName, element!, attributes);
-                if (uri && item !== html) {
+                if (uri && item !== html && !crossorigin) {
                     let value: string;
                     if (cloud?.getStorage('upload', item.cloudStorage)) {
                         value = uuid.v4();

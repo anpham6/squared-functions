@@ -2,13 +2,12 @@
 
 import type { AttributeMap, ElementAction, DataSource as IDataSource, ViewEngine } from './squared';
 
-interface DataSourceAction {
-    type: "text" | "attribute";
-}
+import type { FilterQuery } from 'mongodb';
 
-interface TemplateAction extends DataSourceAction {
-    viewEngine?: ViewEngine | string;
+interface TemplateAction {
+    type: "text" | "attribute";
     value?: string | ObjectMap<unknown>;
+    viewEngine?: ViewEngine | string;
 }
 
 export type UnusedStyles = string[];
@@ -34,12 +33,27 @@ export interface RequestData {
     productionRelease?: boolean | string;
 }
 
-export interface DataSource extends IDataSource, DataSourceAction, TemplateAction {}
+export interface DataSource extends IDataSource, TemplateAction, PlainObject {
+    source: "uri" | "cloud" | "mongodb";
+}
 
-export interface UriDataSource extends DataSource, TemplateAction {
+export interface DBDataSource<T = string | PlainObject | unknown[]> extends DataSource {
+    source: "cloud" | "mongodb";
+    name?: string;
+    table?: string;
+    query?: T;
+    options?: PlainObject;
+    value?: string | ObjectMap<StringOfArray>;
+}
+
+export interface UriDataSource extends DataSource {
+    source: "uri";
     format: string;
     uri: string;
     query?: string;
 }
 
-export interface CloudDataSource extends DataSource, TemplateAction, PlainObject {}
+export interface MongoDataSource extends DBDataSource<FilterQuery<unknown>> {
+    source: "mongodb";
+    uri?: string;
+}

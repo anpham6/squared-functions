@@ -212,6 +212,8 @@ These are the available option modifiers:
     - png: TinyPNG service for PNG or JPEG
     - gz: Gzip
     - br: Brotli
+* crossorigin
+    - all: Same as preserveCrossOrigin [download: false]
 ```
 
 NOTE: Whitespace can be used between anything for readability.
@@ -429,12 +431,18 @@ interface AssetCommand extends OutputModifiers {
     filename?: string; // type: html | ...image
     process?: string[]; // type: js | css
     commands?: string[]; // type: image
+    download?: boolean; // Same as preserveCrossOrigin (default is "true")
     cloudStorage?: CloudService[];
-    cloudDatabase?: CloudDatabase;
-    dataUri?: { // type: text | attribute
+    dataSource?: { // type: text | attribute
+        source: "uri";
         format: string; // json | yaml
         uri: string;
         value?: string | ObjectMap<string | string[]>;
+    };
+    dataSource?: CloudDatabase; // source: "cloud"
+    dataSource?: {
+        source: "mongodb";
+        // Same as CloudDatabase
     };
     document?: string | string[];
     attributes?: ObjectMap<Optional<string>>;
@@ -534,7 +542,7 @@ You can append or prepend a sibling element (not child) that can be processed si
   {
     "selector": "title",
     "type": "append/js", // prepend/css
-    "preserve": true,
+    "download": false, // Explicit "false"
     "attributes": {
       "src": "https://www.google-analytics.com/analytics.js", // css: href (required)
       "async": null
@@ -704,9 +712,13 @@ squared.saveAs('index.zip', {
 
 Inline commands are not supported when using cloud features.
 
-### Cloud database
+### Data Source
 
-Basic text replacement can be achieved using any of these cloud based document databases. Each provider has a different query syntax and consulting their documentation is recommended.
+Static content can be generated using an AssetCommand with the "dataSource" property to perform basic text and attribute replacement. 
+
+#### Cloud
+
+Each DocumentDB provider has a different query syntax. Consulting their documentation is recommended if you are writing advanced queries.
 
 ```xml
 * Amazon DynamoDB
@@ -735,6 +747,7 @@ Basic text replacement can be achieved using any of these cloud based document d
 
 ```javascript
 interface CloudDatabase {
+    source: "cloud"; // squared 2.5 (required)
     name?: string;
     table?: string; // Required except when using BigQuery
     value?: string | ObjectMap<string | string[]>; // Uses innerHTML for replacement when undefined
@@ -754,14 +767,17 @@ interface CloudDatabase {
 }
 ```
 
-View engines with a "compile" template string to function (e.g. [EJS](https://ejs.co)) can be used instead for "text" and "attribute". Manual NPM installation (npm i ejs) is required. Results from any data sources are treated as an array with multiple rows being concatenated.
+View engines with a "compile" template string to function (e.g. [EJS](https://ejs.co)) can be used instead for "text" and "attribute". Manual NPM installation (npm i ejs) is required. Results from any data sources are treated as an array with multiple rows being concatenated into one string.
 
 ```javascript
+// NOTE: "cloudDatabase" has been deprecated as of sqaured 2.5 (dataSource)
+
 /* AWS: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GettingStarted.NodeJs.html */
 {
   "selector": ".card:nth-of-type(1) p",
   "type": "text",
-  "cloudDatabase": {
+  "dataSource": {
+    "source": "cloud",
     "service": "aws",
     "credential": {
       "accessKeyId": "**********",
@@ -784,7 +800,8 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
 {
   "selector": ".card:nth-of-type(1) p",
   "type": "text",
-  "cloudDatabase": {
+  "dataSource": {
+    "source": "cloud",
     "service": "azure",
     "credential": {
       "endpoint": "https://squared-001.documents.azure.com:443",
@@ -802,7 +819,8 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
 {
   "selector": ".card:nth-of-type(1) p",
   "type": "text",
-  "cloudDatabase": {
+  "dataSource": {
+    "source": "cloud",
     "service": "gcloud",
     "credential": {
       "keyFilename": "./gcloud.json"
@@ -818,7 +836,8 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
 {
   "selector": ".card:nth-of-type(1) p",
   "type": "text",
-  "cloudDatabase": {
+  "dataSource": {
+    "source": "cloud",
     "service": "gcloud",
     "credential": {
       "keyFilename": "./gcloud.json"
@@ -834,7 +853,8 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
 {
   "selector": ".card:nth-of-type(1) p",
   "type": "text",
-  "cloudDatabase": {
+  "dataSource": {
+    "source": "cloud",
     "service": "ibm",
     "credential": {
       "account": "**********", // IAM and legacy credentials
@@ -851,7 +871,8 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
 {
   "selector": ".card:nth-of-type(1) p",
   "type": "text",
-  "cloudDatabase": {
+  "dataSource": {
+    "source": "cloud",
     "service": "oci",
     "credential": {
       "user": "**********",
@@ -872,7 +893,8 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
 {
   "selector": ".card:nth-of-type(2) img",
   "type": "attribute",
-  "cloudDatabase": {
+  "dataSource": {
+    "source": "cloud", // squared 2.5
     "service": "azure",
     "credential": "db-main",
     "name": "squared", // Azure (required)
@@ -922,12 +944,13 @@ Reusing configuration templates is possible using URL query parameters. Output v
 }
 ```
 
-### Data Source: JSON/YAML/TOML
+Using the same concept from cloud databases you can also read data from these external data sources.
 
-Using the same concept from cloud databases you can also read data from external or local text files.
+#### JSON/YAML/TOML
 
 ```javascript
 interface UriDataSource {
+    source: "uri";
     format: string; // json | yaml | toml
     uri: string;
     query?: string; // Uses JSONPath <https://github.com/dchester/jsonpath>
@@ -946,7 +969,8 @@ interface UriDataSource {
 {
   "selector": ".card:nth-of-type(1) img",
   "type": "attribute",
-  "dataUri": {
+  "dataSource": {
+    "source": "uri",
     "format": "json",
     "uri": "http://localhost:3000/project/{{file}}.json", // Local files require read permissions
     "query": "$[1]" // Row #2 in result array (optional)
@@ -959,6 +983,42 @@ interface UriDataSource {
 ```
 
 View engines can also be used to format the element "value" or innerHTML.
+
+#### MongoDB
+
+Local development may be faster using MongoDB instead of a cloud DocumentDB. It is free to use and includes a GUI data explorer as well.
+
+```xml
+* MongoDB Community Server
+  - npm i mongodb
+  - https://www.mongodb.com/try/download/community
+```
+
+MongoDB Atlas installations also use the "mongodb" source format.
+
+```javascript
+interface MongoDataSource {
+    source: "mongodb"
+    uri: string; // Connection string
+
+    // Same as CloudDatabase (except no "id")
+}
+```
+
+```javascript
+// http://localhost:3000/project/index.html?id=1
+
+{
+  "selector": ".card:nth-of-type(1) img",
+  "type": "attribute",
+  "dataSource": {
+    "source": "mongodb",
+    "uri": "mongodb://username@password:localhost:27017", // required
+    "query": { "id": { "$eq" : "{{id}}" } },
+    "value": "<b>${name}</b>: ${count}"
+  }
+}
+```
 
 ### Options: Development / Production
 

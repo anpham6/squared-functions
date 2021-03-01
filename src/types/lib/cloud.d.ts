@@ -1,20 +1,14 @@
 import type { LocationUri } from './squared';
-import type { CloudDataSource } from './chrome';
+import type { DBDataSource } from './chrome';
 
 export interface CloudService extends ObjectMap<unknown> {
     service: string;
     credential: string | PlainObject;
 }
 
-export interface CloudDatabase<T = string | PlainObject | unknown[]> extends CloudService, CloudDataSource {
-    table?: string;
-    name?: string;
-    value?: string | ObjectMap<StringOfArray>;
+export interface CloudDatabase<T = string | PlainObject | unknown[]> extends CloudService, DBDataSource<T> {
     id?: string;
-    query?: T;
     params?: unknown[];
-    options?: PlainObject;
-    document?: StringOfArray;
 }
 
 export interface CloudStorage extends CloudService {

@@ -15,7 +15,7 @@ interface TextAsset extends Asset, LocationUri {
 }
 
 export interface DataSource extends ElementAction, DocumentAction, PlainObject {
-    source: "uri" | "cloud";
+    source: string;
     index?: number;
     limit?: number;
     query?: unknown;
