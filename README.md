@@ -750,9 +750,9 @@ interface CloudDatabase {
     source: "cloud"; // squared 2.5 (required)
     name?: string;
     table?: string; // Required except when using BigQuery
-    value?: string | ObjectMap<string | string[]>; // Uses innerHTML for replacement when undefined
     id?: string;
     query?: string | PlainObject | any[];
+    value?: string | ObjectMap<string | string[]>; // Uses innerHTML for replacement when undefined
     params?: unknown[];
     options?: PlainObject;
     index?: number;
@@ -944,9 +944,55 @@ Reusing configuration templates is possible using URL query parameters. Output v
 }
 ```
 
-Using the same concept from cloud databases you can also read data from these external data sources.
+#### MongoDB
 
-#### JSON/YAML/TOML
+Local development may be faster using MongoDB instead of a cloud DocumentDB. It is completely free to use and includes a GUI data explorer as well.
+
+```xml
+* MongoDB Community Server
+  - npm i mongodb
+  - https://www.mongodb.com/try/download/community
+  - https://docs.mongodb.com/compass/master/query/filter
+```
+
+MongoDB Atlas installations also use the "mongodb" source format. Only URI authentication is supported.
+
+```javascript
+interface MongoDataSource {
+    source: "mongodb"
+    uri: string; // Connection string
+    query?: FilterQuery<any>;
+    value?: string | ObjectMap<string | string[]>;
+
+    // Same as CloudDatabase (except no "id")
+}
+```
+
+```javascript
+// http://localhost:3000/project/index.html?id=1
+
+{
+  "selector": ".card:nth-of-type(1) img",
+  "type": "attribute",
+  "dataSource": {
+    "source": "mongodb",
+    "uri": "mongodb://username@password:localhost:27017", // required
+    "query": {
+      "id": {
+        "$eq": "{{id}}"
+      },
+      "start_date": {
+        "$gt": "$date=2021-01-01" // new Date("2021-01-01")
+      }
+    },
+    "value": "<b>${name}</b>: ${count}"
+  }
+}
+```
+
+#### Data Interchange
+
+Using the same concept from databases you can also read from JSON/YAML/TOML file formats.
 
 ```javascript
 interface UriDataSource {
@@ -983,42 +1029,6 @@ interface UriDataSource {
 ```
 
 View engines can also be used to format the element "value" or innerHTML.
-
-#### MongoDB
-
-Local development may be faster using MongoDB instead of a cloud DocumentDB. It is free to use and includes a GUI data explorer as well.
-
-```xml
-* MongoDB Community Server
-  - npm i mongodb
-  - https://www.mongodb.com/try/download/community
-```
-
-MongoDB Atlas installations also use the "mongodb" source format.
-
-```javascript
-interface MongoDataSource {
-    source: "mongodb"
-    uri: string; // Connection string
-
-    // Same as CloudDatabase (except no "id")
-}
-```
-
-```javascript
-// http://localhost:3000/project/index.html?id=1
-
-{
-  "selector": ".card:nth-of-type(1) img",
-  "type": "attribute",
-  "dataSource": {
-    "source": "mongodb",
-    "uri": "mongodb://username@password:localhost:27017", // required
-    "query": { "id": { "$eq" : "{{id}}" } },
-    "value": "<b>${name}</b>: ${count}"
-  }
-}
-```
 
 ### Options: Development / Production
 

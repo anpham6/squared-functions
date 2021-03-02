@@ -585,7 +585,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             case 'mongodb': {
                                 const { uri, name, table, query, options } = item as MongoDataSource;
                                 if (uri && name && table) {
-                                    const key = uri + name + table + JSON.stringify(query) + limit + (options ? JSON.stringify(options) : '');
+                                    const key = uri + name + table + (query ? JSON.stringify(query) : '') + (limit || '') + (options ? JSON.stringify(options) : '');
                                     if (key in cacheData) {
                                         result = cacheData[key] as PlainObject[];
                                     }
@@ -594,6 +594,22 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         try {
                                             client = await new MongoClient(uri, options).connect();
                                             const collection = client.db(name).collection(table);
+                                            if (query) {
+                                                (function recurse(data: PlainObject) {
+                                                    for (const attr in data) {
+                                                        const value = data[attr];
+                                                        if (Document.isObject(value)) {
+                                                            recurse(value);
+                                                        }
+                                                        else if (typeof value === 'string') {
+                                                            const match = /^\$date=(.+)$/.exec(value);
+                                                            if (match) {
+                                                                data[attr] = new Date(match[1]);
+                                                            }
+                                                        }
+                                                    }
+                                                })(query);
+                                            }
                                             result = limit === 1 && query ? [await collection.findOne(query)] : await collection.find(query).toArray();
                                             cacheData[key] = result;
                                         }
