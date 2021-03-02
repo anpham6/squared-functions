@@ -1039,7 +1039,17 @@ squared.saveAs("index.zip", {
         script: { pathname: "../js", filename: "bundle.js", format: "es5+es5-minify" },
         link: { pathname: "css", filename: "bundle.css", preserve: true, inline: true },
         image: { inline: true },
-        font: { pathname: "fonts", blob: true }
+        font: {
+            pathname: "fonts",
+            blob: false,
+            customize: (uri, mimeType, command) => { // script | link | image | font
+                if (mimeType === "font/ttf") {
+                    command.blob = true;
+                    return "filename.ttf";
+                }
+                return ''; // Do not alter filename
+            }
+        }
     }
 }); 
 ```

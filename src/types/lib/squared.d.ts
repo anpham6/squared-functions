@@ -1,7 +1,7 @@
 /// <reference path="type.d.ts" />
 
 interface ElementScope {
-    watch?: boolean | WatchInterval;
+    watch?: WatchValue;
     tasks?: TaskAction[];
 }
 
@@ -149,3 +149,4 @@ export interface ResponseError {
 }
 
 export type AttributeMap = ObjectMap<Optional<string>>;
+export type WatchValue = boolean | WatchInterval;

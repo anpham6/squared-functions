@@ -97,10 +97,9 @@ export interface XmlWriterConstructor {
 }
 
 export class IXmlElement extends IXmlBase {
-    tagVoid: boolean;
     readonly node: XmlTagNode;
     readonly TAG_VOID: string[];
-    parseOuterXml(outerXml?: string): [string, string];
+    parseOuterXml(outerXml?: string, tagVoid?: boolean): [string, string, boolean];
     getTagOffset(nextXml?: string): Undef<TagOffsetMap>;
     setAttribute(name: string, value: string): void;
     getAttribute(name: string): Optional<string>;
@@ -115,6 +114,7 @@ export class IXmlElement extends IXmlBase {
     get id(): string;
     set tagName(value: string);
     get tagName(): string;
+    get tagVoid(): boolean;
     set innerXml(value: string);
     get innerXml(): string
     get outerXml(): string;

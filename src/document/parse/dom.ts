@@ -228,10 +228,10 @@ export class HtmlElement extends XmlElement {
     }
 
     set id(value: string) {
-        this.setAttribute(getAttrId(this.documentName), value);
+        this.setAttribute(this.nameOfId, value);
     }
     get id() {
-        return this.getAttribute(getAttrId(this.documentName)) || '';
+        return this.getAttribute(this.nameOfId) || '';
     }
     get outerXml() {
         const [tagName, items, textContent] = this.getContent();

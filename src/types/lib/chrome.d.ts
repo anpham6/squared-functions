@@ -4,12 +4,6 @@ import type { AttributeMap, ElementAction, DataSource as IDataSource, ViewEngine
 
 import type { FilterQuery } from 'mongodb';
 
-interface TemplateAction {
-    type: "text" | "attribute";
-    value?: string | ObjectMap<unknown>;
-    viewEngine?: ViewEngine | string;
-}
-
 export type UnusedStyles = string[];
 
 export interface ChromeAsset extends ElementAction {
@@ -33,8 +27,11 @@ export interface RequestData {
     productionRelease?: boolean | string;
 }
 
-export interface DataSource extends IDataSource, TemplateAction, PlainObject {
+export interface DataSource extends IDataSource {
     source: "uri" | "cloud" | "mongodb";
+    type: "text" | "attribute";
+    value?: string | ObjectMap<unknown>;
+    viewEngine?: ViewEngine | string;
 }
 
 export interface DBDataSource<T = string | PlainObject | unknown[]> extends DataSource {
