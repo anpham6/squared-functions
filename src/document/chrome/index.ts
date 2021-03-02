@@ -465,6 +465,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             const dataSource = this.getDataSourceItems(instance).filter(item => item.element) as DataSource[];
             if (dataSource.length) {
                 const cacheKey = uuid.v4();
+                const cacheData: ObjectMap<Optional<PlainObject[] | string>> = {};
                 await Document.allSettled(dataSource.map(item => {
                     return new Promise<void>(async (resolve, reject) => {
                         const { element, limit, index } = item;
@@ -484,25 +485,37 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 const { format, uri, query } = item as UriDataSource;
                                 let content: Optional<string>;
                                 if (Document.isFileHTTP(uri)) {
-                                    content = await request(uri).catch(err => {
-                                        this.writeFail(['Unable to request URL data source', uri], err);
-                                        return null;
-                                    });
+                                    if (uri in cacheData) {
+                                        content = cacheData[uri] as Undef<string>;
+                                    }
+                                    else {
+                                        content = await request(uri).catch(err => {
+                                            this.writeFail(['Unable to request URL data source', uri], err);
+                                            return null;
+                                        });
+                                        cacheData[uri] = content;
+                                    }
                                 }
                                 else {
                                     const pathname = Document.resolveUri(uri);
-                                    try {
-                                        if (fs.existsSync(pathname) && (Document.isFileUNC(pathname) ? this.permission.hasUNCRead() : this.permission.hasDiskRead())) {
-                                            content = fs.readFileSync(pathname, 'utf8');
-                                        }
-                                        else {
-                                            removeElement();
-                                            reject(new Error(`Insufficient read permissions (${uri})`));
-                                            return;
-                                        }
+                                    if (pathname in cacheData) {
+                                        content = cacheData[pathname] as Undef<string>;
                                     }
-                                    catch (err) {
-                                        this.writeFail(['Unable to read file', path.basename(pathname)], err, this.logType.FILE);
+                                    else {
+                                        try {
+                                            if (fs.existsSync(pathname) && (Document.isFileUNC(pathname) ? this.permission.hasUNCRead() : this.permission.hasDiskRead())) {
+                                                content = fs.readFileSync(pathname, 'utf8');
+                                                cacheData[pathname] = content;
+                                            }
+                                            else {
+                                                removeElement();
+                                                reject(new Error(`Insufficient read permissions (${uri})`));
+                                                return;
+                                            }
+                                        }
+                                        catch (err) {
+                                            this.writeFail(['Unable to read file', path.basename(pathname)], err, this.logType.FILE);
+                                        }
                                     }
                                 }
                                 if (content) {
@@ -572,20 +585,27 @@ class ChromeDocument extends Document implements IChromeDocument {
                             case 'mongodb': {
                                 const { uri, name, table, query, options } = item as MongoDataSource;
                                 if (uri && name && table) {
-                                    let client: Null<mongodb.MongoClient> = null;
-                                    try {
-                                        client = await new MongoClient(uri, options).connect();
-                                        const collection = client.db(name).collection(table);
-                                        result = limit === 1 && query ? [await collection.findOne(query)] : await collection.find(query).toArray();
+                                    const key = uri + name + table + JSON.stringify(query) + limit + (options ? JSON.stringify(options) : '');
+                                    if (key in cacheData) {
+                                        result = cacheData[key] as PlainObject[];
                                     }
-                                    catch (err) {
-                                        this.writeFail(['Unable to execute MongoDB query', name + ':' + table], err);
-                                    }
-                                    if (client) {
+                                    else {
+                                        let client: Null<mongodb.MongoClient> = null;
                                         try {
-                                            await client.close();
+                                            client = await new MongoClient(uri, options).connect();
+                                            const collection = client.db(name).collection(table);
+                                            result = limit === 1 && query ? [await collection.findOne(query)] : await collection.find(query).toArray();
+                                            cacheData[key] = result;
                                         }
-                                        catch {
+                                        catch (err) {
+                                            this.writeFail(['Unable to execute MongoDB query', name + ':' + table], err);
+                                        }
+                                        if (client) {
+                                            try {
+                                                await client.close();
+                                            }
+                                            catch {
+                                            }
                                         }
                                     }
                                 }

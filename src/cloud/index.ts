@@ -24,8 +24,8 @@ export type DownloadHost = ServiceHost<DownloadCallback>;
 const CLOUD_SERVICE: ObjectMap<ICloudServiceClient> = {};
 const CLOUD_UPLOAD: ObjectMap<UploadHost> = {};
 const CLOUD_DOWNLOAD: ObjectMap<DownloadHost> = {};
-const CLOUD_USERCACHE: ObjectMap<ObjectMap<[number, any[]]>> = {};
-const CLOUD_DBCACHE: ObjectMap<ObjectMap<any[]>> = {};
+const CLOUD_USERCACHE: ObjectMap<Undef<ObjectMap<[number, any[]]>>> = {};
+const CLOUD_DBCACHE: ObjectMap<Undef<ObjectMap<any[]>>> = {};
 
 function setUploadFilename(upload: CloudStorageUpload, filename: string) {
     filename = filename.replace(/^\.*[\\/]+/, '');
@@ -422,7 +422,7 @@ class Cloud extends Module implements ICloud {
         const timeout = this._cache[service];
         if (timeout > 0) {
             const userCache = CLOUD_USERCACHE[userKey];
-            if (userCache && userCache[queryString]) {
+            if (userCache?.[queryString]) {
                 const [expires, result] = userCache[queryString];
                 if (Date.now() < expires) {
                     return result;
@@ -430,11 +430,8 @@ class Cloud extends Module implements ICloud {
                 delete userCache[queryString];
             }
         }
-        else if (cacheKey) {
-            const dbCache = CLOUD_DBCACHE[userKey];
-            if (dbCache) {
-                return dbCache[cacheKey + queryString];
-            }
+        else if (cacheKey && CLOUD_DBCACHE[userKey]) {
+            return CLOUD_DBCACHE[userKey]![cacheKey + queryString];
         }
     }
     setDatabaseResult(service: string, credential: PlainObject, queryString: string, result: unknown[], cacheKey?: string) {
@@ -445,7 +442,7 @@ class Cloud extends Module implements ICloud {
         }
         else if (cacheKey) {
             (CLOUD_DBCACHE[userKey] ||= {})[cacheKey += queryString] = result;
-            setTimeout(() => delete CLOUD_DBCACHE[userKey][cacheKey!], this.cacheExpires);
+            setTimeout(() => delete CLOUD_DBCACHE[userKey]![cacheKey!], this.cacheExpires);
         }
     }
     getCredential(data: CloudService): PlainObject {
