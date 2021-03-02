@@ -125,12 +125,24 @@ class Watch extends Module implements IWatch {
                 continue;
             }
             items = items.map(item => ({ ...item }));
-            let leading: Undef<ExternalAsset>;
+            let watchInterval: Undef<number>;
             if (!isNaN(+dest)) {
                 dest = items[0].relativeUri!;
-                leading = items.find(item => getInterval(item) > 0);
+                const leading = items.find(item => getInterval(item) > 0);
+                if (leading) {
+                    watchInterval = getInterval(leading);
+                }
             }
-            const watchInterval = leading ? getInterval(leading) : 0;
+            const related = new Set(items);
+            for (const item of items) {
+                const watch = item.watch;
+                if (Module.isObject<WatchInterval<ExternalAsset>>(watch) && watch.assets) {
+                    for (const other of watch.assets) {
+                        related.add(other);
+                    }
+                }
+            }
+            assets = Array.from(related);
             for (const item of items) {
                 const { watch, uri, etag } = item;
                 if (watch && uri) {
@@ -217,7 +229,7 @@ class Watch extends Module implements IWatch {
                     const data = {
                         uri,
                         etag,
-                        assets: items,
+                        assets,
                         start,
                         interval,
                         socketId,

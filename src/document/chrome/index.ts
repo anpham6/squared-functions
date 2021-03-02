@@ -187,8 +187,9 @@ function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: Docum
 
 function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: DocumentAsset, content: string, fromHTML?: boolean) {
     const cssUri = cssFile.uri!;
+    const related: DocumentAsset[] = [];
     const length = content.length;
-    const pattern = /url\(/gi;
+    const pattern = /\burl\(/gi;
     let output: Undef<string>,
         match: Null<RegExpExecArray>;
     while (match = pattern.exec(content)) {
@@ -240,6 +241,7 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
             for (const item of assets) {
                 if (item.base64 === base64) {
                     setOutputUrl(item, getRelativeUri.call(this, cssFile, item));
+                    related.push(item);
                     break;
                 }
             }
@@ -258,8 +260,15 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
                     const count = pathname && pathname !== '/' ? pathname.split(/[\\/]/).length : 0;
                     setOutputUrl(asset, (count ? '../'.repeat(count) : '') + asset.relativeUri);
                 }
+                related.push(asset);
             }
         }
+    }
+    if (!fromHTML && cssFile.watch) {
+        if (!Document.isObject(cssFile.watch)) {
+            cssFile.watch = {};
+        }
+        cssFile.watch.assets = related;
     }
     return output;
 }
