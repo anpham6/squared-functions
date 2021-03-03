@@ -141,7 +141,7 @@ abstract class Module implements IModule {
     }
 
     static writeFail(value: LogValue, message?: Null<Error>, type?: LOG_TYPE) {
-        this.formatMessage(type || LOG_TYPE.SYSTEM, 'FAIL', value, message, applyFailStyle());
+        this.formatMessage(type || LOG_TYPE.SYSTEM, ' FAIL! ', value, message, applyFailStyle());
     }
 
     static parseFunction(value: string, name?: string, sync = true): Undef<FunctionType<Promise<string> | string>> {

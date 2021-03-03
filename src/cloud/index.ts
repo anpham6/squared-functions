@@ -247,11 +247,12 @@ class Cloud extends Module implements ICloud {
                                 if (active && localUri && path.extname(localUri) === path.extname(downloadUri)) {
                                     downloadUri = localUri;
                                 }
+                                const dirname = path.dirname(downloadUri);
                                 try {
-                                    fs.mkdirpSync(path.dirname(downloadUri));
+                                    fs.mkdirpSync(dirname);
                                 }
                                 catch (err) {
-                                    this.writeFail('Unable to create directory', err);
+                                    this.writeFail(['Unable to create directory', dirname], err, this.logType.FILE);
                                     continue;
                                 }
                                 valid = true;

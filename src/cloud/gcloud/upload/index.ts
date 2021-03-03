@@ -82,11 +82,12 @@ export default function upload(this: IModule, credential: GCloudStorageCredentia
             let srcUri = i === 0 ? localUri : Body[i] as string;
             if (i === 0 || destUri !== srcUri) {
                 srcUri = this.getTempDir(true) + path.normalize(Key[i]);
+                const dirname = path.dirname(srcUri);
                 try {
-                    fs.mkdirpSync(path.dirname(srcUri));
+                    fs.mkdirpSync(dirname);
                 }
                 catch (err) {
-                    this.formatFail(this.logType.CLOUD, service, ['Unable to create directory', srcUri], err);
+                    this.writeFail(['Unable to create directory', dirname], err, this.logType.FILE);
                     success('');
                     return;
                 }

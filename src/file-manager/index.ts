@@ -102,6 +102,7 @@ class FileManager extends Module implements IFileManager {
 
     delayed = 0;
     cleared = false;
+    cacheHttpRequest = false;
     Document: InstallData<IDocument, DocumentConstructor>[] = [];
     Task: InstallData<ITask, TaskConstructor>[] = [];
     Image: Null<Map<string, ImageConstructor>> = null;
@@ -130,6 +131,7 @@ class FileManager extends Module implements IFileManager {
     {
         super();
         this.assets = this.body.assets;
+        this.formatMessage(this.logType.NODE, ' START ', [new Date().toLocaleString(), this.assets.length + ' assets'], this.baseDirectory, { titleBgColor: 'bgYellow', titleColor: 'black' });
         for (const item of this.assets) {
             if (item.document) {
                 this.documentAssets.push(item);
@@ -285,6 +287,7 @@ class FileManager extends Module implements IFileManager {
         if (this.cleared && this.delayed <= 0) {
             this.delayed = Infinity;
             this.finalize().then(() => {
+                this.writeTimeElapsed('  END  ', this.baseDirectory, this.startTime, { titleBgColor: 'bgYellow', titleColor: 'black' });
                 if (this.postFinalize) {
                     const addErrors = (list: string[]) => {
                         if (list.length) {
@@ -757,7 +760,7 @@ class FileManager extends Module implements IFileManager {
                                     fs.mkdirpSync(pathname);
                                 }
                                 catch (err) {
-                                    this.writeFail(['Unable to create directory', pathname], err);
+                                    this.writeFail(['Unable to create directory', pathname], err, this.logType.FILE);
                                     item.invalid = true;
                                     continue;
                                 }
@@ -834,7 +837,7 @@ class FileManager extends Module implements IFileManager {
                 continue;
             }
             const { pathname, localUri } = this.setLocalUri(item);
-            const fileReceived = (err: NodeJS.ErrnoException) => {
+            const fileReceived = (err?: NodeJS.ErrnoException) => {
                 if (err) {
                     item.invalid = true;
                 }
@@ -860,7 +863,7 @@ class FileManager extends Module implements IFileManager {
                         emptied.add(pathname);
                     }
                     catch (err) {
-                        this.writeFail(['Unable to create directory', pathname], err);
+                        this.writeFail(['Unable to create directory', pathname], err, this.logType.FILE);
                         item.invalid = true;
                         return false;
                     }
@@ -902,31 +905,92 @@ class FileManager extends Module implements IFileManager {
                                 continue;
                             }
                             if (createFolder()) {
-                                const stream = fs.createWriteStream(localUri);
-                                stream.on('finish', () => {
-                                    if (!notFound[uri]) {
-                                        processQueue(item, localUri);
-                                    }
-                                });
-                                downloading[uri] = [];
+                                const { hostname, port } = new URL(uri);
                                 this.performAsyncTask();
-                                request(uri)
-                                    .on('response', response => {
-                                        if (this.Watch) {
-                                            item.etag = (response.headers['etag'] || response.headers['last-modified']) as string;
+                                downloading[uri] = [];
+                                let tempDir = '';
+                                if (this.cacheHttpRequest) {
+                                    tempDir = this.getTempDir(false, hostname + (port ? '_' + port : ''));
+                                    try {
+                                        if (!fs.pathExistsSync(tempDir)) {
+                                            fs.mkdirSync(tempDir);
                                         }
-                                        const statusCode = response.statusCode;
-                                        if (statusCode >= 300) {
-                                            errorRequest(item, uri, localUri, new Error(statusCode + ' ' + response.statusMessage), stream);
+                                    }
+                                    catch (err) {
+                                        this.writeFail(['Unable to create directory', tempDir], err, this.logType.FILE);
+                                        tempDir = '';
+                                    }
+                                }
+                                const downloadUri = (etag?: string) => {
+                                    const stream = fs.createWriteStream(localUri);
+                                    stream.on('finish', () => {
+                                        if (!notFound[uri]) {
+                                            processQueue(item, localUri);
+                                            if (tempDir && etag) {
+                                                try {
+                                                    if (!fs.pathExistsSync(tempDir = path.join(tempDir, etag))) {
+                                                        fs.mkdirSync(tempDir);
+                                                    }
+                                                    fs.copyFile(localUri, path.join(tempDir, path.basename(localUri)));
+                                                }
+                                                catch {
+                                                }
+                                            }
                                         }
-                                    })
-                                    .on('data', data => {
-                                        if (Buffer.isBuffer(data)) {
-                                            item.buffer = item.buffer ? Buffer.concat([item.buffer, data]) : data;
-                                        }
-                                    })
-                                    .on('error', err => errorRequest(item, uri, localUri, err, stream))
-                                    .pipe(stream);
+                                    });
+                                    request(uri)
+                                        .on('response', res => {
+                                            if (this.Watch) {
+                                                item.etag = (res.headers['etag'] || res.headers['last-modified']) as string;
+                                            }
+                                            const statusCode = res.statusCode;
+                                            if (statusCode >= 300) {
+                                                errorRequest(item, uri, localUri, new Error(statusCode + ' ' + res.statusMessage), stream);
+                                            }
+                                        })
+                                        .on('data', data => {
+                                            if (Buffer.isBuffer(data)) {
+                                                item.buffer = item.buffer ? Buffer.concat([item.buffer, data]) : data;
+                                            }
+                                        })
+                                        .on('error', err => errorRequest(item, uri, localUri, err, stream))
+                                        .pipe(stream);
+                                };
+                                if (tempDir) {
+                                    request(uri, { method: 'HEAD' })
+                                        .on('response', res => {
+                                            const etag = res.headers['etag'] as Undef<string>;
+                                            let subDir: Undef<string>;
+                                            if (etag && typeof etag === 'string') {
+                                                subDir = encodeURIComponent(etag);
+                                                const tempUri = path.join(tempDir, subDir, path.basename(localUri));
+                                                if (fs.existsSync(tempUri)) {
+                                                    if (this.Watch) {
+                                                        item.etag = etag;
+                                                    }
+                                                    if (fs.existsSync(localUri) && fs.statSync(tempUri).mtimeMs === fs.statSync(localUri).mtimeMs) {
+                                                        fileReceived();
+                                                    }
+                                                    else {
+                                                        fs.copyFile(tempUri, localUri, err => {
+                                                            if (!err) {
+                                                                fileReceived();
+                                                            }
+                                                            else {
+                                                                downloadUri(subDir);
+                                                            }
+                                                        });
+                                                    }
+                                                    return;
+                                                }
+                                            }
+                                            downloadUri(subDir);
+                                        })
+                                        .on('error', err => errorRequest(item, uri, localUri, err))
+                                }
+                                else {
+                                    downloadUri();
+                                }
                             }
                         }
                     }

@@ -167,6 +167,7 @@ declare namespace functions {
     interface IFileManager extends IModule {
         delayed: number;
         cleared: boolean;
+        cacheHttpRequest: boolean;
         Document: InstallData<IDocument, DocumentConstructor>[];
         Task: InstallData<ITask, TaskConstructor>[];
         Image: Null<Map<string, ImageConstructor>>;

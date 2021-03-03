@@ -124,10 +124,10 @@ class Gulp extends Task {
 
     execute(manager: IFileManager, gulp: GulpTask, callback: (value?: unknown) => void) {
         const { task, origDir, data } = gulp;
-        const errorHint = this.moduleName + ': ' + task;
+        const tempDir = this.getTempDir(true);
         try {
-            const tempDir = this.getTempDir(true);
             fs.mkdirpSync(tempDir);
+            const errorHint = this.moduleName + ': ' + task;
             Promise.all(data.items.map(uri => fs.copyFile(uri, path.join(tempDir, path.basename(uri)))))
                 .then(() => {
                     this.formatMessage(this.logType.PROCESS, 'gulp', ['Executing task...', task], data.gulpfile);
@@ -176,7 +176,7 @@ class Gulp extends Task {
                 });
         }
         catch (err) {
-            this.writeFail(['Unknown', errorHint], err);
+            this.writeFail(['Unable to create directory', tempDir], err, this.logType.FILE);
             callback();
         }
     }
