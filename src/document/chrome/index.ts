@@ -604,17 +604,44 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             client = await new MongoClient(uri, options).connect();
                                             const collection = client.db(name).collection(table);
                                             if (query) {
+                                                const checkString = (value: string) => {
+                                                    let match = /^\$date=\s*(.+)$/.exec(value);
+                                                    if (match) {
+                                                        return new Date(match[1]);
+                                                    }
+                                                    match = /^\$regex=\s*\/(.+)\/([gimsuy]*)$/.exec(value);
+                                                    if (match) {
+                                                        return new RegExp(match[1], match[2]);
+                                                    }
+                                                    match = /^\$function=\s*(.+)$/.exec(value);
+                                                    if (match) {
+                                                        return Document.parseFunction(match[1]);
+                                                    }
+                                                    return value;
+                                                };
                                                 (function recurse(data: PlainObject) {
                                                     for (const attr in data) {
                                                         const value = data[attr];
-                                                        if (Document.isObject(value)) {
+                                                        if (typeof value === 'string') {
+                                                            data[attr] = checkString(value);
+                                                        }
+                                                        else if (Document.isObject(value)) {
                                                             recurse(value);
                                                         }
-                                                        else if (typeof value === 'string') {
-                                                            const match = /^\$date=(.+)$/.exec(value);
-                                                            if (match) {
-                                                                data[attr] = new Date(match[1]);
-                                                            }
+                                                        else if (Array.isArray(value)) {
+                                                            (function iterate(items: any[]) {
+                                                                for (let i = 0; i < items.length; ++i) {
+                                                                    if (typeof items[i] === 'string') {
+                                                                        items[i] = checkString(items[i]);
+                                                                    }
+                                                                    else if (Document.isObject(value)) {
+                                                                        recurse(value);
+                                                                    }
+                                                                    else if (Array.isArray(items[i])) {
+                                                                        iterate(items[i]);
+                                                                    }
+                                                                }
+                                                            })(value);
                                                         }
                                                     }
                                                 })(query);

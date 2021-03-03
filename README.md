@@ -981,9 +981,15 @@ interface MongoDataSource {
       "id": {
         "$eq": "{{id}}"
       },
+      "name": {
+        "$regex": "mongodb.*\\.com", // $regex: /mongodb.*\.com/si
+        "$options": "si"
+      },
       "start_date": {
         "$gt": "$date=2021-01-01" // new Date("2021-01-01")
-      }
+      },
+      "$in": ["$regex=/^mongodb/i"], // [/^mongodb/i]
+      "$where": "$function=function() { return this.name == 'mongodb.com'; }"
     },
     "value": "<b>${name}</b>: ${count}"
   }
