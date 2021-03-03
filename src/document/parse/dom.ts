@@ -1,4 +1,4 @@
-import type { FindElementOptions, IDomWriter, ParserResult, SourceIndex, XmlTagNode } from './document';
+import type { FindElementOptions, IDomWriter, ParserResult, SourceIndex, TagOffsetMap, XmlTagNode } from './document';
 
 import escapeRegexp = require('escape-string-regexp');
 import htmlparser2 = require('htmlparser2');
@@ -111,6 +111,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         const documentElement = items.find(item => item.innerXml);
         const html = /<html[\s>]/i.exec(source);
         let outerXml = '',
+            offsetMap: Undef<TagOffsetMap>,
             startIndex = -1;
         if (source.includes('\r\n')) {
             this.newline = '\r\n';
@@ -137,7 +138,19 @@ export class DomWriter extends XmlWriter implements IDomWriter {
             this.documentElement = documentElement;
         }
         else {
-            this.source = normalize ? DomWriter.normalize(source) : source;
+            if (normalize) {
+                source = DomWriter.normalize(source);
+            }
+            const trailing = items.find(item => item.textContent);
+            if (trailing) {
+                const match = /<\/body\s*>/i.exec(source);
+                if (match) {
+                    const textContent = trailing.textContent!;
+                    offsetMap = XmlWriter.getTagOffset(textContent);
+                    source = source.substring(0, match.index) + textContent + source.substring(match.index);
+                }
+            }
+            this.source = source;
         }
         if (outerXml) {
             const endIndex = startIndex + outerXml.length - 1;
@@ -147,9 +160,8 @@ export class DomWriter extends XmlWriter implements IDomWriter {
                 item.outerXml = outerXml;
             }
         }
-        this.init();
+        this.init(offsetMap);
     }
-
     newElement(node: XmlTagNode) {
         return new HtmlElement(this.documentName, node);
     }

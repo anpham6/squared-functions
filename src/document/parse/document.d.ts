@@ -60,7 +60,7 @@ export class IXmlWriter extends IXmlBase {
     source: string;
     elements: XmlTagNode[];
     readonly rootName?: string;
-    init(): void;
+    init(offsetMap?: TagOffsetMap): void;
     insertNodes(nodes?: XmlTagNode[]): void;
     fromNode(node: XmlTagNode, append?: TagAppend): IXmlElement;
     newElement(node: XmlTagNode): IXmlElement;

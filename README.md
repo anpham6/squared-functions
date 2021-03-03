@@ -510,7 +510,9 @@ You can also use the workspace feature in [squared-express](https://github.com/a
 
 ### Appending external JS/CSS
 
-You can append or prepend a sibling element (not child) that can be processed similar to a typical "script" or "link" element. Appends will fail if you remove the sibling selector element from the DOM.
+You can append or prepend a sibling element (not child) that can be processed similar to a typical "script" or "link" element. Scripts which insert custom elements during page load should be appended separately when building in order to maintain the original DOM structure.
+
+You can also try using the "useOriginalHtmlPage" request property which requires the HTML to be well-formed for successful edits. The only difference is it might not be a live representation of what you see in the browser.
 
 ```xml
 <html>
@@ -529,6 +531,8 @@ You can append or prepend a sibling element (not child) that can be processed si
 </body>
 </html>
 ```
+
+Appends will fail if you remove the sibling selector element from the document. If you are having replacement errors with "useOriginalHtmlPage" then adding an id will usually be able to locate the element (data-chrome-id="111-111-111").
 
 ```javascript
 // All commands including prepend are supported in relation to the base type
@@ -1044,6 +1048,7 @@ The entire page can similarly be transformed as a group using the "saveAs" attri
 squared.saveAs("index.zip", {
     productionRelease: false || true || "/absolute/path/wwwroot/", // Ignore local url rewriting and load assets using absolute paths
     preserveCrossOrigin: false, // Ignore downloading a local copy of assets hosted on other domains
+    useOriginalHtmlPage: false, // May produce better results when using custom elements
 
     removeUnusedClasses: false, // CSS classes that can be removed in current state
     removeUnusedSelectors: false, // CSS selectors [:first-child] that can be removed in current state (not recommend for pages with forms [:valid] and active states [:hover])
@@ -1070,7 +1075,7 @@ squared.saveAs("index.zip", {
 }); 
 ```
 
-File watching is available with "copy" methods and uses HTTP HEAD requests to determine modifications. Hot reload uses WebSockets and will automatically reload your browser when the file modification has been fully transformed.
+File watching is available with "copy" methods and uses HTTP HEAD requests to determine modifications. Hot reload will automatically reload your browser when the file modification has been fully transformed.
 
 ```javascript
 // js | css | image

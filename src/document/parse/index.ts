@@ -171,14 +171,16 @@ export abstract class XmlWriter implements IXmlWriter {
 
     abstract get nameOfId(): string;
 
-    init() {
+    init(offsetMap?: TagOffsetMap) {
         const appending: XmlTagNode[] = [];
         for (const item of this.elements) {
             if (item.append) {
                 appending.push(item);
             }
             if (isCount(item.tagCount)) {
-                this._tagCount[item.tagName] = item.tagCount;
+                const tagName = item.tagName;
+                item.tagCount += offsetMap?.[tagName] || 0;
+                this._tagCount[tagName] = item.tagCount;
             }
             deletePosition(item, this.rootName);
         }
@@ -298,13 +300,13 @@ export abstract class XmlWriter implements IXmlWriter {
             }
             this.update(node, outerXml, append, tagOffset);
             element.reset();
+            return true;
         }
         if (error) {
-            ++this.failCount;
             this.errors.push(error);
-            return false;
         }
-        return true;
+        ++this.failCount;
+        return false;
     }
     save() {
         this.reset();
@@ -836,16 +838,29 @@ export abstract class XmlElement implements IXmlElement {
                     }
                     leading = source[i--] + leading;
                 }
-                trailing = this.newline;
                 if (!options.append.prepend) {
                     endIndex += 2;
                     startIndex = endIndex;
                     if (!newline) {
                         leading = this.newline + leading;
+                        trailing = this.newline;
+                    }
+                    else {
+                        switch (source[endIndex]) {
+                            case '\n':
+                                break;
+                            case '\r':
+                                if (source[endIndex + 1] === '\n') {
+                                    break;
+                                }
+                            default:
+                                trailing = this.newline;
+                                break;
+                        }
                     }
                 }
                 else {
-                    trailing += leading;
+                    trailing = this.newline + leading;
                     endIndex = startIndex;
                     leading = '';
                 }
@@ -872,9 +887,6 @@ export abstract class XmlElement implements IXmlElement {
             }
             const { tagName, tagIndex = -1, tagCount = Infinity, lowerCase } = node;
             const errorResult = (message: string): [string, string, Error] => ['', '', new Error(`${tagName.toUpperCase()} ${tagIndex}: ${message}`)];
-            if (append && !id) {
-                return errorResult('Element id is missing.');
-            }
             const tagVoid = this.TAG_VOID.includes(tagName);
             const voidId = tagVoid && !!id;
             const onlyId = !isIndex(tagIndex) || !!append;
@@ -975,7 +987,7 @@ export abstract class XmlElement implements IXmlElement {
                             }
                         }
                     }
-                    if (append) {
+                    if (append && id) {
                         position = foundIndex[foundCount - 1];
                         if (!hasId(position.startIndex, position.endIndex)) {
                             return errorResult(`Element ${id} was not found.`);
