@@ -956,15 +956,17 @@ Local development may be faster using MongoDB instead of a cloud DocumentDB. It 
 * MongoDB Community Server
   - npm i mongodb
   - https://www.mongodb.com/try/download/community
-  - https://docs.mongodb.com/compass/master/query/filter
+  - https://mongodb.github.io/node-mongodb-native/3.3/tutorials/connect/authenticating (credential)
+  - https://docs.mongodb.com/compass/master/query/filter (query)
 ```
 
-MongoDB Atlas installations also use the "mongodb" source format. Only URI authentication is supported.
+MongoDB Atlas installations also use the "mongodb" source format. All MongoDB authentication mechanisms are supported.
 
 ```javascript
 interface MongoDataSource {
     source: "mongodb"
-    uri: string; // Connection string
+    uri?: string; // Connection string
+    credential?: string | StandardMap;
     query?: FilterQuery<any>;
     value?: string | ObjectMap<string | string[]>;
 
@@ -980,7 +982,19 @@ interface MongoDataSource {
   "type": "attribute",
   "dataSource": {
     "source": "mongodb",
-    "uri": "mongodb://username@password:localhost:27017", // required
+
+    // Choose one (required)
+    "uri": "mongodb://username@password:localhost:27017",
+    "credential": { // Same as cloud database "db-main" (settings)
+      "user": "**********",
+      "pwd": "**********",
+      "server": "localhost:27017",
+      "authMechanism": "MONGODB-X509",
+      "sslKey": "/absolute/path/ssl/x509/key.pem",
+      "sslCert": "/absolute/path/ssl/x509/cert.pem",
+      "sslValidate": false
+    },
+
     "query": {
       "id": {
         "$eq": "{{id}}"
@@ -1038,7 +1052,7 @@ interface UriDataSource {
 }
 ```
 
-View engines can also be used to format the element "value" or innerHTML.
+View engines can also be used to format the element "value" or innerHTML with any data source.
 
 ### Options: Development / Production
 
@@ -1050,6 +1064,7 @@ squared.saveAs("index.zip", {
     preserveCrossOrigin: false, // Ignore downloading a local copy of assets hosted on other domains
     useOriginalHtmlPage: false, // May produce better results when using custom elements
 
+    removeInlineStyles: false, // Strip style="" attribute from all elements (useOriginalHtmlPage: false)
     removeUnusedClasses: false, // CSS classes that can be removed in current state
     removeUnusedSelectors: false, // CSS selectors [:first-child] that can be removed in current state (not recommend for pages with forms [:valid] and active states [:hover])
     retainUsedStyles: [/* css selectors */], // Styles that should be kept which are used later with JavaScript
@@ -1122,7 +1137,7 @@ Hot module replacement is only available for LINK[href] and IMG[src] elements. I
 
 ```xml
 <!-- chrome -->
-<script src="/common/util.js" data-chrome-watch="1000::1h 30m::111-111-111:8080"></script> <!-- "~" can be used for default value -->
+<script src="/common/util.js" data-chrome-watch="1000::1h 30m::111-111-111:8080[module]"></script> <!-- "~" can be used for default value -->
 
 <!-- android -->
 <img src="images/harbour1.jpg" data-android-watch="true">

@@ -203,7 +203,7 @@ abstract class Document extends Module implements IDocument {
     }
     async parseTemplate(viewEngine: ViewEngine | string, template: string, data: PlainObject[]) {
         if (typeof viewEngine === 'string') {
-            const view = (this.module.settings?.view as Undef<StandardMap>)?.[viewEngine] as Undef<ViewEngine>;
+            const view = (this.module.settings?.view_engine as Undef<StandardMap>)?.[viewEngine] as Undef<ViewEngine>;
             if (!view) {
                 this.writeFail(['View engine not found', viewEngine], new Error(`Unknown view engine <${viewEngine}>`));
                 return null;
@@ -229,7 +229,7 @@ abstract class Document extends Module implements IDocument {
         return result;
     }
     async transform(type: string, code: string, format: string, options: TransformOutput = {}): Promise<Void<TransformResult>> {
-        const data = this.module.settings?.[type] as StandardMap;
+        const data = (this.module.settings as Undef<StandardMap>)?.transform?.[type] as StandardMap;
         if (data) {
             const sourceMap = options.sourceMap ||= Document.createSourceMap(code);
             const writeFail = this.writeFail.bind(this);

@@ -60,38 +60,40 @@
       "eval_function": true,
       "eval_template": true,
       "settings": {
-        "html": {
-          "prettier": {
-            "beautify": {
-              "parser": "html",
-              "printWidth": 120,
-              "tabWidth": 4
-            }
-          }
-        },
-        "js": {
-          "terser": {
-            "minify-example": "async function(context, value, options) { return await context.minify(value, options.outputConfig).code; }",
-            "minify-example-output": {
-              "keep_classnames": true
+        "transform": {
+          "html": {
+            "prettier": {
+              "beautify": {
+                "parser": "html",
+                "printWidth": 120,
+                "tabWidth": 4
+              }
             }
           },
-          "@babel/core": {
-            "es5-example": "./es5.js"
-          },
-          "rollup": {
-            "bundle": "./rollup.config.js",
-            "bundle-es6": {
-              "external": [
-                "lodash"
-              ]
+          "js": {
+            "terser": {
+              "minify-example": "async function(context, value, options) { return await context.minify(value, options.outputConfig).code; }",
+              "minify-example-output": {
+                "keep_classnames": true
+              }
             },
-            "bundle-es6-output": "./rollup.output.config.js"
-          }
-        },
-        "css": {
-          "node-sass": {
-            "sass-example": "function (context, value, options, resolve) { resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css); }"
+            "@babel/core": {
+              "es5-example": "./es5.js"
+            },
+            "rollup": {
+              "bundle": "./rollup.config.js",
+              "bundle-es6": {
+                "external": [
+                  "lodash"
+                ]
+              },
+              "bundle-es6-output": "./rollup.output.config.js"
+            }
+          },
+          "css": {
+            "node-sass": {
+              "sass-example": "function (context, value, options, resolve) { resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css); }"
+            }
           }
         }
       }

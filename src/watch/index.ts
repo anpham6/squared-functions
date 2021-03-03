@@ -191,9 +191,11 @@ class Watch extends Module implements IWatch {
                                 port ||= this.securePort;
                                 wss = SECURE_MAP[port];
                                 if (!wss) {
-                                    if (this._sslCert && this._sslKey) {
+                                    const sslKey = this._sslKey;
+                                    const sslCert = this._sslCert;
+                                    if (path.isAbsolute(sslKey) && path.isAbsolute(sslCert) && fs.existsSync(sslKey) && fs.existsSync(sslCert)) {
                                         try {
-                                            const server = https.createServer({ key: fs.readFileSync(this._sslKey), cert: fs.readFileSync(this._sslCert) });
+                                            const server = https.createServer({ key: fs.readFileSync(sslKey), cert: fs.readFileSync(sslCert) });
                                             server.listen(port);
                                             wss = new WebSocket.Server({ server });
                                             SECURE_MAP[port] = wss;

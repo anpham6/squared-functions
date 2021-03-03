@@ -44,26 +44,34 @@ handler = "@squared-functions/document/chrome"
 eval_function = true
 eval_template = true
 
-[document.chrome.settings.html.prettier.beautify]
+[document.chrome.settings.transform.html.prettier.beautify]
 parser = "html"
 printWidth = 120
 tabWidth = 4
 
-[document.chrome.settings.js.terser]
-minify-example = "async function(context, value, options) { return await context.minify(value, options.outputConfig).code; }"
+[document.chrome.settings.transform.js.terser]
+minify-example = """
+async function(context, value, options) {
+  return await context.minify(value, options.outputConfig).code;
+}
+"""
 
-  [document.chrome.settings.js.terser.minify-example-output]
+  [document.chrome.settings.transform.js.terser.minify-example-output]
   keep_classnames = true
 
-[document.chrome.settings.js."@babel/core"]
+[document.chrome.settings.transform.js."@babel/core"]
 es5-example = "./es5.js"
 
-[document.chrome.settings.js.rollup]
+[document.chrome.settings.transform.js.rollup]
 bundle = "./rollup.config.js"
 bundle-es6-output = "./rollup.output.config.js"
 
-  [document.chrome.settings.js.rollup.bundle-es6]
+  [document.chrome.settings.transform.js.rollup.bundle-es6]
   external = [ "lodash" ]
 
-[document.chrome.settings.css.node-sass]
-sass-example = "function (context, value, options, resolve) { resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css); }"
+[document.chrome.settings.transform.css.node-sass]
+sass-example = """
+function(context, value, options, resolve) {
+  return resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css);
+}
+"""

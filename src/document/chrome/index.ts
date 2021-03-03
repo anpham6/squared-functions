@@ -592,16 +592,58 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 }
                                 break;
                             case 'mongodb': {
-                                const { uri, name, table, query, options } = item as MongoDataSource;
-                                if (uri && name && table) {
-                                    const key = uri + name + table + (query ? JSON.stringify(query) : '') + (limit || '') + (options ? JSON.stringify(options) : '');
+                                const { name, table, query } = item as MongoDataSource;
+                                let { credential, uri, options } = item as MongoDataSource;
+                                if ((credential || uri) && name && table) {
+                                    const key = JSON.stringify(credential || uri) + name + table + (query ? JSON.stringify(query) : '') + (limit || '') + (options ? JSON.stringify(options) : '');
                                     if (key in cacheData) {
                                         result = cacheData[key] as PlainObject[];
                                     }
                                     else {
                                         let client: Null<mongodb.MongoClient> = null;
                                         try {
-                                            client = await new MongoClient(uri, options).connect();
+                                            if (credential) {
+                                                if (typeof credential === 'string') {
+                                                    credential = (instance.module.settings as Undef<StandardMap>)?.mongodb?.[credential] as Undef<StandardMap>;
+                                                }
+                                                if (credential && credential.server) {
+                                                    const authMechanism = credential.authMechanism;
+                                                    uri = 'mongodb://' + (credential.user ? encodeURIComponent(credential.user) + (authMechanism !== 'GSSAPI' && credential.pwd ? ':' + encodeURIComponent(credential.pwd) : '') + '@' : '') + credential.server + '/?authMechanism=';
+                                                    switch (authMechanism) {
+                                                        case 'MONGODB-X509': {
+                                                            const { sslKey, sslCert, sslValidate } = credential;
+                                                            if (sslKey && sslCert && path.isAbsolute(sslKey) && path.isAbsolute(sslCert) && fs.existsSync(sslKey) && fs.existsSync(sslCert)) {
+                                                                (options ||= {}).sslKey = fs.readFileSync(sslKey);
+                                                                options.sslCert = fs.readFileSync(sslCert);
+                                                                if (typeof sslValidate === 'boolean') {
+                                                                    options.sslValidate = sslValidate;
+                                                                }
+                                                                uri += 'MONGODB-X509&ssl=true';
+                                                            }
+                                                            else {
+                                                                reject(new Error('Missing SSL credentials (MongoDB)'));
+                                                                return;
+                                                            }
+                                                            break;
+                                                        }
+                                                        case 'GSSAPI':
+                                                            uri += 'GSSAPI&gssapiServiceName=mongodb';
+                                                            break;
+                                                        case 'PLAIN':
+                                                            uri += 'PLAIN&maxPoolSize=' + (credential.maxPoolSize || '1');
+                                                            break;
+                                                        case 'SCRAM-SHA-1':
+                                                        case 'SCRAM-SHA-256':
+                                                            uri += authMechanism + (credential.authSource ? '&authSource=' + encodeURIComponent(credential.authSource) : '');
+                                                            break;
+                                                    }
+                                                }
+                                                else {
+                                                    reject(new Error('Invalid or missing credentials (MongoDB)'));
+                                                    return;
+                                                }
+                                            }
+                                            client = await new MongoClient(uri!, options).connect();
                                             const collection = client.db(name).collection(table);
                                             if (query) {
                                                 const checkString = (value: string) => {
@@ -661,7 +703,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         }
                                     }
                                 }
-                                else if (!uri) {
+                                else if (!credential && !uri) {
                                     reject(new Error('Missing URI connection string (MongoDB)'));
                                     return;
                                 }

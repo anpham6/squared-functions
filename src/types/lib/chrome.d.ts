@@ -53,4 +53,5 @@ export interface UriDataSource extends DataSource {
 export interface MongoDataSource extends DBDataSource<FilterQuery<unknown>> {
     source: "mongodb";
     uri?: string;
+    credential?: string | StandardMap;
 }
