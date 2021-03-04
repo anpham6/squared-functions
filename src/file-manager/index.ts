@@ -543,7 +543,7 @@ class FileManager extends Module implements IFileManager {
                     tasks.push(
                         new Promise<void>(resolve => {
                             try {
-                                Compress.tryFile(localUri, output, data, null, (err?: Null<Error>, result?: string) => {
+                                Compress.tryFile(localUri, output, data, (err?: Null<Error>, result?: string) => {
                                     if (err) {
                                         throw err;
                                     }
@@ -986,7 +986,7 @@ class FileManager extends Module implements IFileManager {
                                             }
                                             downloadUri(subDir);
                                         })
-                                        .on('error', err => errorRequest(item, uri, localUri, err))
+                                        .on('error', err => errorRequest(item, uri, localUri, err));
                                 }
                                 else {
                                     downloadUri();

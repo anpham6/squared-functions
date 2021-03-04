@@ -886,7 +886,7 @@ export abstract class XmlElement implements IXmlElement {
                 return this.replace(source, { remove, append, startIndex: node.startIndex!, endIndex: node.endIndex! });
             }
             const { tagName, tagIndex = -1, tagCount = Infinity, lowerCase } = node;
-            const errorResult = (message: string): [string, string, Error] => ['', '', new Error(`${tagName.toUpperCase()} ${tagIndex}: ${message}`)];
+            const errorResult = (): [string, string, Error] => ['', '', new Error(tagName.toUpperCase() + (isIndex(tagIndex) ? ' ' + tagIndex : '') + ': Element was not found.')];
             const tagVoid = this.TAG_VOID.includes(tagName);
             const voidId = tagVoid && !!id;
             const onlyId = !isIndex(tagIndex) || !!append;
@@ -990,7 +990,7 @@ export abstract class XmlElement implements IXmlElement {
                     if (append && id) {
                         position = foundIndex[foundCount - 1];
                         if (!hasId(position.startIndex, position.endIndex)) {
-                            return errorResult(`Element ${id} was not found.`);
+                            return errorResult();
                         }
                     }
                     else if (foundCount === tagCount && isIndex(tagIndex)) {
@@ -998,9 +998,8 @@ export abstract class XmlElement implements IXmlElement {
                     }
                 }
             }
-            if (position ||= this.findIndexOf(source)) {
-                return this.replace(source, { remove, append, ...position });
-            }
+            position ||= this.findIndexOf(source);
+            return position ? this.replace(source, { remove, append, ...position }) : errorResult();
         }
         return ['', ''];
     }
@@ -1013,7 +1012,7 @@ export abstract class XmlElement implements IXmlElement {
         return [output, error];
     }
     reset() {
-        this._tagOffset = undefined;
+        this._tagOffset &&= undefined;
         this._prevTagName = null;
         this._prevInnerXml = null;
         this._modified = false;
@@ -1097,7 +1096,7 @@ export abstract class XmlElement implements IXmlElement {
             this._modified = true;
         }
         else {
-            this._tagOffset = undefined;
+            this._tagOffset &&= undefined;
         }
         this._remove = value;
     }

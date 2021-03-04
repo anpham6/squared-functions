@@ -2,7 +2,7 @@ import type { CompressFormat, CompressLevel } from '../types/lib/squared';
 
 import type { ICompress } from '../types/lib';
 import type { CompressTryFileMethod, CompressTryImageCallback } from '../types/lib/compress';
-import type { CompleteAsyncTaskCallback, PerformAsyncTaskMethod } from '../types/lib/filemanager';
+import type { CompleteAsyncTaskCallback } from '../types/lib/filemanager';
 
 import path = require('path');
 import fs = require('fs');
@@ -59,14 +59,11 @@ const Compress = new class extends Module implements ICompress {
             )
             .pipe(fs.createWriteStream(output));
     }
-    tryFile(uri: string, output: string, data: CompressFormat, beforeAsync?: Null<PerformAsyncTaskMethod>, callback?: CompleteAsyncTaskCallback) {
+    tryFile(uri: string, output: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback) {
         const format = data.format;
         switch (format) {
             case 'gz':
             case 'br': {
-                if (beforeAsync) {
-                    beforeAsync();
-                }
                 this.formatMessage(this.logType.COMPRESS, format, 'Compressing file...', output, { titleColor: 'magenta' });
                 const time = Date.now();
                 this[format === 'gz' ? 'createWriteStreamAsGzip' : 'createWriteStreamAsBrotli'](uri, output, data)
@@ -84,7 +81,7 @@ const Compress = new class extends Module implements ICompress {
             default: {
                 const compressor = this.compressors[format]?.bind(this);
                 if (typeof compressor === 'function') {
-                    compressor.call(this, uri, output, data, beforeAsync, callback);
+                    compressor.call(this, uri, output, data, callback);
                 }
                 else if (callback) {
                     callback();
@@ -93,14 +90,16 @@ const Compress = new class extends Module implements ICompress {
             }
         }
     }
-    tryImage(uri: string, data: CompressFormat, callback: CompressTryImageCallback) {
+    tryImage(uri: string, data: CompressFormat, callback?: CompressTryImageCallback) {
         const ext = path.extname(uri).substring(1);
         const time = Date.now();
         const writeFile = (result: Buffer | Uint8Array) => {
             fs.writeFile(uri, result, err => {
                 if (!err) {
                     this.writeTimeElapsed(ext, path.basename(uri), time);
-                    callback(null);
+                    if (callback) {
+                        callback(null);
+                    }
                 }
                 else {
                     throw err;
