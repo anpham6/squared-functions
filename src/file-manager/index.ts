@@ -193,6 +193,7 @@ class FileManager extends Module implements IFileManager {
                     if (this.Compress) {
                         manager.install('compress', this.Compress);
                     }
+                    manager.cacheHttpRequest = this.cacheHttpRequest;
                     manager.processAssets();
                 };
                 return this.Watch = instance;

@@ -32,7 +32,6 @@
     "@google-cloud/firestore": "^4.9.6",
     "@google-cloud/storage": "^5.8.1",
     "@types/body-parser": "^1.19.0",
-    "@types/escape-string-regexp": "^2.0.1",
     "@types/fs-extra": "^9.0.8",
     "@types/js-yaml": "^4.0.0",
     "@types/jsonpath": "^0.2.0",

@@ -46,6 +46,10 @@ abstract class Module implements IModule {
         return typeof value === 'object' && value !== null;
     }
 
+    static escapePattern(value: string) {
+        return value.replace(/[-|\\{}()[\]^$+*?.]/g, capture => capture === '-' ? '\\x2d' : '\\' + capture);
+    }
+
     static formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
         switch (type) {
             case LOG_TYPE.SYSTEM:

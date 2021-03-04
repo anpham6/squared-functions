@@ -153,7 +153,7 @@ class Watch extends Module implements IWatch {
                     const start = Date.now();
                     const interval = getInterval(item) || watchInterval || this.interval;
                     const watchExpired = (map: FileWatchMap, input: FileWatch, message = 'Expired') => {
-                        this.formatMessage(this.logType.WATCH, 'WATCH', [message, 'since ' + formatDate(input.start)], input.uri, { titleColor: 'grey' });
+                        this.formatMessage(this.logType.WATCH, ' WATCH ', [message, 'since ' + formatDate(input.start)], input.uri, { titleColor: 'grey' });
                         delete map[input.uri];
                     };
                     let expires = 0,
@@ -328,17 +328,17 @@ class Watch extends Module implements IWatch {
                     else {
                         continue;
                     }
-                    this.formatMessage(this.logType.WATCH, 'WATCH', ['Start', interval + 'ms ' + (expires ? formatDate(expires) : 'never')], uri, { titleColor: 'blue' });
+                    this.formatMessage(this.logType.WATCH, ' WATCH ', ['Start', interval + 'ms ' + (expires ? formatDate(expires) : 'never')], uri, { titleColor: 'blue' });
                 }
             }
         }
     }
     modified(watch: FileWatch) {
+        this.formatMessage(this.logType.WATCH, ' WATCH ', 'File modified', watch.uri, { titleColor: 'yellow' });
         if (this.whenModified) {
             clearCache(watch.assets);
             this.whenModified(watch.assets, getPostFinalize(watch));
         }
-        this.formatMessage(this.logType.WATCH, 'WATCH', 'File modified', watch.uri, { titleColor: 'yellow' });
     }
     setSSLKey(value: string) {
         value = path.resolve(value);

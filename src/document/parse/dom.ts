@@ -1,9 +1,10 @@
 import type { FindElementOptions, IDomWriter, ParserResult, SourceIndex, TagOffsetMap, XmlTagNode } from './document';
 
-import escapeRegexp = require('escape-string-regexp');
 import htmlparser2 = require('htmlparser2');
 import domhandler = require('domhandler');
 import domutils = require('domutils');
+
+import Module from '../../module';
 
 import { XmlElement, XmlWriter } from './index';
 
@@ -180,7 +181,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         return super.save();
     }
     close() {
-        this.source = this.source.replace(new RegExp(`\\s+${escapeRegexp(this.nameOfId)}="[^"]+"`, 'g'), '');
+        this.source = this.source.replace(new RegExp(`\\s+${Module.escapePattern(this.nameOfId)}="[^"]+"`, 'g'), '');
         return super.close();
     }
     replaceAll(predicate: (elem: domhandler.Element) => boolean, callback: (elem: domhandler.Element, source: string) => Undef<string>) {

@@ -17,7 +17,6 @@
   "dependencies": {
     "@squared-functions/module": "^0.13.3",
     "@squared-functions/types": "^0.13.3",
-    "escape-string-regexp": "4.0.0",
     "fs-extra": "^9.1.0",
     "htmlparser2": "^6.0.0",
     "jsonpath": "^1.1.0",
