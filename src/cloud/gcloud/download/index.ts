@@ -24,7 +24,7 @@ export default function download(this: IModule, credential: GCloudStorageCredent
                     tempDir = this.getTempDir();
                 }
                 const destination = tempDir + Key;
-                const location = Module.joinPosix(Bucket, Key);
+                const location = Module.joinPath(Bucket, Key);
                 const bucket = storage.bucket(Bucket);
                 const file = bucket.file(Key, { generation: Download.versionId });
                 file.download({ destination })

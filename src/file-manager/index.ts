@@ -348,7 +348,7 @@ class FileManager extends Module implements IFileManager {
         return data.mimeType || (data.mimeType = mime.lookup(this.getLocalUri(data)) || data.file.mimeType);
     }
     getRelativeUri(file: ExternalAsset, filename = file.filename) {
-        return Module.joinPosix(file.moveTo, file.pathname, filename);
+        return Module.joinPath(file.moveTo, file.pathname, filename);
     }
     getDocumentAssets(instance: IModule) {
         return this.documentAssets.filter(item => this.hasDocument(instance, item.document));

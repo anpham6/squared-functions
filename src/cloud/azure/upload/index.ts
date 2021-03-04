@@ -89,7 +89,7 @@ export default function upload(this: IModule, credential: AzureStorageCredential
             const blobName = pathname + Key[i];
             containerClient.getBlockBlobClient(blobName).upload(Body[i], Body[i].byteLength, { blobHTTPHeaders: { blobContentType: ContentType[i] } })
                 .then(() => {
-                    const url = Module.joinPosix(endpoint ? endpoint : `https://${credential.accountName!}.blob.core.windows.net/${bucket}`, blobName);
+                    const url = Module.joinPath(endpoint ? endpoint : `https://${credential.accountName!}.blob.core.windows.net/${bucket}`, blobName);
                     this.formatMessage(this.logType.CLOUD, service, 'Upload success', url);
                     if (i === 0) {
                         success(url);

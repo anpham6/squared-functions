@@ -108,13 +108,13 @@ export default function upload(this: IModule, credential: GCloudStorageCredentia
             bucketClient.upload(srcUri, { contentType: ContentType[i], destination: pathname ? pathname + path.basename(srcUri) : undefined }, (err, file) => {
                 if (file) {
                     const { active, endpoint, publicRead } = data.upload;
-                    const url = Module.joinPosix(endpoint ? endpoint : 'https://storage.googleapis.com/' + bucket, file.name);
+                    const url = Module.joinPath(endpoint ? endpoint : 'https://storage.googleapis.com/' + bucket, file.name);
                     this.formatMessage(this.logType.CLOUD, service, 'Upload success', url);
                     if (i === 0) {
                         success(url);
                     }
                     if (publicRead || active && publicRead !== false) {
-                        setPublicRead.call(this, file.acl, Module.joinPosix(bucket, file.name), publicRead);
+                        setPublicRead.call(this, file.acl, Module.joinPath(bucket, file.name), publicRead);
                     }
                 }
                 else if (i === 0) {

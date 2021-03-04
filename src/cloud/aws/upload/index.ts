@@ -91,7 +91,7 @@ export default function upload(this: IModule, credential: AWSStorageCredential, 
         for (let i = 0; i < Key.length; ++i) {
             s3.upload({ Bucket, Key: pathname + Key[i], ACL, Body: Body[i], ContentType: ContentType[i] }, (err, result) => {
                 if (!err) {
-                    const url = endpoint ? Module.joinPosix(endpoint, result.Key) : result.Location;
+                    const url = endpoint ? Module.joinPath(endpoint, result.Key) : result.Location;
                     this.formatMessage(this.logType.CLOUD, service, 'Upload success', url);
                     if (i === 0) {
                         success(url);

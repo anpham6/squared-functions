@@ -263,7 +263,7 @@ declare namespace functions {
         isUUID(value: string): boolean;
         resolveUri(value: string): string;
         resolvePath(value: string, href: string): string;
-        joinPosix(...values: Undef<string>[]): string;
+        joinPath(...values: Undef<string>[]): string;
         getFileSize(value: PathLike): number;
         loadSettings(value: Settings): void;
         responseError(err: Error | string, hint?: string): ResponseData;

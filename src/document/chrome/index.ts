@@ -158,7 +158,7 @@ function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: Docum
     }
     if (cssFile.moveTo) {
         if (cssFile.moveTo === asset.moveTo) {
-            assetDir = Document.joinPosix(asset.moveTo, asset.pathname);
+            assetDir = Document.joinPath(asset.moveTo, asset.pathname);
         }
         else {
             const moveUri = path.join(this.baseDirectory, cssFile.moveTo, asset.relativeUri!);
@@ -172,7 +172,7 @@ function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: Docum
                 this.writeFail(['Unable to copy file', path.basename(moveUri)], err, this.logType.FILE);
             }
         }
-        fileDir = Document.joinPosix(cssFile.moveTo, cssFile.pathname);
+        fileDir = Document.joinPath(cssFile.moveTo, cssFile.pathname);
     }
     const prefix = splitPath(fileDir);
     const suffix = splitPath(assetDir);
@@ -182,7 +182,7 @@ function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: Docum
         suffix.shift();
         found = true;
     }
-    return found ? Document.joinPosix('../'.repeat(prefix.length), suffix.join('/'), asset.filename) : '../'.repeat(prefix.length) + asset.relativeUri!;
+    return found ? Document.joinPath('../'.repeat(prefix.length), suffix.join('/'), asset.filename) : '../'.repeat(prefix.length) + asset.relativeUri!;
 }
 
 function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: DocumentAsset, content: string, fromHTML?: boolean) {

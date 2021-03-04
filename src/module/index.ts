@@ -266,7 +266,7 @@ abstract class Module implements IModule {
                     }
                     value = trailing.join('/');
                 }
-                return Module.joinPosix(origin, pathname.join('/'), value);
+                return Module.joinPath(origin, pathname.join('/'), value);
             }
             catch {
             }
@@ -274,7 +274,7 @@ abstract class Module implements IModule {
         return '';
    }
 
-   static joinPosix(...values: Undef<string>[]) {
+   static joinPath(...values: Undef<string>[]) {
         values = values.filter(value => value && value.trim().replace(/\\+/g, '/'));
         let result = '';
         for (let i = 0; i < values.length; ++i) {
@@ -304,7 +304,7 @@ abstract class Module implements IModule {
             success: false,
             error: {
                 hint,
-                message: err instanceof Error ? err.message : err.toString()
+                message: err instanceof Error ? err.message : err ? err.toString() : ''
             }
         } as ResponseData;
     }

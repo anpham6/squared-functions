@@ -32,7 +32,7 @@ function setUploadFilename(upload: CloudStorageUpload, filename: string) {
     const index = filename.lastIndexOf('/');
     if (index !== -1) {
         const directory = filename.substring(0, index + 1);
-        upload.pathname = upload.pathname ? Module.joinPosix(upload.pathname, directory) : directory;
+        upload.pathname = upload.pathname ? Module.joinPath(upload.pathname, directory) : directory;
         filename = filename.substring(index + 1);
     }
     return upload.filename = filename;
@@ -329,7 +329,7 @@ class Cloud extends Module implements ICloud {
                             upload.pathname = Cloud.toPosix(upload.pathname).replace(/^\/+/, '') + '/';
                         }
                         else if (data.admin?.preservePath && item.pathname) {
-                            upload.pathname = Cloud.toPosix(Module.joinPosix(item.moveTo, item.pathname)) + '/';
+                            upload.pathname = Cloud.toPosix(Module.joinPath(item.moveTo, item.pathname)) + '/';
                         }
                     }
                 }
@@ -347,7 +347,7 @@ class Cloud extends Module implements ICloud {
                         const basename = trailing.filename;
                         const filename = basename || current.filename;
                         const trailingFolder = trailing.pathname || '';
-                        const trailingName = Module.joinPosix(trailingFolder, filename);
+                        const trailingName = Module.joinPath(trailingFolder, filename);
                         for (let j = 0; j < length - 1; ++j) {
                             const previous = storage[j];
                             if (current !== previous) {
@@ -366,7 +366,7 @@ class Cloud extends Module implements ICloud {
                                             break renamed;
                                         }
                                         else {
-                                            const leadingName = Module.joinPosix(leadingFolder, leading.filename || previous.filename);
+                                            const leadingName = Module.joinPath(leadingFolder, leading.filename || previous.filename);
                                             if (trailingName === leadingName) {
                                                 if (!trailing.overwrite || leading.overwrite) {
                                                     renameTrailing(filename);

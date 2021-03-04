@@ -16,7 +16,7 @@ export default function download(this: IModule, credential: AWSStorageCredential
         const Key = Download && Download.filename;
         if (Bucket && Key) {
             try {
-                const location = Module.joinPosix(Bucket, Key);
+                const location = Module.joinPath(Bucket, Key);
                 const params: aws.S3.Types.GetObjectRequest = { Bucket, Key, VersionId: Download.versionId };
                 s3.getObject(params, (err, result) => {
                     if (!err) {

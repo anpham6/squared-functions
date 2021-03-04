@@ -13,7 +13,7 @@ export default function download(this: IModule, credential: AzureStorageCredenti
         const Key = Download && Download.filename;
         if (Bucket && Key) {
             try {
-                const location = Module.joinPosix(Bucket, Key);
+                const location = Module.joinPath(Bucket, Key);
                 const blobClient = blobServiceClient.getContainerClient(Bucket);
                 blobClient.getBlockBlobClient(Key).downloadToBuffer()
                     .then(buffer => {
