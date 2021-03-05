@@ -330,7 +330,6 @@ function setElementAttribute(this: IChromeDocument, htmlFile: DocumentAsset, ass
 
 const concatString = (values: Undef<string[]>): string => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const escapePosix = (value: string) => value.split(/[\\/]/).map(seg => Document.escapePattern(seg)).join('[\\\\/]');
-const isRemoved = (item: DocumentAsset) => item.exclude || item.bundleIndex !== undefined;
 const getErrorDOM = (tagName: string, tagIndex: Undef<number>) => new Error(tagName.toUpperCase() + (tagIndex !== undefined && tagIndex >= 0 ? ' ' + tagIndex : '') + ': Unable to parse DOM');
 
 class ChromeDocument extends Document implements IChromeDocument {
@@ -469,419 +468,8 @@ class ChromeDocument extends Document implements IChromeDocument {
             const cloud = this.Cloud;
             let source = this.getUTF8String(htmlFile, localUri);
             const domBase = new DomWriter(moduleName, source, this.getElements());
-            const dataSource = this.getDataSourceItems(instance).filter(item => item.element) as DataSource[];
-            if (dataSource.length) {
-                const cacheKey = uuid.v4();
-                const cacheData: ObjectMap<Optional<PlainObject[] | string>> = {};
-                await Document.allSettled(dataSource.map(item => {
-                    return new Promise<void>(async (resolve, reject) => {
-                        const { element, limit, index } = item;
-                        const domElement = new HtmlElement(moduleName, element!);
-                        const removeElement = () => {
-                            if (item.removeEmpty) {
-                                domElement.remove = true;
-                                if (!domBase.write(domElement)) {
-                                    const { tagName, tagIndex } = element!;
-                                    this.writeFail('Unable to remove element', getErrorDOM(tagName, tagIndex));
-                                }
-                            }
-                        };
-                        let result: PlainObject[] = [];
-                        switch (item.source) {
-                            case 'uri': {
-                                const { format, uri, query } = item as UriDataSource;
-                                let content: Optional<string>;
-                                if (Document.isFileHTTP(uri)) {
-                                    if (uri in cacheData) {
-                                        content = cacheData[uri] as Undef<string>;
-                                    }
-                                    else {
-                                        content = await request(uri).catch(err => {
-                                            this.writeFail(['Unable to request URL data source', uri], err);
-                                            return null;
-                                        });
-                                        cacheData[uri] = content;
-                                    }
-                                }
-                                else {
-                                    const pathname = Document.resolveUri(uri);
-                                    if (pathname in cacheData) {
-                                        content = cacheData[pathname] as Undef<string>;
-                                    }
-                                    else {
-                                        try {
-                                            if (fs.existsSync(pathname) && (Document.isFileUNC(pathname) ? this.permission.hasUNCRead() : this.permission.hasDiskRead())) {
-                                                content = fs.readFileSync(pathname, 'utf8');
-                                                cacheData[pathname] = content;
-                                            }
-                                            else {
-                                                removeElement();
-                                                reject(new Error(`Insufficient read permissions (${uri})`));
-                                                return;
-                                            }
-                                        }
-                                        catch (err) {
-                                            this.writeFail(['Unable to read file', path.basename(pathname)], err, this.logType.FILE);
-                                        }
-                                    }
-                                }
-                                if (content) {
-                                    let data: Undef<unknown>;
-                                    try {
-                                        switch (format) {
-                                            case 'js':
-                                            case 'json':
-                                                data = JSON.parse(content);
-                                                break;
-                                            case 'yml':
-                                            case 'yaml':
-                                                data = yaml.load(content);
-                                                break;
-                                            case 'toml':
-                                                data = toml.parse(content);
-                                                break;
-                                            default:
-                                                removeElement();
-                                                reject(new Error(`Data source format invalid (${format})`));
-                                                return;
-                                        }
-                                    }
-                                    catch (err) {
-                                        this.writeFail(['Unable to load data source', format], err);
-                                        removeElement();
-                                        resolve();
-                                        return;
-                                    }
-                                    if (data && query) {
-                                        data = jp.query(data, query, limit);
-                                    }
-                                    if (Array.isArray(data)) {
-                                        result = data;
-                                    }
-                                    else if (Document.isObject(data)) {
-                                        result = [data];
-                                    }
-                                    else {
-                                        removeElement();
-                                        reject(new Error(`Data source URI invalid (${uri})`));
-                                        return;
-                                    }
-                                }
-                                else {
-                                    removeElement();
-                                    if (content !== null) {
-                                        reject(new Error('Data source response was empty'));
-                                    }
-                                    else {
-                                        resolve();
-                                    }
-                                    return;
-                                }
-                                break;
-                            }
-                            case 'cloud':
-                                if (cloud) {
-                                    result = await cloud.getDatabaseRows(item as CloudDatabase, cacheKey).catch(err => {
-                                        if (err instanceof Error && err.message) {
-                                            this.errors.push(err.message);
-                                        }
-                                        return [];
-                                    }) as PlainObject[];
-                                }
-                                break;
-                            case 'mongodb': {
-                                const { name, table, query } = item as MongoDataSource;
-                                let { credential, uri, options } = item as MongoDataSource;
-                                if ((credential || uri) && name && table) {
-                                    const key = JSON.stringify(credential || uri) + name + table + (query ? JSON.stringify(query) : '') + (limit || '') + (options ? JSON.stringify(options) : '');
-                                    if (key in cacheData) {
-                                        result = cacheData[key] as PlainObject[];
-                                    }
-                                    else {
-                                        let client: Null<mongodb.MongoClient> = null;
-                                        try {
-                                            if (credential) {
-                                                if (typeof credential === 'string') {
-                                                    credential = (instance.module.settings as Undef<StandardMap>)?.mongodb?.[credential] as Undef<StandardMap>;
-                                                }
-                                                if (credential && credential.server) {
-                                                    const authMechanism = credential.authMechanism;
-                                                    uri = 'mongodb://' + (credential.user ? encodeURIComponent(credential.user) + (authMechanism !== 'GSSAPI' && credential.pwd ? ':' + encodeURIComponent(credential.pwd) : '') + '@' : '') + credential.server + '/?authMechanism=';
-                                                    switch (authMechanism) {
-                                                        case 'MONGODB-X509': {
-                                                            const { sslKey, sslCert, sslValidate } = credential;
-                                                            if (sslKey && sslCert && path.isAbsolute(sslKey) && path.isAbsolute(sslCert) && fs.existsSync(sslKey) && fs.existsSync(sslCert)) {
-                                                                (options ||= {}).sslKey = fs.readFileSync(sslKey);
-                                                                options.sslCert = fs.readFileSync(sslCert);
-                                                                if (typeof sslValidate === 'boolean') {
-                                                                    options.sslValidate = sslValidate;
-                                                                }
-                                                                uri += 'MONGODB-X509&ssl=true';
-                                                            }
-                                                            else {
-                                                                reject(new Error('Missing SSL credentials (MongoDB)'));
-                                                                return;
-                                                            }
-                                                            break;
-                                                        }
-                                                        case 'GSSAPI':
-                                                            uri += 'GSSAPI&gssapiServiceName=mongodb';
-                                                            break;
-                                                        case 'PLAIN':
-                                                            uri += 'PLAIN&maxPoolSize=' + (credential.maxPoolSize || '1');
-                                                            break;
-                                                        case 'SCRAM-SHA-1':
-                                                        case 'SCRAM-SHA-256':
-                                                            uri += authMechanism + (credential.authSource ? '&authSource=' + encodeURIComponent(credential.authSource) : '');
-                                                            break;
-                                                    }
-                                                }
-                                                else {
-                                                    reject(new Error('Invalid or missing credentials (MongoDB)'));
-                                                    return;
-                                                }
-                                            }
-                                            client = await new MongoClient(uri!, options).connect();
-                                            const collection = client.db(name).collection(table);
-                                            if (query) {
-                                                const checkString = (value: string) => {
-                                                    let match = /^\$date\s*=\s*(.+)$/.exec(value);
-                                                    if (match) {
-                                                        return new Date(match[1]);
-                                                    }
-                                                    match = /^\$regex\s*=\s*\/(.+)\/([gimsuy]*)\s*$/.exec(value);
-                                                    if (match) {
-                                                        return new RegExp(match[1], match[2]);
-                                                    }
-                                                    match = /^\$function\s*=\s*(.+)$/.exec(value);
-                                                    if (match) {
-                                                        return Document.parseFunction(match[1]);
-                                                    }
-                                                    return value;
-                                                };
-                                                (function recurse(data: PlainObject) {
-                                                    for (const attr in data) {
-                                                        const value = data[attr];
-                                                        if (typeof value === 'string') {
-                                                            data[attr] = checkString(value);
-                                                        }
-                                                        else if (Document.isObject(value)) {
-                                                            recurse(value);
-                                                        }
-                                                        else if (Array.isArray(value)) {
-                                                            (function iterate(items: any[]) {
-                                                                for (let i = 0; i < items.length; ++i) {
-                                                                    if (typeof items[i] === 'string') {
-                                                                        items[i] = checkString(items[i]);
-                                                                    }
-                                                                    else if (Document.isObject(value)) {
-                                                                        recurse(value);
-                                                                    }
-                                                                    else if (Array.isArray(items[i])) {
-                                                                        iterate(items[i]);
-                                                                    }
-                                                                }
-                                                            })(value);
-                                                        }
-                                                    }
-                                                })(query);
-                                            }
-                                            result = limit === 1 && query ? [await collection.findOne(query)] : await collection.find(query).toArray();
-                                            cacheData[key] = result;
-                                        }
-                                        catch (err) {
-                                            this.writeFail(['Unable to execute MongoDB query', name + ':' + table], err);
-                                        }
-                                        if (client) {
-                                            try {
-                                                await client.close();
-                                            }
-                                            catch {
-                                            }
-                                        }
-                                    }
-                                }
-                                else if (!credential && !uri) {
-                                    reject(new Error('Missing URI connection string (MongoDB)'));
-                                    return;
-                                }
-                                break;
-                            }
-                            default:
-                                removeElement();
-                                reject(new Error('Data source type invalid'));
-                                return;
-                        }
-                        if (index !== undefined) {
-                            const data = result[index];
-                            result = data ? [data] : [];
-                        }
-                        else if (limit !== undefined && result.length > limit) {
-                            result.length = limit;
-                        }
-                        if (result.length) {
-                            const template = item.value || element!.textContent || domElement.innerXml;
-                            const isTruthy = (data: PlainObject, attr: string, falsey: Undef<string>) => {
-                                const value = !!getObjectValue(data, attr);
-                                return falsey ? !value : value;
-                            };
-                            let invalid: Undef<boolean>;
-                            switch (item.type) {
-                                case 'text':
-                                    if (typeof template === 'string' && !domElement.tagVoid) {
-                                        let innerXml = '';
-                                        if (item.viewEngine) {
-                                            const content = await instance.parseTemplate(item.viewEngine, template, result);
-                                            if (content !== null) {
-                                                innerXml = content;
-                                            }
-                                            else {
-                                                ++domBase.failCount;
-                                                removeElement();
-                                                resolve();
-                                                return;
-                                            }
-                                        }
-                                        else {
-                                            let match: Null<RegExpExecArray>;
-                                            for (let i = 0; i < result.length; ++i) {
-                                                const row = result[i];
-                                                let segment = template;
-                                                while (match = REGEXP_OBJECTPROPERTY.exec(template)) {
-                                                    segment = segment.replace(match[0], match[0] === '${__index__}' ? (i + 1).toString() : valueAsString(getObjectValue(row, match[1])));
-                                                }
-                                                const current = segment;
-                                                while (match = REGEXP_TEMPLATECONDITIONAL.exec(current)) {
-                                                    const col = isTruthy(row, match[3], match[2]) ? 5 : 7;
-                                                    segment = segment.replace(match[0], match[col] ? (match[col - 1].includes('\n') ? '' : match[1]) + match[col - 1] + match[col] : '');
-                                                }
-                                                innerXml += segment;
-                                                REGEXP_OBJECTPROPERTY.lastIndex = 0;
-                                                REGEXP_TEMPLATECONDITIONAL.lastIndex = 0;
-                                            }
-                                        }
-                                        domElement.innerXml = innerXml;
-                                    }
-                                    else {
-                                        invalid = true;
-                                    }
-                                    break;
-                                case 'attribute':
-                                    if (Document.isObject(template)) {
-                                        for (const attr in template) {
-                                            let segment = template[attr]!,
-                                                value = '',
-                                                valid: Undef<boolean>;
-                                            if (item.viewEngine) {
-                                                if (typeof segment === 'string') {
-                                                    const content = await instance.parseTemplate(item.viewEngine, segment, result);
-                                                    if (content !== null) {
-                                                        value = content;
-                                                        valid = true;
-                                                    }
-                                                }
-                                                else {
-                                                    invalid = true;
-                                                    continue;
-                                                }
-                                            }
-                                            else {
-                                                if (typeof segment === 'string') {
-                                                    segment = [segment];
-                                                }
-                                                if (!Array.isArray(segment)) {
-                                                    invalid = true;
-                                                    continue;
-                                                }
-                                                let joinString = ' ';
-                                                for (const row of result) {
-                                                    for (let seg of segment) {
-                                                        seg = seg.trim();
-                                                        if (seg[0] === ':') {
-                                                            const join = /^:join\((.*)\)$/.exec(seg);
-                                                            if (join) {
-                                                                joinString = join[1];
-                                                            }
-                                                            continue;
-                                                        }
-                                                        const match = REGEXP_TEMPLATECONDITIONAL.exec(seg);
-                                                        if (match) {
-                                                            seg = (isTruthy(row, match[3], match[2]) ? match[5] : match[7] || '').trim();
-                                                            valid = true;
-                                                        }
-                                                        if (seg) {
-                                                            const text = seg[0] === ':' && /^:text\((.*)\)$/.exec(seg);
-                                                            if (text) {
-                                                                value += (value ? joinString : '') + text[1];
-                                                                valid = true;
-                                                            }
-                                                            else {
-                                                                const data = getObjectValue(row, seg);
-                                                                if (data !== null) {
-                                                                    value += (value ? joinString : '') + valueAsString(data, joinString);
-                                                                    valid = true;
-                                                                }
-                                                            }
-                                                        }
-                                                        REGEXP_TEMPLATECONDITIONAL.lastIndex = 0;
-                                                    }
-                                                }
-                                            }
-                                            if (valid) {
-                                                domElement.setAttribute(attr, value);
-                                            }
-                                            else {
-                                                invalid = true;
-                                            }
-                                        }
-                                    }
-                                    else {
-                                        invalid = true;
-                                    }
-                                    break;
-                                default:
-                                    removeElement();
-                                    reject(new Error('Element action type invalid'));
-                                    return;
-                            }
-                            if (!domBase.write(domElement) || invalid) {
-                                const { tagName, tagIndex } = element!;
-                                this.writeFail('Unable to replace ' + item.type, getErrorDOM(tagName, tagIndex));
-                            }
-                        }
-                        else {
-                            removeElement();
-                            switch (item.source) {
-                                case 'uri': {
-                                    const { format, uri } = item as UriDataSource;
-                                    this.formatFail(this.logType.PROCESS, format, ['URI data source had no results', uri], new Error('Empty: ' + uri));
-                                    break;
-                                }
-                                case 'cloud': {
-                                    const { service, table, id, query } = item as CloudDatabase;
-                                    let queryString = '';
-                                    if (id) {
-                                        queryString = 'id: ' + id;
-                                    }
-                                    else if (query) {
-                                        queryString = typeof query !== 'string' ? JSON.stringify(query) : query;
-                                    }
-                                    this.formatFail(this.logType.CLOUD, service, ['Database query had no results', table ? 'table: ' + table : ''], new Error('Empty: ' + queryString));
-                                    break;
-                                }
-                                case 'mongodb': {
-                                    const { uri, name, table } = item as MongoDataSource;
-                                    this.formatFail(this.logType.PROCESS, name || 'MONGO', ['MongoDB query had no results', table ? 'table: ' + table : ''], new Error('Empty: ' + uri));
-                                    break;
-                                }
-                            }
-                        }
-                        resolve();
-                    });
-                }), 'Element text or attribute replacement', this.errors);
-            }
             const revised: DocumentAsset[] = [];
-            for (const item of elements.filter(asset => !(asset.invalid && !asset.exclude && asset.bundleIndex === undefined && !asset.element!.removed)).sort((a, b) => isRemoved(a) ? -1 : isRemoved(b) ? 1 : 0)) {
+            for (const item of elements.filter(asset => !asset.invalid && (asset.inlineContent || asset.bundleIndex === 0 || asset.bundleIndex === -1))) {
                 const { element, bundleIndex, inlineContent, attributes } = item;
                 const { tagName, tagIndex } = element!;
                 const domElement = new HtmlElement(moduleName, element!, attributes);
@@ -920,12 +508,6 @@ class ChromeDocument extends Document implements IChromeDocument {
                         delete item.inlineCloud;
                     }
                 }
-                else if (isRemoved(item)) {
-                    domElement.remove = true;
-                    if (!domBase.write(domElement)) {
-                        this.writeFail(['Exclude tag removal', tagName], getErrorDOM(tagName, tagIndex));
-                    }
-                }
                 else {
                     continue;
                 }
@@ -962,6 +544,524 @@ class ChromeDocument extends Document implements IChromeDocument {
                     const { tagName, tagIndex } = element;
                     this.writeFail(['Element attribute replacement', tagName], getErrorDOM(tagName, tagIndex));
                     delete item.inlineCloud;
+                }
+            }
+            const dataSource = this.getDataSourceItems(instance).filter(item => item.element) as DataSource[];
+            if (dataSource.length) {
+                const cacheKey = uuid.v4();
+                const cacheData: ObjectMap<Optional<PlainObject[] | string>> = {};
+                const dataItems: DataSource[] = [];
+                const displayItems: DataSource[] = [];
+                for (const item of dataSource) {
+                    if (item.type === 'display') {
+                        displayItems.push(item);
+                    }
+                    else {
+                        dataItems.push(item);
+                    }
+                }
+                for (const db of [dataItems, displayItems]) {
+                    await Document.allSettled(db.map(item => {
+                        return new Promise<void>(async (resolve, reject) => {
+                            const { element, limit, index } = item;
+                            const domElement = new HtmlElement(moduleName, element!);
+                            const removeElement = () => {
+                                if (item.removeEmpty) {
+                                    domElement.remove = true;
+                                    if (!domBase.write(domElement)) {
+                                        const { tagName, tagIndex } = element!;
+                                        this.writeFail('Unable to remove element', getErrorDOM(tagName, tagIndex));
+                                    }
+                                }
+                            };
+                            let result: PlainObject[] = [];
+                            switch (item.source) {
+                                case 'cloud':
+                                    if (cloud) {
+                                        result = await cloud.getDatabaseRows(item as CloudDatabase, cacheKey).catch(err => {
+                                            if (err instanceof Error && err.message) {
+                                                this.errors.push(err.message);
+                                            }
+                                            return [];
+                                        }) as PlainObject[];
+                                    }
+                                    break;
+                                case 'mongodb': {
+                                    const { name, table, query } = item as MongoDataSource;
+                                    let { credential, uri, options } = item as MongoDataSource;
+                                    if ((credential || uri) && name && table) {
+                                        const key = JSON.stringify(credential || uri) + name + table + (query ? JSON.stringify(query) : '') + (limit || '') + (options ? JSON.stringify(options) : '');
+                                        if (key in cacheData) {
+                                            result = cacheData[key] as PlainObject[];
+                                        }
+                                        else {
+                                            let client: Null<mongodb.MongoClient> = null;
+                                            try {
+                                                if (credential) {
+                                                    if (typeof credential === 'string') {
+                                                        credential = (instance.module.settings as Undef<StandardMap>)?.mongodb?.[credential] as Undef<StandardMap>;
+                                                    }
+                                                    if (credential && credential.server) {
+                                                        const authMechanism = credential.authMechanism;
+                                                        uri = 'mongodb://' + (credential.user ? encodeURIComponent(credential.user) + (authMechanism !== 'GSSAPI' && credential.pwd ? ':' + encodeURIComponent(credential.pwd) : '') + '@' : '') + credential.server + '/?authMechanism=';
+                                                        switch (authMechanism) {
+                                                            case 'MONGODB-X509': {
+                                                                const { sslKey, sslCert, sslValidate } = credential;
+                                                                if (sslKey && sslCert && path.isAbsolute(sslKey) && path.isAbsolute(sslCert) && fs.existsSync(sslKey) && fs.existsSync(sslCert)) {
+                                                                    (options ||= {}).sslKey = fs.readFileSync(sslKey);
+                                                                    options.sslCert = fs.readFileSync(sslCert);
+                                                                    if (typeof sslValidate === 'boolean') {
+                                                                        options.sslValidate = sslValidate;
+                                                                    }
+                                                                    uri += 'MONGODB-X509&ssl=true';
+                                                                }
+                                                                else {
+                                                                    reject(new Error('Missing SSL credentials (MongoDB)'));
+                                                                    return;
+                                                                }
+                                                                break;
+                                                            }
+                                                            case 'GSSAPI':
+                                                                uri += 'GSSAPI&gssapiServiceName=mongodb';
+                                                                break;
+                                                            case 'PLAIN':
+                                                                uri += 'PLAIN&maxPoolSize=' + (credential.maxPoolSize || '1');
+                                                                break;
+                                                            case 'SCRAM-SHA-1':
+                                                            case 'SCRAM-SHA-256':
+                                                                uri += authMechanism + (credential.authSource ? '&authSource=' + encodeURIComponent(credential.authSource) : '');
+                                                                break;
+                                                        }
+                                                    }
+                                                    else {
+                                                        reject(new Error('Invalid or missing credentials (MongoDB)'));
+                                                        return;
+                                                    }
+                                                }
+                                                client = await new MongoClient(uri!, options).connect();
+                                                const collection = client.db(name).collection(table);
+                                                if (query) {
+                                                    const checkString = (value: string) => {
+                                                        let match = /^\$date\s*=\s*(.+)$/.exec(value);
+                                                        if (match) {
+                                                            return new Date(match[1]);
+                                                        }
+                                                        match = /^\$regex\s*=\s*\/(.+)\/([gimsuy]*)\s*$/.exec(value);
+                                                        if (match) {
+                                                            return new RegExp(match[1], match[2]);
+                                                        }
+                                                        match = /^\$function\s*=\s*(.+)$/.exec(value);
+                                                        if (match) {
+                                                            return Document.parseFunction(match[1]);
+                                                        }
+                                                        return value;
+                                                    };
+                                                    (function recurse(data: PlainObject) {
+                                                        for (const attr in data) {
+                                                            const value = data[attr];
+                                                            if (typeof value === 'string') {
+                                                                data[attr] = checkString(value);
+                                                            }
+                                                            else if (Document.isObject(value)) {
+                                                                recurse(value);
+                                                            }
+                                                            else if (Array.isArray(value)) {
+                                                                (function iterate(items: any[]) {
+                                                                    for (let i = 0; i < items.length; ++i) {
+                                                                        if (typeof items[i] === 'string') {
+                                                                            items[i] = checkString(items[i]);
+                                                                        }
+                                                                        else if (Document.isObject(value)) {
+                                                                            recurse(value);
+                                                                        }
+                                                                        else if (Array.isArray(items[i])) {
+                                                                            iterate(items[i]);
+                                                                        }
+                                                                    }
+                                                                })(value);
+                                                            }
+                                                        }
+                                                    })(query);
+                                                }
+                                                result = limit === 1 && query ? [await collection.findOne(query)] : await collection.find(query).toArray();
+                                                cacheData[key] = result;
+                                            }
+                                            catch (err) {
+                                                this.writeFail(['Unable to execute MongoDB query', name + ':' + table], err);
+                                            }
+                                            if (client) {
+                                                try {
+                                                    await client.close();
+                                                }
+                                                catch {
+                                                }
+                                            }
+                                        }
+                                    }
+                                    else if (!credential && !uri) {
+                                        reject(new Error('Missing URI connection string (MongoDB)'));
+                                        return;
+                                    }
+                                    break;
+                                }
+                                case 'uri': {
+                                    const { uri, query, format = path.extname(uri).substring(1) } = item as UriDataSource;
+                                    let content: Optional<string>;
+                                    if (Document.isFileHTTP(uri)) {
+                                        if (uri in cacheData) {
+                                            content = cacheData[uri] as Undef<string>;
+                                        }
+                                        else {
+                                            content = await request(uri).catch(err => {
+                                                this.writeFail(['Unable to request URL data source', uri], err);
+                                                return null;
+                                            });
+                                            cacheData[uri] = content;
+                                        }
+                                    }
+                                    else {
+                                        const pathname = Document.resolveUri(uri);
+                                        if (pathname in cacheData) {
+                                            content = cacheData[pathname] as Undef<string>;
+                                        }
+                                        else {
+                                            try {
+                                                if (fs.existsSync(pathname) && (Document.isFileUNC(pathname) ? this.permission.hasUNCRead() : this.permission.hasDiskRead())) {
+                                                    content = fs.readFileSync(pathname, 'utf8');
+                                                    cacheData[pathname] = content;
+                                                }
+                                                else {
+                                                    removeElement();
+                                                    reject(new Error(`Insufficient read permissions (${uri})`));
+                                                    return;
+                                                }
+                                            }
+                                            catch (err) {
+                                                this.writeFail(['Unable to read file', path.basename(pathname)], err, this.logType.FILE);
+                                            }
+                                        }
+                                    }
+                                    if (content) {
+                                        let data: Undef<unknown>;
+                                        try {
+                                            switch (format) {
+                                                case 'js':
+                                                case 'json':
+                                                case 'jsonp':
+                                                case 'jsonld':
+                                                case 'mjs':
+                                                    data = JSON.parse(content);
+                                                    break;
+                                                case 'yml':
+                                                case 'yaml':
+                                                    data = yaml.load(content);
+                                                    break;
+                                                case 'toml':
+                                                    data = toml.parse(content);
+                                                    break;
+                                                default:
+                                                    removeElement();
+                                                    reject(new Error(`Data source format invalid (${format})`));
+                                                    return;
+                                            }
+                                        }
+                                        catch (err) {
+                                            this.writeFail(['Unable to load data source', format], err);
+                                            removeElement();
+                                            resolve();
+                                            return;
+                                        }
+                                        if (data && query) {
+                                            data = jp.query(data, query, limit);
+                                        }
+                                        if (Array.isArray(data)) {
+                                            result = data;
+                                        }
+                                        else if (Document.isObject(data)) {
+                                            result = [data];
+                                        }
+                                        else {
+                                            removeElement();
+                                            reject(new Error(`Data source URI invalid (${uri})`));
+                                            return;
+                                        }
+                                    }
+                                    else {
+                                        removeElement();
+                                        if (content !== null) {
+                                            reject(new Error('Data source response was empty'));
+                                        }
+                                        else {
+                                            resolve();
+                                        }
+                                        return;
+                                    }
+                                    break;
+                                }
+                                default:
+                                    removeElement();
+                                    reject(new Error('Data source type invalid'));
+                                    return;
+                            }
+                            if (index !== undefined) {
+                                const data = result[index];
+                                result = data ? [data] : [];
+                            }
+                            else if (limit !== undefined && result.length > limit) {
+                                result.length = limit;
+                            }
+                            if (result.length) {
+                                let template = item.value || element!.textContent || domElement.innerXml,
+                                    invalid: Undef<boolean>;
+                                const isTruthy = (data: PlainObject, attr: string, falsey: Undef<string | boolean>) => {
+                                    const value = !!getObjectValue(data, attr);
+                                    return falsey ? !value : value;
+                                };
+                                switch (item.type) {
+                                    case 'text':
+                                        if (typeof template === 'string' && !domElement.tagVoid) {
+                                            let innerXml = '';
+                                            if (item.viewEngine) {
+                                                const content = await instance.parseTemplate(item.viewEngine, template, result);
+                                                if (content !== null) {
+                                                    innerXml = content;
+                                                }
+                                                else {
+                                                    ++domBase.failCount;
+                                                    removeElement();
+                                                    resolve();
+                                                    return;
+                                                }
+                                            }
+                                            else {
+                                                let match: Null<RegExpExecArray>;
+                                                for (let i = 0; i < result.length; ++i) {
+                                                    const row = result[i];
+                                                    let segment = template;
+                                                    while (match = REGEXP_OBJECTPROPERTY.exec(template)) {
+                                                        segment = segment.replace(match[0], match[0] === '${__index__}' ? (i + 1).toString() : valueAsString(getObjectValue(row, match[1])));
+                                                    }
+                                                    const current = segment;
+                                                    while (match = REGEXP_TEMPLATECONDITIONAL.exec(current)) {
+                                                        const col = isTruthy(row, match[3], match[2]) ? 5 : 7;
+                                                        segment = segment.replace(match[0], match[col] ? (match[col - 1].includes('\n') ? '' : match[1]) + match[col - 1] + match[col] : '');
+                                                    }
+                                                    innerXml += segment;
+                                                    REGEXP_OBJECTPROPERTY.lastIndex = 0;
+                                                    REGEXP_TEMPLATECONDITIONAL.lastIndex = 0;
+                                                }
+                                            }
+                                            domElement.innerXml = innerXml;
+                                        }
+                                        else {
+                                            invalid = true;
+                                        }
+                                        break;
+                                    case 'attribute':
+                                        if (Document.isObject(template)) {
+                                            for (const attr in template) {
+                                                let segment = template[attr],
+                                                    value = '',
+                                                    valid: Undef<boolean>;
+                                                if (item.viewEngine) {
+                                                    if (typeof segment === 'string') {
+                                                        const content = await instance.parseTemplate(item.viewEngine, segment, result);
+                                                        if (content !== null) {
+                                                            value = content;
+                                                            valid = true;
+                                                        }
+                                                        else {
+                                                            invalid = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                    else {
+                                                        invalid = true;
+                                                        break;
+                                                    }
+                                                }
+                                                else {
+                                                    if (typeof segment === 'string') {
+                                                        segment = [segment];
+                                                    }
+                                                    else if (!Array.isArray(segment)) {
+                                                        invalid = true;
+                                                        break;
+                                                    }
+                                                    let joinString = ' ';
+                                                    for (const row of result) {
+                                                        for (let seg of segment as string[]) {
+                                                            seg = seg.trim();
+                                                            if (seg[0] === ':') {
+                                                                const join = /^:join\((.*)\)$/.exec(seg);
+                                                                if (join) {
+                                                                    joinString = join[1];
+                                                                }
+                                                                continue;
+                                                            }
+                                                            const match = REGEXP_TEMPLATECONDITIONAL.exec(seg);
+                                                            if (match) {
+                                                                seg = (isTruthy(row, match[3], match[2]) ? match[5] : match[7] || '').trim();
+                                                                valid = true;
+                                                            }
+                                                            if (seg) {
+                                                                const text = seg[0] === ':' && /^:text\((.*)\)$/.exec(seg);
+                                                                if (text) {
+                                                                    value += (value ? joinString : '') + text[1];
+                                                                    valid = true;
+                                                                }
+                                                                else {
+                                                                    const data = getObjectValue(row, seg);
+                                                                    if (data !== null) {
+                                                                        value += (value ? joinString : '') + valueAsString(data, joinString);
+                                                                        valid = true;
+                                                                    }
+                                                                }
+                                                            }
+                                                            REGEXP_TEMPLATECONDITIONAL.lastIndex = 0;
+                                                        }
+                                                    }
+                                                }
+                                                if (valid) {
+                                                    domElement.setAttribute(attr, value);
+                                                }
+                                                else {
+                                                    invalid = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        else {
+                                            invalid = true;
+                                        }
+                                        break;
+                                    case 'display':
+                                        if (item.value) {
+                                            if (item.viewEngine) {
+                                                if (typeof template === 'string') {
+                                                    const content = await instance.parseTemplate(item.viewEngine, template, result);
+                                                    if (content !== null) {
+                                                        if (content.trim() === '') {
+                                                            domElement.remove = true;
+                                                        }
+                                                    }
+                                                    else {
+                                                        invalid = true;
+                                                    }
+                                                }
+                                                else {
+                                                    invalid = true;
+                                                }
+                                            }
+                                            else {
+                                                if (typeof template === 'string') {
+                                                    template = [template];
+                                                }
+                                                if (!Array.isArray(template) || template.length === 0) {
+                                                    invalid = true;
+                                                }
+                                                else {
+                                                    const row = result[0];
+                                                    let valid = true,
+                                                        condition = false;
+                                                    for (let seg of template) {
+                                                        switch (seg = seg.trim()) {
+                                                            case ':logical(AND)':
+                                                                condition = false;
+                                                                continue;
+                                                            case ':logical(OR)':
+                                                                condition = true;
+                                                                continue;
+                                                        }
+                                                        const match = REGEXP_TEMPLATECONDITIONAL.exec(seg);
+                                                        if (match) {
+                                                            seg = (isTruthy(row, match[3], match[2]) ? match[5] : match[7] || '').trim();
+                                                        }
+                                                        let falsey: Undef<boolean>;
+                                                        if (seg[0] === '!') {
+                                                            seg = seg.substring(1);
+                                                            falsey = true;
+                                                        }
+                                                        if (isTruthy(row, seg, falsey)) {
+                                                            if (!condition) {
+                                                                valid = false;
+                                                                break;
+                                                            }
+                                                        }
+                                                        else if (condition) {
+                                                            valid = false;
+                                                            break;
+                                                        }
+                                                    }
+                                                    if (!valid) {
+                                                        domElement.remove = true;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        if (!domElement.remove) {
+                                            resolve();
+                                            return;
+                                        }
+                                        break;
+                                    default:
+                                        removeElement();
+                                        reject(new Error('Element action type invalid'));
+                                        return;
+                                }
+                                if (invalid) {
+                                    removeElement();
+                                }
+                                else if (!domBase.write(domElement)) {
+                                    const { tagName, tagIndex } = element!;
+                                    this.writeFail('Unable to replace ' + item.type, getErrorDOM(tagName, tagIndex));
+                                }
+                            }
+                            else if (item.type === 'display') {
+                                item.removeEmpty = true;
+                                removeElement();
+                            }
+                            else {
+                                removeElement();
+                                switch (item.source) {
+                                    case 'cloud': {
+                                        const { service, table, id, query } = item as CloudDatabase;
+                                        let queryString = '';
+                                        if (id) {
+                                            queryString = 'id: ' + id;
+                                        }
+                                        else if (query) {
+                                            queryString = typeof query !== 'string' ? JSON.stringify(query) : query;
+                                        }
+                                        this.formatFail(this.logType.CLOUD, service, ['Database query had no results', table ? 'table: ' + table : ''], new Error('Empty: ' + queryString));
+                                        break;
+                                    }
+                                    case 'mongodb': {
+                                        const { uri, name, table } = item as MongoDataSource;
+                                        this.formatFail(this.logType.PROCESS, name || 'MONGO', ['MongoDB query had no results', table ? 'table: ' + table : ''], new Error('Empty: ' + uri));
+                                        break;
+                                    }
+                                    case 'uri': {
+                                        const { uri, format = path.extname(uri).substring(1) } = item as UriDataSource;
+                                        this.formatFail(this.logType.PROCESS, format, ['URI data source had no results', uri], new Error('Empty: ' + uri));
+                                        break;
+                                    }
+                                }
+                            }
+                            resolve();
+                        });
+                    }), 'Element text or attribute replacement', this.errors);
+                }
+            }
+            for (const item of elements) {
+                if ((item.exclude || item.bundleIndex !== undefined) && !revised.includes(item)) {
+                    const { element, attributes } = item;
+                    const domElement = new HtmlElement(moduleName, element!, attributes);
+                    domElement.remove = true;
+                    if (!domBase.write(domElement)) {
+                        const { tagName, tagIndex } = element!;
+                        this.writeFail(['Exclude tag removal', tagName], getErrorDOM(tagName, tagIndex));
+                    }
                 }
             }
             if (domBase.modified) {

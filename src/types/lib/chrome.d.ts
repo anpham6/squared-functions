@@ -29,8 +29,8 @@ export interface RequestData {
 
 export interface DataSource extends IDataSource {
     source: "uri" | "cloud" | "mongodb";
-    type: "text" | "attribute";
-    value?: string | ObjectMap<unknown>;
+    type: "text" | "attribute" | "display";
+    value?: StringOfArray | ObjectMap<unknown>;
     viewEngine?: ViewEngine | string;
 }
 
@@ -45,8 +45,8 @@ export interface DBDataSource<T = string | PlainObject | unknown[]> extends Data
 
 export interface UriDataSource extends DataSource {
     source: "uri";
-    format: string;
     uri: string;
+    format?: string;
     query?: string;
 }
 

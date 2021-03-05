@@ -423,7 +423,9 @@ interface OutputModifiers {
 
 interface AssetCommand extends OutputModifiers {
     selector?: string;
-    type?: string; // js | css | image | append/js | append/css | database: text | attribute
+    document?: string | string[]; // Usually "chrome" (optional)
+
+    type?: string; // js | css | image | append/js | append/css | append/[tagName]
     saveAs?: string; // type: js | css
     exportAs?: string; // type: js | css
     saveTo?: string; // type: image | video | audio (transforms create multiple files and are given a UUID filename)
@@ -433,25 +435,25 @@ interface AssetCommand extends OutputModifiers {
     commands?: string[]; // type: image
     download?: boolean; // Same as preserveCrossOrigin (default is "true")
     cloudStorage?: CloudService[];
-    dataSource?: { // type: text | attribute
+    tasks?: string[];
+    watch?: boolean | { interval?: number, expires?: string }; // type: js | css | image (expires: 1h 1m 1s)
+    attributes?: ObjectMap<Optional<string>>;
+    template?: {
+        module: string;
+        identifier?: string;
+        value?: string;
+    };
+
+    type?: string; // text | attribute | display (database)
+    dataSource?: {
         source: "uri";
-        format: string; // json | yaml
+        format: string; // json | yaml | toml
         uri: string;
-        value?: string | ObjectMap<string | string[]>;
     };
     dataSource?: CloudDatabase; // source: "cloud"
     dataSource?: {
         source: "mongodb";
         // Same as CloudDatabase
-    };
-    document?: string | string[];
-    attributes?: ObjectMap<Optional<string>>;
-    tasks?: string[];
-    watch?: boolean | { interval?: number, expires?: string }; // type: js | css | image (expires: 1h 1m 1s)
-    template?: {
-        module: string;
-        identifier?: string;
-        value?: string;
     };
 }
 ```
@@ -1012,7 +1014,27 @@ interface MongoDataSource {
     "value": "<b>${name}</b>: ${count}"
   }
 }
+
+// IF conditional to completely remove an element (outerHTML)
+{
+  "selector": "div.card",
+  "type": "display",
+  "dataSource": {
+    "source": "mongodb",
+    "uri": "mongodb://localhost:27017",
+    "removeEmpty": true, // Includes invalid conditions (optional)
+
+    // Required
+    "value": "attr1", // Remove when: attr1=false OR missing
+    "value": "!attr2", // Remove when: present AND attr2=true
+    "value": ["attr1" /* AND */, ":logical(OR)", "attr2" /* OR */, "attr3" /* OR */, ":logical(AND)", "!attr4" /* falsey + AND */] // Remove when: attr1-3=false,attr4=true OR attr2-3=false
+  }
+}
 ```
+
+Display block conditionals are performed after all update queries have been executed since updating a removed element might can be an error when document ids are not available.
+
+Returning an empty result or a blank string (view engine) is FALSE. Using a view engine is recommended if you require a more advanced conditional statement.
 
 #### Data Interchange
 
