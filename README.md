@@ -1025,16 +1025,17 @@ interface MongoDataSource {
     "removeEmpty": true, // Includes invalid conditions (optional)
 
     // Required
-    "value": "attr1", // Remove when: attr1=false OR missing
-    "value": "!attr2", // Remove when: present AND attr2=true
-    "value": ["attr1" /* AND */, ":logical(OR)", "attr2" /* OR */, "attr3" /* OR */, ":logical(AND)", "!attr4" /* falsey + AND */] // Remove when: attr1-3=false,attr4=true OR attr2-3=false
+    "value": "attr1", // Remove when: null or undefined
+    "value": "-attr2", // Remove when: attr2=falsey
+    "value": "+attr3", // Remove when: attr3=truthy
+    "value": ["attr1" /* AND */, ":logical(OR)", "-attr2" /* OR */, "-attr3" /* OR */, ":logical(AND)", "+attr4" /* AND */] // Remove when: attr1=null + attr2|attr3=falsey + attr4=truthy
   }
 }
 ```
 
-Display block conditionals are performed after all update queries have been executed since updating a removed element might can be an error when document ids are not available.
+Display block conditionals are performed after all update queries have been executed since updating a removed element might can be an error when document ids are not available. To remove an element all AND conditions are TRUE or one OR per group is TRUE. Using a view engine is recommended if you require a more advanced conditional statement.
 
-Returning an empty result or a blank string (view engine) is FALSE. Using a view engine is recommended if you require a more advanced conditional statement.
+Returning an empty result or a blank string (view engine) is FALSE.
 
 #### Data Interchange
 

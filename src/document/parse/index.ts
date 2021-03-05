@@ -1,6 +1,6 @@
 import type { TagAppend } from '../../types/lib/squared';
 
-import type { AttributeList, AttributeMap, IXmlElement, IXmlWriter, OuterXmlByIdOptions, ReplaceOptions, SaveResult, SourceContent, SourceIndex, SourceTagNode, TagOffsetMap, WriteOptions, WriteResult, XmlTagNode } from './document';
+import type { AttributeList, AttributeMap, IXmlElement, IXmlWriter, OuterXmlByIdOptions, ReplaceOptions, SaveResult, SourceContent, SourceIndex, SourceTagNode, TagOffsetMap, WriteResult, XmlTagNode } from './document';
 
 import uuid = require('uuid');
 import htmlparser2 = require('htmlparser2');
@@ -226,6 +226,7 @@ export abstract class XmlWriter implements IXmlWriter {
                 this._tagCount[tagName] = append.tagCount;
             }
             append.id ||= this.newId;
+            element.append = append;
         }
         return element;
     }
@@ -233,7 +234,8 @@ export abstract class XmlWriter implements IXmlWriter {
         const append = node.append;
         if (append) {
             const element = this.fromNode(node, append);
-            if (this.write(element, { append })) {
+            if (this.write(element)) {
+                element.append = undefined;
                 delete node.append;
                 return element;
             }
@@ -241,29 +243,24 @@ export abstract class XmlWriter implements IXmlWriter {
             if (index !== -1) {
                 this.elements.splice(index, 1);
             }
-            this.errors.push(new Error(`Unable to ${append.prepend ? 'prepend' : 'append'} element ` + append.tagName.toUpperCase() + (isIndex(node.index) ? ` at index ${node.index}` : '')));
+            this.errors.push(new Error(`Unable to ${append.prepend ? 'prepend' : 'append'} element ` + append.tagName.toUpperCase() + (isIndex(node.index) ? ' at index ' + node.index : '')));
         }
         return null;
     }
-    write(element: IXmlElement, options?: WriteOptions) {
-        let append: Undef<TagAppend>;
-        if (options) {
-            ({ append } = options);
-        }
-        if (!element.modified && !append) {
+    write(element: IXmlElement) {
+        if (!element.modified) {
             return true;
         }
-        const { node, remove } = element;
-        const getReplaceOptions = (position: SourceIndex): ReplaceOptions => ({ startIndex: position.startIndex, endIndex: position.endIndex, append, remove });
+        const { node, append } = element;
+        element.newline = this.newline;
         let output: Undef<string>,
             outerXml = '',
             error: Optional<Error>;
-        element.newline = this.newline;
         if (element.hasPosition()) {
-            [output, outerXml] = element.replace(this.source, getReplaceOptions(node as SourceIndex));
+            [output, outerXml] = element.replace(this.source, { startIndex: node.startIndex!, endIndex: node.endIndex!, append, remove: element.remove });
         }
         else if (element.tagName !== this.rootName) {
-            [output, outerXml, error] = element.write(this.source, options);
+            [output, outerXml, error] = element.write(this.source);
         }
         else {
             error = new Error('Root source position not found');
@@ -292,7 +289,7 @@ export abstract class XmlWriter implements IXmlWriter {
                 }
                 this.increment([node], offset);
             }
-            else if (remove) {
+            else if (element.remove) {
                 this.decrement(node, tagOffset && tagOffset[element.tagName], true);
             }
             else if (element.tagName !== node.tagName) {
@@ -686,11 +683,12 @@ export abstract class XmlElement implements IXmlElement {
     protected _tagName = '';
     protected _innerXml = '';
     protected _remove = false;
+    protected _tagVoid = false;
     protected _prevTagName: Null<string> = null;
     protected _prevInnerXml: Null<string> = null;
     protected _lowerCase: boolean;
     protected _tagOffset?: TagOffsetMap;
-    protected _tagVoid = false;
+    protected _append?: TagAppend;
     protected readonly _attributes = new Map<string, Optional<string>>();
 
     abstract readonly TAG_VOID: string[];
@@ -876,13 +874,9 @@ export abstract class XmlElement implements IXmlElement {
         }
         return [source.substring(0, startIndex) + leading + outerXml + trailing + source.substring(endIndex), outerXml];
     }
-    write(source: string, options?: WriteOptions): WriteResult {
-        let append: Undef<TagAppend>;
-        if (options) {
-            ({ append } = options);
-        }
-        const { id, node, remove } = this;
-        if (this._modified || append || remove) {
+    write(source: string): WriteResult {
+        if (this._modified) {
+            const { id, node, remove, append } = this;
             if (this.hasPosition()) {
                 return this.replace(source, { remove, append, startIndex: node.startIndex!, endIndex: node.endIndex! });
             }
@@ -1004,8 +998,8 @@ export abstract class XmlElement implements IXmlElement {
         }
         return ['', ''];
     }
-    save(source: string, options?: WriteOptions): SaveResult {
-        const [output, outerXml, error] = this.write(source, options);
+    save(source: string): SaveResult {
+        const [output, outerXml, error] = this.write(source);
         if (output) {
             this.node.outerXml = outerXml;
             this.reset();
@@ -1086,7 +1080,7 @@ export abstract class XmlElement implements IXmlElement {
         return this._tagOffset;
     }
     set remove(value) {
-        if (value) {
+        if (value && !this._append) {
             const tagOffset = this.getTagOffset();
             if (tagOffset) {
                 for (const tagName in tagOffset) {
@@ -1094,15 +1088,28 @@ export abstract class XmlElement implements IXmlElement {
                 }
                 this._tagOffset = tagOffset;
             }
+            this._remove = true;
             this._modified = true;
         }
         else {
             this._tagOffset &&= undefined;
+            this._remove = false;
         }
-        this._remove = value;
     }
     get remove() {
         return this._remove;
+    }
+    set append(value) {
+        if (value) {
+            this._append = value;
+            this._modified = true;
+        }
+        else {
+            this._append &&= undefined;
+        }
+    }
+    get append() {
+        return this._append;
     }
     get modified() {
         return this._modified;

@@ -597,48 +597,46 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         else {
                                             let client: Null<mongodb.MongoClient> = null;
                                             try {
-                                                if (credential) {
-                                                    if (typeof credential === 'string') {
-                                                        credential = (instance.module.settings as Undef<StandardMap>)?.mongodb?.[credential] as Undef<StandardMap>;
-                                                    }
-                                                    if (credential && credential.server) {
-                                                        const authMechanism = credential.authMechanism;
-                                                        uri = 'mongodb://' + (credential.user ? encodeURIComponent(credential.user) + (authMechanism !== 'GSSAPI' && credential.pwd ? ':' + encodeURIComponent(credential.pwd) : '') + '@' : '') + credential.server + '/?authMechanism=';
-                                                        switch (authMechanism) {
-                                                            case 'MONGODB-X509': {
-                                                                const { sslKey, sslCert, sslValidate } = credential;
-                                                                if (sslKey && sslCert && path.isAbsolute(sslKey) && path.isAbsolute(sslCert) && fs.existsSync(sslKey) && fs.existsSync(sslCert)) {
-                                                                    (options ||= {}).sslKey = fs.readFileSync(sslKey);
-                                                                    options.sslCert = fs.readFileSync(sslCert);
-                                                                    if (typeof sslValidate === 'boolean') {
-                                                                        options.sslValidate = sslValidate;
-                                                                    }
-                                                                    uri += 'MONGODB-X509&ssl=true';
+                                                if (typeof credential === 'string') {
+                                                    credential = (instance.module.settings as Undef<StandardMap>)?.mongodb?.[credential] as Undef<StandardMap>;
+                                                }
+                                                if (credential?.server) {
+                                                    const authMechanism = credential.authMechanism;
+                                                    uri = 'mongodb://' + (credential.user ? encodeURIComponent(credential.user) + (authMechanism !== 'GSSAPI' && credential.pwd ? ':' + encodeURIComponent(credential.pwd) : '') + '@' : '') + credential.server + '/?authMechanism=';
+                                                    switch (authMechanism) {
+                                                        case 'SCRAM-SHA-1':
+                                                        case 'SCRAM-SHA-256':
+                                                            uri += authMechanism + (credential.authSource ? '&authSource=' + encodeURIComponent(credential.authSource) : '');
+                                                            break;
+                                                        case 'MONGODB-X509': {
+                                                            const { sslKey, sslCert, sslValidate } = credential;
+                                                            if (sslKey && sslCert && path.isAbsolute(sslKey) && path.isAbsolute(sslCert) && fs.existsSync(sslKey) && fs.existsSync(sslCert)) {
+                                                                (options ||= {}).sslKey = fs.readFileSync(sslKey);
+                                                                options.sslCert = fs.readFileSync(sslCert);
+                                                                if (typeof sslValidate === 'boolean') {
+                                                                    options.sslValidate = sslValidate;
                                                                 }
-                                                                else {
-                                                                    reject(new Error('Missing SSL credentials (MongoDB)'));
-                                                                    return;
-                                                                }
-                                                                break;
+                                                                uri += 'MONGODB-X509&ssl=true';
                                                             }
-                                                            case 'GSSAPI':
-                                                                uri += 'GSSAPI&gssapiServiceName=mongodb';
-                                                                break;
-                                                            case 'PLAIN':
-                                                                uri += 'PLAIN&maxPoolSize=' + (credential.maxPoolSize || '1');
-                                                                break;
-                                                            case 'SCRAM-SHA-1':
-                                                            case 'SCRAM-SHA-256':
-                                                                uri += authMechanism + (credential.authSource ? '&authSource=' + encodeURIComponent(credential.authSource) : '');
-                                                                break;
+                                                            else {
+                                                                reject(new Error('Missing SSL credentials (MongoDB)'));
+                                                                return;
+                                                            }
+                                                            break;
                                                         }
-                                                    }
-                                                    else {
-                                                        reject(new Error('Invalid or missing credentials (MongoDB)'));
-                                                        return;
+                                                        case 'GSSAPI':
+                                                            uri += 'GSSAPI&gssapiServiceName=mongodb';
+                                                            break;
+                                                        case 'PLAIN':
+                                                            uri += 'PLAIN&maxPoolSize=' + (credential.maxPoolSize || '1');
+                                                            break;
                                                     }
                                                 }
-                                                client = await new MongoClient(uri!, options).connect();
+                                                else {
+                                                    reject(new Error('Invalid or missing credentials (MongoDB)'));
+                                                    return;
+                                                }
+                                                client = await new MongoClient(uri, options).connect();
                                                 const collection = client.db(name).collection(table);
                                                 if (query) {
                                                     const checkString = (value: string) => {
@@ -812,7 +810,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             }
                             if (result.length) {
                                 let template = item.value || element!.textContent || domElement.innerXml,
-                                    invalid: Undef<boolean>;
+                                    errors: Undef<boolean>;
                                 const isTruthy = (data: PlainObject, attr: string, falsey: Undef<string | boolean>) => {
                                     const value = !!getObjectValue(data, attr);
                                     return falsey ? !value : value;
@@ -854,7 +852,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             domElement.innerXml = innerXml;
                                         }
                                         else {
-                                            invalid = true;
+                                            errors = true;
                                         }
                                         break;
                                     case 'attribute':
@@ -871,13 +869,13 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                             valid = true;
                                                         }
                                                         else {
-                                                            invalid = true;
-                                                            break;
+                                                            errors = true;
+                                                            continue;
                                                         }
                                                     }
                                                     else {
-                                                        invalid = true;
-                                                        break;
+                                                        errors = true;
+                                                        continue;
                                                     }
                                                 }
                                                 else {
@@ -885,8 +883,8 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                         segment = [segment];
                                                     }
                                                     else if (!Array.isArray(segment)) {
-                                                        invalid = true;
-                                                        break;
+                                                        errors = true;
+                                                        continue;
                                                     }
                                                     let joinString = ' ';
                                                     for (const row of result) {
@@ -926,31 +924,26 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     domElement.setAttribute(attr, value);
                                                 }
                                                 else {
-                                                    invalid = true;
-                                                    break;
+                                                    errors = true;
                                                 }
                                             }
                                         }
                                         else {
-                                            invalid = true;
+                                            errors = true;
                                         }
                                         break;
                                     case 'display':
                                         if (item.value) {
                                             if (item.viewEngine) {
+                                                errors = true;
                                                 if (typeof template === 'string') {
                                                     const content = await instance.parseTemplate(item.viewEngine, template, result);
                                                     if (content !== null) {
                                                         if (content.trim() === '') {
                                                             domElement.remove = true;
                                                         }
+                                                        errors = false;
                                                     }
-                                                    else {
-                                                        invalid = true;
-                                                    }
-                                                }
-                                                else {
-                                                    invalid = true;
                                                 }
                                             }
                                             else {
@@ -958,42 +951,81 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     template = [template];
                                                 }
                                                 if (!Array.isArray(template) || template.length === 0) {
-                                                    invalid = true;
+                                                    errors = true;
                                                 }
                                                 else {
-                                                    const row = result[0];
-                                                    let valid = true,
-                                                        condition = false;
-                                                    for (let seg of template) {
-                                                        switch (seg = seg.trim()) {
-                                                            case ':logical(AND)':
-                                                                condition = false;
-                                                                continue;
-                                                            case ':logical(OR)':
-                                                                condition = true;
-                                                                continue;
-                                                        }
-                                                        const match = REGEXP_TEMPLATECONDITIONAL.exec(seg);
-                                                        if (match) {
-                                                            seg = (isTruthy(row, match[3], match[2]) ? match[5] : match[7] || '').trim();
-                                                        }
-                                                        let falsey: Undef<boolean>;
-                                                        if (seg[0] === '!') {
-                                                            seg = seg.substring(1);
-                                                            falsey = true;
-                                                        }
-                                                        if (isTruthy(row, seg, falsey)) {
-                                                            if (!condition) {
-                                                                valid = false;
+                                                    let remove = true;
+                                                    complete: {
+                                                        const row = result[0];
+                                                        let condition = NaN;
+                                                        for (let seg of template) {
+                                                            switch (seg = seg.trim()) {
+                                                                case ':logical(AND)':
+                                                                    if (condition === 0) {
+                                                                        remove = false;
+                                                                        break complete;
+                                                                    }
+                                                                    condition = NaN;
+                                                                    continue;
+                                                                case ':logical(OR)':
+                                                                    if (isNaN(condition)) {
+                                                                        condition = 0;
+                                                                    }
+                                                                    continue;
+                                                                default:
+                                                                    if (condition > 0) {
+                                                                        continue;
+                                                                    }
+                                                                    break;
+                                                            }
+                                                            const match = REGEXP_TEMPLATECONDITIONAL.exec(seg);
+                                                            if (match) {
+                                                                seg = (isTruthy(row, match[3], match[2]) ? match[5] : match[7] || '').trim();
+                                                            }
+                                                            let keep = true,
+                                                                sign: Undef<string>;
+                                                            switch (seg[0]) {
+                                                                case '-':
+                                                                case '+':
+                                                                    sign = seg[0];
+                                                                    seg = seg.substring(1);
+                                                                    break;
+                                                            }
+                                                            const value = getObjectValue(row, seg);
+                                                            if (value === null || value === undefined) {
+                                                                if (sign !== '+') {
+                                                                    keep = false;
+                                                                }
+                                                            }
+                                                            else {
+                                                                switch (sign) {
+                                                                    case '-':
+                                                                        if (!value) {
+                                                                            keep = false;
+                                                                        }
+                                                                        break;
+                                                                    case '+':
+                                                                        if (value) {
+                                                                            keep = false;
+                                                                        }
+                                                                        break;
+                                                                }
+                                                            }
+                                                            if (!isNaN(condition)) {
+                                                                if (!keep) {
+                                                                    ++condition;
+                                                                }
+                                                            }
+                                                            else if (keep) {
+                                                                remove = false;
                                                                 break;
                                                             }
                                                         }
-                                                        else if (condition) {
-                                                            valid = false;
-                                                            break;
+                                                        if (condition === 0) {
+                                                            remove = false;
                                                         }
                                                     }
-                                                    if (!valid) {
+                                                    if (remove) {
                                                         domElement.remove = true;
                                                     }
                                                 }
@@ -1009,10 +1041,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         reject(new Error('Element action type invalid'));
                                         return;
                                 }
-                                if (invalid) {
-                                    removeElement();
-                                }
-                                else if (!domBase.write(domElement)) {
+                                if (!domBase.write(domElement) || errors) {
                                     const { tagName, tagIndex } = element!;
                                     this.writeFail('Unable to replace ' + item.type, getErrorDOM(tagName, tagIndex));
                                 }

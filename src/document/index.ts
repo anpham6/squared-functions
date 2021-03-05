@@ -205,7 +205,7 @@ abstract class Document extends Module implements IDocument {
         if (typeof viewEngine === 'string') {
             const view = (this.module.settings?.view_engine as Undef<StandardMap>)?.[viewEngine] as Undef<ViewEngine>;
             if (!view) {
-                this.writeFail(['View engine not found', viewEngine], new Error(`Unknown view engine <${viewEngine}>`));
+                this.writeFail(['Setting not found', viewEngine], new Error('Unknown view engine: ' + viewEngine));
                 return null;
             }
             viewEngine = view;
@@ -217,9 +217,12 @@ abstract class Document extends Module implements IDocument {
             const { compile, output } = viewEngine.options || {};
             const render = await context.compile(template, compile) as FunctionType<Promise<string> | string>;
             for (let i = 0; i < data.length; ++i) {
-                const row = data[i];
+                let row = data[i];
                 row['__index__'] ??= i + 1;
-                result += await render(output ? { ...output, ...row } : row);
+                if (output) {
+                    row = { ...output, ...row };
+                }
+                result += await render.call(context, row);
             }
         }
         catch (err) {
