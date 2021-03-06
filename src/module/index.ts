@@ -21,7 +21,7 @@ export enum LOG_TYPE { // eslint-disable-line no-shadow
 }
 
 const ASYNC_FUNCTION = Object.getPrototypeOf(async () => {}).constructor as Constructor<FunctionType<Promise<string>, string>>;
-let SETTINGS: LoggerModule = {};
+const SETTINGS: LoggerModule = {};
 
 function allSettled<T>(values: readonly (T | PromiseLike<T>)[]) {
     return Promise.all(values.map((promise: Promise<T>) => promise.then(value => ({ status: 'fulfilled', value })).catch(reason => ({ status: 'rejected', reason })) as Promise<PromiseSettledResult<T>>));
@@ -320,7 +320,7 @@ abstract class Module implements IModule {
 
     static loadSettings(value: Settings) {
         if (value.logger) {
-            SETTINGS = value.logger;
+            Object.assign(SETTINGS, value.logger);
         }
     }
 

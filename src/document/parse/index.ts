@@ -15,8 +15,17 @@ const REGEXP_ATTRNAME = new RegExp('\\s+' + PATTERN_ATTRNAME, 'g');
 const REGEXP_ATTRVALUE = new RegExp(PATTERN_ATTRNAME + '\\s*' + PATTERN_ATTRVALUE, 'g');
 
 function isSpace(ch: string) {
-    const n = ch.charCodeAt(0);
-    return n === 32 || n < 14 && n > 8;
+    switch (ch) {
+        case ' ':
+        case '\n':
+        case '\t':
+        case '\f':
+        case '\r':
+        case '\v':
+            return true;
+        default:
+            return false;
+    }
 }
 
 function applyAttributes(attrs: AttributeMap, data: Undef<StandardMap>, lowerCase: boolean) {

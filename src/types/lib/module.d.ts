@@ -16,13 +16,6 @@ export interface TaskModule extends HandlerModule {
 
 export interface ImageModule extends HandlerModule, StringMap {}
 
-export interface CompressModule {
-    gzip_level?: NumString;
-    brotli_quality?: NumString;
-    chunk_size?: NumString;
-    tinify_api_key?: string;
-}
-
 export interface CloudModule {
     cache?: Partial<CacheTimeout>;
     aws?: ObjectMap<StringMap>;

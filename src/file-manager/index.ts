@@ -5,7 +5,7 @@ import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/l
 import type { CloudDatabase, CloudService } from '../types/lib/cloud';
 import type { InstallData } from '../types/lib/filemanager';
 import type { CloudModule, DocumentModule } from '../types/lib/module';
-import type { RequestBody, Settings } from '../types/lib/node';
+import type { RequestBody } from '../types/lib/node';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -46,25 +46,6 @@ const findFormat = (compress: Undef<CompressFormat[]>, format: string) => compre
 const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
 
 class FileManager extends Module implements IFileManager {
-    static loadSettings(value: Settings) {
-        if (value.compress) {
-            const { gzip_level, brotli_quality, chunk_size } = value.compress;
-            const gzip = +(gzip_level as string);
-            const brotli = +(brotli_quality as string);
-            const chunkSize = +(chunk_size as string);
-            if (!isNaN(gzip)) {
-                Compress.level.gz = gzip;
-            }
-            if (!isNaN(brotli)) {
-                Compress.level.br = brotli;
-            }
-            if (!isNaN(chunkSize) && chunkSize > 0 && chunkSize % 1024 === 0) {
-                Compress.chunkSize = chunkSize;
-            }
-        }
-        super.loadSettings(value);
-    }
-
     static moduleCompress() {
         return Compress;
     }

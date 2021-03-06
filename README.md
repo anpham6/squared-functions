@@ -1,4 +1,4 @@
-## squared-functions 0.13
+## squared-functions 0.14
 
 These are the available options when creating archives or copying files. Examples use squared 2.4 although the concepts can be used similarly with any NodeJS application and has no features that require using Express.
 
@@ -291,62 +291,71 @@ Custom plugins can also be installed from NPM. The function has to be named "tra
 // squared.settings.json: chrome -> html | js | css -> npm package name -> process name
 
 {
-  "chrome": {
-    "html": { // built-in minifier
-      "posthtml": {
+  "document": {
+    "chrome": {
+      "handler": "@squared-functions/document/chrome",
+      "eval_function": true,
+      "eval_template": false,
+      "settings": {
         "transform": {
-          "plugins": [
-            ["posthtml-doctype", { "doctype": "HTML 5" }], // Plugins have to be installed with NPM manually
-            ["posthtml-include", { "root": "./", "encoding": "utf-8" }]
-          ]
-        },
-        "transform-output": {
-          "directives": [
-            { "name": "?php", "start": "<", "end": ">" }
-          ]
+          "html": { // built-in minifier
+            "posthtml": {
+              "transform": {
+                "plugins": [
+                  ["posthtml-doctype", { "doctype": "HTML 5" }], // Plugins have to be installed with NPM manually
+                  ["posthtml-include", { "root": "./", "encoding": "utf-8" }]
+                ]
+              },
+              "transform-output": {
+                "directives": [
+                  { "name": "?php", "start": "<", "end": ">" }
+                ]
+              }
+            },
+            "prettier": {
+              "beautify": {
+                "parser": "html",
+                "printWidth": 120,
+                "tabWidth": 4
+              }
+            }
+          },
+          "js": { // custom function (chrome -> eval_function: true)
+            "terser": {
+              "minify-example": "async function (context, value, options) { return await context.minify(value, options.outputConfig).code; }", // "minify-example-output" creates variable "options.outputConfig"
+              "minify-example-output": {
+                "keep_classnames": true
+              }
+            },
+            "@babel/core": {
+              "es5-example": "./es5.js" // startsWith("./ | ../")
+            },
+            "rollup": {
+              "bundle-es6": {
+                "plugins": [
+                  ["@rollup/plugin-json", { compact: true }]
+                ],
+                "external": ["lodash"]
+              },
+              "bundle-es6-output": "./rollup.output.config.json" // supplemental JSON configuration settings use the "-output" suffix
+            },
+            "npm-custom-plugin": {
+              "custom-example": {
+                "sourceMap": true
+              }
+            }
+          },
+          "css": {
+            "postcss": {
+              "transform": {
+                "plugins": ["autoprefixer", "cssnano"] // Plugins have to be installed with NPM manually
+              }
+            },
+            "sass": { // npm i sass
+              "sass-example": "function (context, value, options, resolve) { resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css); }" // Synchronous with Promise
+            }
+          }
         }
-      },
-      "prettier": {
-        "beautify": {
-          "parser": "html",
-          "printWidth": 120,
-          "tabWidth": 4
-        }
-      }
-    },
-    "js": { // custom function (chrome -> eval_function: true)
-      "terser": {
-        "minify-example": "async function (context, value, options) { return await context.minify(value, options.outputConfig).code; }", // "minify-example-output" creates variable "options.outputConfig"
-        "minify-example-output": {
-          "keep_classnames": true
-        }
-      },
-      "@babel/core": {
-        "es5-example": "./es5.js" // startsWith("./ | ../")
-      },
-      "rollup": {
-        "bundle-es6": {
-          "plugins": [
-            ["@rollup/plugin-json", { compact: true }]
-          ],
-          "external": ["lodash"]
-        },
-        "bundle-es6-output": "./rollup.output.config.json" // supplemental JSON configuration settings use the "-output" suffix
-      },
-      "npm-custom-plugin": {
-        "custom-example": {
-          "sourceMap": true
-        }
-      }
-    },
-    "css": {
-      "postcss": {
-        "transform": {
-          "plugins": ["autoprefixer", "cssnano"] // Plugins have to be installed with NPM manually
-        }
-      },
-      "sass": { // npm i sass
-        "sass-example": "function (context, value, options, resolve) { resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css); }" // Synchronous with Promise
       }
     }
   }
