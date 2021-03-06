@@ -15,10 +15,10 @@ import fs = require('fs-extra');
 import request = require('request-promise-native');
 import yaml = require('js-yaml');
 import toml = require('toml');
-import jp = require('jsonpath');
 import uuid = require('uuid');
 
 import mongodb = require('mongodb');
+import jp = require('jsonpath');
 
 import Document from '../../document';
 import Cloud from '../../cloud';
@@ -185,6 +185,7 @@ function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: Docum
 }
 
 function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: DocumentAsset, content: string, fromHTML?: boolean) {
+    const cloud = this.Cloud;
     const cssUri = cssFile.uri!;
     const related: DocumentAsset[] = [];
     const length = content.length;
@@ -222,7 +223,7 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
             url += ch;
         }
         const setOutputUrl = (asset: DocumentAsset, value: string) => {
-            if (this.Cloud?.getStorage('upload', asset.cloudStorage)) {
+            if (cloud?.getStorage('upload', asset.cloudStorage)) {
                 if (fromHTML) {
                     value = asset.inlineCloud ||= uuid.v4();
                 }
@@ -395,7 +396,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         }
                         else {
                             const { tagName, tagIndex } = item.element!;
-                            this.writeFail(['Element base64 attribute replacement', tagName], getErrorDOM(tagName, tagIndex));
+                            this.writeFail('Element base64 attribute replacement', getErrorDOM(tagName, tagIndex));
                             delete item.inlineBase64;
                         }
                     }
@@ -482,7 +483,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         item.watch = false;
                     }
                     else {
-                        this.writeFail(['Inline tag replacement', tagName], getErrorDOM(tagName, tagIndex));
+                        this.writeFail('Inline tag replacement', getErrorDOM(tagName, tagIndex));
                     }
                 }
                 else if (bundleIndex === 0 || bundleIndex === -1) {
@@ -504,7 +505,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                     domElement.innerXml = '';
                     if (!domBase.write(domElement)) {
-                        this.writeFail(['Bundle tag replacement', tagName], getErrorDOM(tagName, tagIndex));
+                        this.writeFail('Bundle tag replacement', getErrorDOM(tagName, tagIndex));
                         delete item.inlineCloud;
                     }
                 }
@@ -516,7 +517,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             for (const item of elements) {
                 const element = item.element!;
                 const crossorigin = item.format === 'crossorigin';
-                if (revised.includes(item) || element.removed || item.invalid && !crossorigin || !item.attributes && (item === htmlFile || !item.uri && !item.srcSet || crossorigin)) {
+                if (revised.includes(item) || element.removed || item.invalid && !crossorigin || !item.attributes && (!item.uri && !item.srcSet || item === htmlFile || crossorigin)) {
                     continue;
                 }
                 const { uri, srcSet, attributes } = item;
@@ -541,8 +542,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                 }
                 if (!domBase.write(domElement)) {
-                    const { tagName, tagIndex } = element;
-                    this.writeFail(['Element attribute replacement', tagName], getErrorDOM(tagName, tagIndex));
+                    this.writeFail('Element attribute replacement', getErrorDOM(element.tagName, element.tagIndex));
                     delete item.inlineCloud;
                 }
             }
@@ -569,8 +569,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 if (item.removeEmpty) {
                                     domElement.remove = true;
                                     if (!domBase.write(domElement)) {
-                                        const { tagName, tagIndex } = element!;
-                                        this.writeFail('Unable to remove element', getErrorDOM(tagName, tagIndex));
+                                        this.writeFail('Unable to remove element', getErrorDOM(element!.tagName, element!.tagIndex));
                                     }
                                 }
                             };
@@ -992,7 +991,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                                     break;
                                                             }
                                                             const value = getObjectValue(row, seg);
-                                                            if (value === null || value === undefined) {
+                                                            if (value === undefined || value === null) {
                                                                 if (sign !== '+') {
                                                                     keep = false;
                                                                 }
@@ -1030,6 +1029,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     }
                                                 }
                                             }
+                                            if (errors && item.removeEmpty) {
+                                                domElement.remove ||= true;
+                                            }
                                         }
                                         if (!domElement.remove) {
                                             resolve();
@@ -1042,8 +1044,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         return;
                                 }
                                 if (!domBase.write(domElement) || errors) {
-                                    const { tagName, tagIndex } = element!;
-                                    this.writeFail('Unable to replace ' + item.type, getErrorDOM(tagName, tagIndex));
+                                    this.writeFail(item.type === 'display' ? errors && domElement.remove ? 'Element was removed with errors' : 'Unable to remove element' : 'Unable to replace ' + item.type, getErrorDOM(element!.tagName, element!.tagIndex));
                                 }
                             }
                             else if (item.type === 'display') {
@@ -1084,12 +1085,11 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
             for (const item of elements) {
                 if ((item.exclude || item.bundleIndex !== undefined) && !revised.includes(item)) {
-                    const { element, attributes } = item;
-                    const domElement = new HtmlElement(moduleName, element!, attributes);
+                    const element = item.element!;
+                    const domElement = new HtmlElement(moduleName, element, item.attributes);
                     domElement.remove = true;
                     if (!domBase.write(domElement)) {
-                        const { tagName, tagIndex } = element!;
-                        this.writeFail(['Exclude tag removal', tagName], getErrorDOM(tagName, tagIndex));
+                        this.writeFail('Exclude tag removal', getErrorDOM(element.tagName, element.tagIndex));
                     }
                 }
             }

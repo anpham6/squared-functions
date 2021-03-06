@@ -154,13 +154,13 @@ NOTE: SRC (temp) and DEST (original) always read and write to the current direct
 ```javascript
 // gulpfile.js
 
-const gulp = require('gulp');
-const uglify = require('gulp-uglify');
+const gulp = require("gulp");
+const uglify = require("gulp-uglify");
  
-gulp.task('minify', () => {
-  return gulp.src('*')
+gulp.task("minify", () => {
+  return gulp.src("*")
     .pipe(uglify())
-    .pipe(gulp.dest('./'));
+    .pipe(gulp.dest("./"));
 });
 ```
 
@@ -322,7 +322,7 @@ Custom plugins can also be installed from NPM. The function has to be named "tra
         }
       },
       "@babel/core": {
-        "es5-example": "./es5.js" // startsWith('./ | ../')
+        "es5-example": "./es5.js" // startsWith("./ | ../")
       },
       "rollup": {
         "bundle-es6": {
@@ -377,7 +377,7 @@ interface TransformOptions extends TransformOutput {
 
 function (context, value, options, resolve) {
     context.transform(value, options.outputConfig, function(err, result) {
-        resolve(!err && result ? result.code : '');
+        resolve(!err && result ? result.code : "");
     });
 }
 ```
@@ -389,11 +389,11 @@ The same concept can be used inline anywhere using a &lt;script&gt; tag with the
 
 <script type="text/template" data-chrome-template="js::@babel/core::es5-example">
 async function (context, value, options) {
-    const options = { ...options.outputConfig, presets: ['@babel/preset-env'], sourceMaps: true }; // <https://babeljs.io/docs/en/options>
+    const options = { ...options.outputConfig, presets: ["@babel/preset-env"], sourceMaps: true }; // <https://babeljs.io/docs/en/options>
     const result = await context.transform(value, options);
     if (result) {
         if (result.map) {
-            options.sourceMap.nextMap('babel', result.code, result.map);
+            options.sourceMap.nextMap("babel", result.code, result.map);
         }
         return result.code;
     }
@@ -465,7 +465,7 @@ Only one command per element is supported (except data sources) with the latter 
 - [TOML](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.toml)
 
 ```javascript
-squared.saveAs('bundle.zip', { configUri: 'http://localhost:3000/chrome/bundle.yml' });
+squared.saveAs("bundle.zip", { configUri: "http://localhost:3000/chrome/bundle.yml" });
 ```
 
 Here is the equivalent page using only inline commands with "data-chrome-file" and "data-chrome-tasks".
@@ -514,7 +514,7 @@ You can also use the workspace feature in [squared-express](https://github.com/a
 
 You can append or prepend a sibling element (not child) that can be processed similar to a typical "script" or "link" element. Scripts which insert custom elements during page load should be appended separately when building in order to maintain the original DOM structure.
 
-You can also try using the "useOriginalHtmlPage" request property which requires the HTML to be well-formed for successful edits. The only difference is it might not be a live representation of what you see in the browser.
+You can also try using the "useOriginalHtmlPage" request property which sometimes requires the HTML to be well-formed (lowercase tagName and attributes) for successful edits. The only difference is it might not be a live representation of what you see in the browser.
 
 ```xml
 <html>
@@ -534,7 +534,7 @@ You can also try using the "useOriginalHtmlPage" request property which requires
 </html>
 ```
 
-Appends will fail if you remove the sibling selector element from the document. If you are having replacement errors with "useOriginalHtmlPage" then adding an id will usually be able to locate the element (data-chrome-id="111-111-111").
+Appends will fail if you remove the sibling selector element from the document.
 
 ```javascript
 // All commands including prepend are supported in relation to the base type
@@ -557,7 +557,9 @@ Appends will fail if you remove the sibling selector element from the document. 
 ]
 ```
 
-NOTE: As of squared 2.4 the current state of the DOM is sent to the server including updates you may have made with JavaScript. This is sufficient for most regular text insertion.
+If you are having replacement errors (useOriginalHtmlPage=true) then adding an id will usually be able to locate the element (data-chrome-id="111-111-111").
+
+NOTE: As of squared 2.4 the current state of the DOM (useOriginalHtmlPage=false) is sent to the server which including any updates made with JavaScript (removeInlineStyles).
 
 ### Cloud storage
 
@@ -687,26 +689,26 @@ NOTE: Using S3 and OCI at the same time with identical bucket names causes a con
 Serving CSS files from cloud storage or CDN requires every image inside the file to be hosted with an absolute URL.
 
 ```javascript
-squared.saveAs('index.zip', {
-    configUri: 'http://localhost:3000/chrome/bundle.yml',
+squared.saveAs("index.zip", {
+    configUri: "http://localhost:3000/chrome/bundle.yml",
     saveAs: {
         html: {
             cloudStorage: [{ // Create static website
-                service: 'aws',
-                bucket: 'squared-001',
-                settings: 'main',
+                service: "aws",
+                bucket: "squared-001",
+                settings: "main",
                 upload: {
                     active: true,
-                    endpoint: 'https://squared-001.s3.us-west-2.amazonaws.com',
+                    endpoint: "https://squared-001.s3.us-west-2.amazonaws.com",
                     overwrite: true
                 }
             }]
         },
         image: { // Non-element images using url() method
             cloudStorage: [{
-                service: 'aws',
-                bucket: 'squared-001',
-                settings: 'main',
+                service: "aws",
+                bucket: "squared-001",
+                settings: "main",
                 upload: {
                     active: true
                 }
@@ -907,7 +909,7 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
     "table": "demo",
     "id": "2", // OCI (server assigned)
     "partitionKey": "Pictures", // AWS (required) | Azure and IBM (optional)
-    "value": { // Result: { src: '', other: {} }
+    "value": { // Result: { src: "", other: {} }
       "src": "src", // Use direct property access
       "alt": "{{if !expired}}other.alt{{else}}:text(Expired){{end}}", // Only one conditional per attribute
       "style": [":join(; )" /* optional: " " */, "other.style[0]", "other.style[1]", ":text(display: none)"] // Same as: [":join(; )", "other.style", ":text(display: none)"]
@@ -1033,7 +1035,7 @@ interface MongoDataSource {
 }
 ```
 
-Display block conditionals are performed after all update queries have been executed since updating a removed element might can be an error when document ids are not available. To remove an element all AND conditions are TRUE or one OR per group is TRUE. Using a view engine is recommended if you require a more advanced conditional statement.
+Display block conditionals are performed after all update queries have been executed since updating a removed element can be an error when document ids are not available. To remove an element all AND conditions have to be TRUE and one OR per group is TRUE. Using a view engine is recommended if you require a more advanced conditional statement.
 
 Returning an empty result or a blank string (view engine) is FALSE.
 
@@ -1067,7 +1069,7 @@ interface UriDataSource {
     "format": "json",
     "uri": "http://localhost:3000/project/{{file}}.json", // Local files require read permissions
     "query": "$[1]" // Row #2 in result array (optional)
-    "value": { // Result: { src: '', other: {} }
+    "value": { // Result: { src: "", other: {} }
       "src": "src",
       "alt": "other.alt"
     }
@@ -1106,7 +1108,7 @@ squared.saveAs("index.zip", {
                     command.blob = true;
                     return "filename.ttf";
                 }
-                return ''; // Do not alter filename
+                return ""; // Do not alter filename
             }
         }
     }

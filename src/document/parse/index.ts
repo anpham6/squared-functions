@@ -226,7 +226,7 @@ export abstract class XmlWriter implements IXmlWriter {
                 this._tagCount[tagName] = append.tagCount;
             }
             append.id ||= this.newId;
-            element.append = append;
+            element.setAppend(append);
         }
         return element;
     }
@@ -235,7 +235,6 @@ export abstract class XmlWriter implements IXmlWriter {
         if (append) {
             const element = this.fromNode(node, append);
             if (this.write(element)) {
-                element.append = undefined;
                 delete node.append;
                 return element;
             }
@@ -687,8 +686,8 @@ export abstract class XmlElement implements IXmlElement {
     protected _prevTagName: Null<string> = null;
     protected _prevInnerXml: Null<string> = null;
     protected _lowerCase: boolean;
-    protected _tagOffset?: TagOffsetMap;
     protected _append?: TagAppend;
+    protected _tagOffset?: TagOffsetMap;
     protected readonly _attributes = new Map<string, Optional<string>>();
 
     abstract readonly TAG_VOID: string[];
@@ -741,6 +740,15 @@ export abstract class XmlElement implements IXmlElement {
     abstract get outerXml(): string;
     abstract get nameOfId(): string;
 
+    setAppend(value?: TagAppend) {
+        if (value) {
+            this._append = value;
+            this._modified = true;
+        }
+        else {
+            this._append &&= undefined;
+        }
+    }
     parseOuterXml(outerXml = this.node.outerXml, tagVoid?: boolean): [string, string, boolean] {
         let tagStart: Undef<string>,
             innerXml: Undef<string>;
@@ -1007,6 +1015,7 @@ export abstract class XmlElement implements IXmlElement {
         return [output, error];
     }
     reset() {
+        this._append &&= undefined;
         this._tagOffset &&= undefined;
         this._prevTagName = null;
         this._prevInnerXml = null;
@@ -1098,15 +1107,6 @@ export abstract class XmlElement implements IXmlElement {
     }
     get remove() {
         return this._remove;
-    }
-    set append(value) {
-        if (value) {
-            this._append = value;
-            this._modified = true;
-        }
-        else {
-            this._append &&= undefined;
-        }
     }
     get append() {
         return this._append;

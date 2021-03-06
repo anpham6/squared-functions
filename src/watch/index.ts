@@ -25,12 +25,15 @@ let SECURE_MAP: ObjectMap<Server> = {};
 function getPostFinalize(watch: FileWatch) {
     const { socketId, port } = watch;
     if (socketId && port) {
+        const asset = watch.assets[0];
         const server = watch.secure ? SECURE_MAP[port] : PORT_MAP[port];
-        if (server) {
+        if (asset && server) {
             return (errors: string[]) => {
-                const { mimeType, relativeUri, cloudUrl } = watch.assets[0];
-                const type = mimeType.replace(/^@/, '');
-                const src = cloudUrl || relativeUri || '';
+                let type = asset.mimeType;
+                if (type[0] === '@') {
+                    type = type.substring(1);
+                }
+                const src = asset.cloudUrl || asset.relativeUri || '';
                 const hot = watch.hot && src && (type === 'text/css' || type.startsWith('image/')) ? (src.includes('?') ? '' : '?') + 'q=' + Date.now() : '';
                 const data = JSON.stringify({ socketId, module: 'watch', action: 'modified', src, type, hot, errors });
                 for (const client of server.clients) {
@@ -57,11 +60,6 @@ function clearCache(items: ExternalAsset[]) {
                 case 'transforms':
                 case 'invalid':
                     delete item[attr];
-                    break;
-                default:
-                    if (attr.startsWith('inline')) {
-                        delete item[attr];
-                    }
                     break;
             }
         }

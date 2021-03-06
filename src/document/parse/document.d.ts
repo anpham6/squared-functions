@@ -96,6 +96,7 @@ export interface XmlWriterConstructor {
 export class IXmlElement extends IXmlBase {
     readonly node: XmlTagNode;
     readonly TAG_VOID: string[];
+    setAppend(value?: TagAppend): void;
     parseOuterXml(outerXml?: string, tagVoid?: boolean): [string, string, boolean];
     getTagOffset(nextXml?: string): Undef<TagOffsetMap>;
     setAttribute(name: string, value: string): void;
@@ -117,7 +118,6 @@ export class IXmlElement extends IXmlBase {
     get outerXml(): string;
     set remove(value);
     get remove(): boolean;
-    set append(value: Undef<TagAppend>);
     get append(): Undef<TagAppend>;
     set tagOffset(value: Undef<TagOffsetMap>);
     get tagOffset(): Undef<TagOffsetMap>;
