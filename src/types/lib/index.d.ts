@@ -2,7 +2,7 @@
 
 /* eslint no-shadow: "off" */
 
-import type { CompressFormat, CompressLevel, DataSource, LocationUri, ResponseData, ViewEngine, XmlTagNode } from './squared';
+import type { CompressFormat, CompressLevel, DataSource, LocationUri, ViewEngine, XmlTagNode } from './squared';
 
 import type { ExternalAsset, FileData, FileOutput, OutputData } from './asset';
 import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload } from './cloud';
@@ -12,7 +12,7 @@ import type { CompleteAsyncTaskCallback, InstallData, PerformAsyncTaskMethod } f
 import type { CropData, QualityData, ResizeData, RotateData } from './image';
 import type { LOG_TYPE, LogMessageOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
 import type { CloudModule, DocumentModule } from './module';
-import type { PermissionSettings, RequestBody, Settings } from './node';
+import type { RequestBody, Settings } from './node';
 import type { FileWatch } from './watch';
 
 import type { PathLike, WriteStream } from 'fs';
@@ -154,6 +154,10 @@ declare namespace functions {
     }
 
     interface IPermission {
+        setDiskRead(): void;
+        setDiskWrite(): void;
+        setUNCRead(): void;
+        setUNCWrite(): void;
         hasDiskRead(): boolean;
         hasDiskWrite(): boolean;
         hasUNCRead(): boolean;
@@ -161,7 +165,7 @@ declare namespace functions {
     }
 
     interface PermissionConstructor {
-        new(settings?: PermissionSettings): IFileManager;
+        new(): IPermission;
     }
 
     interface IFileManager extends IModule {
@@ -223,11 +227,9 @@ declare namespace functions {
     }
 
     interface FileManagerConstructor extends ModuleConstructor {
-        getPermission(settings?: PermissionSettings): IPermission;
-        hasPermission(dirname: string, permission: IPermission): true | ResponseData;
         moduleCompress(): ICompress;
         resolveMime(data: Buffer | string): Promise<Undef<FileTypeResult>>;
-        new(baseDirectory: string, body: RequestBody, postFinalize?: (errors: string[]) => void, settings?: PermissionSettings): IFileManager;
+        new(baseDirectory: string, body: RequestBody, postFinalize?: (errors: string[]) => void): IFileManager;
     }
 
     interface IModule {
@@ -267,7 +269,6 @@ declare namespace functions {
         joinPath(...values: Undef<string>[]): string;
         getFileSize(value: PathLike): number;
         loadSettings(value: Settings): void;
-        responseError(err: Error | string, hint?: string): ResponseData;
         allSettled<T>(values: readonly (T | PromiseLike<T>)[], rejected?: string | [string, string]): Promise<PromiseSettledResult<T>[]>;
         new(): IModule;
     }

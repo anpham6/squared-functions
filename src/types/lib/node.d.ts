@@ -9,14 +9,7 @@ export interface RequestBody extends RequestData {
     assets: ExternalAsset[];
 }
 
-export interface PermissionSettings {
-    disk_read?: BoolString;
-    disk_write?: BoolString;
-    unc_read?: BoolString;
-    unc_write?: BoolString;
-}
-
-export interface Settings extends PermissionSettings {
+export interface Settings {
     apiVersion?: string;
     compress?: CompressModule;
     image?: ImageModule;

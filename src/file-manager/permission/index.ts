@@ -1,20 +1,22 @@
 import type { IPermission } from '../../types/lib';
-import type { PermissionSettings } from '../../types/lib/node';
-
-const isTrue = (value: unknown): value is true => value ? value === true || value === 'true' || +(value as string) === 1 : false;
 
 class Permission implements IPermission {
-    private _disk_read: boolean;
-    private _disk_write: boolean;
-    private _unc_read: boolean;
-    private _unc_write: boolean;
+    private _disk_read = false;
+    private _disk_write = false;
+    private _unc_read = false;
+    private _unc_write = false;
 
-    constructor(settings: PermissionSettings = {}) {
-        const { disk_read, disk_write, unc_read, unc_write } = settings;
-        this._disk_read = isTrue(disk_read);
-        this._disk_write = isTrue(disk_write);
-        this._unc_read = isTrue(unc_read);
-        this._unc_write = isTrue(unc_write);
+    setDiskRead() {
+        this._disk_read = true;
+    }
+    setDiskWrite() {
+        this._disk_write = true;
+    }
+    setUNCRead() {
+        this._unc_read = true;
+    }
+    setUNCWrite() {
+        this._unc_write = true;
     }
     hasDiskRead() {
         return this._disk_read;

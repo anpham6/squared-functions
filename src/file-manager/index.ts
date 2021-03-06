@@ -1,11 +1,11 @@
 import type { CompressFormat, DataSource, ElementAction, XmlTagNode } from '../types/lib/squared';
 
-import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, IPermission, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
+import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
 import type { CloudDatabase, CloudService } from '../types/lib/cloud';
 import type { InstallData } from '../types/lib/filemanager';
 import type { CloudModule, DocumentModule } from '../types/lib/module';
-import type { PermissionSettings, RequestBody, Settings } from '../types/lib/node';
+import type { RequestBody, Settings } from '../types/lib/node';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -69,33 +69,6 @@ class FileManager extends Module implements IFileManager {
         return Compress;
     }
 
-    static getPermission(settings?: PermissionSettings) {
-        return new Permission(settings);
-    }
-
-    static hasPermission(dirname: string, permission: IPermission) {
-        if (Module.isDirectoryUNC(dirname)) {
-            if (!permission.hasUNCWrite()) {
-                return Module.responseError('Writing to UNC shares is not enabled.', 'NODE (cli): --unc-write');
-            }
-        }
-        else if (!permission.hasDiskWrite()) {
-            return Module.responseError('Writing to disk is not enabled.', 'NODE (cli): --disk-write');
-        }
-        try {
-            if (!fs.existsSync(dirname)) {
-                fs.mkdirpSync(dirname);
-            }
-            else if (!fs.lstatSync(dirname).isDirectory()) {
-                throw new Error('Target is not a directory.');
-            }
-        }
-        catch (err) {
-            return Module.responseError(err, 'DIRECTORY: ' + dirname);
-        }
-        return true;
-    }
-
     static resolveMime(data: Buffer | string) {
         return data instanceof Buffer ? fileType.fromBuffer(data) : fileType.fromFile(data);
     }
@@ -120,14 +93,13 @@ class FileManager extends Module implements IFileManager {
     readonly filesToCompare = new Map<ExternalAsset, string[]>();
     readonly contentToAppend = new Map<string, string[]>();
     readonly emptyDir = new Set<string>();
-    readonly permission: IPermission;
+    readonly permission = new Permission();
     readonly postFinalize?: (errors: string[]) => void;
 
     constructor(
         readonly baseDirectory: string,
         readonly body: RequestBody,
-        postFinalize?: (errors: string[]) => void,
-        settings: PermissionSettings = {})
+        postFinalize?: (errors: string[]) => void)
     {
         super();
         this.assets = this.body.assets;
@@ -147,7 +119,6 @@ class FileManager extends Module implements IFileManager {
         if (postFinalize) {
             this.postFinalize = postFinalize.bind(this);
         }
-        this.permission = new Permission(settings);
     }
 
     install(name: string, ...params: unknown[]): Undef<IModule> {

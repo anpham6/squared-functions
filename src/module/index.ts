@@ -1,5 +1,3 @@
-import type { ResponseData } from '../types/lib/squared';
-
 import type { IModule } from '../types/lib';
 import type { LogMessageOptions, LogValue } from '../types/lib/logger';
 import type { LoggerModule } from '../types/lib/module';
@@ -301,16 +299,6 @@ abstract class Module implements IModule {
         catch {
         }
         return 0;
-    }
-
-    static responseError(err: Error | string, hint?: string) {
-        return {
-            success: false,
-            error: {
-                hint,
-                message: err instanceof Error ? err.message : err ? err.toString() : ''
-            }
-        } as ResponseData;
     }
 
     static allSettled<T>(values: readonly (T | PromiseLike<T>)[], rejected?: string | [string, string], errors?: string[]) {
