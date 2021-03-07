@@ -910,7 +910,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                                 else {
                                                                     const data = getObjectValue(row, seg);
                                                                     if (data !== null) {
-                                                                        value += (value ? joinString : '') + valueAsString(data, joinString);
+                                                                        if (seg = valueAsString(data, joinString)) {
+                                                                            value += (value ? joinString : '') + seg;
+                                                                        }
                                                                         valid = true;
                                                                     }
                                                                 }
@@ -1212,7 +1214,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             file.filename = filename.replace(this.internalAssignUUID, uuid.v4());
         }
     }
-    async formatContent(file: DocumentAsset, content: string, manager: IFileManager): Promise<string> {
+    async formatContent(file: DocumentAsset, content: string, manager?: IFileManager): Promise<string> {
         if (file.mimeType === '@text/css') {
             if (!file.preserve && this.unusedStyles) {
                 const result = removeCss(content, this.unusedStyles);
@@ -1220,15 +1222,17 @@ class ChromeDocument extends Document implements IChromeDocument {
                     content = result;
                 }
             }
-            const result = transformCss.call(manager, manager.getDocumentAssets(this), file, content);
-            if (result) {
-                content = result;
+            if (manager) {
+                const result = transformCss.call(manager, manager.getDocumentAssets(this), file, content);
+                if (result) {
+                    content = result;
+                }
             }
         }
         return content;
     }
-    addCopy(data: FileData, saveAs: string, replace = false, manager: IFileManager) {
-        if (data.command) {
+    addCopy(data: FileData, saveAs: string, replace?: boolean, manager?: IFileManager) {
+        if (data.command && manager) {
             const match = REGEXP_SRCSETSIZE.exec(data.command);
             if (match) {
                 return Document.renameExt(manager.getLocalUri(data), match[1] + match[2].toLowerCase() + '.' + saveAs);

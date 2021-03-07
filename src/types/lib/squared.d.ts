@@ -93,6 +93,7 @@ export interface FileAsset<T = unknown> extends TextAsset, OutputAction<T> {
 
 export interface ViewEngine {
     name: string;
+    singleRow?: boolean;
     options?: {
         compile?: PlainObject;
         output?: PlainObject;

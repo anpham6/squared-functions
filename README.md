@@ -776,9 +776,10 @@ interface CloudDatabase {
     limit?: number;
     viewEngine?: {
         name: string; // npm package name
+        singleRow?: boolean; // Template result data is sent as Array[]
         options?: {
             compile?: PlainObject; // template = engine.compile(value, options)
-            output?: PlainObject; // template({ ...options, ...result })
+            output?: PlainObject; // template({ ...options, ...result[index] })
         };
     };
 }
@@ -1059,11 +1060,7 @@ interface UriDataSource {
     uri: string;
     query?: string; // Uses JSONPath <https://github.com/dchester/jsonpath>
 
-    // Same as CloudDatabase
-    value?: string | ObjectMap<string | string[]>;
-    index?: number;
-    limit?: number;
-    viewEngine?: ViewEngine | string;
+    // Same as CloudDatabase (except no "id")
 }
 ```
 

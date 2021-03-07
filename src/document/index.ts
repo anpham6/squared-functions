@@ -210,26 +210,32 @@ abstract class Document extends Module implements IDocument {
             }
             viewEngine = view;
         }
-        let result = '',
-            name = '';
         try {
-            const context = require(name = viewEngine.name);
-            const { compile, output } = viewEngine.options || {};
-            const render = await context.compile(template, compile) as FunctionType<Promise<string> | string>;
-            for (let i = 0; i < data.length; ++i) {
-                let row = data[i];
-                row['__index__'] ??= i + 1;
-                if (output) {
-                    row = { ...output, ...row };
+            const length = data.length;
+            if (length) {
+                const { name, singleRow, options = {} } = viewEngine;
+                const context = require(name);
+                const render = await context.compile(template, options.compile) as FunctionType<Promise<string> | string>;
+                const output = options.output;
+                let result = '';
+                for (let i = 0; i < length; ++i) {
+                    let row = data[i];
+                    row['__index__'] ??= i + 1;
+                    if (Module.isObject(output)) {
+                        row = { ...output, ...row };
+                    }
+                    if (!singleRow) {
+                        result += await render.call(context, row);
+                    }
                 }
-                result += await render.call(context, row);
+                return singleRow ? render.call(context, data) : result;
             }
+            return '';
         }
         catch (err) {
-            this.writeFail(['View engine incompatible', name], err);
-            return null;
+            this.writeFail(['View engine incompatible', viewEngine.name], err);
         }
-        return result;
+        return null;
     }
     async transform(type: string, code: string, format: string, options: TransformOutput = {}): Promise<Void<TransformResult>> {
         const data = (this.module.settings as Undef<StandardMap>)?.transform?.[type] as StandardMap;

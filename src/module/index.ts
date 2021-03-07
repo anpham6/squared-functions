@@ -103,7 +103,7 @@ abstract class Module implements IModule {
         }
         if (Array.isArray(value)) {
             let length = 0;
-            if (value[1] && (length = value[1].length)) {
+            if (typeof value[1] === 'string' && (length = value[1].length)) {
                 const formatHint = (hint: string) => {
                     const { hintColor, hintBgColor } = options;
                     if (hintColor) {
