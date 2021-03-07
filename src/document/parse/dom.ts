@@ -247,8 +247,8 @@ export class HtmlElement extends XmlElement {
         return this.getAttribute(this.nameOfId) || '';
     }
     get outerXml() {
-        const [tagName, items, textContent] = this.getContent();
-        return '<' + tagName + HtmlElement.writeAttributes(items) + '>' + (DomWriter.hasInnerXml(tagName) && tagName !== 'html' ? (textContent || this.innerXml) + `</${tagName}>` : '');
+        const [tagName, items, innerXml] = this.getOuterContent();
+        return '<' + tagName + HtmlElement.writeAttributes(items) + '>' + (DomWriter.hasInnerXml(tagName) && tagName !== 'html' ? innerXml + `</${tagName}>` : '');
     }
     get nameOfId() {
         return getAttrId(this.documentName);

@@ -107,6 +107,7 @@ export class IXmlElement extends IXmlBase {
     replace(source: string, options: ReplaceOptions): WriteResult;
     save(source: string): SaveResult;
     findIndexOf(source: string): Undef<SourceIndex>;
+    getOuterContent(): [string, AttributeList, string];
     hasPosition(): boolean;
     set id(value: string);
     get id(): string;

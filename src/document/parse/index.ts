@@ -280,12 +280,13 @@ export abstract class XmlWriter implements IXmlWriter {
             }
             const tagOffset = element.tagOffset;
             if (append) {
-                const { id = '', tagName, prepend, nextSibling } = append;
+                const { tagName, id = '', textContent = '', prepend, nextSibling } = append;
                 if (!prepend) {
                     node.index = nextSibling ?? -1;
                 }
                 (node.id ||= {})[this.documentName] = id;
                 element.id = id;
+                element.innerXml = textContent;
                 const offset = tagOffset && tagOffset[tagName];
                 if (tagName !== node.tagName) {
                     updateTagName(node, tagName);
@@ -1030,31 +1031,21 @@ export abstract class XmlElement implements IXmlElement {
         this._prevInnerXml = null;
         this._modified = false;
     }
+    getOuterContent(): [string, AttributeList, string] {
+        const attributes = Array.from(this._attributes);
+        const append = this.node.append;
+        if (append) {
+            const idKey = this.nameOfId;
+            const items = attributes.filter(item => item[0] !== idKey);
+            if (append.id) {
+                items.push([idKey, append.id]);
+            }
+            return [append.tagName, items, append.textContent || ''];
+        }
+        return [this.tagName, attributes, this.innerXml];
+    }
     hasPosition() {
         return isIndex(this.node.startIndex) && isIndex(this.node.endIndex);
-    }
-    protected getContent(): [string, AttributeMap | AttributeList, Undef<string>] {
-        const append = this.node.append;
-        let tagName: Undef<string>,
-            items: AttributeMap | AttributeList,
-            textContent: Undef<string>;
-        if (append) {
-            let id: Undef<string>;
-            ({ tagName, textContent, id } = append);
-            const idKey = this.nameOfId;
-            items = Array.from(this._attributes).filter(item => item[0] !== idKey);
-            if (id) {
-                items.push([idKey, id]);
-            }
-            if (textContent) {
-                this.innerXml = textContent;
-            }
-        }
-        else {
-            tagName = this.tagName;
-            items = this._attributes;
-        }
-        return [tagName, items, textContent];
     }
     set tagName(value: string) {
         if (this.node.lowerCase) {
