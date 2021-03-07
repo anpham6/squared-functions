@@ -234,6 +234,7 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
                 }
             }
             output = (output || content).replace(content.substring(match!.index, i + 1), 'url(' + quote + value + quote + ')');
+            related.push(asset);
         };
         url = url.replace(/^\s*["']?\s*/, '').replace(/\s*["']?\s*$/, '');
         if (url.startsWith('data:')) {
@@ -241,7 +242,6 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
             for (const item of assets) {
                 if (item.base64 === base64) {
                     setOutputUrl(item, getRelativeUri.call(this, cssFile, item));
-                    related.push(item);
                     break;
                 }
             }
@@ -250,17 +250,17 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
             const asset = this.findAsset(Document.resolvePath(url, cssUri)) as DocumentAsset;
             if (asset && !asset.invalid) {
                 if (asset.format === 'base64') {
-                    setOutputUrl(asset, asset.inlineBase64 ||= uuid.v4());
+                    url = asset.inlineBase64 ||= uuid.v4();
                 }
                 else if (!Document.isFileHTTP(url) || Document.hasSameOrigin(cssUri, url)) {
-                    setOutputUrl(asset, getRelativeUri.call(this, cssFile, asset));
+                    url = getRelativeUri.call(this, cssFile, asset);
                 }
                 else {
                     const pathname = cssFile.pathname;
                     const count = pathname && pathname !== '/' ? pathname.split(/[\\/]/).length : 0;
-                    setOutputUrl(asset, (count ? '../'.repeat(count) : '') + asset.relativeUri);
+                    url = (count ? '../'.repeat(count) : '') + asset.relativeUri;
                 }
-                related.push(asset);
+                setOutputUrl(asset, url);
             }
         }
     }
@@ -389,14 +389,14 @@ class ChromeDocument extends Document implements IChromeDocument {
                 if (items.length) {
                     const domBase = new DomWriter(instance.moduleName, this.getUTF8String(file, localUri), this.getElements());
                     for (const item of items) {
-                        const domElement = new HtmlElement(instance.moduleName, item.element!, item.attributes);
+                        const element = item.element!;
+                        const domElement = new HtmlElement(instance.moduleName, element, item.attributes);
                         setElementAttribute.call(instance, file, item, domElement, item.inlineBase64 ||= uuid.v4());
                         if (domBase.write(domElement)) {
                             item.watch = false;
                         }
                         else {
-                            const { tagName, tagIndex } = item.element!;
-                            this.writeFail('Element base64 attribute replacement', getErrorDOM(tagName, tagIndex));
+                            this.writeFail('Element base64 attribute replacement', getErrorDOM(element.tagName, element.tagIndex));
                             delete item.inlineBase64;
                         }
                     }
@@ -533,7 +533,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                     if (srcSet) {
                         const length = srcSet.length;
-                        let src = domElement.getAttribute('srcset') || '',
+                        let src = domElement.getAttribute('srcset'),
                             i = 0;
                         while (i < length) {
                             src += (src ? ', ' : '') + srcSet[i++] + ' ' + srcSet[i++];
@@ -797,7 +797,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 }
                                 default:
                                     removeElement();
-                                    reject(new Error('Data source type invalid'));
+                                    reject(new Error('Invalid data source'));
                                     return;
                             }
                             if (index !== undefined) {
@@ -1042,7 +1042,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         break;
                                     default:
                                         removeElement();
-                                        reject(new Error('Element action type invalid'));
+                                        reject(new Error('Invalid data source action'));
                                         return;
                                 }
                                 if (!domBase.write(domElement) || errors) {

@@ -75,10 +75,8 @@ export abstract class XmlWriter implements IXmlWriter {
                     return '&quot;';
                 case "'":
                     return '&apos;';
-                case '&':
-                    return '&amp;';
                 default:
-                    return capture[0];
+                    return '&amp;';
             }
         });
     }
@@ -745,8 +743,6 @@ export abstract class XmlElement implements IXmlElement {
 
     abstract findIndexOf(source: string): Undef<SourceIndex>;
 
-    abstract set id(value: string);
-    abstract get id(): string;
     abstract get outerXml(): string;
     abstract get nameOfId(): string;
 
@@ -1046,6 +1042,12 @@ export abstract class XmlElement implements IXmlElement {
     }
     hasPosition() {
         return isIndex(this.node.startIndex) && isIndex(this.node.endIndex);
+    }
+    set id(value: string) {
+        this.setAttribute(this.nameOfId, value);
+    }
+    get id() {
+        return this.getAttribute(this.nameOfId) || '';
     }
     set tagName(value: string) {
         if (this.node.lowerCase) {

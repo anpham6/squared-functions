@@ -240,12 +240,6 @@ export class HtmlElement extends XmlElement {
         }
     }
 
-    set id(value: string) {
-        this.setAttribute(this.nameOfId, value);
-    }
-    get id() {
-        return this.getAttribute(this.nameOfId) || '';
-    }
     get outerXml() {
         const [tagName, items, innerXml] = this.getOuterContent();
         return '<' + tagName + HtmlElement.writeAttributes(items) + '>' + (DomWriter.hasInnerXml(tagName) && tagName !== 'html' ? innerXml + `</${tagName}>` : '');
