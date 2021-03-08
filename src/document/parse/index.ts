@@ -276,7 +276,6 @@ export abstract class XmlWriter implements IXmlWriter {
             if (!this.elements.includes(node)) {
                 this.elements.push(node);
             }
-            const tagOffset = element.tagOffset;
             if (append) {
                 const { tagName, id = '', textContent = '', prepend, nextSibling } = append;
                 if (!prepend) {
@@ -285,7 +284,7 @@ export abstract class XmlWriter implements IXmlWriter {
                 (node.id ||= {})[this.documentName] = id;
                 element.id = id;
                 element.innerXml = textContent;
-                const offset = tagOffset && tagOffset[tagName];
+                const offset = element.getInnerOffset(tagName);
                 if (tagName !== node.tagName) {
                     updateTagName(node, tagName);
                     this.indexTag(tagName, append, offset);
@@ -297,12 +296,12 @@ export abstract class XmlWriter implements IXmlWriter {
                 this.increment([node], offset);
             }
             else if (element.remove) {
-                this.decrement(node, tagOffset && tagOffset[element.tagName], true);
+                this.decrement(node, element.getInnerOffset(element.tagName), true);
             }
             else if (element.tagName !== node.tagName) {
                 this.renameTag(node, element.tagName);
             }
-            this.update(node, outerXml, append, tagOffset);
+            this.update(node, outerXml, append, element.tagOffset);
             element.reset();
             ++this.modifyCount;
             return true;
@@ -1039,6 +1038,10 @@ export abstract class XmlElement implements IXmlElement {
             return [append.tagName, items, append.textContent || ''];
         }
         return [this.tagName, attributes, this.innerXml];
+    }
+    getInnerOffset(tagName: string) {
+        const tagOffset = this._tagOffset;
+        return tagOffset && tagOffset[tagName] || 0;
     }
     hasPosition() {
         return isIndex(this.node.startIndex) && isIndex(this.node.endIndex);

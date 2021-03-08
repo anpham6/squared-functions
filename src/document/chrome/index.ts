@@ -329,6 +329,7 @@ function setElementAttribute(this: IChromeDocument, htmlFile: DocumentAsset, ass
     }
 }
 
+const isRemoved = (item: DocumentAsset) => item.exclude === true || item.bundleIndex !== undefined && item.bundleIndex > 0;
 const concatString = (values: Undef<string[]>): string => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const escapePosix = (value: string) => value.split(/[\\/]/).map(seg => Document.escapePattern(seg)).join('[\\\\/]');
 const getErrorDOM = (tagName: string, tagIndex: Undef<number>) => new Error(tagName.toUpperCase() + (tagIndex !== undefined && tagIndex >= 0 ? ' ' + tagIndex : '') + ': Unable to parse DOM');
@@ -469,68 +470,39 @@ class ChromeDocument extends Document implements IChromeDocument {
             const cloud = this.Cloud;
             let source = this.getUTF8String(htmlFile, localUri);
             const domBase = new DomWriter(moduleName, source, this.getElements());
-            const revised: DocumentAsset[] = [];
-            for (const item of elements.filter(asset => !asset.invalid && (asset.inlineContent || asset.bundleIndex === 0 || asset.bundleIndex === -1))) {
-                const { element, bundleIndex, inlineContent, attributes } = item;
-                const { tagName, tagIndex } = element!;
-                const domElement = new HtmlElement(moduleName, element!, attributes);
+            for (const item of elements) {
+                const element = item.element!;
+                const crossorigin = item.format === 'crossorigin';
+                if (item.invalid && !crossorigin || element.removed || isRemoved(item)) {
+                    continue;
+                }
+                const { attributes, srcSet, bundleIndex, inlineContent } = item;
+                let uri = item.relativeUri;
+                if (!attributes && (!uri && bundleIndex === undefined && !inlineContent && !srcSet || item === htmlFile || crossorigin)) {
+                    continue;
+                }
+                const domElement = new HtmlElement(moduleName, element, attributes);
                 if (inlineContent) {
                     domElement.tagName = inlineContent;
                     domElement.innerXml = this.getUTF8String(item).trim();
                     domElement.removeAttribute('src', 'href');
-                    if (domBase.write(domElement)) {
-                        inlineMap.add(item);
-                        item.watch = false;
-                    }
-                    else {
-                        this.writeFail('Inline tag replacement', getErrorDOM(tagName, tagIndex));
-                    }
                 }
-                else if (bundleIndex === 0 || bundleIndex === -1) {
-                    let value = item.relativeUri!;
+                else if (uri && !crossorigin && item !== htmlFile) {
                     if (cloud?.getStorage('upload', item.cloudStorage)) {
-                        value = uuid.v4();
-                        item.inlineCloud = value;
+                        uri = uuid.v4();
+                        item.inlineCloud = uri;
                     }
-                    switch (tagName) {
-                        case 'style':
-                            domElement.tagName = 'link';
-                        case 'link':
-                            domElement.setAttribute('rel', 'stylesheet');
-                            domElement.setAttribute('href', value);
-                            break;
-                        default:
-                            domElement.setAttribute('src', value);
-                            break;
+                    if (bundleIndex === 0 || bundleIndex === -1) {
+                        switch (element.tagName) {
+                            case 'style':
+                                domElement.tagName = 'link';
+                            case 'link':
+                                domElement.setAttribute('rel', 'stylesheet');
+                                break;
+                        }
+                        domElement.innerXml = '';
                     }
-                    domElement.innerXml = '';
-                    if (!domBase.write(domElement)) {
-                        this.writeFail('Bundle tag replacement', getErrorDOM(tagName, tagIndex));
-                        delete item.inlineCloud;
-                    }
-                }
-                else {
-                    continue;
-                }
-                revised.push(item);
-            }
-            for (const item of elements) {
-                const element = item.element!;
-                const crossorigin = item.format === 'crossorigin';
-                if (revised.includes(item) || element.removed || item.invalid && !crossorigin || !item.attributes && (!item.uri && !item.srcSet || item === htmlFile || crossorigin)) {
-                    continue;
-                }
-                const { uri, srcSet, attributes } = item;
-                const domElement = new HtmlElement(moduleName, element, attributes);
-                if (uri && !crossorigin && item !== htmlFile) {
-                    let value = item.relativeUri;
-                    if (cloud?.getStorage('upload', item.cloudStorage)) {
-                        value = uuid.v4();
-                        item.inlineCloud = value;
-                    }
-                    if (value) {
-                        setElementAttribute.call(instance, htmlFile, item, domElement, value);
-                    }
+                    setElementAttribute.call(instance, htmlFile, item, domElement, uri);
                     if (srcSet) {
                         const length = srcSet.length;
                         let src = domElement.getAttribute('srcset'),
@@ -542,8 +514,12 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                 }
                 if (!domBase.write(domElement)) {
-                    this.writeFail('Element attribute replacement', getErrorDOM(element.tagName, element.tagIndex));
+                    this.writeFail(inlineContent ? 'Inline tag replacement' : 'Element attribute replacement', getErrorDOM(element.tagName, element.tagIndex));
                     delete item.inlineCloud;
+                }
+                else if (inlineContent) {
+                    inlineMap.add(item);
+                    item.watch = false;
                 }
             }
             const dataSource = this.getDataSourceItems(instance).filter(item => item.element) as DataSource[];
@@ -1086,7 +1062,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
             }
             for (const item of elements) {
-                if ((item.exclude || item.bundleIndex !== undefined) && !revised.includes(item)) {
+                if (isRemoved(item)) {
                     const element = item.element!;
                     const domElement = new HtmlElement(moduleName, element, item.attributes);
                     domElement.remove = true;

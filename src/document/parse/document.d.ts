@@ -108,6 +108,7 @@ export class IXmlElement extends IXmlBase {
     save(source: string): SaveResult;
     findIndexOf(source: string): Undef<SourceIndex>;
     getOuterContent(): [string, AttributeList, string];
+    getInnerOffset(tagName: string): number;
     hasPosition(): boolean;
     set id(value: string);
     get id(): string;
