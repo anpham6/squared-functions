@@ -424,7 +424,7 @@ export abstract class XmlWriter implements IXmlWriter {
                         if (item.append) {
                             const nextSibling = item.append.nextSibling;
                             if (isIndex(nextSibling) && nextSibling >= index) {
-                                item.append.nextSibling! = nextSibling + 1;
+                                item.append.nextSibling = nextSibling + 1;
                             }
                         }
                     }

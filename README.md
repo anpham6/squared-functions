@@ -1003,6 +1003,7 @@ interface MongoDataSource {
       "user": "**********",
       "pwd": "**********",
       "server": "localhost:27017",
+      "dnsSrv": false,
       "authMechanism": "MONGODB-X509",
       "sslKey": "/absolute/path/ssl/x509/key.pem",
       "sslCert": "/absolute/path/ssl/x509/cert.pem",

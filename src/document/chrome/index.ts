@@ -49,8 +49,8 @@ function getObjectValue(data: unknown, key: string) {
     const indexPattern = /\[\s*(["'])?(.+?)\1\s*\]/g;
     let found = false,
         value = data,
-        index: Null<RegExpMatchArray>,
-        match: Null<RegExpMatchArray>;
+        index: Null<RegExpExecArray>,
+        match: Null<RegExpExecArray>;
     while (match = pattern.exec(key)) {
         if (Document.isObject(value)) {
             value = value[match[1]];
@@ -397,7 +397,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             item.watch = false;
                         }
                         else {
-                            this.writeFail('Element base64 attribute replacement', getErrorDOM(element.tagName, element.tagIndex));
+                            this.writeFail('Element attribute replacement', getErrorDOM(element.tagName, element.tagIndex));
                             delete item.inlineBase64;
                         }
                     }
@@ -576,13 +576,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     credential = (instance.module.settings as Undef<StandardMap>)?.mongodb?.[credential] as Undef<StandardMap>;
                                                 }
                                                 if (credential?.server) {
-                                                    const authMechanism = credential.authMechanism;
-                                                    uri = 'mongodb://' + (credential.user ? encodeURIComponent(credential.user) + (authMechanism !== 'GSSAPI' && credential.pwd ? ':' + encodeURIComponent(credential.pwd) : '') + '@' : '') + credential.server + '/?authMechanism=';
+                                                    const { authMechanism = '', authMechanismProperties, authSource, user, dnsSrv } = credential;
+                                                    uri = `mongodb${dnsSrv ? '+srv' : ''}://` + (user ? encodeURIComponent(user) + (authMechanism !== 'GSSAPI' && credential.pwd ? ':' + encodeURIComponent(credential.pwd) : '') + '@' : '') + credential.server + '/?authMechanism=' + encodeURIComponent(authMechanism);
                                                     switch (authMechanism) {
-                                                        case 'SCRAM-SHA-1':
-                                                        case 'SCRAM-SHA-256':
-                                                            uri += authMechanism + (credential.authSource ? '&authSource=' + encodeURIComponent(credential.authSource) : '');
-                                                            break;
                                                         case 'MONGODB-X509': {
                                                             const { sslKey, sslCert, sslValidate } = credential;
                                                             if (sslKey && sslCert && path.isAbsolute(sslKey) && path.isAbsolute(sslCert) && fs.existsSync(sslKey) && fs.existsSync(sslCert)) {
@@ -591,7 +587,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                                 if (typeof sslValidate === 'boolean') {
                                                                     options.sslValidate = sslValidate;
                                                                 }
-                                                                uri += 'MONGODB-X509&ssl=true';
+                                                                uri += '&ssl=true';
                                                             }
                                                             else {
                                                                 reject(new Error('Missing SSL credentials (MongoDB)'));
@@ -600,11 +596,14 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                             break;
                                                         }
                                                         case 'GSSAPI':
-                                                            uri += 'GSSAPI&gssapiServiceName=mongodb';
+                                                            uri += '&gssapiServiceName=mongodb';
                                                             break;
-                                                        case 'PLAIN':
-                                                            uri += 'PLAIN&maxPoolSize=' + (credential.maxPoolSize || '1');
-                                                            break;
+                                                    }
+                                                    if (authSource) {
+                                                        uri += '&authSource=' + encodeURIComponent(authSource);
+                                                    }
+                                                    if (authMechanismProperties) {
+                                                        uri += '&authMechanismProperties=' + encodeURIComponent(authMechanismProperties);
                                                     }
                                                 }
                                                 else {
@@ -619,15 +618,10 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                         if (match) {
                                                             return new Date(match[1]);
                                                         }
-                                                        match = /^\$regex\s*=\s*\/(.+)\/([gimsuy]*)\s*$/.exec(value);
-                                                        if (match) {
+                                                        if (match = /^\$regex\s*=\s*\/(.+)\/([gimsuy]*)\s*$/.exec(value)) {
                                                             return new RegExp(match[1], match[2]);
                                                         }
-                                                        match = /^\$function\s*=\s*(.+)$/.exec(value);
-                                                        if (match) {
-                                                            return Document.parseFunction(match[1]);
-                                                        }
-                                                        return value;
+                                                        return (match = /^\$function\s*=\s*(.+)$/.exec(value)) ? Document.parseFunction(match[1]) : value;
                                                     };
                                                     (function recurse(data: PlainObject) {
                                                         for (const attr in data) {
