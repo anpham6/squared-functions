@@ -135,7 +135,8 @@ export class DomWriter extends XmlWriter implements IDomWriter {
                 leading = formatHTML(source.substring(0, startIndex + outerXml.length));
                 outerXml = formatHTML(outerXml);
             }
-            this.source = leading + this.newline + documentElement.innerXml! + this.newline + '</html>';
+            source = leading + this.newline + documentElement.innerXml! + this.newline + '</html>';
+            this.source = source;
             this.documentElement = documentElement;
         }
         else {
@@ -159,6 +160,20 @@ export class DomWriter extends XmlWriter implements IDomWriter {
                 item.startIndex = startIndex;
                 item.endIndex = endIndex;
                 item.outerXml = outerXml;
+            }
+        }
+        const title = new RegExp(`<title(${XmlWriter.PATTERN_TAGOPEN}*)>([\\S\\s]*?)<\\/title\\s*>`, 'i').exec(source);
+        if (title) {
+            const innerXml = XmlWriter.escapeXmlString(title[5]);
+            if (innerXml !== title[5]) {
+                const index = title.index;
+                outerXml = `<title${title[1]}>${innerXml}</title>`;
+                for (const item of elements) {
+                    if (item.tagName === 'title') {
+                        item.outerXml = outerXml;
+                    }
+                }
+                this.source = source.substring(0, index) + outerXml + source.substring(index + title[0].length);
             }
         }
         this.init(offsetMap);
@@ -226,6 +241,7 @@ export class HtmlElement extends XmlElement {
     getTagOffset(source?: string) {
         switch (this.tagName) {
             case 'html':
+            case 'title':
             case 'style':
             case 'script':
                 break;
@@ -242,7 +258,7 @@ export class HtmlElement extends XmlElement {
 
     get outerXml() {
         const [tagName, items, innerXml] = this.getOuterContent();
-        return '<' + tagName + HtmlElement.writeAttributes(items) + '>' + (DomWriter.hasInnerXml(tagName) && tagName !== 'html' ? innerXml + `</${tagName}>` : '');
+        return '<' + tagName + HtmlElement.writeAttributes(items) + '>' + (DomWriter.hasInnerXml(tagName) && tagName !== 'html' ? tagName === 'title' ? XmlWriter.escapeXmlString(innerXml) : innerXml + `</${tagName}>` : '');
     }
     get nameOfId() {
         return getAttrId(this.documentName);

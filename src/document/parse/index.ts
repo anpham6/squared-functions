@@ -64,7 +64,7 @@ export abstract class XmlWriter implements IXmlWriter {
     static readonly PATTERN_TAGOPEN = `(?:[^=>]|${PATTERN_ATTRVALUE})`;
     static readonly PATTERN_TRAILINGSPACE = '[ \\t]*((?:\\r?\\n)*)';
 
-    static escapeXmlString(value: string) {
+    static escapeXmlString(value: string, ampersand?: boolean) {
         return value.replace(/[<>"'&]/g, (...capture) => {
             switch (capture[0]) {
                 case '<':
@@ -76,7 +76,7 @@ export abstract class XmlWriter implements IXmlWriter {
                 case "'":
                     return '&apos;';
                 default:
-                    return '&amp;';
+                    return ampersand ? '&amp;' : '&';
             }
         });
     }

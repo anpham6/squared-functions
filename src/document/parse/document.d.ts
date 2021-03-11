@@ -85,7 +85,7 @@ export interface XmlWriterConstructor {
     PATTERN_ATTRNAME: string;
     PATTERN_ATTRVALUE: string;
     PATTERN_TRAILINGSPACE: string;
-    escapeXmlString(value: string): string;
+    escapeXmlString(value: string, ampersand?: boolean): string;
     getNewlineString(leading: string, trailing: string, newline?: string): string;
     findCloseTag(source: string, startIndex?: number): number;
     getTagOffset(source: string, sourceNext?: string): ObjectMap<number>;
