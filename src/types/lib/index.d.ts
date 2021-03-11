@@ -192,6 +192,7 @@ declare namespace functions {
         readonly contentToAppend: Map<string, string[]>;
         readonly emptyDir: Set<string>;
         readonly permission: IPermission;
+        readonly archiving: boolean;
         readonly postFinalize?: (errors: string[]) => void;
         install(name: string, ...params: unknown[]): Undef<IModule>;
         add(value: string, parent?: ExternalAsset): void;
