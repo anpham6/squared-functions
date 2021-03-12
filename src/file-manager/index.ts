@@ -867,7 +867,7 @@ class FileManager extends Module implements IFileManager {
                                     tempDir = this.getTempDir(false, hostname + (port ? '_' + port : ''));
                                     try {
                                         if (!fs.pathExistsSync(tempDir)) {
-                                            fs.mkdirSync(tempDir);
+                                            fs.mkdirpSync(tempDir);
                                         }
                                     }
                                     catch (err) {

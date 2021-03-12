@@ -9,6 +9,7 @@ export interface SourceIndex {
 
 export interface SourceContent extends SourceIndex {
     outerXml: string;
+    type?: string;
 }
 
 export interface SourceTagNode extends SourceContent, TagData {
@@ -57,8 +58,11 @@ export class IXmlWriter extends IXmlBase {
     source: string;
     elements: XmlTagNode[];
     readonly rootName?: string;
+    readonly ignoreTagName?: string;
+    readonly ignoreTagNameContent?: string;
+    readonly ignoreTagNameCase?: boolean;
     init(offsetMap?: TagOffsetMap): void;
-    setInvalidArea(init?: boolean): void;
+    getInvalidArea(): Undef<SourceContent[]>;
     insertNodes(nodes?: XmlTagNode[]): void;
     fromNode(node: XmlTagNode, append?: TagAppend): IXmlElement;
     newElement(node: XmlTagNode): IXmlElement;
@@ -91,7 +95,7 @@ export interface XmlWriterConstructor {
     findCloseTag(source: string, startIndex?: number): number;
     getTagOffset(source: string, sourceNext?: string): ObjectMap<number>;
     getNodeId(node: XmlTagNode, document: string): string;
-    getComments(source: string): SourceIndex[];
+    getCommentsAndCDATA(source: string, nodePattern?: string, ignoreCase?: boolean): SourceContent[];
     new(documentName: string, source: string, elements: XmlTagNode[]): IXmlWriter;
 }
 
@@ -105,9 +109,10 @@ export class IXmlElement extends IXmlBase {
     getAttribute(name: string): Optional<string>;
     removeAttribute(...names: string[]): void;
     hasAttribute(name: string): boolean;
-    write(source: string, invalid?: Null<SourceIndex[]>): WriteResult;
+    hasModifiedContent(): boolean;
+    write(source: string, invalid?: SourceIndex[]): WriteResult;
+    save(source: string, invalid?: SourceIndex[]): SaveResult;
     replace(source: string, options: ReplaceOptions): WriteResult;
-    save(source: string): SaveResult;
     findIndexOf(source: string): Undef<SourceIndex>;
     getOuterContent(): [string, AttributeList, string];
     getInnerOffset(tagName: string): number;

@@ -98,22 +98,28 @@ export class DomWriter extends XmlWriter implements IDomWriter {
 
     documentElement: Null<XmlTagNode> = null;
     readonly rootName = 'html';
+    readonly ignoreTagName = 'title|style|script';
+    readonly ignoreTagNameContent = `(${this.ignoreTagName})${XmlWriter.PATTERN_TAGOPEN}*>[\\S\\s]+?</\\3\\s*`;
+    readonly ignoreTagNameCase = true;
 
     constructor(documentName: string, source: string, elements: XmlTagNode[], normalize = true) {
         super(documentName, source, elements);
         const items: XmlTagNode[] = [];
+        let outerXml = '',
+            documentElement: Undef<XmlTagNode>,
+            offsetMap: Undef<TagOffsetMap>,
+            startIndex = -1;
         for (const item of elements) {
             item.lowerCase = true;
             item.tagName = item.tagName.toLowerCase();
             if (item.tagName === 'html') {
                 items.push(item);
+                if (!documentElement && item.innerXml) {
+                    documentElement = item;
+                }
             }
         }
-        const documentElement = items.find(item => item.innerXml);
         const html = /<html[\s>]/i.exec(source);
-        let outerXml = '',
-            offsetMap: Undef<TagOffsetMap>,
-            startIndex = -1;
         if (source.includes('\r\n')) {
             this.newline = '\r\n';
         }
@@ -153,20 +159,6 @@ export class DomWriter extends XmlWriter implements IDomWriter {
                 }
             }
             this.source = source;
-            const title = new RegExp(`<title(${XmlWriter.PATTERN_TAGOPEN}*)>([\\S\\s]*?)<\\/title\\s*>`, 'i').exec(source);
-            if (title) {
-                const innerXml = XmlWriter.escapeXmlString(title[5]);
-                if (innerXml !== title[5]) {
-                    const startIndex = title.index;
-                    const titleXml = `<title${title[1]}>${innerXml}</title>`;
-                    for (const item of elements) {
-                        if (item.tagName === 'title') {
-                            item.outerXml = titleXml;
-                        }
-                    }
-                    this.spliceRawString({ outerXml: titleXml, startIndex, endIndex: startIndex + title[0].length - 1 }, false);
-                }
-            }
         }
         if (outerXml) {
             const endIndex = startIndex + outerXml.length - 1;

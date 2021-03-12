@@ -86,7 +86,7 @@ function valueAsString(value: unknown, joinString = ' ') {
         case 'boolean':
             return value.toString();
         default:
-            return Array.isArray(value) ? value.join(joinString) : JSON.stringify(value);
+            return Array.isArray(value) && !value.some(item => Document.isObject(item)) ? value.join(joinString) : JSON.stringify(value);
     }
 }
 
@@ -94,7 +94,6 @@ function removeCss(source: string, styles: string[]) {
     const replaceMap: StringMap = {};
     let current = source,
         output: Undef<string>,
-        pattern: Undef<RegExp>,
         match: Null<RegExpExecArray>;
     while (match = REGEXP_CSSCONTENT.exec(source)) {
         if (match[0].includes('}')) {
@@ -106,7 +105,7 @@ function removeCss(source: string, styles: string[]) {
     for (let value of styles) {
         const block = `(\\s*)${value = Document.escapePattern(value)}\\s*\\{[^}]*\\}` + DomWriter.PATTERN_TRAILINGSPACE;
         for (let i = 0; i < 2; ++i) {
-            pattern = new RegExp((i === 0 ? '^' : '}') + block, i === 0 ? 'm' : 'g');
+            const pattern = new RegExp((i === 0 ? '^' : '}') + block, i === 0 ? 'm' : 'g');
             while (match = pattern.exec(current)) {
                 output = (output || current).replace(match[0], (i === 0 ? '' : '}') + DomWriter.getNewlineString(match[1], match[2]));
                 if (i === 0) {
@@ -117,7 +116,7 @@ function removeCss(source: string, styles: string[]) {
                 current = output;
             }
         }
-        pattern = new RegExp(`(}?[^,{}]*?)((,?\\s*)${value}\\s*[,{](\\s*)).*?\\{?`, 'g');
+        const pattern = new RegExp(`(}?[^,{}]*?)((,?\\s*)${value}\\s*[,{](\\s*)).*?\\{?`, 'g');
         while (match = pattern.exec(current)) {
             const segment = match[2];
             let outerXml = '';

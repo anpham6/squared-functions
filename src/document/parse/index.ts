@@ -171,13 +171,12 @@ export abstract class XmlWriter implements IXmlWriter {
         return node.id?.[document] || '';
     }
 
-    static getComments(source: string) {
-        const result: SourceIndex[] = [];
-        const pattern = /<!--[\S\s]*?-->/g;
+    static getCommentsAndCDATA(source: string, nodePattern?: string, ignoreCase?: boolean) {
+        const result: SourceContent[] = [];
+        const pattern = new RegExp(`<(?:(!--[\\S\\s]*?--)|(!\\[CDATA\\[[\\S\\s]*?\\]\\])` + (nodePattern ? '|' + nodePattern : '') + ')>', ignoreCase ? 'gi' : 'g');
         let match: Null<RegExpExecArray>;
         while (match = pattern.exec(source)) {
-            const startIndex = match.index;
-            result.push({ startIndex, endIndex: startIndex + match[0].length - 1 });
+            result.push({ type: match[1] && 'comment' || match[2] && 'cdata' || 'node', outerXml: match[0], startIndex: match.index, endIndex: match.index + match[0].length - 1 });
         }
         return result;
     }
@@ -187,9 +186,12 @@ export abstract class XmlWriter implements IXmlWriter {
     errors: Error[] = [];
     newline = '\n';
     readonly rootName?: string;
+    readonly ignoreTagName?: string;
+    readonly ignoreTagNameContent?: string;
+    readonly ignoreTagNameCase?: Undef<boolean>;
 
     protected _tagCount: ObjectMap<number> = {};
-    protected _comments: Null<SourceIndex[]> = null;
+    protected _hasInvalidContent = true;
 
     constructor(
         public documentName: string,
@@ -203,7 +205,6 @@ export abstract class XmlWriter implements IXmlWriter {
     abstract get nameOfId(): string;
 
     init(offsetMap?: TagOffsetMap) {
-        this.setInvalidArea(true);
         const appending: XmlTagNode[] = [];
         for (const item of this.elements) {
             if (item.append) {
@@ -220,12 +221,14 @@ export abstract class XmlWriter implements IXmlWriter {
             this.insertNodes(appending);
         }
     }
-    setInvalidArea(init?: boolean) {
-        if (!init && !this._comments) {
-            return;
+    getInvalidArea() {
+        if (this._hasInvalidContent) {
+            const result = XmlWriter.getCommentsAndCDATA(this.source, this.ignoreTagNameContent, this.ignoreTagNameCase);
+            if (result.length) {
+                return result;
+            }
+            this._hasInvalidContent = false;
         }
-        const comments = XmlWriter.getComments(this.source);
-        this._comments = comments.length ? comments : null;
     }
     insertNodes(nodes: XmlTagNode[]) {
         nodes.sort((a, b) => {
@@ -297,7 +300,7 @@ export abstract class XmlWriter implements IXmlWriter {
             [output, outerXml] = element.replace(this.source, { startIndex: node.startIndex!, endIndex: node.endIndex!, append, remove: element.remove });
         }
         else if (element.tagName !== this.rootName) {
-            [output, outerXml, error] = element.write(this.source, this._comments);
+            [output, outerXml, error] = element.write(this.source, this.getInvalidArea());
         }
         else {
             error = new Error('Root source position not found');
@@ -333,9 +336,11 @@ export abstract class XmlWriter implements IXmlWriter {
                 this.renameTag(node, element.tagName);
             }
             this.update(node, outerXml, append, element.tagOffset);
+            if (element.innerXml && !element.remove) {
+                this._hasInvalidContent ||= element.hasModifiedContent() || !!this.ignoreTagName && new RegExp(`^(?:${this.ignoreTagName})$`, this.ignoreTagNameCase ? 'i' : '').test(element.tagName);
+            }
             element.reset();
             ++this.modifyCount;
-            this.setInvalidArea();
             return true;
         }
         if (error) {
@@ -916,14 +921,11 @@ export abstract class XmlElement implements IXmlElement {
         }
         return [source.substring(0, startIndex) + leading + outerXml + trailing + source.substring(endIndex), outerXml];
     }
-    write(source: string, invalid?: Null<SourceIndex[]>): WriteResult {
+    write(source: string, invalid?: SourceIndex[]): WriteResult {
         if (this._modified) {
             const { id, node, remove, append } = this;
             if (this.hasPosition()) {
                 return this.replace(source, { remove, append, startIndex: node.startIndex!, endIndex: node.endIndex! });
-            }
-            if (invalid === undefined) {
-                invalid = XmlWriter.getComments(source);
             }
             const { tagName, tagIndex = -1, tagCount = Infinity, lowerCase } = node;
             const errorResult = (): [string, string, Error] => ['', '', new Error(tagName.toUpperCase() + (isIndex(tagIndex) ? ' ' + tagIndex : '') + ': Element was not found.')];
@@ -1047,8 +1049,8 @@ export abstract class XmlElement implements IXmlElement {
         }
         return ['', ''];
     }
-    save(source: string): SaveResult {
-        const [output, outerXml, error] = this.write(source);
+    save(source: string, invalid?: SourceIndex[]): SaveResult {
+        const [output, outerXml, error] = this.write(source, invalid || XmlWriter.getCommentsAndCDATA(source));
         if (output) {
             this.node.outerXml = outerXml;
             this.reset();
@@ -1061,6 +1063,9 @@ export abstract class XmlElement implements IXmlElement {
         this._prevTagName = null;
         this._prevInnerXml = null;
         this._modified = false;
+    }
+    hasModifiedContent() {
+        return typeof this._prevInnerXml === 'string';
     }
     getOuterContent(): [string, AttributeList, string] {
         const attributes = Array.from(this._attributes);
@@ -1114,8 +1119,10 @@ export abstract class XmlElement implements IXmlElement {
             if (typeof this._prevInnerXml === 'string') {
                 this._innerXml = this._prevInnerXml;
             }
+            else {
+                this._prevInnerXml = this._innerXml;
+            }
             this._tagOffset = this.getTagOffset(value);
-            this._prevInnerXml = this._innerXml;
             this._innerXml = value;
             this._modified = true;
         }
