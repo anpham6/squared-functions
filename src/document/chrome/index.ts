@@ -184,6 +184,11 @@ function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: Docum
     return found ? Document.joinPath('../'.repeat(prefix.length), suffix.join('/'), asset.filename) : '../'.repeat(prefix.length) + asset.relativeUri!;
 }
 
+function trimQuote(value: string) {
+    const match = /^\s*(["'])([\s\S]*)\1\s*$/.exec(value);
+    return match ? match[2].trim() : value;
+}
+
 function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: DocumentAsset, content: string, fromHTML?: boolean) {
     const cloud = this.Cloud;
     const cssUri = cssFile.uri!;
@@ -236,7 +241,7 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
             output = (output || content).replace(content.substring(match!.index, i + 1), 'url(' + quote + value + quote + ')');
             related.push(asset);
         };
-        url = url.replace(/^\s*["']?\s*/, '').replace(/\s*["']?\s*$/, '');
+        url = trimQuote(url);
         if (url.startsWith('data:')) {
             const base64 = url.split(',')[1];
             for (const item of assets) {

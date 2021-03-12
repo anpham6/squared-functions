@@ -54,6 +54,17 @@ function resetTagPosition(item: XmlTagNode) {
     item.tagCount = 0;
 }
 
+function isValidIndex(items: Optional<SourceIndex[]>, value: number) {
+    if (items) {
+        for (const item of items) {
+            if (value > item.startIndex && value < item.endIndex) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 const isNode = (item: XmlTagNode, index: Undef<number>, tagIndex: Undef<number>, tagCount: Undef<number>, id: Undef<string>, documentName: string) => item.index === index && isIndex(index) || id && id === XmlWriter.getNodeId(item, documentName) || item.tagIndex === tagIndex && isIndex(tagIndex) && item.tagCount === tagCount && isCount(tagCount);
 const isIndex = (value: Undef<unknown>): value is number => typeof value === 'number' && value >= 0 && value !== Infinity;
 const isCount = (value: Undef<unknown>): value is number => typeof value === 'number' && value > 0 && value !== Infinity;
@@ -160,6 +171,17 @@ export abstract class XmlWriter implements IXmlWriter {
         return node.id?.[document] || '';
     }
 
+    static getComments(source: string) {
+        const result: SourceIndex[] = [];
+        const pattern = /<!--[\S\s]*?-->/g;
+        let match: Null<RegExpExecArray>;
+        while (match = pattern.exec(source)) {
+            const startIndex = match.index;
+            result.push({ startIndex, endIndex: startIndex + match[0].length - 1 });
+        }
+        return result;
+    }
+
     modifyCount = 0;
     failCount = 0;
     errors: Error[] = [];
@@ -167,6 +189,7 @@ export abstract class XmlWriter implements IXmlWriter {
     readonly rootName?: string;
 
     protected _tagCount: ObjectMap<number> = {};
+    protected _comments: Null<SourceIndex[]> = null;
 
     constructor(
         public documentName: string,
@@ -180,6 +203,7 @@ export abstract class XmlWriter implements IXmlWriter {
     abstract get nameOfId(): string;
 
     init(offsetMap?: TagOffsetMap) {
+        this.setInvalidArea(true);
         const appending: XmlTagNode[] = [];
         for (const item of this.elements) {
             if (item.append) {
@@ -195,6 +219,13 @@ export abstract class XmlWriter implements IXmlWriter {
         if (appending.length) {
             this.insertNodes(appending);
         }
+    }
+    setInvalidArea(init?: boolean) {
+        if (!init && !this._comments) {
+            return;
+        }
+        const comments = XmlWriter.getComments(this.source);
+        this._comments = comments.length ? comments : null;
     }
     insertNodes(nodes: XmlTagNode[]) {
         nodes.sort((a, b) => {
@@ -266,7 +297,7 @@ export abstract class XmlWriter implements IXmlWriter {
             [output, outerXml] = element.replace(this.source, { startIndex: node.startIndex!, endIndex: node.endIndex!, append, remove: element.remove });
         }
         else if (element.tagName !== this.rootName) {
-            [output, outerXml, error] = element.write(this.source);
+            [output, outerXml, error] = element.write(this.source, this._comments);
         }
         else {
             error = new Error('Root source position not found');
@@ -304,6 +335,7 @@ export abstract class XmlWriter implements IXmlWriter {
             this.update(node, outerXml, append, element.tagOffset);
             element.reset();
             ++this.modifyCount;
+            this.setInvalidArea();
             return true;
         }
         if (error) {
@@ -812,28 +844,17 @@ export abstract class XmlElement implements IXmlElement {
             outerXml = '',
             trailing = '';
         if (options.remove) {
-            let i = endIndex;
-            newline: {
-                let found: Undef<boolean>;
-                while (isSpace(source[i])) {
-                    const ch = source[i++];
-                    switch (ch.charCodeAt(0)) {
-                        case 10:
-                            found = true;
-                        case 13:
-                            break;
-                        default:
-                            if (found) {
-                                break newline;
-                            }
-                            break;
-                    }
-                    trailing += ch;
+            let i = endIndex,
+                ch: Undef<string>;
+            while (isSpace(ch = source[i++])) {
+                trailing += ch;
+                if (ch === '\n') {
+                    break;
                 }
             }
             i = startIndex - 1;
-            while (isSpace(source[i])) {
-                leading = source[i--] + leading;
+            while (isSpace(ch = source[i--])) {
+                leading = ch + leading;
             }
             startIndex -= leading.length;
             endIndex += trailing.length + 1;
@@ -841,14 +862,15 @@ export abstract class XmlElement implements IXmlElement {
         }
         else {
             if (options.append) {
-                let newline: Undef<boolean>,
-                    i = startIndex - 1;
-                while (isSpace(source[i])) {
-                    if (source[i] === '\n') {
+                let i = startIndex - 1,
+                    ch: Undef<string>,
+                    newline: Undef<boolean>;
+                while (isSpace(ch = source[i--])) {
+                    if (ch === '\n') {
                         newline = true;
                         break;
                     }
-                    leading = source[i--] + leading;
+                    leading = ch + leading;
                 }
                 if (!options.append.prepend) {
                     endIndex += 2;
@@ -887,11 +909,14 @@ export abstract class XmlElement implements IXmlElement {
         }
         return [source.substring(0, startIndex) + leading + outerXml + trailing + source.substring(endIndex), outerXml];
     }
-    write(source: string): WriteResult {
+    write(source: string, invalid?: Null<SourceIndex[]>): WriteResult {
         if (this._modified) {
             const { id, node, remove, append } = this;
             if (this.hasPosition()) {
                 return this.replace(source, { remove, append, startIndex: node.startIndex!, endIndex: node.endIndex! });
+            }
+            if (invalid === undefined) {
+                invalid = XmlWriter.getComments(source);
             }
             const { tagName, tagIndex = -1, tagCount = Infinity, lowerCase } = node;
             const errorResult = (): [string, string, Error] => ['', '', new Error(tagName.toUpperCase() + (isIndex(tagIndex) ? ' ' + tagIndex : '') + ': Element was not found.')];
@@ -909,10 +934,12 @@ export abstract class XmlElement implements IXmlElement {
                 const index = match.index;
                 const end = XmlWriter.findCloseTag(source, index);
                 if (end !== -1) {
-                    if (voidId && (openCount === tagIndex || onlyId) && (result = getTagStart(index, end, true))) {
-                        return result;
+                    if (isValidIndex(invalid, end)) {
+                        if (voidId && (openCount === tagIndex || onlyId) && (result = getTagStart(index, end, true))) {
+                            return result;
+                        }
+                        openCount = openTag.push(index);
                     }
-                    openCount = openTag.push(index);
                     pattern.lastIndex = end;
                 }
                 else {
@@ -932,7 +959,9 @@ export abstract class XmlElement implements IXmlElement {
                     let foundCount = 0;
                     pattern = new RegExp(`</${Module.escapePattern(tagName)}\\s*>`, lowerCase ? 'gi' : 'g');
                     while (match = pattern.exec(source)) {
-                        closeTag.push(match.index + match[0].length - 1);
+                        if (isValidIndex(invalid, match.index)) {
+                            closeTag.push(match.index + match[0].length - 1);
+                        }
                     }
                     const closeCount = closeTag.length;
                     if (closeCount) {

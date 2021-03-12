@@ -58,6 +58,7 @@ export class IXmlWriter extends IXmlBase {
     elements: XmlTagNode[];
     readonly rootName?: string;
     init(offsetMap?: TagOffsetMap): void;
+    setInvalidArea(init?: boolean): void;
     insertNodes(nodes?: XmlTagNode[]): void;
     fromNode(node: XmlTagNode, append?: TagAppend): IXmlElement;
     newElement(node: XmlTagNode): IXmlElement;
@@ -90,6 +91,7 @@ export interface XmlWriterConstructor {
     findCloseTag(source: string, startIndex?: number): number;
     getTagOffset(source: string, sourceNext?: string): ObjectMap<number>;
     getNodeId(node: XmlTagNode, document: string): string;
+    getComments(source: string): SourceIndex[];
     new(documentName: string, source: string, elements: XmlTagNode[]): IXmlWriter;
 }
 
@@ -103,7 +105,7 @@ export class IXmlElement extends IXmlBase {
     getAttribute(name: string): Optional<string>;
     removeAttribute(...names: string[]): void;
     hasAttribute(name: string): boolean;
-    write(source: string): WriteResult;
+    write(source: string, invalid?: Null<SourceIndex[]>): WriteResult;
     replace(source: string, options: ReplaceOptions): WriteResult;
     save(source: string): SaveResult;
     findIndexOf(source: string): Undef<SourceIndex>;
