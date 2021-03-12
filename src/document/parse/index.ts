@@ -716,6 +716,7 @@ export abstract class XmlElement implements IXmlElement {
     }
 
     newline = '\n';
+    TAG_VOID: string[] = [];
 
     protected _modified = true;
     protected _tagName = '';
@@ -728,8 +729,6 @@ export abstract class XmlElement implements IXmlElement {
     protected _append?: TagAppend;
     protected _tagOffset?: TagOffsetMap;
     protected readonly _attributes = new Map<string, Optional<string>>();
-
-    abstract readonly TAG_VOID: string[];
 
     constructor(
         public readonly documentName: string,
@@ -766,8 +765,16 @@ export abstract class XmlElement implements IXmlElement {
                 REGEXP_ATTRVALUE.lastIndex = 0;
                 REGEXP_ATTRNAME.lastIndex = 0;
             }
-            else if (node.innerXml) {
-                this._innerXml = node.innerXml;
+            else {
+                if (node.innerXml) {
+                    this._innerXml = node.innerXml;
+                }
+                if (tagVoid) {
+                    this._tagVoid = true;
+                }
+            }
+            if (typeof node.textContent === 'string') {
+                this.innerXml = node.textContent;
             }
         }
     }

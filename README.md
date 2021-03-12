@@ -431,10 +431,9 @@ interface OutputModifiers {
 }
 
 interface AssetCommand extends OutputModifiers {
-    selector?: string;
-    document?: string | string[]; // Usually "chrome" (optional)
+    selector: string;
 
-    type?: string; // js | css | image | append/js | append/css | append/[tagName]
+    type: "js" | "css" | "image" | "append/js" | "append/css" | "append/[tagName]"
     saveAs?: string; // type: js | css
     exportAs?: string; // type: js | css
     saveTo?: string; // type: image | video | audio (transforms create multiple files and are given a UUID filename)
@@ -453,7 +452,7 @@ interface AssetCommand extends OutputModifiers {
         value?: string;
     };
 
-    type?: string; // text | attribute | display (database)
+    type: "text" | "attribute" | "display" // database
     dataSource?: {
         source: "uri";
         format: string; // json | yaml | toml
@@ -464,6 +463,11 @@ interface AssetCommand extends OutputModifiers {
         source: "mongodb";
         // Same as CloudDatabase
     };
+
+    type: "replace";
+    textContent: string; // Replace element.innerHTML
+
+    document?: string | string[]; // Usually "chrome" (optional)
 }
 ```
 

@@ -153,6 +153,20 @@ export class DomWriter extends XmlWriter implements IDomWriter {
                 }
             }
             this.source = source;
+            const title = new RegExp(`<title(${XmlWriter.PATTERN_TAGOPEN}*)>([\\S\\s]*?)<\\/title\\s*>`, 'i').exec(source);
+            if (title) {
+                const innerXml = XmlWriter.escapeXmlString(title[5]);
+                if (innerXml !== title[5]) {
+                    const startIndex = title.index;
+                    const titleXml = `<title${title[1]}>${innerXml}</title>`;
+                    for (const item of elements) {
+                        if (item.tagName === 'title') {
+                            item.outerXml = titleXml;
+                        }
+                    }
+                    this.spliceRawString({ outerXml: titleXml, startIndex, endIndex: startIndex + title[0].length - 1 }, false);
+                }
+            }
         }
         if (outerXml) {
             const endIndex = startIndex + outerXml.length - 1;
@@ -160,20 +174,6 @@ export class DomWriter extends XmlWriter implements IDomWriter {
                 item.startIndex = startIndex;
                 item.endIndex = endIndex;
                 item.outerXml = outerXml;
-            }
-        }
-        const title = new RegExp(`<title(${XmlWriter.PATTERN_TAGOPEN}*)>([\\S\\s]*?)<\\/title\\s*>`, 'i').exec(source);
-        if (title) {
-            const innerXml = XmlWriter.escapeXmlString(title[5]);
-            if (innerXml !== title[5]) {
-                const index = title.index;
-                outerXml = `<title${title[1]}>${innerXml}</title>`;
-                for (const item of elements) {
-                    if (item.tagName === 'title') {
-                        item.outerXml = outerXml;
-                    }
-                }
-                this.source = source.substring(0, index) + outerXml + source.substring(index + title[0].length);
             }
         }
         this.init(offsetMap);
@@ -258,7 +258,7 @@ export class HtmlElement extends XmlElement {
 
     get outerXml() {
         const [tagName, items, innerXml] = this.getOuterContent();
-        return '<' + tagName + HtmlElement.writeAttributes(items) + '>' + (DomWriter.hasInnerXml(tagName) && tagName !== 'html' ? tagName === 'title' ? XmlWriter.escapeXmlString(innerXml) : innerXml + `</${tagName}>` : '');
+        return '<' + tagName + HtmlElement.writeAttributes(items) + '>' + (DomWriter.hasInnerXml(tagName) && tagName !== 'html' ? (tagName === 'title' ? XmlWriter.escapeXmlString(innerXml) : innerXml) + `</${tagName}>` : '');
     }
     get nameOfId() {
         return getAttrId(this.documentName);

@@ -476,14 +476,16 @@ class ChromeDocument extends Document implements IChromeDocument {
             let source = this.getUTF8String(htmlFile, localUri);
             const domBase = new DomWriter(moduleName, source, this.getElements());
             for (const item of elements) {
-                const element = item.element!;
                 const crossorigin = item.format === 'crossorigin';
-                if (item.invalid && !crossorigin || element.removed || isRemoved(item)) {
+                const element = item.element!;
+                const textContent = element.textContent;
+                const replacing = typeof textContent === 'string';
+                if (item.invalid && !crossorigin && !replacing || element.removed || isRemoved(item)) {
                     continue;
                 }
                 const { attributes, srcSet, bundleIndex, inlineContent } = item;
                 let uri = item.relativeUri;
-                if (!attributes && (!uri && bundleIndex === undefined && !inlineContent && !srcSet || item === htmlFile || crossorigin)) {
+                if (!attributes && !replacing && (!uri && bundleIndex === undefined && !inlineContent && !srcSet || item === htmlFile || crossorigin)) {
                     continue;
                 }
                 const domElement = new HtmlElement(moduleName, element, attributes);
