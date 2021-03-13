@@ -72,7 +72,7 @@ export interface XmlNode extends AttributeAction {
     index?: number;
     outerXml?: string;
     innerXml?: string;
-    lowerCase?: boolean;
+    ignoreCase?: boolean;
 }
 
 export interface XmlTagNode extends XmlNode, TagData {

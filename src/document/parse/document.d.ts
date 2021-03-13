@@ -13,7 +13,7 @@ export interface SourceContent extends SourceIndex {
 }
 
 export interface SourceTagNode extends SourceContent, TagData {
-    lowerCase?: boolean;
+    ignoreCase?: boolean;
 }
 
 export interface XmlTagNode extends IXmlTagNode, Partial<SourceIndex> {}
@@ -59,7 +59,6 @@ export class IXmlWriter extends IXmlBase {
     elements: XmlTagNode[];
     readonly rootName?: string;
     readonly ignoreTagName?: string;
-    readonly ignoreTagNameContent?: string;
     readonly ignoreTagNameCase?: boolean;
     init(offsetMap?: TagOffsetMap): void;
     getInvalidArea(): Undef<SourceContent[]>;
@@ -77,7 +76,7 @@ export class IXmlWriter extends IXmlBase {
     indexTag(tagName: string, append?: TagAppend, offset?: number): void;
     resetTag(tagName: string): void;
     resetPosition(startIndex?: number): void;
-    getOuterXmlById(id: string, caseSensitive?: boolean, options?: OuterXmlByIdOptions): Undef<SourceTagNode>;
+    getOuterXmlById(id: string, ignoreCase?: boolean, options?: OuterXmlByIdOptions): Undef<SourceTagNode>;
     setRawString(targetXml: string, outerXml: string): string;
     getRawString(index: SourceIndex): string;
     spliceRawString(content: SourceContent, reset?: boolean): string;

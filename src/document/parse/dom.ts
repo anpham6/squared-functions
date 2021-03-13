@@ -99,7 +99,6 @@ export class DomWriter extends XmlWriter implements IDomWriter {
     documentElement: Null<XmlTagNode> = null;
     readonly rootName = 'html';
     readonly ignoreTagName = 'title|style|script';
-    readonly ignoreTagNameContent = `(${this.ignoreTagName})${XmlWriter.PATTERN_TAGOPEN}*>[\\S\\s]+?</\\3\\s*`;
     readonly ignoreTagNameCase = true;
 
     constructor(documentName: string, source: string, elements: XmlTagNode[], normalize = true) {
@@ -110,7 +109,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
             offsetMap: Undef<TagOffsetMap>,
             startIndex = -1;
         for (const item of elements) {
-            item.lowerCase = true;
+            item.ignoreCase = true;
             item.tagName = item.tagName.toLowerCase();
             if (item.tagName === 'html') {
                 items.push(item);
