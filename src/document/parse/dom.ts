@@ -99,7 +99,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
     documentElement: Null<XmlTagNode> = null;
     readonly rootName = 'html';
     readonly ignoreTagName = 'title|style|script';
-    readonly ignoreTagNameCase = true;
+    readonly ignoreCaseTagName = true;
 
     constructor(documentName: string, source: string, elements: XmlTagNode[], normalize = true) {
         super(documentName, source, elements);

@@ -59,7 +59,7 @@ export class IXmlWriter extends IXmlBase {
     elements: XmlTagNode[];
     readonly rootName?: string;
     readonly ignoreTagName?: string;
-    readonly ignoreTagNameCase?: boolean;
+    readonly ignoreCaseTagName?: boolean;
     init(offsetMap?: TagOffsetMap): void;
     getInvalidArea(): Undef<SourceContent[]>;
     insertNodes(nodes?: XmlTagNode[]): void;

@@ -218,7 +218,7 @@ export abstract class XmlWriter implements IXmlWriter {
     newline = '\n';
     readonly rootName?: string;
     readonly ignoreTagName?: string;
-    readonly ignoreTagNameCase?: Undef<boolean>;
+    readonly ignoreCaseTagName?: Undef<boolean>;
 
     protected _tagCount: ObjectMap<number> = {};
     protected _hasInvalidContent = true;
@@ -253,7 +253,7 @@ export abstract class XmlWriter implements IXmlWriter {
     }
     getInvalidArea() {
         if (this._hasInvalidContent) {
-            const result = XmlWriter.getCommentsAndCDATA(this.source, this.ignoreTagName, this.ignoreTagNameCase);
+            const result = XmlWriter.getCommentsAndCDATA(this.source, this.ignoreTagName, this.ignoreCaseTagName);
             if (result.length) {
                 return result;
             }
@@ -367,7 +367,7 @@ export abstract class XmlWriter implements IXmlWriter {
             }
             this.update(node, outerXml, append, element.tagOffset);
             if (element.innerXml && !element.remove) {
-                this._hasInvalidContent ||= element.hasModifiedContent() || !!this.ignoreTagName && new RegExp(`^(?:${this.ignoreTagName})$`, this.ignoreTagNameCase ? 'i' : '').test(element.tagName);
+                this._hasInvalidContent ||= element.hasModifiedContent() || !!this.ignoreTagName && new RegExp(`^(?:${this.ignoreTagName})$`, this.ignoreCaseTagName ? 'i' : '').test(element.tagName);
             }
             element.reset();
             ++this.modifyCount;

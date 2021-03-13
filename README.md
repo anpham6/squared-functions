@@ -59,7 +59,7 @@ webp~2x(1024x768)
   }
 }
 
-// HTML configuration (json/yaml/toml)
+// HTML configuration (json/yaml)
 {
   "selector": ".card:nth-of-type(1) img",
   "type": "image",
@@ -177,7 +177,7 @@ Bundling options are available with these HTML tag names.
 Files with the same path and filename will automatically create a bundle assuming there are no conflicts in call ordering.
 
 ```javascript
-// HTML configuration (json/yaml/toml) is recommended
+// HTML configuration using JSON/YAML is recommended
 
 {
   "selector": "head > script:nth-of-type(2), head > script:nth-of-type(3)",
@@ -412,10 +412,11 @@ async function (context, value, options) {
 
 Transpiling with Babel is also configurable with a .babelrc file in the base folder.
 
-Here is the equivalent configuration in YAML and when available has higher precedence than JSON.
+Here is the equivalent configuration in YAML/TOML and when available has higher precedence than JSON.
 
 - [squared.settings.json](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.json)
 - [squared.settings.yml](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.yml)
+- [squared.settings.toml](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.toml)
 
 ### External configuration
 
@@ -475,7 +476,6 @@ Only one command per element is supported (except data sources) with the latter 
 
 - [JSON](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.json)
 - [YAML](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.yml)
-- [TOML](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.toml)
 
 ```javascript
 squared.saveAs("bundle.zip", { configUri: "http://localhost:3000/chrome/bundle.yml" });
@@ -697,7 +697,6 @@ Other service providers can be integrated similarly except for credential verifi
 NOTE: Using S3 and OCI at the same time with identical bucket names causes a conflict with the S3 region cache.
 
 - [YAML](https://github.com/anpham6/squared-functions/blob/master/examples/cloud.selector.yml)
-- [TOML](https://github.com/anpham6/squared-functions/blob/master/examples/cloud.selector.toml)
 
 Serving CSS files from cloud storage or CDN requires every image inside the file to be hosted with an absolute URL.
 
