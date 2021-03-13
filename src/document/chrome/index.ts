@@ -477,14 +477,13 @@ class ChromeDocument extends Document implements IChromeDocument {
             for (const item of elements) {
                 const crossorigin = item.format === 'crossorigin';
                 const element = item.element!;
-                const textContent = element.textContent;
-                const replacing = typeof textContent === 'string';
+                const replacing = typeof element.textContent === 'string';
                 if (item.invalid && !crossorigin && !replacing || element.removed || isRemoved(item)) {
                     continue;
                 }
                 const { attributes, srcSet, bundleIndex, inlineContent } = item;
                 let uri = item.relativeUri;
-                if (!attributes && !replacing && (!uri && bundleIndex === undefined && !inlineContent && !srcSet || item === htmlFile || crossorigin)) {
+                if (!attributes && !replacing && (item === htmlFile || !inlineContent && !srcSet && (!uri && bundleIndex === undefined || crossorigin))) {
                     continue;
                 }
                 const domElement = new HtmlElement(moduleName, element, attributes);
@@ -582,7 +581,8 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     credential = (instance.module.settings as Undef<StandardMap>)?.mongodb?.[credential] as Undef<StandardMap>;
                                                 }
                                                 if (credential?.server) {
-                                                    const { authMechanism = '', authMechanismProperties, authSource, user, dnsSrv } = credential;
+                                                    const { authMechanism = '', authMechanismProperties, user, dnsSrv } = credential;
+                                                    let authSource = credential.authSource;
                                                     uri = `mongodb${dnsSrv ? '+srv' : ''}://` + (user ? encodeURIComponent(user) + (authMechanism !== 'GSSAPI' && credential.pwd ? ':' + encodeURIComponent(credential.pwd) : '') + '@' : '') + credential.server + '/?authMechanism=' + encodeURIComponent(authMechanism);
                                                     switch (authMechanism) {
                                                         case 'MONGODB-X509': {
@@ -603,6 +603,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                         }
                                                         case 'GSSAPI':
                                                             uri += '&gssapiServiceName=mongodb';
+                                                        case 'PLAIN':
+                                                        case 'MONGODB-AWS':
+                                                            authSource ||= '$external';
                                                             break;
                                                     }
                                                     if (authSource) {
