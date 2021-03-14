@@ -33,12 +33,12 @@ const REGEXP_CSSCONTENT = /\s*(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[
 const REGEXP_OBJECTPROPERTY = /\$\{\s*(\w+)\s*\}/g;
 const REGEXP_TEMPLATECONDITIONAL = /(\n\s+)?\{\{\s*if\s+(!)?\s*([^}\s]+)\s*\}\}(\s*)([\S\s]*?)(?:\s*\{\{\s*else\s*\}\}(\s*)([\S\s]*?)\s*)?\s*\{\{\s*end\s*\}\}/g;
 
-function removeDatasetNamespace(name: string, source: string) {
+function removeDatasetNamespace(name: string, source: string, newline: string) {
     if (source.includes('data-' + name)) {
         return source
-            .replace(new RegExp(`(\\s*)<(script|style)${DomWriter.PATTERN_TAGOPEN}+?data-${name}-file\\s*=\\s*(["'])?exclude\\3${DomWriter.PATTERN_TAGOPEN}*>[\\S\\s]*?<\\/\\2>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[4]))
-            .replace(new RegExp(`(\\s*)<link${DomWriter.PATTERN_TAGOPEN}+?data-${name}-file\\s*=\\s*(["'])?exclude\\2${DomWriter.PATTERN_TAGOPEN}*>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[3]))
-            .replace(new RegExp(`(\\s*)<script${DomWriter.PATTERN_TAGOPEN}+?data-${name}-template\\s*${DomWriter.PATTERN_ATTRVALUE + DomWriter.PATTERN_TAGOPEN}*>[\\S\\s]*?<\\/script>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[2]))
+            .replace(new RegExp(`(\\s*)<(script|style)${DomWriter.PATTERN_TAGOPEN}+?data-${name}-file\\s*=\\s*(["'])?exclude\\3${DomWriter.PATTERN_TAGOPEN}*>[\\S\\s]*?<\\/\\2>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[4], newline))
+            .replace(new RegExp(`(\\s*)<link${DomWriter.PATTERN_TAGOPEN}+?data-${name}-file\\s*=\\s*(["'])?exclude\\2${DomWriter.PATTERN_TAGOPEN}*>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[3], newline))
+            .replace(new RegExp(`(\\s*)<script${DomWriter.PATTERN_TAGOPEN}+?data-${name}-template\\s*${DomWriter.PATTERN_ATTRVALUE + DomWriter.PATTERN_TAGOPEN}*>[\\S\\s]*?<\\/script>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[2], newline))
             .replace(new RegExp(`\\s+data-${name}-[a-z-]+\\s*` + DomWriter.PATTERN_ATTRVALUE, 'g'), '');
     }
     return source;
@@ -475,9 +475,9 @@ class ChromeDocument extends Document implements IChromeDocument {
             let source = this.getUTF8String(htmlFile, localUri);
             const domBase = new DomWriter(moduleName, source, this.getElements());
             for (const item of elements) {
-                const crossorigin = item.format === 'crossorigin';
                 const element = item.element!;
                 const replacing = typeof element.textContent === 'string';
+                const crossorigin = item.format === 'crossorigin';
                 if (item.invalid && !crossorigin && !replacing || element.removed || isRemoved(item)) {
                     continue;
                 }
@@ -1037,7 +1037,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 switch (item.source) {
                                     case 'cloud': {
                                         const { service, table, id, query } = item as CloudDatabase;
-                                        let queryString = '';
+                                        let queryString = table;
                                         if (id) {
                                             queryString = 'id: ' + id;
                                         }
@@ -1077,7 +1077,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             if (domBase.modified) {
                 source = domBase.close();
             }
-            source = replaceContent(removeDatasetNamespace(moduleName, source));
+            source = replaceContent(removeDatasetNamespace(moduleName, source, domBase.newline));
             source = transformCss.call(this, instance.assets, htmlFile, source, true) || source;
             if (htmlFile.format) {
                 const result = await instance.transform('html', source, htmlFile.format);
@@ -1122,6 +1122,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
     }
 
+    moduleName = 'chrome';
     assets: DocumentAsset[] = [];
     htmlFile: Null<DocumentAsset> = null;
     cssFiles: DocumentAsset[] = [];
@@ -1129,7 +1130,6 @@ class ChromeDocument extends Document implements IChromeDocument {
     baseUrl?: string;
     unusedStyles?: string[];
     productionRelease?: boolean | string;
-    moduleName = 'chrome';
     internalAssignUUID = '__assign__';
     internalServerRoot = '__serverroot__';
 

@@ -55,7 +55,7 @@ function resetTagPosition(item: XmlTagNode) {
     item.tagCount = 0;
 }
 
-function findClosingIndex(source: string, tagName: string, lastIndex: number, ignoreCase?: boolean): [number, number] {
+function findCloseIndex(source: string, tagName: string, lastIndex: number, ignoreCase?: boolean): [number, number] {
     const flags = ignoreCase ? 'gi' : 'g';
     const pattern = TAGNAME_CACHE[tagName + flags] ||= new RegExp(`(<${Module.escapePattern(tagName)}\\s*)|(</${Module.escapePattern(tagName)}\\s*>)`, flags);
     pattern.lastIndex = lastIndex;
@@ -201,7 +201,7 @@ export abstract class XmlWriter implements IXmlWriter {
             let outerXml = match[0],
                 endIndex = match.index + outerXml.length - 1;
             if (type === 'node') {
-                endIndex = findClosingIndex(source, match[3], endIndex, ignoreCase)[0];
+                endIndex = findCloseIndex(source, match[3], endIndex, ignoreCase)[0];
                 if (endIndex === -1) {
                     continue;
                 }
@@ -218,7 +218,7 @@ export abstract class XmlWriter implements IXmlWriter {
     newline = '\n';
     readonly rootName?: string;
     readonly ignoreTagName?: string;
-    readonly ignoreCaseTagName?: Undef<boolean>;
+    readonly ignoreCaseTagName?: boolean;
 
     protected _tagCount: ObjectMap<number> = {};
     protected _hasInvalidContent = true;
@@ -687,7 +687,7 @@ export abstract class XmlWriter implements IXmlWriter {
             let endIndex = -1,
                 closeTag = 0;
             if (!tagVoid) {
-                [endIndex, closeTag] = findClosingIndex(source, tagName, startIndex + match[0].length, ignoreCase);
+                [endIndex, closeTag] = findCloseIndex(source, tagName, startIndex + match[0].length, ignoreCase);
             }
             if (closeTag === 0) {
                 endIndex = XmlWriter.findCloseTag(source, startIndex);

@@ -12,8 +12,9 @@ const Parser = htmlparser2.Parser;
 const DomHandler = domhandler.DomHandler;
 
 const TAG_VOID = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
+const REGEX_VOID = TAG_VOID.map(tagName => new RegExp(`</${tagName}\\s*>`, 'gi'));
+const REGEX_NORMALIZE = new RegExp(`<(?:([^\\s]${XmlWriter.PATTERN_TAGOPEN}*?)(\\s*\\/?\\s*)|\\/([^\\s>]+)(\\s*))>`, 'g');
 
-const formatHTML = (value: string) => value.replace(/<html(\s*)/i, (...capture) => '<html' + (capture[1] ? ' ' : ''));
 const getAttrId = (document: string) => `data-${document}-id`;
 
 export class DomWriter extends XmlWriter implements IDomWriter {
@@ -22,12 +23,12 @@ export class DomWriter extends XmlWriter implements IDomWriter {
     }
 
     static normalize(source: string) {
-        for (const tag of TAG_VOID) {
-            source = source.replace(new RegExp(`</${tag}\\s*>`, 'gi'), '');
+        for (const tag of REGEX_VOID) {
+            source = source.replace(tag, '');
+            tag.lastIndex = 0;
         }
-        const pattern = new RegExp(`<(?:([^\\s]${XmlWriter.PATTERN_TAGOPEN}*?)(\\s*\\/?\\s*)|\\/([^\\s>]+)(\\s*))>`, 'g');
         let match: Null<RegExpExecArray>;
-        while (match = pattern.exec(source)) {
+        while (match = REGEX_NORMALIZE.exec(source)) {
             let tag: Undef<string>;
             if (match[1]) {
                 if (match[2]) {
@@ -39,9 +40,10 @@ export class DomWriter extends XmlWriter implements IDomWriter {
             }
             if (tag) {
                 source = source.substring(0, match.index) + tag + source.substring(match.index + match[0].length);
-                pattern.lastIndex -= match[0].length - tag.length;
+                REGEX_NORMALIZE.lastIndex -= match[0].length - tag.length;
             }
         }
+        REGEX_NORMALIZE.lastIndex = 0;
         return source;
     }
 
@@ -137,8 +139,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
                 startIndex = leading.length - outerXml.length;
             }
             else {
-                leading = formatHTML(source.substring(0, startIndex + outerXml.length));
-                outerXml = formatHTML(outerXml);
+                leading = source.substring(0, startIndex + outerXml.length);
             }
             source = leading + this.newline + documentElement.innerXml! + this.newline + '</html>';
             this.source = source;
