@@ -15,6 +15,7 @@ export enum LOG_TYPE {
 }
 
 export interface LogMessageOptions {
+    useColor?: boolean;
     titleColor?: typeof ForegroundColor;
     titleBgColor?: typeof BackgroundColor;
     valueColor?: typeof ForegroundColor;

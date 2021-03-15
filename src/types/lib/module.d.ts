@@ -26,6 +26,7 @@ export interface CloudModule {
 }
 
 export interface LoggerModule {
+    color?: boolean;
     unknown?: boolean;
     system?: boolean;
     node?: boolean;

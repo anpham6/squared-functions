@@ -101,20 +101,31 @@ abstract class Module implements IModule {
                 }
                 break;
         }
+        const useColor = !(options.useColor === false || SETTINGS.color === false);
         if (Array.isArray(value)) {
-            let length = 0;
-            if (typeof value[1] === 'string' && (length = value[1].length)) {
-                const formatHint = (hint: string) => {
+            let length = 0,
+                hint = value[1] as string;
+            if (typeof hint === 'string' && (length = hint.length)) {
+                const getHint = () => length > 32 ? hint.substring(0, 29) + '...' : hint;
+                const formatHint = (content: string) => {
                     const { hintColor, hintBgColor } = options;
                     if (hintColor) {
-                        hint = chalk[hintColor](hint);
+                        content = chalk[hintColor](content);
                     }
                     if (hintBgColor) {
-                        hint = chalk[hintBgColor](hint);
+                        content = chalk[hintBgColor](content);
                     }
-                    return hint;
+                    return content;
                 };
-                value = value[0].padEnd(38) + (length < 32 ? chalk.blackBright(' '.repeat(32 - length)) : '') + chalk.blackBright('[') + formatHint(length > 32 ? value[1].substring(0, 29) + '...' : value[1]) + chalk.blackBright(']');
+                value = value[0].padEnd(38);
+                if (length < 32) {
+                    let padding = ' '.repeat(32 - length);
+                    if (useColor) {
+                        padding = chalk.blackBright(padding);
+                    }
+                    value += padding;
+                }
+                value += useColor ? chalk.blackBright('[') + formatHint(getHint()) + chalk.blackBright(']') : `[${getHint()}]`;
             }
             else {
                 value = value[0].padEnd(72);
@@ -123,23 +134,28 @@ abstract class Module implements IModule {
         else {
             value = value.padEnd(72);
         }
-        const { titleColor = 'green', titleBgColor = 'bgBlack', valueColor, valueBgColor, messageColor, messageBgColor } = options;
-        if (valueColor) {
-            value = chalk[valueColor](value);
-        }
-        if (valueBgColor) {
-            value = chalk[valueBgColor](value);
-        }
-        if (message) {
-            if (messageColor) {
-                message = chalk[messageColor](message);
+        if (useColor) {
+            const { titleColor = 'green', titleBgColor = 'bgBlack', valueColor, valueBgColor, messageColor, messageBgColor } = options;
+            if (valueColor) {
+                value = chalk[valueColor](value);
             }
-            if (messageBgColor) {
-                message = chalk[messageBgColor](message);
+            if (valueBgColor) {
+                value = chalk[valueBgColor](value);
             }
-            message = ' ' + chalk.blackBright('(') + message + chalk.blackBright(')');
+            if (message) {
+                if (messageColor) {
+                    message = chalk[messageColor](message);
+                }
+                if (messageBgColor) {
+                    message = chalk[messageBgColor](message);
+                }
+                message = ' ' + chalk.blackBright('(') + message + chalk.blackBright(')');
+            }
+            console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase().padEnd(7)) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
         }
-        console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase().padEnd(7)) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
+        else {
+            console.log(title.toUpperCase().padEnd(7) + ':' + ' ' + value + (message && ` (${message})` || '')); // eslint-disable-line no-console
+        }
     }
 
     static writeFail(value: LogValue, message?: Null<Error>, type?: LOG_TYPE) {
