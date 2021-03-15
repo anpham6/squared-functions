@@ -35,11 +35,11 @@ export interface FindElementOptions {
     id?: string;
 }
 
-export interface OuterXmlOptions {
+export interface TagNodeOptions {
     tagVoid?: boolean;
 }
 
-export interface OuterXmlByIdOptions extends OuterXmlOptions {
+export interface TagNodeByIdOptions extends TagNodeOptions {
     tagName?: string;
 }
 
@@ -80,8 +80,8 @@ export class IXmlWriter extends IXmlBase {
     indexTag(tagName: string, append?: TagAppend, offset?: number): void;
     resetTag(tagName: string): void;
     resetPosition(startIndex?: number): void;
-    getOuterXmlById(id: string, ignoreCase?: boolean, options?: OuterXmlByIdOptions): Undef<SourceTagNode>;
-    getOuterXmlByTagName(tagName: string, ignoreCase?: boolean, options?: OuterXmlOptions): SourceTagNode[];
+    getElementById(id: string, ignoreCase?: boolean, options?: TagNodeByIdOptions): Undef<SourceTagNode>;
+    getElementsByTagName(tagName: string, ignoreCase?: boolean, options?: TagNodeOptions): SourceTagNode[];
     setRawString(targetXml: string, outerXml: string): string;
     getRawString(index: SourceIndex): string;
     spliceRawString(content: SourceContent, reset?: boolean): string;

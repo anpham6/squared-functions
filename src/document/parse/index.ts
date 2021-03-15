@@ -1,6 +1,6 @@
 import type { TagAppend } from '../../types/lib/squared';
 
-import type { AttributeList, AttributeMap, IXmlElement, IXmlWriter, OuterXmlByIdOptions, OuterXmlOptions, ReplaceOptions, SaveResult, SourceContent, SourceIndex, SourceTagNode, TagOffsetMap, WriteResult, XmlTagNode } from './document';
+import type { AttributeList, AttributeMap, IXmlElement, IXmlWriter, TagNodeByIdOptions, TagNodeOptions, ReplaceOptions, SaveResult, SourceContent, SourceIndex, SourceTagNode, TagOffsetMap, WriteResult, XmlTagNode } from './document';
 
 import uuid = require('uuid');
 import htmlparser2 = require('htmlparser2');
@@ -673,7 +673,7 @@ export abstract class XmlWriter implements IXmlWriter {
         this.elements.length = 0;
         return source;
     }
-    getOuterXmlById(id: string, ignoreCase = false, options?: OuterXmlByIdOptions) {
+    getElementById(id: string, ignoreCase = false, options?: TagNodeByIdOptions) {
         let tagName: Undef<string>,
             tagVoid: Undef<boolean>;
         if (options) {
@@ -693,11 +693,11 @@ export abstract class XmlWriter implements IXmlWriter {
                 endIndex = XmlWriter.findCloseTag(source, startIndex);
             }
             if (endIndex !== -1) {
-                return { tagName, id, outerXml: source.substring(startIndex, endIndex + 1), startIndex, endIndex, ignoreCase };
+                return { tagName, id, outerXml: source.substring(startIndex, endIndex + 1), startIndex, endIndex, ignoreCase } as SourceTagNode;
             }
         }
     }
-    getOuterXmlByTagName(tagName: string, ignoreCase = false, options?: OuterXmlOptions) {
+    getElementsByTagName(tagName: string, ignoreCase = false, options?: TagNodeOptions) {
         let tagVoid: Undef<boolean>;
         if (options) {
             ({ tagVoid } = options);
@@ -717,8 +717,8 @@ export abstract class XmlWriter implements IXmlWriter {
                 if (!tagVoid) {
                     const [index, closeTag] = findCloseIndex(source, tagName, endIndex, ignoreCase);
                     if (index !== -1) {
+                        outerXml = source.substring(startIndex, index + 1);
                         endIndex = index;
-                        outerXml = source.substring(startIndex, endIndex + 1);
                     }
                     else if (closeTag > 0) {
                         continue;
