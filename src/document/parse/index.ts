@@ -1,6 +1,6 @@
 import type { TagAppend } from '../../types/lib/squared';
 
-import type { AttributeList, AttributeMap, IXmlElement, IXmlWriter, OuterXmlByIdOptions, ReplaceOptions, SaveResult, SourceContent, SourceIndex, SourceTagNode, TagOffsetMap, WriteResult, XmlTagNode } from './document';
+import type { AttributeList, AttributeMap, IXmlElement, IXmlWriter, OuterXmlByIdOptions, OuterXmlOptions, ReplaceOptions, SaveResult, SourceContent, SourceIndex, SourceTagNode, TagOffsetMap, WriteResult, XmlTagNode } from './document';
 
 import uuid = require('uuid');
 import htmlparser2 = require('htmlparser2');
@@ -693,9 +693,41 @@ export abstract class XmlWriter implements IXmlWriter {
                 endIndex = XmlWriter.findCloseTag(source, startIndex);
             }
             if (endIndex !== -1) {
-                return { tagName, outerXml: source.substring(startIndex, endIndex + 1), startIndex, endIndex, ignoreCase } as SourceTagNode;
+                return { tagName, id, outerXml: source.substring(startIndex, endIndex + 1), startIndex, endIndex, ignoreCase };
             }
         }
+    }
+    getOuterXmlByTagName(tagName: string, ignoreCase = false, options?: OuterXmlOptions) {
+        let tagVoid: Undef<boolean>;
+        if (options) {
+            ({ tagVoid } = options);
+        }
+        const source = this.source;
+        const invalid = this.getInvalidArea();
+        const result: SourceTagNode[] = [];
+        const pattern = new RegExp(`<${tagName + XmlWriter.PATTERN_TAGOPEN}*>`, ignoreCase ? 'gi' : 'g');
+        const patternId = new RegExp(Module.escapePattern(this.nameOfId) + '="([^"]+)"');
+        let match: Null<RegExpExecArray>;
+        while (match = pattern.exec(source)) {
+            const startIndex = match.index;
+            if (isValidIndex(invalid, startIndex)) {
+                let outerXml = match[0],
+                    endIndex = startIndex + outerXml.length - 1;
+                const id = patternId.exec(outerXml)?.[1];
+                if (!tagVoid) {
+                    const [index, closeTag] = findCloseIndex(source, tagName, endIndex, ignoreCase);
+                    if (index !== -1) {
+                        endIndex = index;
+                        outerXml = source.substring(startIndex, endIndex + 1);
+                    }
+                    else if (closeTag > 0) {
+                        continue;
+                    }
+                }
+                result.push({ tagName, id, outerXml, startIndex, endIndex, ignoreCase });
+            }
+        }
+        return result;
     }
     setRawString(targetXml: string, outerXml: string) {
         const startIndex = this.source.indexOf(targetXml);

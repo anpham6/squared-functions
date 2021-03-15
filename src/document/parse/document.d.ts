@@ -13,6 +13,7 @@ export interface SourceContent extends SourceIndex {
 }
 
 export interface SourceTagNode extends SourceContent, TagData {
+    id?: string;
     ignoreCase?: boolean;
 }
 
@@ -34,9 +35,12 @@ export interface FindElementOptions {
     id?: string;
 }
 
-export interface OuterXmlByIdOptions {
-    tagName?: string;
+export interface OuterXmlOptions {
     tagVoid?: boolean;
+}
+
+export interface OuterXmlByIdOptions extends OuterXmlOptions {
+    tagName?: string;
 }
 
 export interface ParserResult extends Partial<TagData> {
@@ -77,6 +81,7 @@ export class IXmlWriter extends IXmlBase {
     resetTag(tagName: string): void;
     resetPosition(startIndex?: number): void;
     getOuterXmlById(id: string, ignoreCase?: boolean, options?: OuterXmlByIdOptions): Undef<SourceTagNode>;
+    getOuterXmlByTagName(tagName: string, ignoreCase?: boolean, options?: OuterXmlOptions): SourceTagNode[];
     setRawString(targetXml: string, outerXml: string): string;
     getRawString(index: SourceIndex): string;
     spliceRawString(content: SourceContent, reset?: boolean): string;
