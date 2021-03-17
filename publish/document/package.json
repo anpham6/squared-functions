@@ -21,7 +21,7 @@
     "htmlparser2": "^6.0.1",
     "jsonpath": "^1.1.0",
     "js-yaml": "^4.0.0",
-    "mongodb": "^3.6.3",
+    "mongodb": "^3.6.5",
     "request": "^2.88.2",
     "request-promise-native": "^1.0.9",
     "toml": "^3.0.0",

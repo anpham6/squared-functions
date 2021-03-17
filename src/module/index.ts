@@ -103,8 +103,8 @@ abstract class Module implements IModule {
         }
         const useColor = !(options.useColor === false || SETTINGS.color === false);
         if (Array.isArray(value)) {
-            let length = 0,
-                hint = value[1] as string;
+            const hint = value[1] as string;
+            let length = 0;
             if (typeof hint === 'string' && (length = hint.length)) {
                 const getHint = () => length > 32 ? hint.substring(0, 29) + '...' : hint;
                 const formatHint = (content: string) => {
@@ -154,7 +154,7 @@ abstract class Module implements IModule {
             console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase().padEnd(7)) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
         }
         else {
-            console.log(title.toUpperCase().padEnd(7) + ':' + ' ' + value + (message && ` (${message})` || '')); // eslint-disable-line no-console
+            console.log(title.toUpperCase().padEnd(7) + ':' + ' ' + value + (message && ` (${message as string})` || '')); // eslint-disable-line no-console
         }
     }
 

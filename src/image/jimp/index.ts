@@ -11,6 +11,38 @@ import jimp = require('jimp');
 import Image from '../index';
 
 const MODULE_NAME = 'jimp';
+const METHOD_ALIAS: StringMap = {
+    ct: 'contain',
+    cv: 'cover',
+    re: 'resize',
+    sc: 'scale',
+    sf: 'scaleToFit',
+    au: 'autocrop',
+    cr: 'crop',
+    bt: 'blit',
+    cp: 'composite',
+    ma: 'mask',
+    cl: 'convolute',
+    fl: 'flip',
+    mi: 'mirror',
+    ro: 'rotate',
+    br: 'brightness',
+    cn: 'contrast',
+    dt: 'dither565',
+    gr: 'greyscale',
+    in: 'invert',
+    no: 'normalize',
+    fa: 'fade',
+    op: 'opacity',
+    oq: 'opaque',
+    bg: 'background',
+    ga: 'gaussian',
+    bl: 'blur',
+    po: 'posterize',
+    se: 'sepia',
+    px: 'pixelate',
+    dp: 'displace'
+};
 const MIME_INPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, jimp.MIME_GIF, jimp.MIME_TIFF, 'image/webp']);
 const MIME_OUTPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, 'image/webp']);
 
@@ -19,7 +51,7 @@ function performCommand(localUri: string | Buffer, command: string, outputType: 
         .then(async img => {
             const handler = new Jimp(img);
             handler.setCommand(command, finalAs);
-            handler.method();
+            await handler.method();
             handler.resize();
             handler.crop();
             if (outputType === jimp.MIME_JPEG && !finalAs) {
@@ -137,10 +169,10 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
         }
     }
 
-    static async transform(uri: string, command: string, mimeType?: string, tempFile?: boolean) {
+    static transform(uri: string, command: string, mimeType?: string, tempFile?: boolean) {
         const [outputType, saveAs, finalAs] = this.parseFormat(command, mimeType);
         if (outputType) {
-            return await performCommand(uri, command, outputType, finalAs).then(handler => handler.getBuffer(tempFile, saveAs, finalAs)).catch(() => tempFile ? '' : null);
+            return performCommand(uri, command, outputType, finalAs).then(handler => handler.getBuffer(tempFile, saveAs, finalAs)).catch(() => tempFile ? '' : null);
         }
         return super.transform(uri, command, mimeType, tempFile);
     }
@@ -189,22 +221,50 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
         super.setCommand(value);
         this._finalAs = finalAs;
     }
-    method() {
+    async method() {
         if (this.methodData) {
-            for (const name of this.methodData) {
-                switch (name) {
+            for (const [name, args = []] of this.methodData) {
+                const alias = METHOD_ALIAS[name] || name;
+                switch (alias) {
+                    case 'contain':
+                    case 'cover':
+                    case 'resize':
+                    case 'scale':
+                    case 'scaleToFit':
+                    case 'autocrop':
+                    case 'crop':
+                    case 'blit':
+                    case 'composite':
+                    case 'mask':
+                    case 'convolute':
+                    case 'flip':
+                    case 'mirror':
+                    case 'rotate':
+                    case 'brightness':
+                    case 'contrast':
                     case 'dither565':
                     case 'greyscale':
                     case 'invert':
                     case 'normalize':
+                    case 'fade':
+                    case 'opacity':
                     case 'opaque':
+                    case 'background':
+                    case 'gaussian':
+                    case 'blur':
+                    case 'posterize':
                     case 'sepia':
+                    case 'pixelate':
+                    case 'displace':
                         try {
-                            this.instance = this.instance[name]();
+                            this.instance = await (this.instance[alias] as FunctionType<jimp>)(...args);
                         }
                         catch (err) {
-                            this.writeFail(['Method not supported', this.moduleName + ':' + name], err);
+                            this.writeFail(['Invalid method arguments', MODULE_NAME + ':' + name], err);
                         }
+                        break;
+                    default:
+                        this.writeFail(['Method not found', MODULE_NAME + ':' + name], new Error(`Unknown: ${name} <${MODULE_NAME}>`));
                         break;
                 }
             }

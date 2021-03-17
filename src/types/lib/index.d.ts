@@ -45,7 +45,7 @@ declare namespace functions {
         reset(): void;
         setCommand(value: string): void;
         getCommand(): string;
-        parseMethod(value: string): Undef<string[]>;
+        parseMethod(value: string): Undef<[string, unknown[]?][]>;
         parseResize(value: string): Undef<ResizeData>;
         parseCrop(value: string): Undef<CropData>;
         parseRotate(value: string): Undef<RotateData>;

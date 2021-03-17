@@ -1,6 +1,6 @@
 import type { TagAppend } from '../../types/lib/squared';
 
-import type { AttributeList, AttributeMap, IXmlElement, IXmlWriter, TagNodeByIdOptions, TagNodeOptions, ReplaceOptions, SaveResult, SourceContent, SourceIndex, SourceTagNode, TagOffsetMap, WriteResult, XmlTagNode } from './document';
+import type { AttributeList, AttributeMap, IXmlElement, IXmlWriter, ReplaceOptions, SaveResult, SourceContent, SourceIndex, SourceTagNode, TagNodeByIdOptions, TagNodeOptions, TagOffsetMap, WriteResult, XmlTagNode } from './document';
 
 import uuid = require('uuid');
 import htmlparser2 = require('htmlparser2');

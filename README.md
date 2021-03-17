@@ -14,8 +14,6 @@ Image conversion can be achieved using the "commands" array property in a FileAs
 * gif - r
 * tiff - r
 
-// NOTE: WebP support requires manual NPM installation of the binaries.
-
 * dwebp - r // npm i dwebp-bin
 * cwebp - w // npm i cwebp-bin
 ```
@@ -32,7 +30,8 @@ Image conversion can be achieved using the "commands" array property in a FileAs
 - ( left(+|-n) , top(+|-n) | cropWidth(n) x cropHeight(n) )
 - { ...rotate(n) #background-color? }
 - | opacity(0.0-1.0) OR jpeg_webp_quality(0-100)[photo|picture|drawing|icon|text]?[0-100]?| // cwebp: -preset -near_lossless
-- !method // no arguments (e.g. jimp: dither565|greyscale|invert|normalize|opaque|sepia)
+- !method // No arguments (dither565|greyscale|invert|normalize|opaque|sepia)
+- !method(1, "string_arg2", [1, 2], true, { "a": 1, "b": "\\}" } /* valid JSON */, ...args?) // No functions or variable names
 ```
 
 @ - replace  
@@ -40,12 +39,52 @@ Image conversion can be achieved using the "commands" array property in a FileAs
 
 Placing an @ symbol (png@) after the format will remove the original file from the package. Using the % symbol (png%) instead will choose the smaller of the two files. You can also use these commands with the setting "convertImages" in the Android framework.
 
+```xml
+<!-- https://github.com/oliver-moran/jimp/tree/master/packages/jimp (jimp aliases) -->
+
+* contain (ct)
+* cover (cv)
+* resize (re)
+* scale (sc)
+* scaleToFit (sf)
+* autocrop (au)
+* crop (cr)
+* blit (bt)
+* composite (cp)
+* ma (mask)
+* convolute (cl)
+* flip (fl)
+* mirror (mi)
+* rotate (ro)
+* brightness (br)
+* contrast (cn)
+* dither565 (dt)
+* greyscale (gr)
+* invert (in)
+* normalize (no)
+* fade (fa)
+* opacity (op)
+* opaque (oq)
+* background (bg)
+* gaussian (ga)
+* blur (bl)
+* posterize (po)
+* sepia (se)
+* pixelate (px)
+* displace (dp)
+```
+
+Methods use simple bracket matching and does not fully check inside quoted strings. Unescaped "\\" when unpaired ("{}" or "[]") will fail to parse.
+
 ```javascript
-// data-chrome-commands: Multiple transformations use the "::" as the separator
+// Multiple transformations use the "::" as the separator (data-chrome-commands)
 
-webp(50000,*)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,135,215,315#FFFFFF}|0.5||100[photo][75]|!opaque!greyscale
+webp(50000,*)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,135,215,315#FFFFFF}|0.5||100[photo][75]|!sepia
 
-webp~800w(800x600) // chrome srcset attribute
+webp!opacity(0.5) // OR
+webp!op(0.5)
+
+webp~800w(800x600) // "srcset" attribute (chrome)
 webp~2x(1024x768)
 ```
 
@@ -55,7 +94,7 @@ webp~2x(1024x768)
 // squared.settings.json
 {
   "compress": {
-    "tinify_api_key": "**********" // default api key
+    "tinify_api_key": "**********" // Default API key
   }
 }
 
@@ -66,9 +105,9 @@ webp~2x(1024x768)
   "compress": [
     {
       "format": "png", // OR: jpeg
-      "plugin": "tinify", // optional (pre-installed)
+      "plugin": "tinify", // optional
       "options": {
-        "apiKey": "**********" // optional (overrides settings)
+        "apiKey": "**********" // Overrides settings (optional)
       }
     }
   ]
@@ -124,7 +163,7 @@ Tasks can be performed preceding archiving or copying after file content has bee
   "type": "js",
   "tasks": [
     { handler: "gulp", task: "minify" },
-    { handler: "gulp", task: "beautify", preceding: "true" } // execute tasks before transformations
+    { handler: "gulp", task: "beautify", preceding: "true" } // Execute tasks before transformations
   ]
 }
 
@@ -320,7 +359,7 @@ Custom plugins can also be installed from NPM. The function has to be named "tra
               }
             }
           },
-          "js": { // custom function (chrome -> eval_function: true)
+          "js": { // Custom function (chrome -> eval_function: true)
             "terser": {
               "minify-example": "async function (context, value, options) { return await context.minify(value, options.outputConfig).code; }", // "minify-example-output" creates variable "options.outputConfig"
               "minify-example-output": {
@@ -337,7 +376,7 @@ Custom plugins can also be installed from NPM. The function has to be named "tra
                 ],
                 "external": ["lodash"]
               },
-              "bundle-es6-output": "./rollup.output.config.json" // supplemental JSON configuration settings use the "-output" suffix
+              "bundle-es6-output": "./rollup.output.config.json" // Supplemental JSON configuration use the "-output" suffix
             },
             "npm-custom-plugin": {
               "custom-example": {
