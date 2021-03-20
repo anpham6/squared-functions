@@ -704,11 +704,12 @@ class FileManager extends Module implements IFileManager {
                 else {
                     completed.push(localUri);
                     if (copying?.length) {
-                        const tasks: Promise<void>[] = [];
+                        const tasks: string[] = [];
                         const uriMap = new Map<string, ExternalAsset[]>();
                         for (const item of copying) {
                             const copyUri = item.localUri!;
-                            if (!uriMap.has(copyUri)) {
+                            const items = uriMap.get(copyUri) || [];
+                            if (items.length === 0) {
                                 const pathname = path.dirname(copyUri);
                                 try {
                                     fs.mkdirpSync(pathname);
@@ -718,27 +719,26 @@ class FileManager extends Module implements IFileManager {
                                     item.invalid = true;
                                     continue;
                                 }
-                                tasks.push(
-                                    fs.copyFile(localUri, copyUri)
-                                        .then(() => {
-                                            for (const queue of uriMap.get(copyUri)!) {
-                                                this.performAsyncTask();
-                                                this.transformAsset({ file: queue });
-                                            }
-                                        })
-                                        .catch(err => {
-                                            for (const queue of uriMap.get(copyUri)!) {
-                                                queue.invalid = true;
-                                            }
-                                            this.writeFail(['Unable to copy file', path.basename(localUri)], err, this.logType.FILE);
-                                        })
-                                );
+                                tasks.push(copyUri);
                             }
-                            const items = uriMap.get(copyUri) || [];
                             items.push(item);
                             uriMap.set(copyUri, items);
                         }
-                        await Promise.all(tasks);
+                        await Promise.all(tasks.map(copyUri => {
+                            return fs.copyFile(localUri, copyUri)
+                                .then(() => {
+                                    for (const queue of uriMap.get(copyUri)!) {
+                                        this.performAsyncTask();
+                                        this.transformAsset({ file: queue });
+                                    }
+                                })
+                                .catch(err => {
+                                    for (const queue of uriMap.get(copyUri)!) {
+                                        queue.invalid = true;
+                                    }
+                                    this.writeFail(['Unable to copy file', path.basename(localUri)], err, this.logType.FILE);
+                                });
+                        }));
                     }
                     if (ready) {
                         for (const item of ready) {

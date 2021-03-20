@@ -224,11 +224,11 @@ abstract class Module implements IModule {
     }
 
     static isFileUNC(value: string) {
-        return /^\\\\([\w.-]+)\\([\w-]+\$?)((?<=\$)(?:[^\\]*|\\.+)|\\.+)$/.test(value);
+        return /^(?:\\\\|\/\/)([\w.-]+)[\\/]([\w-]+\$?)((?<=\$)(?:[^\\/]*|[\\/].+)|[\\/].+)$/.test(value);
     }
 
     static isDirectoryUNC(value: string) {
-        return /^\\\\([\w.-]+)\\([\w-]+\$|[\w-]+\$\\.+|[\w-]+\\.*)$/.test(value);
+        return /^(?:\\\\|\/\/)([\w.-]+)[\\/]([\w-]+\$|[\w-]+\$[\\/].+|[\w-]+[\\/].*)$/.test(value);
     }
 
     static isUUID(value: string) {
@@ -290,10 +290,10 @@ abstract class Module implements IModule {
             }
         }
         return '';
-   }
+    }
 
-   static joinPath(...values: Undef<string>[]) {
-        values = values.filter(value => value && value.trim().replace(/\\+/g, '/'));
+    static joinPath(...values: Undef<string>[]) {
+        values = values.filter(value => value && value.trim().replace(/\\/g, '/'));
         let result = '';
         for (let i = 0; i < values.length; ++i) {
             const trailing = values[i]!;
