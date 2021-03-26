@@ -1,6 +1,8 @@
 ## squared-functions 0.14
 
-These are the available options when creating archives or copying files. Examples use squared 2.4 although the concepts can be used similarly with any NodeJS application and has no features that require using Express.
+These are the available options when creating archives or copying files. Examples use squared 2.4 although the concepts can be used similarly with any NodeJS application.
+
+Using Express is not required.
 
 ### Image
 
@@ -459,7 +461,7 @@ Here is the equivalent configuration in YAML/TOML and when available has higher 
 
 ### External configuration
 
-JSON (json/js) configuration is optional and is provided for those who prefer to separate the bundling and transformations from the HTML. Any assets inside the configuration file will override any settings either inline or from JavaScript. You can also use the equivalent in YAML (yml/yaml) for configuring as well.
+JSON (json/js) configuration is optional and is provided for those who prefer to separate the bundling and transformations from the HTML. Any assets inside the configuration file will override any settings either inline or from JavaScript. You can also use the equivalent in YAML for configuring as well.
 
 ```javascript
 interface OutputModifiers {
