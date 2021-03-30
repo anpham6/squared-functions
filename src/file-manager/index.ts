@@ -913,32 +913,38 @@ class FileManager extends Module implements IFileManager {
                                 if (tempDir) {
                                     request(uri, { method: 'HEAD' })
                                         .on('response', res => {
-                                            const etag = res.headers['etag'] as Undef<string>;
-                                            let subDir: Undef<string>;
-                                            if (etag && typeof etag === 'string') {
-                                                subDir = encodeURIComponent(etag);
-                                                const tempUri = path.join(tempDir, subDir, path.basename(localUri));
-                                                if (fs.existsSync(tempUri)) {
-                                                    if (this.Watch) {
-                                                        item.etag = etag;
-                                                    }
-                                                    if (!this.archiving && fs.existsSync(localUri) && fs.statSync(tempUri).mtimeMs === fs.statSync(localUri).mtimeMs) {
-                                                        fileReceived();
-                                                    }
-                                                    else {
-                                                        fs.copyFile(tempUri, localUri, err => {
-                                                            if (!err) {
-                                                                fileReceived();
-                                                            }
-                                                            else {
-                                                                downloadUri(subDir);
-                                                            }
-                                                        });
-                                                    }
-                                                    return;
-                                                }
+                                            const statusCode = res.statusCode;
+                                            if (statusCode >= 300) {
+                                                errorRequest(item, uri, localUri, new Error(statusCode + ' ' + res.statusMessage));
                                             }
-                                            downloadUri(subDir);
+                                            else {
+                                                const etag = res.headers['etag'] as Undef<string>;
+                                                let subDir: Undef<string>;
+                                                if (etag && typeof etag === 'string') {
+                                                    subDir = encodeURIComponent(etag);
+                                                    const tempUri = path.join(tempDir, subDir, path.basename(localUri));
+                                                    if (fs.existsSync(tempUri)) {
+                                                        if (this.Watch) {
+                                                            item.etag = etag;
+                                                        }
+                                                        if (!this.archiving && fs.existsSync(localUri) && fs.statSync(tempUri).mtimeMs === fs.statSync(localUri).mtimeMs) {
+                                                            fileReceived();
+                                                        }
+                                                        else {
+                                                            fs.copyFile(tempUri, localUri, err => {
+                                                                if (!err) {
+                                                                    fileReceived();
+                                                                }
+                                                                else {
+                                                                    downloadUri(subDir);
+                                                                }
+                                                            });
+                                                        }
+                                                        return;
+                                                    }
+                                                }
+                                                downloadUri(subDir);
+                                            }
                                         })
                                         .on('error', err => errorRequest(item, uri, localUri, err));
                                 }

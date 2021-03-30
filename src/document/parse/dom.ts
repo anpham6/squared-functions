@@ -25,7 +25,6 @@ export class DomWriter extends XmlWriter implements IDomWriter {
     static normalize(source: string) {
         for (const tag of REGEX_VOID) {
             source = source.replace(tag, '');
-            tag.lastIndex = 0;
         }
         let match: Null<RegExpExecArray>;
         while (match = REGEX_NORMALIZE.exec(source)) {
