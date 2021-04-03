@@ -23,6 +23,7 @@ export interface TemplateMap {
 export interface RequestData {
     baseUrl?: string;
     templateMap?: TemplateMap;
+    usedVariables?: string[];
     unusedStyles?: string[];
     productionRelease?: boolean | string;
 }

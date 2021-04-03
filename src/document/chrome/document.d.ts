@@ -20,6 +20,7 @@ export interface IChromeDocument extends IDocument {
     internalServerRoot: string;
     internalAssignUUID: string;
     baseUrl?: string;
+    usedVariables?: string[];
     unusedStyles?: string[];
     productionRelease?: boolean | string;
 }

@@ -29,6 +29,7 @@ interface RequestBody extends IRequestBody, RequestData {}
 const MongoClient = mongodb.MongoClient;
 
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
+const REGEXP_CSSVARIABLE = new RegExp(`(\\s*)(--[^\\d\\s][^\\s:]*)\\s*:[^;}]+([;}])` + DomWriter.PATTERN_TRAILINGSPACE, 'g');
 const REGEXP_CSSCONTENT = /\s*(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^)]+)\s*\))/ig;
 const REGEXP_OBJECTPROPERTY = /\$\{\s*(\w+)\s*\}/g;
 const REGEXP_TEMPLATECONDITIONAL = /(\n\s+)?\{\{\s*if\s+(!)?\s*([^}\s]+)\s*\}\}(\s*)([\S\s]*?)(?:\s*\{\{\s*else\s*\}\}(\s*)([\S\s]*?)\s*)?\s*\{\{\s*end\s*\}\}/g;
@@ -90,57 +91,71 @@ function valueAsString(value: unknown, joinString = ' ') {
     }
 }
 
-function removeCss(source: string, styles: string[]) {
-    const replaceMap: StringMap = {};
+function removeCss(source: string, variables: Undef<string[]>, styles: Undef<string[]>) {
     let current = source,
-        output: Undef<string>,
-        match: Null<RegExpExecArray>;
-    while (match = REGEXP_CSSCONTENT.exec(source)) {
-        if (match[0].includes('}')) {
-            const placeholder = uuid.v4();
-            replaceMap[placeholder] = match[0];
-            current = current.replace(match[0], placeholder);
+        output: Undef<string>;
+    if (styles) {
+        const replaceMap: StringMap = {};
+        let placeholder: string,
+            match: Null<RegExpExecArray>;
+        while (match = REGEXP_CSSCONTENT.exec(source)) {
+            if (match[0].includes('}')) {
+                replaceMap[placeholder = uuid.v4()] = match[0];
+                current = current.replace(match[0], placeholder);
+            }
         }
-    }
-    for (let value of styles) {
-        const block = `(\\s*)${value = Document.escapePattern(value)}\\s*\\{[^}]*\\}` + DomWriter.PATTERN_TRAILINGSPACE;
-        for (let i = 0; i < 2; ++i) {
-            const pattern = new RegExp((i === 0 ? '^' : '}') + block, i === 0 ? 'm' : 'g');
-            while (match = pattern.exec(current)) {
-                output = (output || current).replace(match[0], (i === 0 ? '' : '}') + DomWriter.getNewlineString(match[1], match[2]));
-                if (i === 0) {
-                    break;
+        for (let value of styles) {
+            const block = `(\\s*)${value = Document.escapePattern(value)}\\s*\\{[^}]*\\}` + DomWriter.PATTERN_TRAILINGSPACE;
+            for (let i = 0; i < 2; ++i) {
+                const pattern = new RegExp((i === 0 ? '^' : '}') + block, i === 0 ? 'm' : 'g');
+                while (match = pattern.exec(current)) {
+                    output = (output || current).replace(match[0], (i === 0 ? '' : '}') + DomWriter.getNewlineString(match[1], match[2]));
+                    if (i === 0) {
+                        break;
+                    }
                 }
+                if (output) {
+                    current = output;
+                }
+            }
+            const pattern = new RegExp(`(}?[^,{}]*?)((,?\\s*)${value}\\s*[,{](\\s*)).*?\\{?`, 'g');
+            while (match = pattern.exec(current)) {
+                const segment = match[2];
+                let outerXml = '';
+                if (segment.trim().endsWith('{')) {
+                    outerXml = ' {' + match[4];
+                }
+                else if (segment[0] === ',') {
+                    outerXml = ', ';
+                }
+                else if (match[1] === '}' && match[3] && !match[3].trim()) {
+                    outerXml = match[3];
+                }
+                output = (output || current).replace(match[0], match[0].replace(segment, outerXml));
             }
             if (output) {
                 current = output;
             }
         }
-        const pattern = new RegExp(`(}?[^,{}]*?)((,?\\s*)${value}\\s*[,{](\\s*)).*?\\{?`, 'g');
-        while (match = pattern.exec(current)) {
-            const segment = match[2];
-            let outerXml = '';
-            if (segment.trim().endsWith('{')) {
-                outerXml = ' {' + match[4];
-            }
-            else if (segment[0] === ',') {
-                outerXml = ', ';
-            }
-            else if (match[1] === '}' && match[3] && !match[3].trim()) {
-                outerXml = match[3];
-            }
-            output = (output || current).replace(match[0], match[0].replace(segment, outerXml));
-        }
         if (output) {
+            for (const attr in replaceMap) {
+                output = output.replace(attr, replaceMap[attr]!);
+            }
             current = output;
         }
+        REGEXP_CSSCONTENT.lastIndex = 0;
     }
-    if (output) {
-        for (const attr in replaceMap) {
-            output = output.replace(attr, replaceMap[attr]!);
+    if (variables) {
+        const revised = current.replace(REGEXP_CSSVARIABLE, (...capture) => {
+            if (!variables.includes(capture[2])) {
+                return capture[3] === ';' ? DomWriter.getNewlineString(capture[1], capture[4]) : '';
+            }
+            return capture[0];
+        });
+        if (revised.length < current.length) {
+            output = revised;
         }
     }
-    REGEXP_CSSCONTENT.lastIndex = 0;
     return output;
 }
 
@@ -1128,6 +1143,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     cssFiles: DocumentAsset[] = [];
     baseDirectory = '';
     baseUrl?: string;
+    usedVariables?: string[];
     unusedStyles?: string[];
     productionRelease?: boolean | string;
     internalAssignUUID = '__assign__';
@@ -1172,6 +1188,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
         this.assets = assets;
         this.baseUrl = body.baseUrl;
+        this.usedVariables = body.usedVariables;
         this.unusedStyles = body.unusedStyles;
         this.configData = body.templateMap;
         this.productionRelease = body.productionRelease;
@@ -1195,10 +1212,13 @@ class ChromeDocument extends Document implements IChromeDocument {
     }
     async formatContent(file: DocumentAsset, content: string, manager?: IFileManager): Promise<string> {
         if (file.mimeType === '@text/css') {
-            if (!file.preserve && this.unusedStyles) {
-                const result = removeCss(content, this.unusedStyles);
-                if (result) {
-                    content = result;
+            if (!file.preserve) {
+                const { usedVariables, unusedStyles } = this;
+                if (usedVariables || unusedStyles) {
+                    const result = removeCss(content, usedVariables, unusedStyles);
+                    if (result) {
+                        content = result;
+                    }
                 }
             }
             if (manager) {
