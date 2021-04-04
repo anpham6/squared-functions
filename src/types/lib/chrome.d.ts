@@ -20,12 +20,16 @@ export interface TemplateMap {
     css: ObjectMap<PlainObject>;
 }
 
-export interface RequestData {
+export interface RequestData extends CssSelectorData {
     baseUrl?: string;
     templateMap?: TemplateMap;
-    usedVariables?: string[];
-    unusedStyles?: string[];
     productionRelease?: boolean | string;
+}
+
+export interface CssSelectorData {
+    usedVariables?: string[];
+    usedFonts?: string[];
+    unusedStyles?: string[];
 }
 
 export interface DataSource extends IDataSource {

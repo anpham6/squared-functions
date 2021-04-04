@@ -1141,10 +1141,17 @@ squared.saveAs("index.zip", {
     useOriginalHtmlPage: false, // May produce better results when using custom elements
 
     removeInlineStyles: false, // Strip style="" attribute from all elements (useOriginalHtmlPage: false)
-    removeUnusedSelectors: false, // CSS selectors [:first-child] that can be removed in current state (not recommend for pages with forms [:valid] and active states [:hover])
-    removeUnusedClasses: false, // CSS classes that can be removed in current state
-    removeUnusedVariables: false, // CSS variables that an be removed in current state
-    retainUsedStyles: [/* css selectors (string | RegExp) */, /* css variables ('--' prefixed string) */], // Styles that should be kept which are used later with JavaScript
+    removeUnusedSelectors: false, // CSS selectors [:first-child] that can be removede (not recommend for pages with forms [:valid] and active states [:hover])
+    removeUnusedClasses: false, // CSS classes that can be removed
+    removeUnusedVariables: false, // CSS --custom-variables that an be removed
+    removeUnusedFonts: false, // CSS @font-face that can be removed
+
+    // Styles that should be kept which are being used somewhere
+    retainUsedStyles: [
+      /* css selectors (string | RegExp) */,
+      /* css variables (string prefixed with '--') */,
+      /* css fonts (string enclosed within '|') */
+    ],
 
     // All attributes are optional except "filename" for <script> and <link>.
     saveAs: {

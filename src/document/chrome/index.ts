@@ -30,7 +30,8 @@ const MongoClient = mongodb.MongoClient;
 
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
 const REGEXP_CSSVARIABLE = new RegExp(`(\\s*)(--[^\\d\\s][^\\s:]*)\\s*:[^;}]+([;}])` + DomWriter.PATTERN_TRAILINGSPACE, 'g');
-const REGEXP_CSSCONTENT = /\s*(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^)]+)\s*\))/ig;
+const REGEXP_CSSFONT = new RegExp(`(\\s*)@font-face\\s*{([^}]+)}` + DomWriter.PATTERN_TRAILINGSPACE, 'g');
+const REGEXP_CSSCLOSING = /\s*(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^\s)]+)\s*\))/ig;
 const REGEXP_OBJECTPROPERTY = /\$\{\s*(\w+)\s*\}/g;
 const REGEXP_TEMPLATECONDITIONAL = /(\n\s+)?\{\{\s*if\s+(!)?\s*([^}\s]+)\s*\}\}(\s*)([\S\s]*?)(?:\s*\{\{\s*else\s*\}\}(\s*)([\S\s]*?)\s*)?\s*\{\{\s*end\s*\}\}/g;
 
@@ -91,19 +92,19 @@ function valueAsString(value: unknown, joinString = ' ') {
     }
 }
 
-function removeCss(source: string, variables: Undef<string[]>, styles: Undef<string[]>) {
+function removeCss(source: string, variables: Undef<string[]>, fonts: Undef<string[]>, styles: Undef<string[]>) {
+    const replaceMap: StringMap = {};
     let current = source,
-        output: Undef<string>;
-    if (styles) {
-        const replaceMap: StringMap = {};
-        let placeholder: string,
-            match: Null<RegExpExecArray>;
-        while (match = REGEXP_CSSCONTENT.exec(source)) {
-            if (match[0].includes('}')) {
-                replaceMap[placeholder = uuid.v4()] = match[0];
-                current = current.replace(match[0], placeholder);
-            }
+        output: Undef<string>,
+        match: Null<RegExpExecArray>;
+    while (match = REGEXP_CSSCLOSING.exec(source)) {
+        if (match[0].includes('}')) {
+            const placeholder = uuid.v4();
+            replaceMap[placeholder] = match[0];
+            current = current.replace(match[0], placeholder);
         }
+    }
+    if (styles) {
         for (let value of styles) {
             const block = `(\\s*)${value = Document.escapePattern(value)}\\s*\\{[^}]*\\}` + DomWriter.PATTERN_TRAILINGSPACE;
             for (let i = 0; i < 2; ++i) {
@@ -137,13 +138,6 @@ function removeCss(source: string, variables: Undef<string[]>, styles: Undef<str
                 current = output;
             }
         }
-        if (output) {
-            for (const attr in replaceMap) {
-                output = output.replace(attr, replaceMap[attr]!);
-            }
-            current = output;
-        }
-        REGEXP_CSSCONTENT.lastIndex = 0;
     }
     if (variables) {
         const revised = current.replace(REGEXP_CSSVARIABLE, (...capture) => {
@@ -154,8 +148,30 @@ function removeCss(source: string, variables: Undef<string[]>, styles: Undef<str
         });
         if (revised.length < current.length) {
             output = revised;
+            current = output;
         }
     }
+    if (fonts) {
+        fonts = fonts.map(value => value.toLowerCase());
+        const revised = current.replace(REGEXP_CSSFONT, (...capture) => {
+            if (match = /font-family\s*:([^;}]+)/i.exec(capture[0])) {
+                const fontFamily = match[1].trim().replace(/^(["'])(.+)\1$/, (...content) => content[2]).toLowerCase();
+                if (!fonts!.includes(fontFamily)) {
+                    return DomWriter.getNewlineString(capture[1], capture[3]);
+                }
+            }
+            return capture[0];
+        });
+        if (revised.length < current.length) {
+            output = revised;
+        }
+    }
+    if (output) {
+        for (const attr in replaceMap) {
+            output = output.replace(attr, replaceMap[attr]!);
+        }
+    }
+    REGEXP_CSSCLOSING.lastIndex = 0;
     return output;
 }
 
@@ -1092,7 +1108,14 @@ class ChromeDocument extends Document implements IChromeDocument {
             if (domBase.modified) {
                 source = domBase.close();
             }
+            const { usedVariables, usedFonts, unusedStyles } = instance;
             source = replaceContent(removeDatasetNamespace(moduleName, source, domBase.newline));
+            if (usedVariables || usedFonts || unusedStyles) {
+                const result = removeCss(source, usedVariables, usedFonts, unusedStyles);
+                if (result) {
+                    source = result;
+                }
+            }
             source = transformCss.call(this, instance.assets, htmlFile, source, true) || source;
             if (htmlFile.format) {
                 const result = await instance.transform('html', source, htmlFile.format);
@@ -1144,6 +1167,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     baseDirectory = '';
     baseUrl?: string;
     usedVariables?: string[];
+    usedFonts?: string[];
     unusedStyles?: string[];
     productionRelease?: boolean | string;
     internalAssignUUID = '__assign__';
@@ -1189,6 +1213,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         this.assets = assets;
         this.baseUrl = body.baseUrl;
         this.usedVariables = body.usedVariables;
+        this.usedFonts = body.usedFonts;
         this.unusedStyles = body.unusedStyles;
         this.configData = body.templateMap;
         this.productionRelease = body.productionRelease;
@@ -1213,9 +1238,9 @@ class ChromeDocument extends Document implements IChromeDocument {
     async formatContent(file: DocumentAsset, content: string, manager?: IFileManager): Promise<string> {
         if (file.mimeType === '@text/css') {
             if (!file.preserve) {
-                const { usedVariables, unusedStyles } = this;
-                if (usedVariables || unusedStyles) {
-                    const result = removeCss(content, usedVariables, unusedStyles);
+                const { usedVariables, usedFonts, unusedStyles } = this;
+                if (usedVariables || usedFonts || unusedStyles) {
+                    const result = removeCss(content, usedVariables, usedFonts, unusedStyles);
                     if (result) {
                         content = result;
                     }
