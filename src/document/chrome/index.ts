@@ -93,9 +93,37 @@ function valueAsString(value: unknown, joinString = ' ') {
     }
 }
 
+function findClosingIndex(source: string, lastIndex: number): [number, string] {
+    const pattern = /[{}]/g;
+    pattern.lastIndex = lastIndex;
+    let opened = 1,
+        closed = 0,
+        endIndex = -1,
+        trailing = '',
+        match: Null<RegExpExecArray>;
+    while (match = pattern.exec(source)) {
+        if (match[0] === '{') {
+            ++opened;
+        }
+        else if (++closed === opened) {
+            endIndex = match.index;
+            let ch: string;
+            while (DomWriter.isSpace(ch = source[endIndex + 1])) {
+                trailing += ch;
+                ++endIndex;
+                if (ch === '\n') {
+                    break;
+                }
+            }
+            break;
+        }
+    }
+    return [endIndex, trailing];
+}
+
 function removeCss(this: IChromeDocument, source: string) {
-    const { unusedStyles, usedVariables, usedFonts, usedKeyframes } = this;
-    if (!unusedStyles && !usedVariables && !usedFonts && !usedKeyframes) {
+    const { usedVariables, usedFonts, usedKeyframes, unusedStyles, unusedMediaQueries } = this;
+    if (!usedVariables && !usedFonts && !usedKeyframes && !unusedStyles && !unusedMediaQueries) {
         return source;
     }
     const replaceMap: StringMap = {};
@@ -109,13 +137,26 @@ function removeCss(this: IChromeDocument, source: string) {
             current = current.replace(match[0], placeholder);
         }
     }
+    if (unusedMediaQueries) {
+        for (const value of unusedMediaQueries) {
+            const match = new RegExp(`(\\s*)@media\\s+${Document.escapePattern(value.trim()).replace(/\s+/g, '\\s+')}\\s*{`, 'i').exec(current);
+            if (match) {
+                const startIndex = match.index;
+                const [endIndex, trailing] = findClosingIndex(current, startIndex + match[0].length);
+                if (endIndex !== -1) {
+                    output = spliceString(output || current, startIndex, endIndex, match[1], trailing);
+                    current = output;
+                }
+            }
+        }
+    }
     if (unusedStyles) {
         for (let value of unusedStyles) {
-            const block = `(\\s*)${value = Document.escapePattern(value)}\\s*\\{[^}]*\\}` + DomWriter.PATTERN_TRAILINGSPACE;
+            const block = `(\\s*)${value = Document.escapePattern(value).replace(/\s+/g, '\\s+')}\\s*\\{[^}]*\\}` + DomWriter.PATTERN_TRAILINGSPACE;
             for (let i = 0; i < 2; ++i) {
-                const pattern = new RegExp((i === 0 ? '^' : '}') + block, i === 0 ? 'm' : 'g');
+                const pattern = new RegExp((i === 0 ? '(^)' : '([{}])') + block, i === 0 ? 'm' : 'g');
                 while (match = pattern.exec(current)) {
-                    output = (output || current).replace(match[0], (i === 0 ? '' : '}') + DomWriter.getNewlineString(match[1], match[2]));
+                    output = spliceString(output || current, match.index, match.index + match[0].length - 1, match[2], match[3], i === 0 ? '' : match[1]);
                     if (i === 0) {
                         break;
                     }
@@ -173,44 +214,16 @@ function removeCss(this: IChromeDocument, source: string) {
         }
     }
     if (usedKeyframes) {
-        let modified: Undef<boolean>;
         while (match = REGEXP_CSSKEYFRAME.exec(current)) {
             const keyframe = match[2].trim();
             if (!usedKeyframes.includes(keyframe)) {
                 const startIndex = match.index;
-                let opened = 1,
-                    closed = 0,
-                    endIndex = -1,
-                    trailing = '',
-                    bracket: Null<RegExpExecArray>;
-                const pattern = /[{}]/g;
-                pattern.lastIndex = startIndex + match[0].length;
-                while (bracket = pattern.exec(current)) {
-                    if (bracket[0] === '{') {
-                        ++opened;
-                    }
-                    else if (++closed === opened) {
-                        endIndex = bracket.index;
-                        let ch: string;
-                        while (DomWriter.isSpace(ch = current[endIndex + 1])) {
-                            trailing += ch;
-                            ++endIndex;
-                            if (ch === '\n') {
-                                break;
-                            }
-                        }
-                        break;
-                    }
-                }
+                const [endIndex, trailing] = findClosingIndex(current, startIndex + match[0].length);
                 if (endIndex !== -1) {
-                    current = current.substring(0, startIndex) + DomWriter.getNewlineString(match[1], trailing) + current.substring(endIndex + 1);
+                    output = spliceString(output || current, startIndex, endIndex, match[1], trailing);
                     REGEXP_CSSKEYFRAME.lastIndex = endIndex + 1;
-                    modified = true;
                 }
             }
-        }
-        if (modified) {
-            output = current;
         }
         REGEXP_CSSKEYFRAME.lastIndex = 0;
     }
@@ -413,6 +426,7 @@ function setElementAttribute(this: IChromeDocument, htmlFile: DocumentAsset, ass
 }
 
 const isRemoved = (item: DocumentAsset) => item.exclude === true || item.bundleIndex !== undefined && item.bundleIndex > 0;
+const spliceString = (source: string, startIndex: number, endIndex: number, leading = '', trailing = '', content = '') => source.substring(0, startIndex) + content + DomWriter.getNewlineString(leading, trailing) + source.substring(endIndex + 1);
 const concatString = (values: Undef<string[]>): string => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const escapePosix = (value: string) => value.split(/[\\/]/).map(seg => Document.escapePattern(seg)).join('[\\\\/]');
 const getErrorDOM = (tagName: string, tagIndex: Undef<number>) => new Error(tagName.toUpperCase() + (tagIndex !== undefined && tagIndex >= 0 ? ' ' + tagIndex : '') + ': Unable to parse DOM');
@@ -1221,6 +1235,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     usedFonts?: string[];
     usedKeyframes?: string[];
     unusedStyles?: string[];
+    unusedMediaQueries?: string[];
     productionRelease?: boolean | string;
     internalAssignUUID = '__assign__';
     internalServerRoot = '__serverroot__';
@@ -1268,6 +1283,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         this.usedFonts = body.usedFonts;
         this.usedKeyframes = body.usedKeyframes;
         this.unusedStyles = body.unusedStyles;
+        this.unusedMediaQueries = body.unusedMediaQueries;
         this.configData = body.templateMap;
         this.productionRelease = body.productionRelease;
         if (this.baseUrl) {

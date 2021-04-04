@@ -31,6 +31,7 @@ export interface CssSelectorData {
     usedFonts?: string[];
     usedKeyframes?: string[];
     unusedStyles?: string[];
+    unusedMediaQueries?: string[];
 }
 
 export interface DataSource extends IDataSource {
