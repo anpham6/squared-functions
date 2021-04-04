@@ -348,16 +348,6 @@ class FileManager extends Module implements IFileManager {
         if (trailing) {
             content += trailing;
         }
-        if (file.document) {
-            for (const { instance } of this.Document) {
-                if (instance.formatContent && this.hasDocument(instance, file.document)) {
-                    const result = await instance.formatContent(file, content, this);
-                    if (result) {
-                        content = result;
-                    }
-                }
-            }
-        }
         if (index === 0) {
             return content;
         }

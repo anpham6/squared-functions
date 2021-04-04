@@ -92,7 +92,11 @@ function valueAsString(value: unknown, joinString = ' ') {
     }
 }
 
-function removeCss(source: string, variables: Undef<string[]>, fonts: Undef<string[]>, styles: Undef<string[]>) {
+function removeCss(this: IChromeDocument, source: string) {
+    const { unusedStyles, usedVariables, usedFonts } = this;
+    if (!unusedStyles && !usedVariables && !usedFonts) {
+        return source;
+    }
     const replaceMap: StringMap = {};
     let current = source,
         output: Undef<string>,
@@ -104,8 +108,8 @@ function removeCss(source: string, variables: Undef<string[]>, fonts: Undef<stri
             current = current.replace(match[0], placeholder);
         }
     }
-    if (styles) {
-        for (let value of styles) {
+    if (unusedStyles) {
+        for (let value of unusedStyles) {
             const block = `(\\s*)${value = Document.escapePattern(value)}\\s*\\{[^}]*\\}` + DomWriter.PATTERN_TRAILINGSPACE;
             for (let i = 0; i < 2; ++i) {
                 const pattern = new RegExp((i === 0 ? '^' : '}') + block, i === 0 ? 'm' : 'g');
@@ -139,9 +143,9 @@ function removeCss(source: string, variables: Undef<string[]>, fonts: Undef<stri
             }
         }
     }
-    if (variables) {
+    if (usedVariables) {
         const revised = current.replace(REGEXP_CSSVARIABLE, (...capture) => {
-            if (!variables.includes(capture[2])) {
+            if (!usedVariables.includes(capture[2])) {
                 return capture[3] === ';' ? DomWriter.getNewlineString(capture[1], capture[4]) : '';
             }
             return capture[0];
@@ -151,12 +155,12 @@ function removeCss(source: string, variables: Undef<string[]>, fonts: Undef<stri
             current = output;
         }
     }
-    if (fonts) {
-        fonts = fonts.map(value => value.toLowerCase());
+    if (usedFonts) {
+        const fonts = usedFonts.map(value => value.toLowerCase());
         const revised = current.replace(REGEXP_CSSFONT, (...capture) => {
             if (match = /font-family\s*:([^;}]+)/i.exec(capture[0])) {
                 const fontFamily = match[1].trim().replace(/^(["'])(.+)\1$/, (...content) => content[2]).toLowerCase();
-                if (!fonts!.includes(fontFamily)) {
+                if (!fonts.includes(fontFamily)) {
                     return DomWriter.getNewlineString(capture[1], capture[3]);
                 }
             }
@@ -172,7 +176,7 @@ function removeCss(source: string, variables: Undef<string[]>, fonts: Undef<stri
         }
     }
     REGEXP_CSSCLOSING.lastIndex = 0;
-    return output;
+    return output || source;
 }
 
 function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: DocumentAsset) {
@@ -219,21 +223,21 @@ function trimQuote(value: string) {
     return match ? match[2].trim() : value;
 }
 
-function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: DocumentAsset, content: string, fromHTML?: boolean) {
+function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: DocumentAsset, source: string, fromHTML?: boolean) {
     const cloud = this.Cloud;
     const cssUri = cssFile.uri!;
     const related: DocumentAsset[] = [];
-    const length = content.length;
+    const length = source.length;
     const pattern = /\burl\(/gi;
     let output: Undef<string>,
         match: Null<RegExpExecArray>;
-    while (match = pattern.exec(content)) {
+    while (match = pattern.exec(source)) {
         let url = '',
             quote = '',
             i = match.index + match[0].length,
             j = -1;
         for ( ; i < length; ++i) {
-            const ch = content[i];
+            const ch = source[i];
             if (!quote) {
                 switch (ch) {
                     case '"':
@@ -246,7 +250,7 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
                 }
             }
             if (ch === ')') {
-                if (content[i - 1] !== '\\') {
+                if (source[i - 1] !== '\\') {
                     break;
                 }
                 j = i;
@@ -268,7 +272,7 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
                     value = inlineCssCloud;
                 }
             }
-            output = (output || content).replace(content.substring(match!.index, i + 1), 'url(' + quote + value + quote + ')');
+            output = (output || source).replace(source.substring(match!.index, i + 1), 'url(' + quote + value + quote + ')');
             related.push(asset);
         };
         url = trimQuote(url);
@@ -305,7 +309,7 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
         }
         cssFile.watch.assets = related;
     }
-    return output;
+    return output || source;
 }
 
 function setElementAttribute(this: IChromeDocument, htmlFile: DocumentAsset, asset: DocumentAsset, element: HtmlElement, value: string) {
@@ -448,7 +452,12 @@ class ChromeDocument extends Document implements IChromeDocument {
                 if (bundle) {
                     source += bundle;
                 }
-                file.sourceUTF8 = await instance.formatContent(file, source, this);
+                file.sourceUTF8 = transformCss.call(
+                    this,
+                    this.getDocumentAssets(this),
+                    file,
+                    !file.preserve ? removeCss.call(instance, source) : source
+                );
                 break;
             }
         }
@@ -1108,15 +1117,13 @@ class ChromeDocument extends Document implements IChromeDocument {
             if (domBase.modified) {
                 source = domBase.close();
             }
-            const { usedVariables, usedFonts, unusedStyles } = instance;
-            source = replaceContent(removeDatasetNamespace(moduleName, source, domBase.newline));
-            if (usedVariables || usedFonts || unusedStyles) {
-                const result = removeCss(source, usedVariables, usedFonts, unusedStyles);
-                if (result) {
-                    source = result;
-                }
-            }
-            source = transformCss.call(this, instance.assets, htmlFile, source, true) || source;
+            source = transformCss.call(
+                this,
+                instance.assets,
+                htmlFile,
+                removeCss.call(instance, replaceContent(removeDatasetNamespace(moduleName, source, domBase.newline))),
+                true
+            );
             if (htmlFile.format) {
                 const result = await instance.transform('html', source, htmlFile.format);
                 if (result) {
@@ -1234,26 +1241,6 @@ class ChromeDocument extends Document implements IChromeDocument {
         if (filename?.includes(this.internalAssignUUID)) {
             file.filename = filename.replace(this.internalAssignUUID, uuid.v4());
         }
-    }
-    async formatContent(file: DocumentAsset, content: string, manager?: IFileManager): Promise<string> {
-        if (file.mimeType === '@text/css') {
-            if (!file.preserve) {
-                const { usedVariables, usedFonts, unusedStyles } = this;
-                if (usedVariables || usedFonts || unusedStyles) {
-                    const result = removeCss(content, usedVariables, usedFonts, unusedStyles);
-                    if (result) {
-                        content = result;
-                    }
-                }
-            }
-            if (manager) {
-                const result = transformCss.call(manager, manager.getDocumentAssets(this), file, content);
-                if (result) {
-                    content = result;
-                }
-            }
-        }
-        return content;
     }
     addCopy(data: FileData, saveAs: string, replace?: boolean, manager?: IFileManager) {
         if (data.command && manager) {

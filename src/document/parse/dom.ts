@@ -12,8 +12,8 @@ const Parser = htmlparser2.Parser;
 const DomHandler = domhandler.DomHandler;
 
 const TAG_VOID = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
-const REGEX_VOID = TAG_VOID.map(tagName => new RegExp(`</${tagName}\\s*>`, 'gi'));
-const REGEX_NORMALIZE = new RegExp(`<(?:([^\\s]${XmlWriter.PATTERN_TAGOPEN}*?)(\\s*\\/?\\s*)|\\/([^\\s>]+)(\\s*))>`, 'g');
+const REGEX_VOID = TAG_VOID.map(tagName => new RegExp(`(\\s*)</${tagName}\\s*>` + XmlWriter.PATTERN_TRAILINGSPACE, 'gi'));
+const REGEX_NORMALIZE = new RegExp(`<(?:([^\\s]${XmlWriter.PATTERN_TAGOPEN}*?)(\\s*\\/?\\s*)|\\/([^\\s>]+)(\\s*))>`, 'gi');
 
 const getAttrId = (document: string) => `data-${document}-id`;
 
@@ -24,7 +24,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
 
     static normalize(source: string) {
         for (const tag of REGEX_VOID) {
-            source = source.replace(tag, '');
+            source = source.replace(tag, (...capture) => DomWriter.getNewlineString(capture[1], capture[2]));
         }
         let match: Null<RegExpExecArray>;
         while (match = REGEX_NORMALIZE.exec(source)) {

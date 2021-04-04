@@ -119,7 +119,6 @@ declare namespace functions {
         parseTemplate(viewEngine: ViewEngine | string, template: string, data: PlainObject[]): Promise<Null<string>>;
         transform(type: string, code: string, format: string, options?: TransformOutput): Promise<Void<TransformResult>>;
         setLocalUri?(file: Partial<LocationUri>, manager?: IFileManager): void;
-        formatContent?(file: ExternalAsset, content: string, manager?: IFileManager): Promise<string>;
         addCopy?(data: FileData, saveAs: string, replace?: boolean, manager?: IFileManager): Undef<string>;
         writeImage?(data: OutputData, manager?: IFileManager): boolean;
         cloudInit?(state: IScopeOrigin<T, U>): void;
