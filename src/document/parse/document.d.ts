@@ -100,6 +100,7 @@ export interface XmlWriterConstructor {
     getTagOffset(source: string, sourceNext?: string): ObjectMap<number>;
     getNodeId(node: XmlTagNode, document: string): string;
     getCommentsAndCDATA(source: string, nodePattern?: string, ignoreCase?: boolean): SourceContent[];
+    isSpace(ch: string): boolean;
     new(documentName: string, source: string, elements: XmlTagNode[]): IXmlWriter;
 }
 

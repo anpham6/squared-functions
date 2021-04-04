@@ -15,20 +15,6 @@ const REGEXP_ATTRNAME = new RegExp('\\s+' + PATTERN_ATTRNAME, 'g');
 const REGEXP_ATTRVALUE = new RegExp(PATTERN_ATTRNAME + '\\s*' + PATTERN_ATTRVALUE, 'g');
 const TAGNAME_CACHE: ObjectMap<RegExp> = {};
 
-function isSpace(ch: string) {
-    switch (ch) {
-        case ' ':
-        case '\n':
-        case '\t':
-        case '\f':
-        case '\r':
-        case '\v':
-            return true;
-        default:
-            return false;
-    }
-}
-
 function applyAttributes(attrs: AttributeMap, data: Undef<StandardMap>, ignoreCase: boolean) {
     if (data) {
         for (const key in data) {
@@ -122,7 +108,7 @@ export abstract class XmlWriter implements IXmlWriter {
             const ch = source[i];
             if (ch === '=') {
                 if (!quote) {
-                    while (isSpace(source[++i])) {}
+                    while (this.isSpace(source[++i])) {}
                     switch (source[i]) {
                         case '"':
                             quote = '"';
@@ -135,7 +121,7 @@ export abstract class XmlWriter implements IXmlWriter {
                         case '>':
                             return i;
                         default:
-                            while (!isSpace(source[++i])) {
+                            while (!this.isSpace(source[++i])) {
                                 if (source[i] === '>') {
                                     return i;
                                 }
@@ -210,6 +196,10 @@ export abstract class XmlWriter implements IXmlWriter {
             result.push({ type, outerXml, startIndex: match.index, endIndex });
         }
         return result;
+    }
+
+    static isSpace(ch: string) {
+        return ch === ' ' || ch === '\n' || ch === '\t' || ch === '\f' || ch === '\r' || ch === '\v';
     }
 
     modifyCount = 0;
@@ -909,15 +899,15 @@ export abstract class XmlElement implements IXmlElement {
             trailing = '';
         if (options.remove) {
             let i = endIndex,
-                ch: Undef<string>;
-            while (isSpace(ch = source[i++])) {
+                ch: string;
+            while (XmlWriter.isSpace(ch = source[i++])) {
                 trailing += ch;
                 if (ch === '\n') {
                     break;
                 }
             }
             i = startIndex - 1;
-            while (isSpace(ch = source[i--])) {
+            while (XmlWriter.isSpace(ch = source[i--])) {
                 leading = ch + leading;
             }
             startIndex -= leading.length;
@@ -927,9 +917,9 @@ export abstract class XmlElement implements IXmlElement {
         else {
             if (options.append) {
                 let i = startIndex - 1,
-                    ch: Undef<string>,
+                    ch: string,
                     newline: Undef<boolean>;
-                while (isSpace(ch = source[i--])) {
+                while (XmlWriter.isSpace(ch = source[i--])) {
                     if (ch === '\n') {
                         newline = true;
                         break;

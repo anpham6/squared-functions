@@ -29,6 +29,7 @@ export interface RequestData extends CssSelectorData {
 export interface CssSelectorData {
     usedVariables?: string[];
     usedFonts?: string[];
+    usedKeyframes?: string[];
     unusedStyles?: string[];
 }
 

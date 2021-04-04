@@ -30,7 +30,8 @@ const MongoClient = mongodb.MongoClient;
 
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
 const REGEXP_CSSVARIABLE = new RegExp(`(\\s*)(--[^\\d\\s][^\\s:]*)\\s*:[^;}]+([;}])` + DomWriter.PATTERN_TRAILINGSPACE, 'g');
-const REGEXP_CSSFONT = new RegExp(`(\\s*)@font-face\\s*{([^}]+)}` + DomWriter.PATTERN_TRAILINGSPACE, 'g');
+const REGEXP_CSSFONT = new RegExp(`(\\s*)@font-face\\s*{([^}]+)}` + DomWriter.PATTERN_TRAILINGSPACE, 'gi');
+const REGEXP_CSSKEYFRAME = /(\s*)@keyframes\s+([^{]+){/gi;
 const REGEXP_CSSCLOSING = /\s*(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^\s)]+)\s*\))/ig;
 const REGEXP_OBJECTPROPERTY = /\$\{\s*(\w+)\s*\}/g;
 const REGEXP_TEMPLATECONDITIONAL = /(\n\s+)?\{\{\s*if\s+(!)?\s*([^}\s]+)\s*\}\}(\s*)([\S\s]*?)(?:\s*\{\{\s*else\s*\}\}(\s*)([\S\s]*?)\s*)?\s*\{\{\s*end\s*\}\}/g;
@@ -93,8 +94,8 @@ function valueAsString(value: unknown, joinString = ' ') {
 }
 
 function removeCss(this: IChromeDocument, source: string) {
-    const { unusedStyles, usedVariables, usedFonts } = this;
-    if (!unusedStyles && !usedVariables && !usedFonts) {
+    const { unusedStyles, usedVariables, usedFonts, usedKeyframes } = this;
+    if (!unusedStyles && !usedVariables && !usedFonts && !usedKeyframes) {
         return source;
     }
     const replaceMap: StringMap = {};
@@ -168,7 +169,50 @@ function removeCss(this: IChromeDocument, source: string) {
         });
         if (revised.length < current.length) {
             output = revised;
+            current = output;
         }
+    }
+    if (usedKeyframes) {
+        let modified: Undef<boolean>;
+        while (match = REGEXP_CSSKEYFRAME.exec(current)) {
+            const keyframe = match[2].trim();
+            if (!usedKeyframes.includes(keyframe)) {
+                const startIndex = match.index;
+                let opened = 1,
+                    closed = 0,
+                    endIndex = -1,
+                    trailing = '',
+                    bracket: Null<RegExpExecArray>;
+                const pattern = /[{}]/g;
+                pattern.lastIndex = startIndex + match[0].length;
+                while (bracket = pattern.exec(current)) {
+                    if (bracket[0] === '{') {
+                        ++opened;
+                    }
+                    else if (++closed === opened) {
+                        endIndex = bracket.index;
+                        let ch: string;
+                        while (DomWriter.isSpace(ch = current[endIndex + 1])) {
+                            trailing += ch;
+                            ++endIndex;
+                            if (ch === '\n') {
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+                if (endIndex !== -1) {
+                    current = current.substring(0, startIndex) + DomWriter.getNewlineString(match[1], trailing) + current.substring(endIndex + 1);
+                    REGEXP_CSSKEYFRAME.lastIndex = endIndex + 1;
+                    modified = true;
+                }
+            }
+        }
+        if (modified) {
+            output = current;
+        }
+        REGEXP_CSSKEYFRAME.lastIndex = 0;
     }
     if (output) {
         for (const attr in replaceMap) {
@@ -1175,6 +1219,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     baseUrl?: string;
     usedVariables?: string[];
     usedFonts?: string[];
+    usedKeyframes?: string[];
     unusedStyles?: string[];
     productionRelease?: boolean | string;
     internalAssignUUID = '__assign__';
@@ -1221,6 +1266,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         this.baseUrl = body.baseUrl;
         this.usedVariables = body.usedVariables;
         this.usedFonts = body.usedFonts;
+        this.usedKeyframes = body.usedKeyframes;
         this.unusedStyles = body.unusedStyles;
         this.configData = body.templateMap;
         this.productionRelease = body.productionRelease;
