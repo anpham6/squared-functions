@@ -97,7 +97,7 @@ export interface XmlWriterConstructor {
     escapeXmlString(value: string, ampersand?: boolean): string;
     getNewlineString(leading: string, trailing: string, newline?: string): string;
     findCloseTag(source: string, startIndex?: number): number;
-    getTagOffset(source: string, sourceNext?: string): ObjectMap<number>;
+    getTagOffset(source: string, sourceNext?: string): TagOffsetMap;
     getNodeId(node: XmlTagNode, document: string): string;
     getCommentsAndCDATA(source: string, nodePattern?: string, ignoreCase?: boolean): SourceContent[];
     isSpace(ch: string): boolean;
@@ -144,7 +144,6 @@ export interface XmlElementConstructor {
 
 export class IDomWriter extends IXmlWriter {
     documentElement: Null<XmlTagNode>;
-    replaceAll(predicate: (elem: Element) => boolean, callback: (elem: Element, source: string) => Undef<string>): number;
 }
 
 export interface DomWriterConstructor {

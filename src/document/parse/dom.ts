@@ -191,33 +191,6 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         this.source = this.source.replace(new RegExp(`\\s+${Module.escapePattern(this.nameOfId)}="[^"]+"`, 'g'), '');
         return super.close();
     }
-    replaceAll(predicate: (elem: domhandler.Element) => boolean, callback: (elem: domhandler.Element, source: string) => Undef<string>) {
-        let result = 0;
-        new Parser(new DomHandler((err, dom) => {
-            if (!err) {
-                for (const target of domutils.findAll(predicate, dom).reverse()) {
-                    const outerXml = callback(target, this.source);
-                    if (outerXml) {
-                        const nodes = domutils.getElementsByTagName(target.tagName, dom, true);
-                        const tagIndex = nodes.findIndex(elem => elem === target);
-                        if (tagIndex !== -1) {
-                            const startIndex = target.startIndex!;
-                            const endIndex = target.endIndex!;
-                            this.spliceRawString({ startIndex, endIndex, outerXml });
-                            this.update({ id: { [this.documentName]: target.attribs[this.nameOfId] }, tagName: target.tagName, tagIndex, tagCount: nodes.length, startIndex, endIndex }, outerXml);
-                            ++result;
-                            continue;
-                        }
-                    }
-                    this.errors.push(new Error(`Unable to replace ${target.tagName.toUpperCase()} element`));
-                }
-            }
-            else {
-                this.errors.push(err);
-            }
-        }, { withStartIndices: true, withEndIndices: true })).end(this.source);
-        return result;
-    }
     get nameOfId() {
         return getAttrId(this.documentName);
     }

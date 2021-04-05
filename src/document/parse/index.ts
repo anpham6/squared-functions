@@ -149,7 +149,7 @@ export abstract class XmlWriter implements IXmlWriter {
         return -1;
     }
 
-    static getTagOffset(source: string, sourceNext?: string) {
+    static getTagOffset(source: string, sourceNext?: string): TagOffsetMap {
         const result: TagOffsetMap = {};
         new Parser({
             onopentag(name) {
@@ -157,15 +157,15 @@ export abstract class XmlWriter implements IXmlWriter {
             }
         }).end(source);
         if (typeof sourceNext === 'string') {
+            let modified: Undef<boolean>;
             const next = sourceNext ? this.getTagOffset(sourceNext) : {};
-            let revised: Undef<boolean>;
             for (const tagName of new Set([...Object.keys(result), ...Object.keys(next)])) {
                 if (result[tagName] !== next[tagName]) {
                     result[tagName] = (next[tagName] || 0) - (result[tagName] || 0);
-                    revised = true;
+                    modified = true;
                 }
             }
-            if (!revised) {
+            if (!modified) {
                 return {};
             }
         }
