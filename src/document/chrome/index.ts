@@ -503,7 +503,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             case '@text/html': {
                 const items = instance.assets.filter(item => item.format === 'base64' && item.element);
                 if (items.length) {
-                    const domBase = new DomWriter(instance.moduleName, this.getUTF8String(file, localUri), this.getElements());
+                    const domBase = new DomWriter(instance.moduleName, this.getUTF8String(file, localUri), this.getElements(), instance.normalizeHtmlOutput);
                     for (const item of items) {
                         const element = item.element!;
                         const domElement = new HtmlElement(instance.moduleName, element, item.attributes);
@@ -589,7 +589,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             const time = Date.now();
             const cloud = this.Cloud;
             let source = this.getUTF8String(htmlFile, localUri);
-            const domBase = new DomWriter(moduleName, source, this.getElements());
+            const domBase = new DomWriter(moduleName, source, this.getElements(), instance.normalizeHtmlOutput);
             for (const item of elements) {
                 const element = item.element!;
                 const replacing = typeof element.textContent === 'string';
@@ -1249,13 +1249,14 @@ class ChromeDocument extends Document implements IChromeDocument {
     cssFiles: DocumentAsset[] = [];
     baseDirectory = '';
     baseUrl?: string;
+    productionRelease?: boolean | string;
+    normalizeHtmlOutput?: boolean;
     usedVariables?: string[];
     usedFonts?: string[];
     usedKeyframes?: string[];
     unusedStyles?: string[];
     unusedMediaQueries?: string[];
     unusedSupports?: string[];
-    productionRelease?: boolean | string;
     internalAssignUUID = '__assign__';
     internalServerRoot = '__serverroot__';
 
@@ -1306,6 +1307,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         this.unusedSupports = body.unusedSupports;
         this.configData = body.templateMap;
         this.productionRelease = body.productionRelease;
+        this.normalizeHtmlOutput = body.normalizeHtmlOutput;
         if (this.baseUrl) {
             try {
                 const { origin, pathname } = new URL(this.baseUrl);

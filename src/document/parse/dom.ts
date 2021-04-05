@@ -22,9 +22,9 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         return !TAG_VOID.includes(tagName);
     }
 
-    static normalize(source: string) {
+    static normalize(source: string, newline?: string) {
         for (const tag of REGEX_VOID) {
-            source = source.replace(tag, (...capture) => DomWriter.getNewlineString(capture[1], capture[2]));
+            source = source.replace(tag, (...capture) => DomWriter.getNewlineString(capture[1], capture[2], newline));
         }
         let match: Null<RegExpExecArray>;
         while (match = REGEX_NORMALIZE.exec(source)) {
@@ -102,7 +102,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
     readonly ignoreTagName = 'title|style|script';
     readonly ignoreCaseTagName = true;
 
-    constructor(documentName: string, source: string, elements: XmlTagNode[], normalize = true) {
+    constructor(documentName: string, source: string, elements: XmlTagNode[], normalize?: boolean) {
         super(documentName, source, elements);
         const items: XmlTagNode[] = [];
         let outerXml = '',
@@ -146,7 +146,8 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         }
         else {
             if (normalize) {
-                source = DomWriter.normalize(source);
+                source = DomWriter.normalize(source, this.newline);
+                ++this.modifyCount;
             }
             const trailing = items.find(item => item.textContent);
             if (trailing) {

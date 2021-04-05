@@ -1,5 +1,5 @@
 
-import type { ChromeAsset, CssSelectorData } from '../../types/lib/chrome';
+import type { ChromeAsset, CssSelectorData, DocumentOutput } from '../../types/lib/chrome';
 
 import type { IDocument } from '../../types/lib';
 import type { ExternalAsset } from '../../types/lib/asset';
@@ -12,7 +12,7 @@ export interface DocumentAsset extends ExternalAsset, ChromeAsset {
     inlineCssCloud?: string;
 }
 
-export interface IChromeDocument extends IDocument, CssSelectorData {
+export interface IChromeDocument extends IDocument, DocumentOutput, CssSelectorData {
     assets: DocumentAsset[];
     htmlFile: Null<DocumentAsset>;
     cssFiles: DocumentAsset[];
@@ -20,5 +20,4 @@ export interface IChromeDocument extends IDocument, CssSelectorData {
     internalServerRoot: string;
     internalAssignUUID: string;
     baseUrl?: string;
-    productionRelease?: boolean | string;
 }

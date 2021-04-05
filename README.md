@@ -1138,6 +1138,7 @@ The entire page can similarly be transformed as a group using the "saveAs" attri
 squared.saveAs("index.zip", {
     productionRelease: false || true || "/absolute/path/wwwroot/", // Ignore local url rewriting and load assets using absolute paths
     preserveCrossOrigin: false, // Ignore downloading a local copy of assets hosted on other domains
+    normalizeHtmlOutput: false, // Remove unnecessary self-closing and spaces inside elements
     useOriginalHtmlPage: false, // May produce better results when using custom elements
 
     removeInlineStyles: false, // Strip style="" attribute from all elements (useOriginalHtmlPage: false)

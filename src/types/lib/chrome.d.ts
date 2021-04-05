@@ -20,10 +20,14 @@ export interface TemplateMap {
     css: ObjectMap<PlainObject>;
 }
 
-export interface RequestData extends CssSelectorData {
+export interface RequestData extends DocumentOutput, CssSelectorData {
     baseUrl?: string;
     templateMap?: TemplateMap;
+}
+
+export interface DocumentOutput {
     productionRelease?: boolean | string;
+    normalizeHtmlOutput?: boolean;
 }
 
 export interface CssSelectorData {
