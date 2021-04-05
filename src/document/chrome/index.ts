@@ -128,7 +128,8 @@ function removeCss(this: IChromeDocument, source: string) {
     }
     const replaceMap: StringMap = {};
     let current = source,
-        output: Undef<string>,
+        offset: number,
+        modified: Undef<boolean>,
         match: Null<RegExpExecArray>;
     while (match = REGEXP_CSSCLOSING.exec(source)) {
         if (match[0].includes('}')) {
@@ -137,15 +138,17 @@ function removeCss(this: IChromeDocument, source: string) {
             current = current.replace(match[0], placeholder);
         }
     }
+    REGEXP_CSSCLOSING.lastIndex = 0;
     if (unusedMediaQueries) {
         for (const value of unusedMediaQueries) {
-            const match = new RegExp(`(\\s*)@media\\s+${Document.escapePattern(value.trim()).replace(/\s+/g, '\\s+')}\\s*{`, 'i').exec(current);
-            if (match) {
+            const pattern = new RegExp(`(\\s*)@media\\s+${Document.escapePattern(value.trim()).replace(/\s+/g, '\\s+')}\\s*{`, 'gi');
+            while (match = pattern.exec(current)) {
                 const startIndex = match.index;
                 const [endIndex, trailing] = findClosingIndex(current, startIndex + match[0].length);
                 if (endIndex !== -1) {
-                    output = spliceString(output || current, startIndex, endIndex, match[1], trailing);
-                    current = output;
+                    [current, offset] = spliceString(current, startIndex, endIndex, match[1], trailing);
+                    modified = true;
+                    pattern.lastIndex = startIndex + offset;
                 }
             }
         }
@@ -156,16 +159,16 @@ function removeCss(this: IChromeDocument, source: string) {
             for (let i = 0; i < 2; ++i) {
                 const pattern = new RegExp((i === 0 ? '(^)' : '([{}])') + block, i === 0 ? 'm' : 'g');
                 while (match = pattern.exec(current)) {
-                    output = spliceString(output || current, match.index, match.index + match[0].length - 1, match[2], match[3], i === 0 ? '' : match[1]);
+                    const startIndex = match.index;
+                    [current, offset] = spliceString(current, startIndex, startIndex + match[0].length - 1, match[2], match[3], i === 0 ? '' : match[1]);
+                    modified = true;
                     if (i === 0) {
                         break;
                     }
-                }
-                if (output) {
-                    current = output;
+                    pattern.lastIndex = startIndex + offset;
                 }
             }
-            const pattern = new RegExp(`(}?[^,{}]*?)((,?\\s*)${value}\\s*[,{](\\s*)).*?\\{?`, 'g');
+            const pattern = new RegExp(`([{}]?[^,{}]*?)((,?\\s*)${value}\\s*[,{](\\s*)).*?\\{?`, 'g');
             while (match = pattern.exec(current)) {
                 const segment = match[2];
                 let outerXml = '';
@@ -175,65 +178,68 @@ function removeCss(this: IChromeDocument, source: string) {
                 else if (segment[0] === ',') {
                     outerXml = ', ';
                 }
-                else if (match[1] === '}' && match[3] && !match[3].trim()) {
-                    outerXml = match[3];
+                else {
+                    switch (match[1].trim()) {
+                        case '{':
+                        case '}':
+                            if (match[3] && !match[3].trim()) {
+                                outerXml = match[3];
+                            }
+                            break;
+                    }
                 }
-                output = (output || current).replace(match[0], match[0].replace(segment, outerXml));
-            }
-            if (output) {
-                current = output;
+                const startIndex = match.index;
+                [current, offset] = spliceString(current, startIndex, startIndex + match[0].length - 1, '', '', match[0].replace(segment, outerXml));
+                modified = true;
+                pattern.lastIndex = startIndex + offset;
             }
         }
     }
     if (usedVariables) {
-        const revised = current.replace(REGEXP_CSSVARIABLE, (...capture) => {
-            if (!usedVariables.includes(capture[2])) {
-                return capture[3] === ';' ? DomWriter.getNewlineString(capture[1], capture[4]) : '';
+        while (match = REGEXP_CSSVARIABLE.exec(current)) {
+            if (!usedVariables.includes(match[2])) {
+                const startIndex = match.index;
+                [current, offset] = spliceString(current, startIndex, startIndex + match[0].length - 1, '', '', match[3] === ';' ? DomWriter.getNewlineString(match[1], match[4]) : '');
+                modified = true;
+                REGEXP_CSSVARIABLE.lastIndex = startIndex + offset;
             }
-            return capture[0];
-        });
-        if (revised.length < current.length) {
-            output = revised;
-            current = output;
         }
+        REGEXP_CSSVARIABLE.lastIndex = 0;
     }
     if (usedFonts) {
         const fonts = usedFonts.map(value => value.toLowerCase());
-        const revised = current.replace(REGEXP_CSSFONT, (...capture) => {
-            if (match = /font-family\s*:([^;}]+)/i.exec(capture[0])) {
-                const fontFamily = match[1].trim().replace(/^(["'])(.+)\1$/, (...content) => content[2]).toLowerCase();
-                if (!fonts.includes(fontFamily)) {
-                    return DomWriter.getNewlineString(capture[1], capture[3]);
-                }
+        while (match = REGEXP_CSSFONT.exec(current)) {
+            const font = /font-family\s*:([^;}]+)/i.exec(match[0]);
+            if (font && !fonts.includes(font[1].trim().replace(/^(["'])(.+)\1$/, (...content) => content[2]).toLowerCase())) {
+                const startIndex = match.index;
+                [current, offset] = spliceString(current, startIndex, startIndex + match[0].length - 1, match[1], match[3]);
+                modified = true;
+                REGEXP_CSSFONT.lastIndex = startIndex + offset;
             }
-            return capture[0];
-        });
-        if (revised.length < current.length) {
-            output = revised;
-            current = output;
         }
+        REGEXP_CSSFONT.lastIndex = 0;
     }
     if (usedKeyframes) {
         while (match = REGEXP_CSSKEYFRAME.exec(current)) {
-            const keyframe = match[2].trim();
-            if (!usedKeyframes.includes(keyframe)) {
+            if (!usedKeyframes.includes(match[2].trim())) {
                 const startIndex = match.index;
                 const [endIndex, trailing] = findClosingIndex(current, startIndex + match[0].length);
                 if (endIndex !== -1) {
-                    output = spliceString(output || current, startIndex, endIndex, match[1], trailing);
-                    REGEXP_CSSKEYFRAME.lastIndex = endIndex + 1;
+                    [current, offset] = spliceString(current, startIndex, endIndex, match[1], trailing);
+                    modified = true;
+                    REGEXP_CSSKEYFRAME.lastIndex = startIndex + offset;
                 }
             }
         }
         REGEXP_CSSKEYFRAME.lastIndex = 0;
     }
-    if (output) {
+    if (modified) {
         for (const attr in replaceMap) {
-            output = output.replace(attr, replaceMap[attr]!);
+            current = current.replace(attr, replaceMap[attr]!);
         }
+        return current;
     }
-    REGEXP_CSSCLOSING.lastIndex = 0;
-    return output || source;
+    return source;
 }
 
 function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: DocumentAsset) {
@@ -425,8 +431,14 @@ function setElementAttribute(this: IChromeDocument, htmlFile: DocumentAsset, ass
     }
 }
 
+function spliceString(source: string, startIndex: number, endIndex: number, leading = '', trailing = '', content = ''): [string, number] {
+    if (leading || trailing) {
+        content += DomWriter.getNewlineString(leading, trailing);
+    }
+    return [source.substring(0, startIndex) + content + source.substring(endIndex + 1), content.length];
+}
+
 const isRemoved = (item: DocumentAsset) => item.exclude === true || item.bundleIndex !== undefined && item.bundleIndex > 0;
-const spliceString = (source: string, startIndex: number, endIndex: number, leading = '', trailing = '', content = '') => source.substring(0, startIndex) + content + DomWriter.getNewlineString(leading, trailing) + source.substring(endIndex + 1);
 const concatString = (values: Undef<string[]>): string => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const escapePosix = (value: string) => value.split(/[\\/]/).map(seg => Document.escapePattern(seg)).join('[\\\\/]');
 const getErrorDOM = (tagName: string, tagIndex: Undef<number>) => new Error(tagName.toUpperCase() + (tagIndex !== undefined && tagIndex >= 0 ? ' ' + tagIndex : '') + ': Unable to parse DOM');
