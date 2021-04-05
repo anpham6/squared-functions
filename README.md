@@ -1147,14 +1147,16 @@ squared.saveAs("index.zip", {
     removeUnusedFonts: false, // @font-face
     removeUnusedKeyframes: false, // @keyframes
     removeUnusedMediaQueries: false, // @media
+    removeUnusedSupports: false, // @supports
 
     // Styles that should be kept which are being used somewhere
     retainUsedStyles: [
-      /* css selectors (string | RegExp) */,
-      /* css variables (string prefixed with '--') */,
-      /* css fonts (string enclosed within '|font-face:Times New Roman|') */,
-      /* css keyframes (string enclosed within '|keyframes:animationName|') */,
-      /* css media queries (string enclosed within '|media:only screen and (min-width: 800px)|') */
+      /* CSS selectors (string | RegExp) */,
+      /* CSS variables (string prefixed with '--') */,
+      /* CSS @font-face (string enclosed within '|font-face:Times New Roman|') */,
+      /* CSS @keyframes (string enclosed within '|keyframes:animationName|') */,
+      /* CSS @media (string enclosed within '|media:only screen and (min-width: 800px)|') */,
+      /* CSS @supports (string enclosed within '|supports:(display: grid)|') */
     ],
 
     // All attributes are optional except "filename" for <script> and <link>.

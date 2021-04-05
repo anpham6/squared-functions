@@ -122,8 +122,8 @@ function findClosingIndex(source: string, lastIndex: number): [number, string] {
 }
 
 function removeCss(this: IChromeDocument, source: string) {
-    const { usedVariables, usedFonts, usedKeyframes, unusedStyles, unusedMediaQueries } = this;
-    if (!usedVariables && !usedFonts && !usedKeyframes && !unusedStyles && !unusedMediaQueries) {
+    const { usedVariables, usedFonts, usedKeyframes, unusedStyles, unusedMediaQueries, unusedSupports } = this;
+    if (!usedVariables && !usedFonts && !usedKeyframes && !unusedStyles && !unusedMediaQueries && !unusedSupports) {
         return source;
     }
     const replaceMap: StringMap = {};
@@ -139,9 +139,9 @@ function removeCss(this: IChromeDocument, source: string) {
         }
     }
     REGEXP_CSSCLOSING.lastIndex = 0;
-    if (unusedMediaQueries) {
-        for (const value of unusedMediaQueries) {
-            const pattern = new RegExp(`(\\s*)@media\\s+${Document.escapePattern(value.trim()).replace(/\s+/g, '\\s+')}\\s*{`, 'gi');
+    const replaceUnunsed = (items: string[], name: string) => {
+        for (const value of items) {
+            const pattern = new RegExp(`(\\s*)@${name}\\s+${Document.escapePattern(value.trim()).replace(/\s+/g, '\\s+')}\\s*{`, 'gi');
             while (match = pattern.exec(current)) {
                 const startIndex = match.index;
                 const [endIndex, trailing] = findClosingIndex(current, startIndex + match[0].length);
@@ -152,6 +152,12 @@ function removeCss(this: IChromeDocument, source: string) {
                 }
             }
         }
+    };
+    if (unusedMediaQueries) {
+        replaceUnunsed(unusedMediaQueries, 'media');
+    }
+    if (unusedSupports) {
+        replaceUnunsed(unusedSupports, 'supports');
     }
     if (unusedStyles) {
         for (let value of unusedStyles) {
@@ -1248,6 +1254,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     usedKeyframes?: string[];
     unusedStyles?: string[];
     unusedMediaQueries?: string[];
+    unusedSupports?: string[];
     productionRelease?: boolean | string;
     internalAssignUUID = '__assign__';
     internalServerRoot = '__serverroot__';
@@ -1296,6 +1303,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         this.usedKeyframes = body.usedKeyframes;
         this.unusedStyles = body.unusedStyles;
         this.unusedMediaQueries = body.unusedMediaQueries;
+        this.unusedSupports = body.unusedSupports;
         this.configData = body.templateMap;
         this.productionRelease = body.productionRelease;
         if (this.baseUrl) {
