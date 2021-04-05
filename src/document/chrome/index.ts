@@ -122,8 +122,8 @@ function findClosingIndex(source: string, lastIndex: number): [number, string] {
 }
 
 function removeCss(this: IChromeDocument, source: string) {
-    const { usedVariables, usedFonts, usedKeyframes, unusedStyles, unusedMediaQueries, unusedSupports } = this;
-    if (!usedVariables && !usedFonts && !usedKeyframes && !unusedStyles && !unusedMediaQueries && !unusedSupports) {
+    const { usedVariables, usedFontFace, usedKeyframes, unusedStyles, unusedMedia, unusedSupports } = this;
+    if (!usedVariables && !usedFontFace && !usedKeyframes && !unusedStyles && !unusedMedia && !unusedSupports) {
         return source;
     }
     const replaceMap: StringMap = {};
@@ -153,8 +153,8 @@ function removeCss(this: IChromeDocument, source: string) {
             }
         }
     };
-    if (unusedMediaQueries) {
-        replaceUnunsed(unusedMediaQueries, 'media');
+    if (unusedMedia) {
+        replaceUnunsed(unusedMedia, 'media');
     }
     if (unusedSupports) {
         replaceUnunsed(unusedSupports, 'supports');
@@ -212,8 +212,8 @@ function removeCss(this: IChromeDocument, source: string) {
         }
         REGEXP_CSSVARIABLE.lastIndex = 0;
     }
-    if (usedFonts) {
-        const fonts = usedFonts.map(value => value.toLowerCase());
+    if (usedFontFace) {
+        const fonts = usedFontFace.map(value => value.toLowerCase());
         while (match = REGEXP_CSSFONT.exec(current)) {
             const font = /font-family\s*:([^;}]+)/i.exec(match[0]);
             if (font && !fonts.includes(font[1].trim().replace(/^(["'])(.+)\1$/, (...content) => content[2]).toLowerCase())) {
@@ -1252,10 +1252,10 @@ class ChromeDocument extends Document implements IChromeDocument {
     productionRelease?: boolean | string;
     normalizeHtmlOutput?: boolean;
     usedVariables?: string[];
-    usedFonts?: string[];
+    usedFontFace?: string[];
     usedKeyframes?: string[];
     unusedStyles?: string[];
-    unusedMediaQueries?: string[];
+    unusedMedia?: string[];
     unusedSupports?: string[];
     internalAssignUUID = '__assign__';
     internalServerRoot = '__serverroot__';
@@ -1300,10 +1300,10 @@ class ChromeDocument extends Document implements IChromeDocument {
         this.assets = assets;
         this.baseUrl = body.baseUrl;
         this.usedVariables = body.usedVariables;
-        this.usedFonts = body.usedFonts;
+        this.usedFontFace = body.usedFontFace;
         this.usedKeyframes = body.usedKeyframes;
         this.unusedStyles = body.unusedStyles;
-        this.unusedMediaQueries = body.unusedMediaQueries;
+        this.unusedMedia = body.unusedMedia;
         this.unusedSupports = body.unusedSupports;
         this.configData = body.templateMap;
         this.productionRelease = body.productionRelease;

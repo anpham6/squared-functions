@@ -32,10 +32,10 @@ export interface DocumentOutput {
 
 export interface CssSelectorData {
     usedVariables?: string[];
-    usedFonts?: string[];
+    usedFontFace?: string[];
     usedKeyframes?: string[];
     unusedStyles?: string[];
-    unusedMediaQueries?: string[];
+    unusedMedia?: string[];
     unusedSupports?: string[];
 }
 

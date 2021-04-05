@@ -339,7 +339,7 @@ Custom plugins can also be installed from NPM. The function has to be named "tra
       "eval_template": false,
       "settings": {
         "transform": {
-          "html": { // built-in minifier
+          "html": { // Built-in minifier
             "posthtml": {
               "transform": {
                 "plugins": [
@@ -829,7 +829,7 @@ interface CloudDatabase {
 }
 ```
 
-View engines with a "compile" template string to function (e.g. [EJS](https://ejs.co)) can be used instead for "text" and "attribute". Manual NPM installation (npm i ejs) is required. Results from any data sources are treated as an array with multiple rows being concatenated into one string.
+View engines with a "compile" template string to function (e.g. [EJS](https://ejs.co)) can be used instead for "text" and "attribute". Manual NPM installation (npm i ejs) is required. Results from any data source is treated as an array with multiple rows being concatenated into one string.
 
 ```javascript
 // NOTE: "cloudDatabase" has been deprecated as of sqaured 2.5 (dataSource)
@@ -1142,15 +1142,15 @@ squared.saveAs("index.zip", {
     useOriginalHtmlPage: false, // May produce better results when using custom elements
 
     removeInlineStyles: false, // Strip style="" attribute from all elements (useOriginalHtmlPage: false)
-    removeUnusedSelectors: false, // selectors with :pseudo-class (not recommend for pages with forms [:valid] and active states [:hover])
-    removeUnusedClasses: false, // selectors without :pseudo-class
+    removeUnusedSelectors: false, // Selectors with :pseudo-class (not recommend for pages with forms [:valid] and active states [:hover])
+    removeUnusedClasses: false, // Selectors without :pseudo-class
     removeUnusedVariables: false, // --custom-variables
-    removeUnusedFonts: false, // @font-face
+    removeUnusedFontFace: false, // @font-face
     removeUnusedKeyframes: false, // @keyframes
-    removeUnusedMediaQueries: false, // @media
+    removeUnusedMedia: false, // @media
     removeUnusedSupports: false, // @supports
 
-    // Styles that should be kept which are being used somewhere
+    // Styles that should be kept which are still being used
     retainUsedStyles: [
       /* CSS selectors (string | RegExp) */,
       /* CSS variables (string prefixed with '--') */,
@@ -1160,7 +1160,7 @@ squared.saveAs("index.zip", {
       /* CSS @supports (string enclosed within '|supports:(display: grid)|') */
     ],
 
-    // All attributes are optional except "filename" for <script> and <link>.
+    // All attributes are optional
     saveAs: {
         html: { filename: "index.html", format: "beautify", attributes: [{ name: "lang", value: "en" }] },
         script: { pathname: "../js", filename: "bundle.js", format: "es5+es5-minify" },
