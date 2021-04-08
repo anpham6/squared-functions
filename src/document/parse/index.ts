@@ -73,6 +73,7 @@ function isValidIndex(items: Optional<SourceIndex[]>, value: number) {
 const isNode = (item: XmlTagNode, index: Undef<number>, tagIndex: Undef<number>, tagCount: Undef<number>, id: Undef<string>, documentName: string) => item.index === index && isIndex(index) || id && id === XmlWriter.getNodeId(item, documentName) || item.tagIndex === tagIndex && isIndex(tagIndex) && item.tagCount === tagCount && isCount(tagCount);
 const isIndex = (value: Undef<unknown>): value is number => typeof value === 'number' && value >= 0 && value !== Infinity;
 const isCount = (value: Undef<unknown>): value is number => typeof value === 'number' && value > 0 && value !== Infinity;
+const getPatternId = (name: string) => new RegExp(`\\s${Module.escapePattern(name)}="([^"]+)"`);
 
 export abstract class XmlWriter implements IXmlWriter {
     static readonly PATTERN_ATTRNAME = PATTERN_ATTRNAME;
@@ -212,6 +213,8 @@ export abstract class XmlWriter implements IXmlWriter {
 
     protected _tagCount: ObjectMap<number> = {};
     protected _hasInvalidContent = true;
+
+    private _patternId?: RegExp;
 
     constructor(
         public documentName: string,
@@ -695,8 +698,8 @@ export abstract class XmlWriter implements IXmlWriter {
         const source = this.source;
         const invalid = this.getInvalidArea();
         const result: SourceTagNode[] = [];
-        const pattern = new RegExp(`<${tagName + XmlWriter.PATTERN_TAGOPEN}*>`, ignoreCase ? 'gi' : 'g');
-        const patternId = new RegExp(Module.escapePattern(this.nameOfId) + '="([^"]+)"');
+        const pattern = new RegExp(`<${Module.escapePattern(tagName) + XmlWriter.PATTERN_TAGOPEN}*>`, ignoreCase ? 'gi' : 'g');
+        const patternId = this.patternId;
         let match: Null<RegExpExecArray>;
         while (match = pattern.exec(source)) {
             const startIndex = match.index;
@@ -746,6 +749,9 @@ export abstract class XmlWriter implements IXmlWriter {
     get newId() {
         return uuid.v4();
     }
+    get patternId() {
+        return this._patternId ||= getPatternId(this.nameOfId);
+    }
     get modified() {
         return this.modifyCount > 0;
     }
@@ -776,6 +782,8 @@ export abstract class XmlElement implements IXmlElement {
     protected _append?: TagAppend;
     protected _tagOffset?: TagOffsetMap;
     protected readonly _attributes = new Map<string, Optional<string>>();
+
+    private _patternId?: RegExp;
 
     constructor(
         public readonly documentName: string,
@@ -878,7 +886,7 @@ export abstract class XmlElement implements IXmlElement {
         }
     }
     getAttribute(name: string) {
-        return this._attributes.get(this._ignoreCase ? name = name.toLowerCase() : name) || this.node.append && name === this.nameOfId && (XmlWriter.getNodeId(this.node, this.documentName) || new RegExp(`\\s${Module.escapePattern(this.nameOfId)}="([^"]+)"`).exec(this.node.outerXml!)?.[1]) || '';
+        return this._attributes.get(this._ignoreCase ? name = name.toLowerCase() : name) || this.node.append && name === this.nameOfId && (XmlWriter.getNodeId(this.node, this.documentName) || this.patternId.exec(this.node.outerXml!)?.[1]) || '';
     }
     removeAttribute(...names: string[]) {
         const attrs = this._attributes;
@@ -1201,6 +1209,9 @@ export abstract class XmlElement implements IXmlElement {
     }
     get append() {
         return this._append;
+    }
+    get patternId() {
+        return this._patternId ||= getPatternId(this.nameOfId);
     }
     get modified() {
         return this._modified;

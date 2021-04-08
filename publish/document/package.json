@@ -18,7 +18,7 @@
     "@squared-functions/module": "^0.14.2",
     "@squared-functions/types": "^0.14.2",
     "fs-extra": "^9.1.0",
-    "htmlparser2": "^6.0.1",
+    "htmlparser2": "^6.1.0",
     "jsonpath": "^1.1.0",
     "js-yaml": "^4.0.0",
     "mongodb": "^3.6.5",

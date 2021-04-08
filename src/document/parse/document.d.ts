@@ -1,6 +1,6 @@
 import type { XmlTagNode as IXmlTagNode, TagAppend, TagData } from '../../types/lib/squared';
 
-import type { Element, Node } from 'domhandler';
+import type { Node } from 'domhandler';
 
 export interface SourceIndex {
     startIndex: number;
@@ -55,6 +55,7 @@ export class IXmlBase {
     save(...args: unknown[]): unknown;
     reset(): void;
     get nameOfId(): string;
+    get patternId(): RegExp;
     get modified(): boolean;
 }
 

@@ -4,8 +4,6 @@ import htmlparser2 = require('htmlparser2');
 import domhandler = require('domhandler');
 import domutils = require('domutils');
 
-import Module from '../../module';
-
 import { XmlElement, XmlWriter } from './index';
 
 const Parser = htmlparser2.Parser;
@@ -177,7 +175,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         if (this.modified) {
             const match = (this.documentElement ? /\s*<\/html>$/ : /\s*<\/html\s*>/i).exec(this.source);
             if (match) {
-                let innerXml: Undef<string>;
+                let innerXml: string;
                 for (const item of this.elements) {
                     if (item.tagName === 'html' && item.endIndex !== undefined) {
                         item.innerXml = innerXml ||= this.source.substring(item.endIndex + (this.documentElement ? this.newline.length + 1 : 1), match.index);
@@ -188,7 +186,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         return super.save();
     }
     close() {
-        this.source = this.source.replace(new RegExp(`\\s+${Module.escapePattern(this.nameOfId)}="[^"]+"`, 'g'), '');
+        this.source = this.source.replace(new RegExp(this.patternId, 'g'), '');
         return super.close();
     }
     get nameOfId() {
