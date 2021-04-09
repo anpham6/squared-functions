@@ -1,9 +1,9 @@
-import type { CompressFormat, DataSource, ElementAction, XmlTagNode } from '../types/lib/squared';
+import type { CompressFormat, DataSource, FileInfo, ElementAction, XmlTagNode } from '../types/lib/squared';
 
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
 import type { CloudDatabase, CloudService } from '../types/lib/cloud';
-import type { InstallData } from '../types/lib/filemanager';
+import type { InstallData, PostFinalizeCallback } from '../types/lib/filemanager';
 import type { CloudModule, DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
 
@@ -11,7 +11,8 @@ import path = require('path');
 import fs = require('fs-extra');
 import request = require('request');
 import mime = require('mime-types');
-import fileType = require('file-type');
+import filesize = require('filesize');
+import filetype = require('file-type');
 
 import Module from '../module';
 import Document from '../document';
@@ -51,7 +52,7 @@ class FileManager extends Module implements IFileManager {
     }
 
     static resolveMime(data: Buffer | string) {
-        return data instanceof Buffer ? fileType.fromBuffer(data) : fileType.fromFile(data);
+        return data instanceof Buffer ? filetype.fromBuffer(data) : filetype.fromFile(data);
     }
 
     delayed = 0;
@@ -75,12 +76,12 @@ class FileManager extends Module implements IFileManager {
     readonly contentToAppend = new Map<string, string[]>();
     readonly emptyDir = new Set<string>();
     readonly permission = new Permission();
-    readonly postFinalize?: (errors: string[]) => void;
+    readonly postFinalize?: PostFinalizeCallback;
 
     constructor(
         readonly baseDirectory: string,
         readonly body: RequestBody,
-        postFinalize?: (errors: string[]) => void,
+        postFinalize?: PostFinalizeCallback,
         readonly archiving = false)
     {
         super();
@@ -242,6 +243,15 @@ class FileManager extends Module implements IFileManager {
             this.delayed = Infinity;
             this.finalize().then(() => {
                 this.writeTimeElapsed('  END  ', this.baseDirectory, this.startTime, { titleBgColor: 'bgYellow', titleColor: 'black' });
+                const files = Array.from(this.files).sort((a, b) => {
+                    if (a.includes(path.sep) && !b.includes(path.sep)) {
+                        return -1;
+                    }
+                    else if (!a.includes(path.sep) && b.includes(path.sep)) {
+                        return 1;
+                    }
+                    return a < b ? -1 : 1;
+                });
                 if (this.postFinalize) {
                     const addErrors = (list: string[]) => {
                         if (list.length) {
@@ -261,7 +271,7 @@ class FileManager extends Module implements IFileManager {
                     if (this.Watch) {
                         addErrors(this.Watch.errors);
                     }
-                    this.postFinalize(this.errors);
+                    this.postFinalize(files.map(name => ({ name, size: filesize(Module.getFileSize(path.join(this.baseDirectory, name))) } as FileInfo)), this.errors);
                 }
                 this.errors.length = 0;
             });

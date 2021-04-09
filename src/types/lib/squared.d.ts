@@ -14,6 +14,11 @@ interface TextAsset extends Asset, LocationUri {
     content?: string;
 }
 
+export interface FileInfo {
+    name: string;
+    size: string;
+}
+
 export interface DataSource extends ElementAction, DocumentAction, PlainObject {
     source: string;
     index?: number;
@@ -141,7 +146,7 @@ export interface ResponseData {
     downloadKey?: string;
     downloadUrl?: string;
     bytes?: number;
-    files?: string[];
+    files?: FileInfo[];
     error?: ResponseError;
 }
 

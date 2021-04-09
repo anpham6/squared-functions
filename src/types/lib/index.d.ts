@@ -8,7 +8,7 @@ import type { ExternalAsset, FileData, FileOutput, OutputData } from './asset';
 import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload } from './cloud';
 import type { CompressTryFileMethod, CompressTryImageCallback } from './compress';
 import type { ConfigOrTransformer, PluginConfig, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
-import type { CompleteAsyncTaskCallback, InstallData, PerformAsyncTaskMethod } from './filemanager';
+import type { CompleteAsyncTaskCallback, InstallData, PerformAsyncTaskMethod, PostFinalizeCallback } from './filemanager';
 import type { CropData, QualityData, ResizeData, RotateData } from './image';
 import type { LOG_TYPE, LogMessageOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
 import type { CloudModule, DocumentModule } from './module';
@@ -192,7 +192,7 @@ declare namespace functions {
         readonly emptyDir: Set<string>;
         readonly permission: IPermission;
         readonly archiving: boolean;
-        readonly postFinalize?: (errors: string[]) => void;
+        readonly postFinalize?: PostFinalizeCallback;
         install(name: string, ...params: unknown[]): Undef<IModule>;
         add(value: string, parent?: ExternalAsset): void;
         delete(value: string, emptyDir?: boolean): void;
@@ -229,7 +229,7 @@ declare namespace functions {
     interface FileManagerConstructor extends ModuleConstructor {
         moduleCompress(): ICompress;
         resolveMime(data: Buffer | string): Promise<Undef<FileTypeResult>>;
-        new(baseDirectory: string, body: RequestBody, postFinalize?: (errors: string[]) => void, archiving?: boolean): IFileManager;
+        new(baseDirectory: string, body: RequestBody, postFinalize?: PostFinalizeCallback, archiving?: boolean): IFileManager;
     }
 
     interface IModule {
