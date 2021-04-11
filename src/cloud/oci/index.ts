@@ -54,15 +54,12 @@ export async function deleteObjects(this: IModule, credential: OCIStorageCredent
 }
 
 export async function executeQuery(this: ICloud, credential: OCIDatabaseCredential, data: OCIDatabaseQuery, cacheKey?: string) {
-    const connection = await createDatabaseClient.call(this, credential).catch(err => {
-        this.writeFail(['Unable to execute DB query', data.service], err);
-        throw new Error('');
-    });
     let result: Undef<unknown[]>,
         queryString = '';
     try {
         const { table, id, query, limit = 0 } = data;
         if (table) {
+            const getConnection = () => createDatabaseClient.call(this, { ...credential });
             queryString = table;
             if (id) {
                 queryString += id;
@@ -70,7 +67,7 @@ export async function executeQuery(this: ICloud, credential: OCIDatabaseCredenti
                 if (result) {
                     return result;
                 }
-                const collection = await connection.getSodaDatabase().openCollection(table);
+                const collection = await (await getConnection()).getSodaDatabase().openCollection(table);
                 if (collection) {
                     const item = await collection.find().key(id).getOne();
                     if (item) {
@@ -86,7 +83,7 @@ export async function executeQuery(this: ICloud, credential: OCIDatabaseCredenti
                     if (result) {
                         return result;
                     }
-                    const collection = await connection.getSodaDatabase().openCollection(table);
+                    const collection = await (await getConnection()).getSodaDatabase().openCollection(table);
                     if (collection) {
                         let operation = collection.find().filter(query);
                         if (maxRows > 0) {
@@ -101,7 +98,7 @@ export async function executeQuery(this: ICloud, credential: OCIDatabaseCredenti
                     if (result) {
                         return result;
                     }
-                    result = (await connection.execute(query, data.params || [], { ...data.options, outFormat: OUT_FORMAT_OBJECT, maxRows })).rows;
+                    result = (await (await getConnection()).execute(query, data.params || [], { ...data.options, outFormat: OUT_FORMAT_OBJECT, maxRows })).rows;
                 }
             }
         }

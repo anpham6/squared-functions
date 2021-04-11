@@ -53,13 +53,12 @@ export async function deleteObjects(this: IModule, credential: IBMStorageCredent
 }
 
 export async function executeQuery(this: ICloud, credential: IBMDatabaseCredential, data: IBMDatabaseQuery, cacheKey?: string) {
-    const client = createDatabaseClient.call(this, credential);
     let result: Undef<unknown[]>,
         queryString = '';
     try {
         const { table, id, query, partitionKey = '', limit = 0 } = data;
         if (table) {
-            const scope = client.db.use(table);
+            const getScope = () => createDatabaseClient.call(this, { ...credential }).db.use(table);
             queryString = table + partitionKey;
             if (id) {
                 queryString += id;
@@ -67,7 +66,7 @@ export async function executeQuery(this: ICloud, credential: IBMDatabaseCredenti
                 if (result) {
                     return result;
                 }
-                const item = await scope.get((partitionKey ? partitionKey + ':' : '') + id);
+                const item = await getScope().get((partitionKey ? partitionKey + ':' : '') + id);
                 result = [item];
             }
             else if (query && typeof query === 'object') {
@@ -79,7 +78,7 @@ export async function executeQuery(this: ICloud, credential: IBMDatabaseCredenti
                 if (limit > 0) {
                     query.limit = limit;
                 }
-                result = (partitionKey ? await scope.partitionedFind(partitionKey, query) : await scope.find(query)).docs;
+                result = (partitionKey ? await getScope().partitionedFind(partitionKey, query) : await getScope().find(query)).docs;
             }
         }
     }

@@ -106,13 +106,12 @@ export async function deleteObjects(this: IModule, credential: AzureStorageCrede
 }
 
 export async function executeQuery(this: ICloud, credential: AzureDatabaseCredential, data: AzureDatabaseQuery, cacheKey?: string) {
-    const client = createDatabaseClient.call(this, credential);
     let result: Undef<unknown[]>,
         queryString = '';
     try {
         const { name, table, id, query, storedProcedureId, params, partitionKey = '', limit = 0 } = data;
         if (table && name) {
-            const container = client.database(name).container(table);
+            const getContainer = () => createDatabaseClient.call(this, { ...credential }).database(name).container(table);
             queryString = name + table + partitionKey + (data.options ? JSON.stringify(data.options) : '');
             if (storedProcedureId && params) {
                 queryString += storedProcedureId + JSON.stringify(params);
@@ -120,7 +119,7 @@ export async function executeQuery(this: ICloud, credential: AzureDatabaseCreden
                 if (result) {
                     return result;
                 }
-                const item = await container.scripts.storedProcedure(storedProcedureId).execute(partitionKey, params, data.options);
+                const item = await getContainer().scripts.storedProcedure(storedProcedureId).execute(partitionKey, params, data.options);
                 if (item.statusCode === 200) {
                     result = Array.isArray(item.resource) ? item.resource : [item.resource];
                 }
@@ -131,7 +130,7 @@ export async function executeQuery(this: ICloud, credential: AzureDatabaseCreden
                 if (result) {
                     return result;
                 }
-                const item = await container.item(id.toString(), partitionKey).read(data.options);
+                const item = await getContainer().item(id.toString(), partitionKey).read(data.options);
                 if (item.statusCode === 200) {
                     result = [item.resource];
                 }
@@ -145,7 +144,7 @@ export async function executeQuery(this: ICloud, credential: AzureDatabaseCreden
                 if (limit > 0) {
                     (data.options ||= {}).maxItemCount = limit;
                 }
-                result = (await container.items.query(query, data.options).fetchAll()).resources;
+                result = (await getContainer().items.query(query, data.options).fetchAll()).resources;
             }
         }
     }
