@@ -29,7 +29,7 @@ function getPostFinalize(watch: FileWatch) {
         const server = watch.secure ? SECURE_MAP[port] : PORT_MAP[port];
         if (asset && server) {
             return (errors: string[]) => {
-                let type = asset.mimeType;
+                let type = asset.mimeType || '';
                 if (type[0] === '@') {
                     type = type.substring(1);
                 }

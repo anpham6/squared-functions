@@ -556,7 +556,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         for (const item of instance.assets) {
             if (item.inlineBase64) {
                 try {
-                    base64Map[item.inlineBase64] = `data:${item.mimeType};base64,${(item.buffer ? item.buffer.toString('base64') : fs.readFileSync(item.localUri!, 'base64')).trim()}`;
+                    base64Map[item.inlineBase64] = `data:${item.mimeType!};base64,${(item.buffer ? item.buffer.toString('base64') : fs.readFileSync(item.localUri!, 'base64')).trim()}`;
                     this.removeAsset(item);
                 }
                 catch (err) {
@@ -592,14 +592,13 @@ class ChromeDocument extends Document implements IChromeDocument {
             const domBase = new DomWriter(moduleName, source, this.getElements(), instance.normalizeHtmlOutput);
             for (const item of elements) {
                 const element = item.element!;
-                const replacing = typeof element.textContent === 'string';
-                const crossorigin = item.format === 'crossorigin';
-                if (item.invalid && !crossorigin && !replacing || element.removed || isRemoved(item)) {
+                if (element.removed || isRemoved(item)) {
                     continue;
                 }
                 const { attributes, srcSet, bundleIndex, inlineContent } = item;
+                const crossorigin = item.format === 'crossorigin';
                 let uri = item.relativeUri;
-                if (!attributes && !replacing && (item === htmlFile || !inlineContent && !srcSet && (!uri && bundleIndex === undefined || crossorigin))) {
+                if (!attributes && element.textContent === undefined && (item === htmlFile || !inlineContent && !srcSet && (!uri && bundleIndex === undefined || crossorigin))) {
                     continue;
                 }
                 const domElement = new HtmlElement(moduleName, element, attributes);

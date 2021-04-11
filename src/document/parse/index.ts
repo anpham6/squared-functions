@@ -1,13 +1,16 @@
 import type { TagAppend } from '../../types/lib/squared';
 
-import type { AttributeList, AttributeMap, IXmlElement, IXmlWriter, ReplaceOptions, SaveResult, SourceContent, SourceIndex, SourceTagNode, TagNodeByIdOptions, TagNodeOptions, TagOffsetMap, WriteResult, XmlTagNode } from './document';
+import type { AttributeList, AttributeMap, FindElementOptions, IXmlElement, IXmlWriter, ParserResult, ReplaceOptions, SaveResult, SourceContent, SourceIndex, SourceTagNode, TagNodeByIdOptions, TagNodeOptions, TagOffsetMap, WriteResult, XmlTagNode } from './document';
 
-import uuid = require('uuid');
 import htmlparser2 = require('htmlparser2');
+import domhandler = require('domhandler');
+import domutils = require('domutils');
+import uuid = require('uuid');
 
 import Module from '../../module';
 
 const Parser = htmlparser2.Parser;
+const DomHandler = domhandler.DomHandler;
 
 const PATTERN_ATTRNAME = '([^\\s=>]+)';
 const PATTERN_ATTRVALUE = `=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]*))`;
@@ -150,6 +153,43 @@ export abstract class XmlWriter implements IXmlWriter {
         return -1;
     }
 
+    static findElement(source: string, node: XmlTagNode, options?: FindElementOptions) {
+        let document: Undef<string>,
+            id: Undef<string>;
+        if (options) {
+            ({ document, id } = options);
+        }
+        const result: ParserResult = { element: null, error: null };
+        new Parser(new DomHandler((err, dom) => {
+            if (!err) {
+                const nodes = domutils.getElementsByTagName(node.tagName, dom, true);
+                let index = -1;
+                if (document && id) {
+                    const documentId = this.getNameOfId(document);
+                    index = nodes.findIndex(elem => elem.attribs[documentId] === id);
+                    if (index !== -1) {
+                        result.element = nodes[index];
+                    }
+                }
+                if (!result.element && nodes.length === node.tagCount) {
+                    const tagIndex = node.tagIndex;
+                    if (tagIndex !== undefined && (result.element = nodes[tagIndex])) {
+                        index = tagIndex;
+                    }
+                }
+                if (result.element) {
+                    result.tagName = node.tagName;
+                    result.tagIndex = index;
+                    result.tagCount = nodes.length;
+                }
+            }
+            else {
+                result.error = err;
+            }
+        }, { withStartIndices: true, withEndIndices: true })).end(source);
+        return result;
+    }
+
     static getTagOffset(source: string, sourceNext?: string): TagOffsetMap {
         const result: TagOffsetMap = {};
         new Parser({
@@ -175,6 +215,10 @@ export abstract class XmlWriter implements IXmlWriter {
 
     static getNodeId(node: XmlTagNode, document: string) {
         return node.id?.[document] || '';
+    }
+
+    static getNameOfId(document: string) {
+        return `data-${document}-id`;
     }
 
     static getCommentsAndCDATA(source: string, nodePattern = '', ignoreCase?: boolean) {
@@ -586,57 +630,65 @@ export abstract class XmlWriter implements IXmlWriter {
             }
             if (revised.length) {
                 const tagCount = this._tagCount[tagName];
-                if (!elements.length) {
-                    if (append && !tagCount) {
-                        for (const item of revised) {
-                            item.tagIndex = 0;
-                            item.tagCount = 1;
-                        }
-                        this._tagCount[tagName] = 1;
-                        return;
-                    }
-                }
-                else if (documentIndex < minIndex) {
-                    if (elements.some(item => item.tagIndex === 0)) {
+                if (elements.length) {
+                    if (documentIndex < minIndex) {
                         for (const item of revised) {
                             item.tagIndex = 0;
                             item.tagCount = tagCount + offset + 1;
                         }
                         return;
                     }
-                }
-                else if (documentIndex > maxIndex) {
-                    if (elements.some(item => item.tagIndex === tagCount - 1)) {
+                    else if (documentIndex > maxIndex) {
                         for (const item of revised) {
                             item.tagIndex = tagCount;
                             item.tagCount = tagCount + offset + 1;
                         }
                         return;
                     }
+                    else if (indexMap.size === tagCount + 1) {
+                        let i = tagCount,
+                            last = true;
+                        indexMap.clear();
+                        for (const item of elements) {
+                            let tagIndex = item.tagIndex!;
+                            if (item.index! > documentIndex) {
+                                tagIndex += offset + 1;
+                                last = false;
+                            }
+                            indexMap.add(tagIndex);
+                        }
+                        if (!last) {
+                            while (indexMap.has(i)) {
+                                --i;
+                            }
+                            i -= offset;
+                        }
+                        for (const target of revised) {
+                            target.tagIndex = i;
+                            target.tagCount = tagCount + offset + 1;
+                        }
+                        return;
+                    }
                 }
-                else if (indexMap.size === tagCount + 1) {
-                    let i = tagCount,
-                        last = true;
-                    indexMap.clear();
-                    for (const item of elements) {
-                        let tagIndex = item.tagIndex!;
-                        if (item.index! > documentIndex) {
-                            tagIndex += offset + 1;
-                            last = false;
+                const id = append?.id || revised[0].id?.[this.documentName];
+                if (id) {
+                    let valid: Undef<boolean>;
+                    new Parser(new DomHandler((err, dom) => {
+                        if (!err) {
+                            const nodes = domutils.getElementsByTagName(tagName, dom, true).filter(element => element.startIndex! + 1 < element.endIndex!);
+                            const index = nodes.findIndex(item => item.attribs[this.nameOfId] === id);
+                            if (index !== -1) {
+                                for (const target of revised) {
+                                    target.tagIndex = index;
+                                    target.tagCount = nodes.length;
+                                }
+                                valid = true;
+                            }
                         }
-                        indexMap.add(tagIndex);
+                    }, { withStartIndices: true, withEndIndices: true })).end(this.source);
+                    if (valid) {
+                        return;
                     }
-                    if (!last) {
-                        while (indexMap.has(i)) {
-                            --i;
-                        }
-                        i -= offset;
-                    }
-                    for (const target of revised) {
-                        target.tagIndex = i;
-                        target.tagCount = tagCount + offset + 1;
-                    }
-                    return;
                 }
                 this.resetTag(tagName);
             }

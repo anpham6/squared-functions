@@ -1,4 +1,4 @@
-import type { FindElementOptions, IDomWriter, ParserResult, SourceIndex, TagOffsetMap, XmlTagNode } from './document';
+import type { IDomWriter, ParserResult, SourceIndex, TagOffsetMap, XmlTagNode } from './document';
 
 import htmlparser2 = require('htmlparser2');
 import domhandler = require('domhandler');
@@ -12,8 +12,6 @@ const DomHandler = domhandler.DomHandler;
 const TAG_VOID = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
 const REGEX_VOID = TAG_VOID.map(tagName => new RegExp(`(\\s*)</${tagName}\\s*>` + XmlWriter.PATTERN_TRAILINGSPACE, 'gi'));
 const REGEX_NORMALIZE = new RegExp(`<(?:([^\\s]${XmlWriter.PATTERN_TAGOPEN}*?)(\\s*\\/?\\s*)|\\/([^\\s>]+)(\\s*))>`, 'gi');
-
-const getAttrId = (document: string) => `data-${document}-id`;
 
 export class DomWriter extends XmlWriter implements IDomWriter {
     static hasInnerXml(tagName: string) {
@@ -56,43 +54,6 @@ export class DomWriter extends XmlWriter implements IDomWriter {
             }
         }, { withStartIndices: true, withEndIndices: true })).end(source);
         return { element, error };
-    }
-
-    static findElement(source: string, node: XmlTagNode, options?: FindElementOptions) {
-        let document: Undef<string>,
-            id: Undef<string>;
-        if (options) {
-            ({ document, id } = options);
-        }
-        const result: ParserResult = { element: null, error: null };
-        new Parser(new DomHandler((err, dom) => {
-            if (!err) {
-                const nodes = domutils.getElementsByTagName(node.tagName, dom, true);
-                let index = -1;
-                if (document && id) {
-                    const documentId = getAttrId(document);
-                    index = nodes.findIndex(elem => elem.attribs[documentId] === id);
-                    if (index !== -1) {
-                        result.element = nodes[index];
-                    }
-                }
-                if (!result.element && nodes.length === node.tagCount) {
-                    const tagIndex = node.tagIndex;
-                    if (tagIndex !== undefined && (result.element = nodes[tagIndex])) {
-                        index = tagIndex;
-                    }
-                }
-                if (result.element) {
-                    result.tagName = node.tagName;
-                    result.tagIndex = index;
-                    result.tagCount = nodes.length;
-                }
-            }
-            else {
-                result.error = err;
-            }
-        }, { withStartIndices: true, withEndIndices: true })).end(source);
-        return result;
     }
 
     documentElement: Null<XmlTagNode> = null;
@@ -193,7 +154,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         return super.close();
     }
     get nameOfId() {
-        return getAttrId(this.documentName);
+        return XmlWriter.getNameOfId(this.documentName);
     }
 }
 
@@ -227,7 +188,7 @@ export class HtmlElement extends XmlElement {
         return '<' + tagName + HtmlElement.writeAttributes(items) + '>' + (DomWriter.hasInnerXml(tagName) && tagName !== 'html' ? (tagName === 'title' ? XmlWriter.escapeXmlString(innerXml) : innerXml) + `</${tagName}>` : '');
     }
     get nameOfId() {
-        return getAttrId(this.documentName);
+        return XmlWriter.getNameOfId(this.documentName);
     }
 }
 
