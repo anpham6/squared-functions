@@ -56,7 +56,6 @@ class FileManager extends Module implements IFileManager {
     }
 
     delayed = 0;
-    cleared = false;
     cacheHttpRequest = false;
     Document: InstallData<IDocument, DocumentConstructor>[] = [];
     Task: InstallData<ITask, TaskConstructor>[] = [];
@@ -77,6 +76,8 @@ class FileManager extends Module implements IFileManager {
     readonly emptyDir = new Set<string>();
     readonly permission = new Permission();
     readonly postFinalize?: PostFinalizeCallback;
+
+    private _cleared = false;
 
     constructor(
         readonly baseDirectory: string,
@@ -977,7 +978,6 @@ class FileManager extends Module implements IFileManager {
             }
         }
         this.cleared = true;
-        this.performFinalize();
     }
     async finalize() {
         let tasks: Promise<unknown>[] = [];
@@ -1097,6 +1097,15 @@ class FileManager extends Module implements IFileManager {
             if (instance.assets.length) {
                 await constructor.cleanup.call(this, instance);
             }
+        }
+    }
+    get cleared() {
+        return this._cleared;
+    }
+    set cleared(value) {
+        this._cleared = value;
+        if (value) {
+            this.performFinalize();
         }
     }
 }

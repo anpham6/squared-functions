@@ -7,7 +7,6 @@ import type { FilterQuery } from 'mongodb';
 export type UnusedStyles = string[];
 
 export interface ChromeAsset extends ElementAction {
-    format?: string;
     preserve?: boolean;
     exclude?: boolean;
     inlineContent?: string;

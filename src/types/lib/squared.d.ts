@@ -93,6 +93,7 @@ export interface LocationUri {
 }
 
 export interface FileAsset<T = unknown> extends TextAsset, OutputAction<T> {
+    format?: string;
     base64?: string;
 }
 
