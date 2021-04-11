@@ -44,8 +44,12 @@ abstract class Module implements IModule {
         return typeof value === 'object' && value !== null;
     }
 
+    static isString(value: unknown): value is string {
+        return typeof value === 'string' && value.length > 0;
+    }
+
     static escapePattern(value: string) {
-        return typeof value === 'string' ? value.replace(/[-|\\{}()[\]^$+*?.]/g, capture => capture === '-' ? '\\x2d' : '\\' + capture) : '';
+        return this.isString(value) ? value.replace(/[-|\\{}()[\]^$+*?.]/g, capture => capture === '-' ? '\\x2d' : '\\' + capture) : '';
     }
 
     static formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
@@ -105,7 +109,7 @@ abstract class Module implements IModule {
         if (Array.isArray(value)) {
             const hint = value[1] as string;
             let length = 0;
-            if (typeof hint === 'string' && (length = hint.length)) {
+            if (this.isString(hint) && (length = hint.length)) {
                 const getHint = () => length > 32 ? hint.substring(0, 29) + '...' : hint;
                 const formatHint = (content: string) => {
                     const { hintColor, hintBgColor } = options;

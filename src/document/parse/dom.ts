@@ -173,12 +173,15 @@ export class DomWriter extends XmlWriter implements IDomWriter {
     }
     save() {
         if (this.modified) {
-            const match = (this.documentElement ? /\s*<\/html>$/ : /\s*<\/html\s*>/i).exec(this.source);
-            if (match) {
-                let innerXml: string;
+            const index = this.documentElement ? this.source.length - this.newline.length - 7 : /\s*<\/html\s*>/i.exec(this.source)?.index ?? NaN;
+            if (!isNaN(index)) {
+                let innerXml: Undef<string>;
                 for (const item of this.elements) {
-                    if (item.tagName === 'html' && item.endIndex !== undefined) {
-                        item.innerXml = innerXml ||= this.source.substring(item.endIndex + (this.documentElement ? this.newline.length + 1 : 1), match.index);
+                    if (item.tagName === 'html') {
+                        if (item.endIndex !== undefined && !innerXml) {
+                            innerXml = this.source.substring(item.endIndex + (this.documentElement ? this.newline.length + 1 : 1), index);
+                        }
+                        item.innerXml = innerXml;
                     }
                 }
             }

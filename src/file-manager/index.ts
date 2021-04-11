@@ -1,4 +1,4 @@
-import type { CompressFormat, DataSource, FileInfo, ElementAction, XmlTagNode } from '../types/lib/squared';
+import type { CompressFormat, DataSource, ElementAction, FileInfo, XmlTagNode } from '../types/lib/squared';
 
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
@@ -920,7 +920,7 @@ class FileManager extends Module implements IFileManager {
                                             else {
                                                 const etag = res.headers['etag'] as Undef<string>;
                                                 let subDir: Undef<string>;
-                                                if (etag && typeof etag === 'string') {
+                                                if (Module.isString(etag)) {
                                                     subDir = encodeURIComponent(etag);
                                                     const tempUri = path.join(tempDir, subDir, path.basename(localUri));
                                                     if (fs.existsSync(tempUri)) {

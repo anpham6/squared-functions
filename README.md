@@ -704,7 +704,7 @@ Other service providers can be integrated similarly except for credential verifi
       "admin": {
         "publicRead": false, // New buckets (optional: Not supported OCI)
         "emptyBucket": false, // More convenient than using "overwrite" (optional),
-        "preservePath": false // Use current pathname as file prefix
+        "preservePath": false // Use current pathname as base directory
       },
       "upload": {
         "active": false, // Implicity "publicRead: true" except when explicitly "publicRead: false"

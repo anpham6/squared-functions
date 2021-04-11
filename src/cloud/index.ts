@@ -239,7 +239,7 @@ class Cloud extends Module implements ICloud {
                         if (filename) {
                             const localUri = item.localUri;
                             let valid = false,
-                                downloadUri = pathname ? path.join(this.baseDirectory, pathname.replace(/^([A-Z]:)?[\\/]+/i, '')) : data.admin?.preservePath && localUri ? path.join(path.dirname(localUri), filename) : path.join(this.baseDirectory, filename);
+                                downloadUri = pathname ? path.join(this.baseDirectory, pathname.replace(/^([A-Z]:)?[\\/]+/i, '')) : path.join(data.admin?.preservePath && localUri ? path.dirname(localUri) : this.baseDirectory, filename);
                             if (fs.existsSync(downloadUri)) {
                                 valid = !!(active || overwrite);
                             }

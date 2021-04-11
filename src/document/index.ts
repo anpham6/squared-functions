@@ -11,7 +11,6 @@ import fs = require('fs-extra');
 
 import Module from '../module';
 
-const isString = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
 const getSourceMappingURL = (value: string) => `\n//# sourceMappingURL=${value}\n`;
 
 abstract class Document extends Module implements IDocument {
@@ -29,7 +28,7 @@ abstract class Document extends Module implements IDocument {
                 this.output.clear();
             },
             "nextMap": function(this: SourceMapInput, name: string, code: string, map: SourceMap | string, sourceMappingURL = '') {
-                if (typeof map === 'string') {
+                if (Module.isString(map)) {
                     try {
                         map = JSON.parse(map) as SourceMap;
                     }
@@ -37,7 +36,7 @@ abstract class Document extends Module implements IDocument {
                         return false;
                     }
                 }
-                if (Module.isObject<SourceMap>(map) && isString(map.mappings)) {
+                if (Module.isObject<SourceMap>(map) && Module.isString(map.mappings)) {
                     this.code = code;
                     this.map = map;
                     if (sourceMappingURL) {
@@ -202,7 +201,7 @@ abstract class Document extends Module implements IDocument {
         delete data[name];
     }
     async parseTemplate(viewEngine: ViewEngine | string, template: string, data: PlainObject[]) {
-        if (typeof viewEngine === 'string') {
+        if (Module.isString(viewEngine)) {
             const view = (this.module.settings?.view_engine as Undef<StandardMap>)?.[viewEngine] as Undef<ViewEngine>;
             if (!view) {
                 this.writeFail(['Setting not found', viewEngine], new Error('Unknown view engine: ' + viewEngine));
@@ -254,7 +253,7 @@ abstract class Document extends Module implements IDocument {
                         const output = { ...options, sourceMap, outputConfig, writeFail } as TransformOptions;
                         const time = Date.now();
                         const next = (result: Undef<string>) => {
-                            if (isString(result)) {
+                            if (Module.isString(result)) {
                                 code = result;
                                 valid = true;
                                 this.writeTimeElapsed(type, plugin + ': ' + process, time);

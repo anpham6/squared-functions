@@ -254,6 +254,7 @@ declare namespace functions {
         formatMessage: ModuleFormatMessageMethod;
         writeFail: ModuleWriteFailMethod;
         isObject<T = PlainObject>(value: unknown): value is T;
+        isString(value: unknown): value is string;
         escapePattern(value: string): string;
         parseFunction(value: string, name?: string, sync?: boolean): Undef<FunctionType<Promise<string> | string>>;
         toPosix(value: string, filename?: string): string;
