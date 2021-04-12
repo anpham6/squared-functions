@@ -1242,6 +1242,19 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
     }
 
+    static sanitizeAssets(assets: DocumentAsset[], exclusions: DocumentAsset[] = []) {
+        for (const item of assets) {
+            if (!exclusions.includes(item)) {
+                const mimeType = item.mimeType || '';
+                if (mimeType[0] === '@') {
+                    item.mimeType = mimeType.substring(1);
+                }
+                item.format = undefined;
+                item.trailingContent = undefined;
+            }
+        }
+    }
+
     moduleName = 'chrome';
     assets: DocumentAsset[] = [];
     htmlFile: Null<DocumentAsset> = null;
