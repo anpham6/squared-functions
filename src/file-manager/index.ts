@@ -599,9 +599,9 @@ class FileManager extends Module implements IFileManager {
         const checkQueue = (file: ExternalAsset, localUri: string, content?: boolean) => {
             const bundleIndex = file.bundleIndex;
             if (bundleIndex !== undefined && bundleIndex !== -1) {
-                appending[localUri] ||= [];
+                const bundle = appending[localUri] ||= [];
                 if (bundleIndex > 0) {
-                    appending[localUri][bundleIndex - 1] = file;
+                    bundle[bundleIndex - 1] = file;
                     return true;
                 }
             }
@@ -764,7 +764,7 @@ class FileManager extends Module implements IFileManager {
         const errorRequest = (file: ExternalAsset, uri: string, localUri: string, err: Error, stream?: fs.WriteStream) => {
             file.invalid = true;
             if (downloading[uri]) {
-                for (const item of downloading[uri]) {
+                for (const item of downloading[uri]!) {
                     item.invalid = true;
                 }
                 delete downloading[uri];
@@ -860,7 +860,7 @@ class FileManager extends Module implements IFileManager {
                     if (Module.isFileHTTP(uri)) {
                         if (!checkQueue(item, localUri)) {
                             if (downloading[uri]) {
-                                downloading[uri].push(item);
+                                downloading[uri]!.push(item);
                                 continue;
                             }
                             if (createFolder()) {

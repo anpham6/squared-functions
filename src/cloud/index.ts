@@ -188,9 +188,10 @@ class Cloud extends Module implements ICloud {
                         rawFiles.push(item);
                     }
                 }
+                let bucket: Map<string, PlainObject>;
                 for (const storage of item.cloudStorage) {
-                    if (storage.admin?.emptyBucket && cloud.hasCredential('storage', storage) && storage.bucket && !(bucketMap[storage.service] ||= new Map()).has(storage.bucket)) {
-                        bucketMap[storage.service].set(storage.bucket, cloud.getCredential(storage));
+                    if (storage.admin?.emptyBucket && cloud.hasCredential('storage', storage) && storage.bucket && !(bucket = bucketMap[storage.service] ||= new Map()).has(storage.bucket)) {
+                        bucket.set(storage.bucket, cloud.getCredential(storage));
                     }
                 }
             }
@@ -200,7 +201,7 @@ class Cloud extends Module implements ICloud {
             tasks = [];
         }
         for (const service in bucketMap) {
-            for (const [bucket, credential] of bucketMap[service]) {
+            for (const [bucket, credential] of bucketMap[service]!) {
                 tasks.push(cloud.deleteObjects(service, credential, bucket).catch(err => this.writeFail(['Cloud provider not found', service], err)));
             }
         }
@@ -259,8 +260,9 @@ class Cloud extends Module implements ICloud {
                             }
                             if (valid) {
                                 const location = data.service + data.bucket + filename;
-                                if (downloadMap[location]) {
-                                    downloadMap[location].add(downloadUri);
+                                const download = downloadMap[location];
+                                if (download) {
+                                    download.add(downloadUri);
                                 }
                                 else {
                                     try {
@@ -268,7 +270,7 @@ class Cloud extends Module implements ICloud {
                                             if (value) {
                                                 let destUri = '';
                                                 try {
-                                                    const items = Array.from(downloadMap[location]);
+                                                    const items = Array.from(download!);
                                                     for (let i = 0, length = items.length; i < length; ++i) {
                                                         destUri = items[i];
                                                         if (typeof value === 'string') {
@@ -359,7 +361,7 @@ class Cloud extends Module implements ICloud {
                                             const location = trailingFolder + value;
                                             filenameMap[location] ||= 1;
                                             const index = value.indexOf('.');
-                                            trailing.filename = value.substring(0, index !== -1 ? index : Infinity) + '_' + filenameMap[location]++ + (index !== -1 ? value.substring(index) : '');
+                                            trailing.filename = value.substring(0, index !== -1 ? index : Infinity) + '_' + filenameMap[location]!++ + (index !== -1 ? value.substring(index) : '');
                                         };
                                         if (basename && basename === leading.filename && leadingFolder === trailingFolder) {
                                             renameTrailing(basename);
@@ -412,7 +414,7 @@ class Cloud extends Module implements ICloud {
     getDatabaseRows(data: CloudDatabase, cacheKey?: string): Promise<unknown[]> {
         if (this.hasCredential('database', data)) {
             const host = CLOUD_SERVICE[data.service];
-            if (host.executeQuery) {
+            if (host?.executeQuery) {
                 return host.executeQuery.call(this, this.getCredential(data), data, cacheKey);
             }
         }
@@ -424,7 +426,7 @@ class Cloud extends Module implements ICloud {
         if (timeout > 0) {
             const userCache = CLOUD_USERCACHE[userKey];
             if (userCache?.[queryString]) {
-                const [expires, result] = userCache[queryString];
+                const [expires, result] = userCache[queryString]!;
                 if (Date.now() < expires) {
                     return result;
                 }

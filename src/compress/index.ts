@@ -26,7 +26,7 @@ const Compress = new class extends Module implements ICompress {
         }
     }
     getLevel(output: string, fallback?: number) {
-        const result = this.level[path.extname(output).substring(1).toLowerCase()];
+        const result = this.level[path.extname(output).substring(1).toLowerCase()]!;
         return !isNaN(result) ? result : fallback;
     }
     createWriteStreamAsGzip(uri: string, output: string, options?: CompressLevel) {

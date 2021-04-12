@@ -1421,7 +1421,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     const inlineCss = item.inlineCssMap[id];
                     if (inlineCss && !this._cloudUploaded.has(id)) {
                         source = source.replace(new RegExp(Document.escapePattern(id), 'g'), inlineCss);
-                        localStorage.delete(this._cloudCssMap[id]);
+                        localStorage.delete(this._cloudCssMap[id]!);
                     }
                 }
                 tasks.push(fs.writeFile(item.localUri!, source, 'utf8'));
@@ -1447,7 +1447,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 let source = host.getUTF8String(htmlFile);
                 for (const id in cloudMap) {
                     if (!this._cloudUploaded.has(id)) {
-                        const file = cloudMap[id];
+                        const file = cloudMap[id]!;
                         source = source.replace(new RegExp(Document.escapePattern(id), 'g'), file.relativeUri!);
                         localStorage.delete(file);
                     }

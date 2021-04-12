@@ -481,7 +481,7 @@ export abstract class XmlWriter implements IXmlWriter {
                                     offsetCount = Infinity;
                                 }
                                 if (offsetCount === -1) {
-                                    offsetCount = item.tagCount;
+                                    offsetCount = item.tagCount!;
                                     continue;
                                 }
                                 else if (offsetCount === item.tagCount) {
@@ -539,7 +539,7 @@ export abstract class XmlWriter implements IXmlWriter {
             this.resetTag(tagName);
         }
         else if (tagName in this._tagCount) {
-            this._tagCount[tagName] += offset;
+            this._tagCount[tagName]! += offset;
         }
     }
     decrement(node: XmlTagNode, offset = 0, remove?: boolean) {
@@ -574,7 +574,7 @@ export abstract class XmlWriter implements IXmlWriter {
             }
         }
         if (tagName in this._tagCount) {
-            this._tagCount[tagName] -= offset;
+            this._tagCount[tagName]! -= offset;
         }
         return result;
     }
@@ -629,7 +629,7 @@ export abstract class XmlWriter implements IXmlWriter {
                 }
             }
             if (revised.length) {
-                const tagCount = this._tagCount[tagName];
+                const tagCount = this._tagCount[tagName]!;
                 if (elements.length) {
                     if (documentIndex < minIndex) {
                         for (const item of revised) {

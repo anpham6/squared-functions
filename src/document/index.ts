@@ -279,7 +279,7 @@ abstract class Document extends Module implements IDocument {
                                             this._packageMap[plugin] = transformer;
                                         }
                                         else if (typeof context === 'function' && context.name === 'transform') {
-                                            transformer = context;
+                                            transformer = context as Transformer;
                                             context = this;
                                         }
                                         else {
@@ -288,7 +288,7 @@ abstract class Document extends Module implements IDocument {
                                         }
                                     }
                                     output.baseConfig = baseConfig;
-                                    next(await transformer(context, code, output));
+                                    next(await transformer!(context, code, output));
                                 }
                             }
                             catch (err) {

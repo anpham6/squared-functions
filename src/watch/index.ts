@@ -72,7 +72,7 @@ class Watch extends Module implements IWatch {
     static shutdown() {
         for (const item of [HTTP_MAP, DISK_MAP]) {
             for (const uri in item) {
-                for (const { timeout } of item[uri].values()) {
+                for (const { timeout } of item[uri]!.values()) {
                     if (timeout[0]) {
                         clearInterval(timeout[0]);
                     }
@@ -82,7 +82,7 @@ class Watch extends Module implements IWatch {
         for (const item of [PORT_MAP, SECURE_MAP]) {
             for (const port in item) {
                 try {
-                    item[port].close();
+                    item[port]!.close();
                 }
                 catch (err) {
                     this.writeFail([`Unable to shutdown ${item === PORT_MAP ? 'WS' : 'WSS'} server`, 'Port: ' + port], err);
@@ -118,7 +118,7 @@ class Watch extends Module implements IWatch {
             }
         }
         for (let dest in destMap) {
-            let items = destMap[dest];
+            let items = destMap[dest]!;
             if (!items.some(item => item.watch)) {
                 continue;
             }
@@ -182,7 +182,7 @@ class Watch extends Module implements IWatch {
                         }
                         const reload = watch.reload;
                         if (Module.isObject<WatchReload>(reload) && (socketId = reload.socketId)) {
-                            let wss: Server;
+                            let wss: Undef<Server>;
                             port = reload.port;
                             hot = reload.module;
                             if (reload.secure) {
@@ -307,11 +307,15 @@ class Watch extends Module implements IWatch {
                         }
                         const watcher = fs.watch(uri, (event, filename) => {
                             switch (event) {
-                                case 'change':
-                                    for (const input of DISK_MAP[uri].values()) {
-                                        this.modified(input.data);
+                                case 'change': {
+                                    const disk = DISK_MAP[uri];
+                                    if (disk) {
+                                        for (const input of disk.values()) {
+                                            this.modified(input.data);
+                                        }
                                     }
                                     break;
+                                }
                                 case 'rename':
                                     if (timeout) {
                                         clearTimeout(timeout);
