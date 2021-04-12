@@ -250,7 +250,7 @@ abstract class Document extends Module implements IDocument {
                         this.writeFail('Unable to load configuration', errorMessage(plugin, process, 'Invalid config'));
                     }
                     else {
-                        const output = { ...options, sourceMap, outputConfig, writeFail } as TransformOptions;
+                        const output = { ...options, outputConfig, writeFail } as TransformOptions;
                         const time = Date.now();
                         const next = (result: Undef<string>) => {
                             if (Module.isString(result)) {

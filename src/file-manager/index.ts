@@ -55,6 +55,10 @@ class FileManager extends Module implements IFileManager {
         return data instanceof Buffer ? filetype.fromBuffer(data) : filetype.fromFile(data);
     }
 
+    static formatSize(value: number, options?: PlainObject) {
+        return filesize(value, options);
+    }
+
     delayed = 0;
     cacheHttpRequest = false;
     Document: InstallData<IDocument, DocumentConstructor>[] = [];

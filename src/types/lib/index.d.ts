@@ -230,6 +230,7 @@ declare namespace functions {
     interface FileManagerConstructor extends ModuleConstructor {
         moduleCompress(): ICompress;
         resolveMime(data: Buffer | string): Promise<Undef<FileTypeResult>>;
+        formatSize(value: number, options?: PlainObject): string;
         new(baseDirectory: string, body: RequestBody, postFinalize?: PostFinalizeCallback, archiving?: boolean): IFileManager;
     }
 
