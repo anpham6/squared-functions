@@ -257,6 +257,7 @@ declare namespace functions {
         writeFail: ModuleWriteFailMethod;
         isObject<T = PlainObject>(value: unknown): value is T;
         isString(value: unknown): value is string;
+        generateUUID(format?: string): string;
         escapePattern(value: string): string;
         parseFunction(value: string, name?: string, sync?: boolean): Undef<FunctionType<Promise<string> | string>>;
         toPosix(value: string, filename?: string): string;

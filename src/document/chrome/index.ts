@@ -8,7 +8,7 @@ import type { SourceMapOutput } from '../../types/lib/document';
 import type { RequestBody as IRequestBody } from '../../types/lib/node';
 
 import type { CloudScopeOrigin } from '../../cloud';
-import type { DocumentAsset, IChromeDocument } from './document';
+import type { DocumentAsset, DocumentModule, IChromeDocument } from './document';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -29,12 +29,14 @@ interface RequestBody extends IRequestBody, RequestData {}
 const MongoClient = mongodb.MongoClient;
 
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
-const REGEXP_CSSVARIABLE = new RegExp(`(\\s*)(--[^\\d\\s][^\\s:]*)\\s*:[^;}]+([;}])` + DomWriter.PATTERN_TRAILINGSPACE, 'g');
+const REGEXP_CSSVARIABLE = new RegExp(`(\\s*)(--[^\\s:]*)\\s*:[^;}]*([;}])` + DomWriter.PATTERN_TRAILINGSPACE, 'g');
 const REGEXP_CSSFONT = new RegExp(`(\\s*)@font-face\\s*{([^}]+)}` + DomWriter.PATTERN_TRAILINGSPACE, 'gi');
 const REGEXP_CSSKEYFRAME = /(\s*)@keyframes\s+([^{]+){/gi;
-const REGEXP_CSSCLOSING = /\s*(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^\s)]+)\s*\))/ig;
+const REGEXP_CSSCLOSING = /\s*(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^\s)]+)\s*\))/gi;
 const REGEXP_OBJECTPROPERTY = /\$\{\s*(\w+)\s*\}/g;
 const REGEXP_TEMPLATECONDITIONAL = /(\n\s+)?\{\{\s*if\s+(!)?\s*([^}\s]+)\s*\}\}(\s*)([\S\s]*?)(?:\s*\{\{\s*else\s*\}\}(\s*)([\S\s]*?)\s*)?\s*\{\{\s*end\s*\}\}/g;
+const REGEXP_OBJECTVALUE = /([^[.\s]+)((?:\s*\[[^\]]+\]\s*)+)?\s*\.?\s*/g;
+const REGEXP_OBJECTINDEX = /\[\s*(["'])?(.+?)\1\s*\]/g;
 
 function removeDatasetNamespace(name: string, source: string, newline: string) {
     if (source.includes('data-' + name)) {
@@ -48,18 +50,17 @@ function removeDatasetNamespace(name: string, source: string, newline: string) {
 }
 
 function getObjectValue(data: unknown, key: string) {
-    const pattern = /([^[.\s]+)((?:\s*\[[^\]]+\]\s*)+)?\s*\.?\s*/g;
-    const indexPattern = /\[\s*(["'])?(.+?)\1\s*\]/g;
+    REGEXP_OBJECTVALUE.lastIndex = 0;
     let found = false,
         value = data,
         index: Null<RegExpExecArray>,
         match: Null<RegExpExecArray>;
-    while (match = pattern.exec(key)) {
+    while (match = REGEXP_OBJECTVALUE.exec(key)) {
         if (Document.isObject(value)) {
             value = value[match[1]];
             if (match[2]) {
-                indexPattern.lastIndex = 0;
-                while (index = indexPattern.exec(match[2])) {
+                REGEXP_OBJECTINDEX.lastIndex = 0;
+                while (index = REGEXP_OBJECTINDEX.exec(match[2])) {
                     const attr = index[1] ? index[2] : index[2].trim();
                     if (index[1] && Document.isObject(value) || /^\d+$/.test(attr) && (typeof value === 'string' || Array.isArray(value))) {
                         value = value[attr];
@@ -693,7 +694,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             let client: Null<mongodb.MongoClient> = null;
                                             try {
                                                 if (typeof credential === 'string') {
-                                                    credential = (instance.module.settings as Undef<StandardMap>)?.mongodb?.[credential] as Undef<StandardMap>;
+                                                    credential = instance.module.settings?.mongodb?.[credential] as Undef<StandardMap>;
                                                 }
                                                 if (credential?.server) {
                                                     const { authMechanism = '', authMechanismProperties, user, dnsSrv } = credential;
@@ -1256,6 +1257,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     }
 
     moduleName = 'chrome';
+    module!: DocumentModule;
     assets: DocumentAsset[] = [];
     htmlFile: Null<DocumentAsset> = null;
     cssFiles: DocumentAsset[] = [];
@@ -1332,10 +1334,12 @@ class ChromeDocument extends Document implements IChromeDocument {
     setLocalUri(file: Partial<LocationUri>) {
         const { pathname, filename } = file;
         if (pathname?.includes(this.internalAssignUUID)) {
-            file.pathname = pathname.replace(this.internalAssignUUID, uuid.v4());
+            const format = this.module.format_uuid?.pathname;
+            file.pathname = pathname.replace(this.internalAssignUUID, format ? Document.generateUUID(format) : uuid.v4());
         }
         if (filename?.includes(this.internalAssignUUID)) {
-            file.filename = filename.replace(this.internalAssignUUID, uuid.v4());
+            const format = this.module.format_uuid?.filename;
+            file.filename = filename.replace(this.internalAssignUUID, format ? Document.generateUUID(format) : uuid.v4());
         }
     }
     addCopy(data: FileData, saveAs: string, replace?: boolean, manager?: IFileManager) {

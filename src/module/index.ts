@@ -22,6 +22,7 @@ export enum LOG_TYPE { // eslint-disable-line no-shadow
 
 const ASYNC_FUNCTION = Object.getPrototypeOf(async () => {}).constructor as Constructor<FunctionType<Promise<string>, string>>;
 const SETTINGS: LoggerModule = {};
+const HEX_STRING = '0123456789abcdef';
 
 function allSettled<T>(values: readonly (T | PromiseLike<T>)[]) {
     return Promise.all(values.map((promise: Promise<T>) => promise.then(value => ({ status: 'fulfilled', value })).catch(reason => ({ status: 'rejected', reason })) as Promise<PromiseSettledResult<T>>));
@@ -46,6 +47,23 @@ abstract class Module implements IModule {
 
     static isString(value: unknown): value is string {
         return typeof value === 'string' && value.length > 0;
+    }
+
+    static generateUUID(format = '8-4-4-4-12') {
+        const match = format.match(/(\d+|[^\d]+)/g);
+        if (match) {
+            return match.reduce((a, b) => {
+                const length = +b;
+                if (!isNaN(length)) {
+                    for (let i = 0; i < length; ++i) {
+                        a += HEX_STRING[Math.floor(Math.random() * 16)];
+                    }
+                    return a;
+                }
+                return a + b;
+            }, '');
+        }
+        return uuid.v4();
     }
 
     static escapePattern(value: string) {
