@@ -115,6 +115,7 @@ class FileManager extends Module implements IFileManager {
             case 'document':
                 if (isFunction<DocumentConstructor>(target) && target.prototype instanceof Document) {
                     const instance = new target(params[0] as DocumentModule, ...params.slice(1));
+                    instance.host = this;
                     instance.init(this.getDocumentAssets(instance), this.body);
                     this.Document.push({ instance, constructor: target, params });
                     return instance;
@@ -299,7 +300,7 @@ class FileManager extends Module implements IFileManager {
         if (file.document) {
             for (const { instance } of this.Document) {
                 if (instance.setLocalUri && this.hasDocument(instance, file.document)) {
-                    instance.setLocalUri(file, this);
+                    instance.setLocalUri(file);
                 }
             }
         }
@@ -392,7 +393,7 @@ class FileManager extends Module implements IFileManager {
     }
     writeImage(document: StringOfArray, data: OutputData) {
         for (const { instance } of this.Document) {
-            if (instance.writeImage && this.hasDocument(instance, document) && instance.writeImage(data, this)) {
+            if (instance.writeImage && this.hasDocument(instance, document) && instance.writeImage(data)) {
                 return true;
             }
         }
@@ -409,7 +410,7 @@ class FileManager extends Module implements IFileManager {
         saveAs ||= ext;
         if (document) {
             for (const { instance } of this.Document) {
-                if (instance.addCopy && this.hasDocument(instance, document) && (output = instance.addCopy(data, saveAs, replace, this))) {
+                if (instance.addCopy && this.hasDocument(instance, document) && (output = instance.addCopy(data, saveAs, replace))) {
                     this.filesQueued.add(output);
                     return output;
                 }

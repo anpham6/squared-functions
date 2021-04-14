@@ -1262,6 +1262,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     htmlFile: Null<DocumentAsset> = null;
     cssFiles: DocumentAsset[] = [];
     baseDirectory = '';
+    host?: IFileManager;
     baseUrl?: string;
     productionRelease?: boolean | string;
     normalizeHtmlOutput?: boolean;
@@ -1342,11 +1343,11 @@ class ChromeDocument extends Document implements IChromeDocument {
             file.filename = filename.replace(this.internalAssignUUID, format ? Document.generateUUID(format) : uuid.v4());
         }
     }
-    addCopy(data: FileData, saveAs: string, replace?: boolean, manager?: IFileManager) {
-        if (data.command && manager) {
+    addCopy(data: FileData, saveAs: string) {
+        if (data.command && this.host) {
             const match = REGEXP_SRCSETSIZE.exec(data.command);
             if (match) {
-                return Document.renameExt(manager.getLocalUri(data), match[1] + match[2].toLowerCase() + '.' + saveAs);
+                return Document.renameExt(this.host.getLocalUri(data), match[1] + match[2].toLowerCase() + '.' + saveAs);
             }
         }
     }
