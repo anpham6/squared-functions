@@ -671,7 +671,7 @@ class FileManager extends Module implements IFileManager {
                                     resumeQueue();
                                 }
                                 else {
-                                    queue!.etag = (res.headers['etag'] || res.headers['last-modified']) as string;
+                                    queue!.etag = (res.headers.etag || res.headers['last-modified']) as string;
                                     verifyBundle(queue!, res.body).then(resumeQueue);
                                 }
                             });
@@ -900,7 +900,7 @@ class FileManager extends Module implements IFileManager {
                                     request(uri)
                                         .on('response', res => {
                                             if (this.Watch) {
-                                                item.etag = (res.headers['etag'] || res.headers['last-modified']) as string;
+                                                item.etag = (res.headers.etag || res.headers['last-modified']) as string;
                                             }
                                             const statusCode = res.statusCode;
                                             if (statusCode >= 300) {
@@ -923,7 +923,7 @@ class FileManager extends Module implements IFileManager {
                                                 errorRequest(item, uri, localUri, new Error(statusCode + ' ' + res.statusMessage));
                                             }
                                             else {
-                                                const etag = res.headers['etag'] as Undef<string>;
+                                                const etag = res.headers.etag as Undef<string>;
                                                 let subDir: Undef<string>;
                                                 if (Module.isString(etag)) {
                                                     subDir = encodeURIComponent(etag);
