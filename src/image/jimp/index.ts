@@ -89,7 +89,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
         }
         data.command = command;
         data.outputType = outputType;
-        const output = this.addCopy(data, saveAs, command.includes('@'));
+        const output = this.addCopy(data, saveAs, command.indexOf('@') !== -1);
         if (!output) {
             return;
         }
@@ -100,7 +100,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
             performCommand(tempFile || getBuffer(data), command, outputType, finalAs, this, data)
                 .then(handler => {
                     if (handler) {
-                        if (command.includes('@') && data.file) {
+                        if (command.indexOf('@') !== -1 && data.file) {
                             delete data.file.buffer;
                         }
                         handler.write(output, (err: Null<Error>, result: string) => {
@@ -114,7 +114,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                                     this.writeImage(file.document, { ...data, command, output: result, baseDirectory: this.baseDirectory } as OutputData);
                                 }
                                 if (this.getLocalUri(data) !== result) {
-                                    if (command.includes('%')) {
+                                    if (command.indexOf('%') !== -1) {
                                         if (this.filesToCompare.has(file)) {
                                             this.filesToCompare.get(file)!.push(result);
                                         }
@@ -123,7 +123,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                                         }
                                         result = '';
                                     }
-                                    else if (command.includes('@')) {
+                                    else if (command.indexOf('@') !== -1) {
                                         this.replace(file, result);
                                         result = '';
                                     }

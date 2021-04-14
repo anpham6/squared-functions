@@ -33,13 +33,13 @@ const REGEXP_CSSVARIABLE = new RegExp(`(\\s*)(--[^\\s:]*)\\s*:[^;}]*([;}])` + Do
 const REGEXP_CSSFONT = new RegExp(`(\\s*)@font-face\\s*{([^}]+)}` + DomWriter.PATTERN_TRAILINGSPACE, 'gi');
 const REGEXP_CSSKEYFRAME = /(\s*)@keyframes\s+([^{]+){/gi;
 const REGEXP_CSSCLOSING = /\s*(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^\s)]+)\s*\))/gi;
-const REGEXP_OBJECTPROPERTY = /\$\{\s*(\w+)\s*\}/g;
 const REGEXP_TEMPLATECONDITIONAL = /(\n\s+)?\{\{\s*if\s+(!)?\s*([^}\s]+)\s*\}\}(\s*)([\S\s]*?)(?:\s*\{\{\s*else\s*\}\}(\s*)([\S\s]*?)\s*)?\s*\{\{\s*end\s*\}\}/g;
+const REGEXP_OBJECTPROPERTY = /\$\{\s*(\w+)\s*\}/g;
 const REGEXP_OBJECTVALUE = /([^[.\s]+)((?:\s*\[[^\]]+\]\s*)+)?\s*\.?\s*/g;
 const REGEXP_OBJECTINDEX = /\[\s*(["'])?(.+?)\1\s*\]/g;
 
 function removeDatasetNamespace(name: string, source: string, newline: string) {
-    if (source.includes('data-' + name)) {
+    if (source.indexOf('data-' + name) !== -1) {
         return source
             .replace(new RegExp(`(\\s*)<(script|style)${DomWriter.PATTERN_TAGOPEN}+?data-${name}-file\\s*=\\s*(["'])?exclude\\3${DomWriter.PATTERN_TAGOPEN}*>[\\S\\s]*?<\\/\\2>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[4], newline))
             .replace(new RegExp(`(\\s*)<link${DomWriter.PATTERN_TAGOPEN}+?data-${name}-file\\s*=\\s*(["'])?exclude\\2${DomWriter.PATTERN_TAGOPEN}*>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[3], newline))
@@ -133,7 +133,7 @@ function removeCss(this: IChromeDocument, source: string) {
         modified: Undef<boolean>,
         match: Null<RegExpExecArray>;
     while (match = REGEXP_CSSCLOSING.exec(source)) {
-        if (match[0].includes('}')) {
+        if (match[0].indexOf('}') !== -1) {
             const placeholder = uuid.v4();
             replaceMap[placeholder] = match[0];
             current = current.replace(match[0], placeholder);
@@ -936,7 +936,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     const current = segment;
                                                     while (match = REGEXP_TEMPLATECONDITIONAL.exec(current)) {
                                                         const col = isTruthy(row, match[3], match[2]) ? 5 : 7;
-                                                        segment = segment.replace(match[0], match[col] ? (match[col - 1].includes('\n') ? '' : match[1]) + match[col - 1] + match[col] : '');
+                                                        segment = segment.replace(match[0], match[col] ? (match[col - 1].indexOf('\n') !== -1 ? '' : match[1]) + match[col - 1] + match[col] : '');
                                                     }
                                                     innerXml += segment;
                                                     REGEXP_OBJECTPROPERTY.lastIndex = 0;
@@ -1400,7 +1400,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 if (htmlFile) {
                     htmlFile.sourceUTF8 = host.getUTF8String(htmlFile).replace(pattern, cloudUrl);
                 }
-                if (this._cloudEndpoint && cloudUrl.includes('/')) {
+                if (this._cloudEndpoint && cloudUrl.indexOf('/') !== -1) {
                     cloudUrl = url;
                 }
                 for (const item of this.cssFiles) {

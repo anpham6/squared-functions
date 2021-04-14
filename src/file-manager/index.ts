@@ -206,7 +206,7 @@ class FileManager extends Module implements IFileManager {
     replace(file: ExternalAsset, replaceWith: string, mimeType?: string) {
         const localUri = file.localUri;
         if (localUri) {
-            if (replaceWith.includes('__copy__') && path.extname(localUri) === path.extname(replaceWith)) {
+            if (replaceWith.indexOf('__copy__') !== -1 && path.extname(localUri) === path.extname(replaceWith)) {
                 try {
                     fs.renameSync(replaceWith, localUri);
                 }
@@ -249,10 +249,10 @@ class FileManager extends Module implements IFileManager {
             this.finalize().then(() => {
                 this.writeTimeElapsed('  END  ', this.baseDirectory, this.startTime, { titleBgColor: 'bgYellow', titleColor: 'black' });
                 const files = Array.from(this.files).sort((a, b) => {
-                    if (a.includes(path.sep) && !b.includes(path.sep)) {
+                    if (a.indexOf(path.sep) !== -1 && b.indexOf(path.sep) === -1) {
                         return -1;
                     }
-                    else if (!a.includes(path.sep) && b.includes(path.sep)) {
+                    else if (a.indexOf(path.sep) === -1 && b.indexOf(path.sep) !== -1) {
                         return 1;
                     }
                     return a < b ? -1 : 1;

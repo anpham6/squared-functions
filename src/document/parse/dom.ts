@@ -79,7 +79,7 @@ export class DomWriter extends XmlWriter implements IDomWriter {
             }
         }
         const html = /<html[\s>]/i.exec(source);
-        if (source.includes('\r\n')) {
+        if (source.indexOf('\r\n') !== -1) {
             this.newline = '\r\n';
         }
         if (html) {

@@ -102,7 +102,7 @@ export abstract class XmlWriter implements IXmlWriter {
     }
 
     static getNewlineString(leading: string, trailing: string, newline?: string) {
-        return leading.includes('\n') || /(?:\r?\n){2,}$/.test(trailing) ? newline || ((leading + trailing).includes('\r') ? '\r\n' : '\n') : '';
+        return leading.indexOf('\n') !== -1 || /(?:\r?\n){2,}$/.test(trailing) ? newline || ((leading + trailing).indexOf('\r') !== -1 ? '\r\n' : '\n') : '';
     }
 
     static findCloseTag(source: string, startIndex = 0) {

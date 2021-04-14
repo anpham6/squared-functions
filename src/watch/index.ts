@@ -34,7 +34,7 @@ function getPostFinalize(watch: FileWatch) {
                     type = type.substring(1);
                 }
                 const src = asset.cloudUrl || asset.relativeUri || '';
-                const hot = watch.hot && src && (type === 'text/css' || type.startsWith('image/')) ? (src.includes('?') ? '' : '?') + 'q=' + Date.now() : '';
+                const hot = watch.hot && src && (type === 'text/css' || type.startsWith('image/')) ? (src.indexOf('?') !== -1 ? '' : '?') + 'q=' + Date.now() : '';
                 const data = JSON.stringify({ socketId, module: 'watch', action: 'modified', src, type, hot, errors });
                 for (const client of server.clients) {
                     if (client.readyState === WebSocket.OPEN) {
