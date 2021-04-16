@@ -14,7 +14,6 @@ import path = require('path');
 import fs = require('fs-extra');
 import request = require('request-promise-native');
 import yaml = require('js-yaml');
-import toml = require('toml');
 import uuid = require('uuid');
 
 import mongodb = require('mongodb');
@@ -849,7 +848,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     data = yaml.load(content);
                                                     break;
                                                 case 'toml':
-                                                    data = toml.parse(content);
+                                                    data = require('toml').parse(content); // eslint-disable-line @typescript-eslint/no-unsafe-call
                                                     break;
                                                 default:
                                                     removeElement();

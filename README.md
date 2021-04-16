@@ -457,7 +457,7 @@ Here is the equivalent configuration in YAML/TOML and when available has higher 
 
 - [squared.settings.json](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.json)
 - [squared.settings.yml](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.yml)
-- [squared.settings.toml](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.toml)
+- [squared.settings.toml](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.toml) (npm i toml)
 
 ### External configuration
 
@@ -613,7 +613,7 @@ Appends will fail if you remove the sibling selector element from the document.
 
 If you are having replacement errors (useOriginalHtmlPage=true) then adding an id will usually be able to locate the element (data-chrome-id="111-111-111").
 
-NOTE: As of squared 2.4 the current state of the DOM (useOriginalHtmlPage=false) is sent to the server which including any updates made with JavaScript (removeInlineStyles).
+NOTE: As of squared 2.4 the current state of the DOM (useOriginalHtmlPage=false) is sent to the server which including any updates made with JavaScript. (removeInlineStyles)
 
 ### Cloud storage
 
@@ -832,8 +832,6 @@ interface CloudDatabase {
 View engines with a "compile" template string to function (e.g. [EJS](https://ejs.co)) can be used instead for "text" and "attribute". Manual NPM installation (npm i ejs) is required. Results from any data source is treated as an array with multiple rows being concatenated into one string.
 
 ```javascript
-// NOTE: "cloudDatabase" has been deprecated as of sqaured 2.5 (dataSource)
-
 /* AWS: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GettingStarted.NodeJs.html */
 {
   "selector": ".card:nth-of-type(1) p",
@@ -1097,6 +1095,8 @@ Returning an empty result or a blank string (view engine) is FALSE.
 #### Data Interchange
 
 Using the same concept from databases you can also read from JSON/YAML/TOML file formats.
+
+* TOML: npm i toml
 
 ```javascript
 interface UriDataSource {
