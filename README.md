@@ -888,7 +888,7 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
     "table": "demo",
     "query": [["group", "==", "Firestore"], ["id", "==", "1"]], // where
     "orderBy": [["title", "asc"]], // optional
-    "value": "{{if !expired}}<b>${title}</b>: ${description}{{else}}Expired{{end}}" // Non-nested conditional truthy property checks
+    "value": "{{if !expired}}<b>${title}</b>: ${description}{{else}}Expired{{end}}" // Non-nested single conditional truthy property checks
   }
 }
 

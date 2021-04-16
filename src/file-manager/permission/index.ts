@@ -1,12 +1,15 @@
 import type { IPermission } from '../../types/lib';
 
 import path = require('path');
-import mm = require('micromatch');
+import pm = require('picomatch');
 
 function convertPosix(value: Undef<StringOfArray>) {
     if (value) {
         if (typeof value === 'string') {
             value = [value];
+        }
+        else if (!Array.isArray(value)) {
+            return [];
         }
         return path.sep === '\\' ? value.map(item => item.replace(/\\/g, '/')) : value;
     }
@@ -42,16 +45,16 @@ class Permission implements IPermission {
         this._UNC_WRITE = convertPosix(pathname);
     }
     hasDiskRead(value: string) {
-        return this._disk_read && (!this._DISK_READ || mm.isMatch(asPosix(value), this._DISK_READ));
+        return this._disk_read && (!this._DISK_READ || pm.isMatch(asPosix(value), this._DISK_READ, { nocase: path.sep === '\\' }));
     }
     hasDiskWrite(value: string) {
-        return this._disk_write && (!this._DISK_WRITE || mm.isMatch(asPosix(value), this._DISK_WRITE));
+        return this._disk_write && (!this._DISK_WRITE || pm.isMatch(asPosix(value), this._DISK_WRITE, { nocase: path.sep === '\\' }));
     }
     hasUNCRead(value: string) {
-        return this._unc_read && (!this._UNC_READ || mm.isMatch(asPosix(value), this._UNC_READ));
+        return this._unc_read && (!this._UNC_READ || pm.isMatch(asPosix(value), this._UNC_READ, { nocase: path.sep === '\\' }));
     }
     hasUNCWrite(value: string) {
-        return this._unc_write && (!this._UNC_WRITE || mm.isMatch(asPosix(value), this._UNC_WRITE));
+        return this._unc_write && (!this._UNC_WRITE || pm.isMatch(asPosix(value), this._UNC_WRITE, { nocase: path.sep === '\\' }));
     }
     get diskRead() {
         return this._disk_read;
