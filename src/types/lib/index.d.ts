@@ -155,14 +155,18 @@ declare namespace functions {
     }
 
     interface IPermission {
-        setDiskRead(): void;
-        setDiskWrite(): void;
-        setUNCRead(): void;
-        setUNCWrite(): void;
-        hasDiskRead(): boolean;
-        hasDiskWrite(): boolean;
-        hasUNCRead(): boolean;
-        hasUNCWrite(): boolean;
+        readonly diskRead: boolean;
+        readonly diskWrite: boolean;
+        readonly uncRead: boolean;
+        readonly uncWrite: boolean;
+        setDiskRead(pathname?: StringOfArray): void;
+        setDiskWrite(pathname?: StringOfArray): void;
+        setUNCRead(pathname?: StringOfArray): void;
+        setUNCWrite(pathname?: StringOfArray): void;
+        hasDiskRead(value: string): boolean;
+        hasDiskWrite(value: string): boolean;
+        hasUNCRead(value: string): boolean;
+        hasUNCWrite(value: string): boolean;
     }
 
     interface PermissionConstructor {

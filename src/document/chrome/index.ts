@@ -818,7 +818,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         }
                                         else {
                                             try {
-                                                if (fs.existsSync(pathname) && (Document.isFileUNC(pathname) ? this.permission.hasUNCRead() : this.permission.hasDiskRead())) {
+                                                if (fs.existsSync(pathname) && (Document.isFileUNC(pathname) ? this.permission.hasUNCRead(pathname) : this.permission.hasDiskRead(pathname))) {
                                                     content = fs.readFileSync(pathname, 'utf8');
                                                     cacheData[pathname] = content;
                                                 }

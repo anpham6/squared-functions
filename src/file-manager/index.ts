@@ -960,7 +960,7 @@ class FileManager extends Module implements IFileManager {
                             }
                         }
                     }
-                    else if (this.permission.hasUNCRead() && Module.isFileUNC(uri) || this.permission.hasDiskRead() && path.isAbsolute(uri)) {
+                    else if (Module.isFileUNC(uri) && this.permission.hasUNCRead(uri) || path.isAbsolute(uri) && this.permission.hasDiskRead(uri)) {
                         if (!checkQueue(item, localUri) && createFolder()) {
                             if (!this.archiving && fs.existsSync(localUri)) {
                                 const statSrc = fs.statSync(uri);

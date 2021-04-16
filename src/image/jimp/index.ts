@@ -178,7 +178,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
     }
 
     static parseFormat(command: string, mimeType?: string): [string, string, string] {
-        command = command.trim();
+        command = command.trim().toLowerCase();
         for (let mime of MIME_OUTPUT) {
             let saveAs = mime.split('/')[1];
             if (command.startsWith(saveAs)) {

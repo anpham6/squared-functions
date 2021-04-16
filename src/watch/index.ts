@@ -288,7 +288,7 @@ class Watch extends Module implements IWatch {
                         }, interval);
                         (HTTP_MAP[uri] ||= new Map()).set(dest, { data, timeout: [timeout, interval] });
                     }
-                    else if (permission && (permission.hasUNCRead() && Module.isFileUNC(uri) || permission.hasDiskRead() && path.isAbsolute(uri))) {
+                    else if (permission && (Module.isFileUNC(uri) && permission.hasUNCRead(uri) || path.isAbsolute(uri) && permission.hasDiskRead(uri))) {
                         const previous = DISK_MAP[uri]?.get(dest);
                         if (previous) {
                             if (expires > previous.data.expires && previous.data.expires !== 0) {
