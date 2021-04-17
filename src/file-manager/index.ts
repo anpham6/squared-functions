@@ -51,6 +51,10 @@ class FileManager extends Module implements IFileManager {
         return Compress;
     }
 
+    static createPermission() {
+        return new Permission();
+    }
+
     static resolveMime(data: Buffer | string) {
         return data instanceof Buffer ? filetype.fromBuffer(data) : filetype.fromFile(data);
     }
