@@ -219,8 +219,8 @@ abstract class Module implements IModule {
         }
     }
 
-    static toPosix(value: string, filename?: string) {
-        return value ? value.replace(/\\+/g, '/').replace(/\/+$/, '') + (filename ? '/' + filename : '') : '';
+    static toPosix(value: unknown, filename?: string) {
+        return this.isString(value) ? value.replace(/(?:^\\|\\+)/g, '/').replace(/\/+$/, '') + (filename ? '/' + filename : '') : '';
     }
 
     static renameExt(value: string, ext: string) {
@@ -285,7 +285,7 @@ abstract class Module implements IModule {
                 const origin = url.origin;
                 const pathname = url.pathname.split('/');
                 --pathname.length;
-                value = value.replace(/\\/g, '/');
+                value = this.toPosix(value);
                 if (value[0] === '/') {
                     return origin + value;
                 }
@@ -315,7 +315,7 @@ abstract class Module implements IModule {
     }
 
     static joinPath(...values: Undef<string>[]) {
-        values = values.filter(value => value && value.trim().replace(/\\/g, '/'));
+        values = values.filter(value => this.toPosix(value));
         let result = '';
         for (let i = 0; i < values.length; ++i) {
             const trailing = values[i]!;

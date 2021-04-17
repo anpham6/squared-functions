@@ -337,7 +337,7 @@ class FileManager extends Module implements IFileManager {
     }
     findAsset(uri: string, instance?: IModule) {
         if (uri) {
-            return this.assets.find(item => item.uri === uri && (!instance || this.hasDocument(instance, item.document)));
+            return this.assets.find(item => Module.toPosix(item.uri) === uri && (!instance || this.hasDocument(instance, item.document)));
         }
     }
     removeCwd(value: Undef<string>) {

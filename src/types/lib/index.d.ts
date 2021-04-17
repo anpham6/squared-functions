@@ -265,7 +265,7 @@ declare namespace functions {
         generateUUID(format?: string): string;
         escapePattern(value: string): string;
         parseFunction(value: string, name?: string, sync?: boolean): Undef<FunctionType<Promise<string> | string>>;
-        toPosix(value: string, filename?: string): string;
+        toPosix(value: unknown, filename?: string): string;
         renameExt(value: string, ext: string): string;
         fromLocalPath(value: string): string;
         hasSameOrigin(value: string, other: string): boolean;

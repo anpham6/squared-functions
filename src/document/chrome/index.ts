@@ -400,12 +400,12 @@ function setElementAttribute(this: IChromeDocument, htmlFile: DocumentAsset, ass
             const srcset = element.getAttribute('srcset');
             if (srcset) {
                 const baseUri = htmlFile.uri!;
-                const uri = asset.uri!;
+                const uri = Document.toPosix(asset.uri);
                 const src = [uri];
                 const sameOrigin = Document.hasSameOrigin(baseUri, uri);
                 if (sameOrigin) {
                     let url = element.getAttribute('src');
-                    if (url && uri === Document.resolvePath(url, baseUri)) {
+                    if (url && uri === Document.resolvePath(url = Document.toPosix(url), baseUri)) {
                         src.push(url);
                     }
                     url = uri.startsWith(this.baseDirectory) ? uri.substring(this.baseDirectory.length) : uri.replace(new URL(baseUri).origin, '');
