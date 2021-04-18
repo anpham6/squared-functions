@@ -163,10 +163,10 @@ declare namespace functions {
         setDiskWrite(pathname?: StringOfArray): void;
         setUNCRead(pathname?: StringOfArray): void;
         setUNCWrite(pathname?: StringOfArray): void;
-        hasDiskRead(value: string): boolean;
-        hasDiskWrite(value: string): boolean;
-        hasUNCRead(value: string): boolean;
-        hasUNCWrite(value: string): boolean;
+        hasDiskRead(value: unknown): boolean;
+        hasDiskWrite(value: unknown): boolean;
+        hasUNCRead(value: unknown): boolean;
+        hasUNCWrite(value: unknown): boolean;
     }
 
     interface PermissionConstructor {

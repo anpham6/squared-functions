@@ -5,7 +5,7 @@ import pm = require('picomatch');
 
 function convertPosix(value: Undef<StringOfArray>) {
     if (value) {
-        if (typeof value === 'string') {
+        if (isString(value)) {
             value = [value];
         }
         else if (!Array.isArray(value)) {
@@ -16,6 +16,7 @@ function convertPosix(value: Undef<StringOfArray>) {
 }
 
 const asPosix = (value: string) => path.sep === '\\' ? value.replace(/\\/g, '/') : value;
+const isString = (value: unknown): value is string => typeof value === 'string' && value.trim() !== '';
 
 class Permission implements IPermission {
     private _disk_read = false;
@@ -44,17 +45,17 @@ class Permission implements IPermission {
         this._unc_write = true;
         this._UNC_WRITE = convertPosix(pathname);
     }
-    hasDiskRead(value: string) {
-        return this._disk_read && (!this._DISK_READ || pm.isMatch(asPosix(value), this._DISK_READ, { nocase: path.sep === '\\' }));
+    hasDiskRead(value: unknown) {
+        return this._disk_read && isString(value) && (!this._DISK_READ || pm.isMatch(asPosix(value), this._DISK_READ, { nocase: path.sep === '\\' }));
     }
-    hasDiskWrite(value: string) {
-        return this._disk_write && (!this._DISK_WRITE || pm.isMatch(asPosix(value), this._DISK_WRITE, { nocase: path.sep === '\\' }));
+    hasDiskWrite(value: unknown) {
+        return this._disk_write && isString(value) && (!this._DISK_WRITE || pm.isMatch(asPosix(value), this._DISK_WRITE, { nocase: path.sep === '\\' }));
     }
-    hasUNCRead(value: string) {
-        return this._unc_read && (!this._UNC_READ || pm.isMatch(asPosix(value), this._UNC_READ, { nocase: path.sep === '\\' }));
+    hasUNCRead(value: unknown) {
+        return this._unc_read && isString(value) && (!this._UNC_READ || pm.isMatch(asPosix(value), this._UNC_READ, { nocase: path.sep === '\\' }));
     }
-    hasUNCWrite(value: string) {
-        return this._unc_write && (!this._UNC_WRITE || pm.isMatch(asPosix(value), this._UNC_WRITE, { nocase: path.sep === '\\' }));
+    hasUNCWrite(value: unknown) {
+        return this._unc_write && isString(value) && (!this._UNC_WRITE || pm.isMatch(asPosix(value), this._UNC_WRITE, { nocase: path.sep === '\\' }));
     }
     get diskRead() {
         return this._disk_read;

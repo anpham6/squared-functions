@@ -183,8 +183,7 @@ class Watch extends Module implements IWatch {
                         const reload = watch.reload;
                         if (Module.isObject<WatchReload>(reload) && (socketId = reload.socketId)) {
                             let wss: Undef<Server>;
-                            port = reload.port;
-                            hot = reload.module;
+                            ({ port, module: hot } = reload);
                             if (reload.secure) {
                                 port ||= this.securePort;
                                 wss = SECURE_MAP[port];
@@ -343,14 +342,12 @@ class Watch extends Module implements IWatch {
         }
     }
     setSSLKey(value: string) {
-        value = path.resolve(value);
-        if (fs.existsSync(value)) {
+        if (fs.existsSync(value = path.resolve(value))) {
             this._sslKey = value;
         }
     }
     setSSLCert(value: string) {
-        value = path.resolve(value);
-        if (fs.existsSync(value)) {
+        if (fs.existsSync(value = path.resolve(value))) {
             this._sslCert = value;
         }
     }
