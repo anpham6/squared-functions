@@ -41,7 +41,8 @@ const METHOD_ALIAS: StringMap = {
     po: 'posterize',
     se: 'sepia',
     px: 'pixelate',
-    dp: 'displace'
+    dp: 'displace',
+    co: 'color'
 };
 const MIME_INPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, jimp.MIME_GIF, jimp.MIME_TIFF, 'image/webp']);
 const MIME_OUTPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, 'image/webp']);
@@ -256,6 +257,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                     case 'sepia':
                     case 'pixelate':
                     case 'displace':
+                    case 'color':
                         try {
                             this.instance = await (this.instance[alias] as FunctionType<jimp>)(...args);
                         }

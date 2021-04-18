@@ -74,6 +74,7 @@ Placing an @ symbol (png@) after the format will remove the original file from t
 * sepia (se)
 * pixelate (px)
 * displace (dp)
+* color (co)
 ```
 
 Methods use simple bracket matching and does not fully check inside quoted strings. Unescaped "\\" when unpaired ("{}" or "[]") will fail to parse.
