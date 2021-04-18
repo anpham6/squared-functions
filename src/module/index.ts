@@ -115,7 +115,7 @@ abstract class Module implements IModule {
                 if (SETTINGS.time_elapsed === false) {
                     return;
                 }
-                options.hintColor ||= 'magenta';
+                options.hintColor ||= 'yellow';
                 break;
             default:
                 if (SETTINGS.unknown === false) {
@@ -394,8 +394,12 @@ abstract class Module implements IModule {
     writeFail(value: LogValue, message?: Null<Error>, type?: LOG_TYPE) {
         this.formatFail(type || LOG_TYPE.SYSTEM, ' FAIL! ', value, message);
     }
+    writeTimeProcess(title: string, value: string, time: number, options?: LogMessageOptions) {
+        time = Date.now() - time;
+        Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, [value, time / 1000 + 's'], chalk.bgCyan('>'.repeat(Math.ceil(time / 250))), options);
+    }
     writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions) {
-        Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Completed', (Date.now() - time) / 1000 + 's'], value, options);
+        Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Complete', (Date.now() - time) / 1000 + 's'], value, options);
     }
     formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: Null<Error>, options?: LogMessageOptions) {
         Module.formatMessage(type, title, value, message, applyFailStyle(options));

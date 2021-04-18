@@ -145,7 +145,7 @@ class Gulp extends Task {
                                                 })
                                             )
                                             .then(() => {
-                                                this.writeTimeElapsed('gulp', task, time);
+                                                this.writeTimeProcess('gulp', task, time);
                                                 callback();
                                             })
                                             .catch(err_1 => {

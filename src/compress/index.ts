@@ -68,7 +68,7 @@ const Compress = new class extends Module implements ICompress {
                 const time = Date.now();
                 this[format === 'gz' ? 'createWriteStreamAsGzip' : 'createWriteStreamAsBrotli'](uri, output, data)
                     .on('finish', () => {
-                        this.writeTimeElapsed(format, path.basename(output), time);
+                        this.writeTimeProcess(format, path.basename(output), time);
                         if (callback) {
                             callback(null, output);
                         }
@@ -96,7 +96,7 @@ const Compress = new class extends Module implements ICompress {
         const writeFile = (result: Buffer | Uint8Array) => {
             fs.writeFile(uri, result, err => {
                 if (!err) {
-                    this.writeTimeElapsed(ext, path.basename(uri), time);
+                    this.writeTimeProcess(ext, path.basename(uri), time);
                     if (callback) {
                         callback(null);
                     }

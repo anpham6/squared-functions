@@ -253,6 +253,7 @@ declare namespace functions {
         formatMessage: ModuleFormatMessageMethod;
         formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: Null<Error>): void;
         writeFail: ModuleWriteFailMethod;
+        writeTimeProcess(title: string, value: string, time: number, options?: LogMessageOptions): void;
         writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions): void;
     }
 

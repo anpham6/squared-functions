@@ -132,7 +132,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                                         parent = file;
                                     }
                                 }
-                                this.writeTimeElapsed(handler.moduleName, path.basename(result), time);
+                                this.writeTimeProcess(handler.moduleName, path.basename(result), time);
                             }
                             else {
                                 this.writeFail(['Unable to finalize image', path.basename(result)], err);

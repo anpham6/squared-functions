@@ -1211,7 +1211,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 this.writeFail([`DOM update had ${failCount} ${failCount === 1 ? 'error' : 'errors'}`, moduleName], new Error(`${moduleName}: ${failCount} modifications failed`));
             }
             else {
-                this.writeTimeElapsed('HTML', `${path.basename(localUri)}: ${domBase.modifyCount} modified`, time);
+                this.writeTimeProcess('HTML', `${path.basename(localUri)}: ${domBase.modifyCount} modified`, time);
             }
             if (domBase.hasErrors()) {
                 this.errors.push(...domBase.errors.map(item => item.message));

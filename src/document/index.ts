@@ -256,7 +256,7 @@ abstract class Document extends Module implements IDocument {
                             if (Module.isString(result)) {
                                 code = result;
                                 valid = true;
-                                this.writeTimeElapsed(type, plugin + ': ' + process, time);
+                                this.writeTimeProcess(type, plugin + ': ' + process, time);
                             }
                             else {
                                 this.writeFail(['Transform returned empty result', plugin], errorMessage(plugin, process, 'Empty result'));
