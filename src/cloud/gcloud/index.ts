@@ -112,8 +112,7 @@ export async function executeQuery(this: ICloud, credential: GCloudDatabaseCrede
             queryString = table;
             if (id) {
                 queryString += id;
-                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-                if (result) {
+                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
                     return result;
                 }
                 const item = await (getClient() as gcf.Firestore).collection(table).doc(id).get();
@@ -121,8 +120,7 @@ export async function executeQuery(this: ICloud, credential: GCloudDatabaseCrede
             }
             else if (Array.isArray(query)) {
                 queryString += JSON.stringify(query) + (orderBy ? JSON.stringify(orderBy) : '') + limit;
-                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-                if (result) {
+                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
                     return result;
                 }
                 let collection = (getClient() as gcf.Firestore).collection(table) as gcf.Query<gcf.DocumentData>;

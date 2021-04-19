@@ -40,9 +40,9 @@ const REGEXP_OBJECTINDEX = /\[\s*(["'])?(.+?)\1\s*\]/g;
 function removeDatasetNamespace(name: string, source: string, newline: string) {
     if (source.indexOf('data-' + name) !== -1) {
         return source
-            .replace(new RegExp(`(\\s*)<(script|style)${DomWriter.PATTERN_TAGOPEN}+?data-${name}-file\\s*=\\s*(["'])?exclude\\3${DomWriter.PATTERN_TAGOPEN}*>[\\S\\s]*?<\\/\\2>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[4], newline))
+            .replace(new RegExp(`(\\s*)<(script|style)${DomWriter.PATTERN_TAGOPEN}+?data-${name}-file\\s*=\\s*(["'])?exclude\\3${DomWriter.PATTERN_TAGOPEN}*>[\\S\\s]*?<\\/\\2\\s*>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[4], newline))
             .replace(new RegExp(`(\\s*)<link${DomWriter.PATTERN_TAGOPEN}+?data-${name}-file\\s*=\\s*(["'])?exclude\\2${DomWriter.PATTERN_TAGOPEN}*>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[3], newline))
-            .replace(new RegExp(`(\\s*)<script${DomWriter.PATTERN_TAGOPEN}+?data-${name}-template\\s*${DomWriter.PATTERN_ATTRVALUE + DomWriter.PATTERN_TAGOPEN}*>[\\S\\s]*?<\\/script>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[2], newline))
+            .replace(new RegExp(`(\\s*)<script${DomWriter.PATTERN_TAGOPEN}+?data-${name}-template\\s*${DomWriter.PATTERN_ATTRVALUE + DomWriter.PATTERN_TAGOPEN}*>[\\S\\s]*?<\\/script\\s*>` + DomWriter.PATTERN_TRAILINGSPACE, 'gi'), (...capture) => DomWriter.getNewlineString(capture[1], capture[2], newline))
             .replace(new RegExp(`\\s+data-${name}-[a-z-]+\\s*` + DomWriter.PATTERN_ATTRVALUE, 'g'), '');
     }
     return source;
@@ -215,7 +215,7 @@ function removeCss(this: IChromeDocument, source: string) {
     if (usedFontFace) {
         const fonts = usedFontFace.map(value => value.toLowerCase());
         while (match = REGEXP_CSSFONT.exec(current)) {
-            const font = /font-family\s*:([^;}]+)/i.exec(match[0]);
+            const font = /\bfont-family\s*:([^;}]+)/i.exec(match[0]);
             if (font && !fonts.includes(font[1].trim().replace(/^(["'])(.+)\1$/, (...content) => content[2]).toLowerCase())) {
                 const startIndex = match.index;
                 [current, offset] = spliceString(current, startIndex, startIndex + match[0].length - 1, match[1], match[3]);
@@ -288,8 +288,9 @@ function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: Docum
 }
 
 function trimQuote(value: string) {
-    const match = /^\s*(["'])([\s\S]*)\1\s*$/.exec(value);
-    return match ? match[2].trim() : value;
+    const first = value[0];
+    const last = value[value.length - 1];
+    return first === last && (first === '"' || first === "'") ? value.substring(1, value.length - 1) : value;
 }
 
 function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: DocumentAsset, source: string, fromHTML?: boolean) {
@@ -307,16 +308,8 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
             j = -1;
         for ( ; i < length; ++i) {
             const ch = source[i];
-            if (!quote) {
-                switch (ch) {
-                    case '"':
-                    case "'":
-                        if (!url.trim()) {
-                            quote = ch;
-                            continue;
-                        }
-                        break;
-                }
+            if (!quote && (ch === '"' || ch === "'") && !url.trim()) {
+                quote = ch;
             }
             if (ch === ')') {
                 if (source[i - 1] !== '\\') {
@@ -530,7 +523,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
                 file.sourceUTF8 = transformCss.call(
                     this,
-                    this.getDocumentAssets(this),
+                    this.getDocumentAssets(instance),
                     file,
                     !file.preserve ? removeCss.call(instance, source) : source
                 );
@@ -1211,7 +1204,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 this.writeFail([`DOM update had ${failCount} ${failCount === 1 ? 'error' : 'errors'}`, moduleName], new Error(`${moduleName}: ${failCount} modifications failed`));
             }
             else {
-                this.writeTimeProcess('HTML', `${path.basename(localUri)}: ${domBase.modifyCount} modified`, time);
+                this.writeTimeProcess('HTML', path.basename(localUri) + `: ${domBase.modifyCount} modified`, time);
             }
             if (domBase.hasErrors()) {
                 this.errors.push(...domBase.errors.map(item => item.message));
@@ -1245,8 +1238,8 @@ class ChromeDocument extends Document implements IChromeDocument {
     static sanitizeAssets(assets: DocumentAsset[], exclusions: DocumentAsset[] = []) {
         for (const item of assets) {
             if (!exclusions.includes(item)) {
-                const mimeType = item.mimeType || '';
-                if (mimeType[0] === '@') {
+                const mimeType = item.mimeType;
+                if (mimeType && mimeType[0] === '@') {
                     item.mimeType = mimeType.substring(1);
                 }
                 item.format = undefined;
@@ -1410,7 +1403,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
                 this._cloudUploaded.add(inlineCssCloud);
             }
-          }
+        }
         return false;
     }
     async cloudFinalize(state: CloudScopeOrigin) {

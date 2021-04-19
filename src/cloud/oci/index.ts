@@ -63,8 +63,7 @@ export async function executeQuery(this: ICloud, credential: OCIDatabaseCredenti
             queryString = table;
             if (id) {
                 queryString += id;
-                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-                if (result) {
+                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
                     return result;
                 }
                 const collection = await (await getConnection()).getSodaDatabase().openCollection(table);
@@ -79,8 +78,7 @@ export async function executeQuery(this: ICloud, credential: OCIDatabaseCredenti
                 const maxRows = Math.max(limit, 0);
                 if (typeof query === 'object') {
                     queryString += JSON.stringify(query) + maxRows;
-                    result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-                    if (result) {
+                    if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
                         return result;
                     }
                     const collection = await (await getConnection()).getSodaDatabase().openCollection(table);
@@ -94,8 +92,7 @@ export async function executeQuery(this: ICloud, credential: OCIDatabaseCredenti
                 }
                 else {
                     queryString += query + (data.params ? JSON.stringify(data.params) : '') + (data.options ? JSON.stringify(data.options) : '') + maxRows;
-                    result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-                    if (result) {
+                    if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
                         return result;
                     }
                     result = (await (await getConnection()).execute(query, data.params || [], { ...data.options, outFormat: OUT_FORMAT_OBJECT, maxRows })).rows;

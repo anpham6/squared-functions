@@ -27,7 +27,7 @@ Image conversion can be achieved using the "commands" array property in a FileAs
 
 - @|%
 - ~size(n)(w|x) // chrome only
-- ( minSize(n,0) , maxSize(n,*) )
+- ( minSize(n,0) , maxSize(n,*)? )
 - ( width(n|auto) x height(n|auto) [bilinear|bicubic|hermite|bezier]? ^(cover|contain|scale)?[left|center|right|top|middle|bottom]? #background-color? )
 - ( left(+|-n) , top(+|-n) | cropWidth(n) x cropHeight(n) )
 - { ...rotate(n) #background-color? }
@@ -82,7 +82,7 @@ Methods use simple bracket matching and does not fully check inside quoted strin
 ```javascript
 // Multiple transformations use the "::" as the separator (data-chrome-commands)
 
-webp(50000,*)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,135,215,315#FFFFFF}|0.5||100[photo][75]|!sepia
+webp(50000)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,135,215,315#FFFFFF}|0.5||100[photo][75]|!sepia
 
 webp!opacity(0.5) // OR
 webp!op(0.5)

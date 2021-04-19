@@ -62,8 +62,7 @@ export async function executeQuery(this: ICloud, credential: IBMDatabaseCredenti
             queryString = table + partitionKey;
             if (id) {
                 queryString += id;
-                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-                if (result) {
+                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
                     return result;
                 }
                 const item = await getScope().get((partitionKey ? partitionKey + ':' : '') + id);
@@ -71,8 +70,7 @@ export async function executeQuery(this: ICloud, credential: IBMDatabaseCredenti
             }
             else if (query && typeof query === 'object') {
                 queryString += JSON.stringify(query) + limit;
-                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-                if (result) {
+                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
                     return result;
                 }
                 if (limit > 0) {

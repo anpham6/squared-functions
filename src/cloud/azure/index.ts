@@ -115,8 +115,7 @@ export async function executeQuery(this: ICloud, credential: AzureDatabaseCreden
             queryString = name + table + partitionKey + (data.options ? JSON.stringify(data.options) : '');
             if (storedProcedureId && params) {
                 queryString += storedProcedureId + JSON.stringify(params);
-                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-                if (result) {
+                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
                     return result;
                 }
                 const item = await getContainer().scripts.storedProcedure(storedProcedureId).execute(partitionKey, params, data.options);
@@ -126,8 +125,7 @@ export async function executeQuery(this: ICloud, credential: AzureDatabaseCreden
             }
             else if (id) {
                 queryString += id;
-                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-                if (result) {
+                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
                     return result;
                 }
                 const item = await getContainer().item(id.toString(), partitionKey).read(data.options);
@@ -137,8 +135,7 @@ export async function executeQuery(this: ICloud, credential: AzureDatabaseCreden
             }
             else if (typeof query === 'string') {
                 queryString += query + limit;
-                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-                if (result) {
+                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
                     return result;
                 }
                 if (limit > 0) {

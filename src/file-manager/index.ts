@@ -24,9 +24,9 @@ import Permission from './permission';
 
 import Compress from '../compress';
 
-function parseSizeRange(value: string): [number, number] {
-    const match = /\(\s*(\d+)\s*,\s*(\d+|\*)\s*\)/.exec(value);
-    return match ? [+match[1], match[2] === '*' ? Infinity : +match[2]] : [0, Infinity];
+function parseSizeRange(value: string) {
+    const match = /\(\s*(\d+)\s*(?:,\s*(\d+|\*)\s*)?\)/.exec(value);
+    return match ? [+match[1], !match[2] || match[2] === '*' ? Infinity : +match[2]] : [0, Infinity];
 }
 
 function withinSizeRange(uri: string, value: Undef<string>) {
@@ -42,8 +42,8 @@ function withinSizeRange(uri: string, value: Undef<string>) {
     return true;
 }
 
-const concatString = (values: Undef<string[]>) => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
-const findFormat = (compress: Undef<CompressFormat[]>, format: string) => compress ? compress.filter(item => item.format === format) : [];
+const concatString = (values: Undef<string[]>) => Array.isArray(values) ? values.reduce((a, b) => a + '\n' + b, '') : '';
+const findFormat = (compress: Undef<CompressFormat[]>, format: string) => Array.isArray(compress) ? compress.filter(item => item.format === format) : [];
 const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
 
 class FileManager extends Module implements IFileManager {
@@ -206,7 +206,7 @@ class FileManager extends Module implements IFileManager {
         file.invalid = true;
     }
     has(value: Undef<string>): value is string {
-        return value ? this.files.has(this.removeCwd(value)) : false;
+        return !!value && this.files.has(this.removeCwd(value));
     }
     replace(file: ExternalAsset, replaceWith: string, mimeType?: string) {
         const localUri = file.localUri;

@@ -172,8 +172,7 @@ export async function executeQuery(this: ICloud, credential: AWSDatabaseCredenti
             queryString = TableName;
             if (partitionKey && id) {
                 queryString += partitionKey + id;
-                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-                if (result) {
+                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
                     return result;
                 }
                 const output = await getClient().get({ TableName, Key: { [partitionKey]: id } }).promise();
@@ -183,8 +182,7 @@ export async function executeQuery(this: ICloud, credential: AWSDatabaseCredenti
             }
             else if (query && typeof query === 'object') {
                 queryString += JSON.stringify(query) + limit;
-                result = this.getDatabaseResult(data.service, credential, queryString, cacheKey);
-                if (result) {
+                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
                     return result;
                 }
                 query.TableName = TableName;
