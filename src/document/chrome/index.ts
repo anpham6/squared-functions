@@ -30,7 +30,7 @@ const MongoClient = mongodb.MongoClient;
 
 const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
 const REGEXP_CSSCONTENT = /\s*(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^)]+)\s*\))/ig;
-const REGEXP_OBJECTPROPERTY = /\$\{\s*(\w+)\s*\}/g;
+const REGEXP_OBJECTPROPERTY = /\$\{\s*([^\s]+)\s*\}/g;
 const REGEXP_TEMPLATECONDITIONAL = /(\n\s+)?\{\{\s*if\s+(!)?\s*([^}\s]+)\s*\}\}(\s*)([\S\s]*?)(?:\s*\{\{\s*else\s*\}\}(\s*)([\S\s]*?)\s*)?\s*\{\{\s*end\s*\}\}/g;
 
 function removeDatasetNamespace(name: string, source: string, newline: string) {
@@ -184,8 +184,9 @@ function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: Docum
 }
 
 function trimQuote(value: string) {
-    const match = /^\s*(["'])([\s\S]*)\1\s*$/.exec(value);
-    return match ? match[2].trim() : value;
+    const first = value[0];
+    const last = value[value.length - 1];
+    return first === last && (first === '"' || first === "'") ? value.substring(1, value.length - 1) : value;
 }
 
 function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: DocumentAsset, content: string, fromHTML?: boolean) {
@@ -203,16 +204,8 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
             j = -1;
         for ( ; i < length; ++i) {
             const ch = content[i];
-            if (!quote) {
-                switch (ch) {
-                    case '"':
-                    case "'":
-                        if (!url.trim()) {
-                            quote = ch;
-                            continue;
-                        }
-                        break;
-                }
+            if (!quote && (ch === '"' || ch === "'") && !url.trim()) {
+                quote = ch;
             }
             if (ch === ')') {
                 if (content[i - 1] !== '\\') {
