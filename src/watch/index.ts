@@ -29,11 +29,8 @@ function getPostFinalize(watch: FileWatch) {
         const server = watch.secure ? SECURE_MAP[port] : PORT_MAP[port];
         if (asset && server) {
             return (errors: string[]) => {
-                let type = asset.mimeType || '';
-                if (type[0] === '@') {
-                    type = type.substring(1);
-                }
                 const src = asset.cloudUrl || asset.relativeUri || '';
+                const type = (asset.mimeType || '').replace(/[^A-Za-z\d/.+-]/g, '');
                 const hot = watch.hot && src && (type === 'text/css' || type.startsWith('image/')) ? (src.indexOf('?') !== -1 ? '' : '?') + 'q=' + Date.now() : '';
                 const data = JSON.stringify({ socketId, module: 'watch', action: 'modified', src, type, hot, errors });
                 for (const client of server.clients) {

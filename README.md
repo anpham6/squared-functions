@@ -1084,7 +1084,7 @@ interface MongoDataSource {
     "value": "attr1", // Remove when: null or undefined
     "value": "-attr2", // Remove when: attr2=falsey
     "value": "+attr3", // Remove when: attr3=truthy
-    "value": ["attr1" /* AND */, ":logical(OR)", "-attr2" /* OR */, "-attr3" /* OR */, ":logical(AND)", "+attr4" /* AND */] // Remove when: attr1=null + attr2|attr3=falsey + attr4=truthy
+    "value": ["attr1" /* AND */, ":is(OR)", "-attr2" /* OR */, "-attr3" /* OR */, ":is(AND)", "+attr4" /* AND */] // Remove when: attr1=null + attr2|attr3=falsey + attr4=truthy
   }
 }
 ```

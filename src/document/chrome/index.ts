@@ -33,7 +33,7 @@ const REGEXP_CSSFONT = new RegExp(`(\\s*)@font-face\\s*{([^}]+)}` + DomWriter.PA
 const REGEXP_CSSKEYFRAME = /(\s*)@keyframes\s+([^{]+){/gi;
 const REGEXP_CSSCLOSING = /\s*(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^\s)]+)\s*\))/gi;
 const REGEXP_TEMPLATECONDITIONAL = /(\n\s+)?\{\{\s*if\s+(!)?\s*([^}\s]+)\s*\}\}(\s*)([\S\s]*?)(?:\s*\{\{\s*else\s*\}\}(\s*)([\S\s]*?)\s*)?\s*\{\{\s*end\s*\}\}/gi;
-const REGEXP_OBJECTPROPERTY = /\$\{\s*(\w+)\s*\}/g;
+const REGEXP_OBJECTPROPERTY = /\$\{\s*([^\s]+)\s*\}/g;
 const REGEXP_OBJECTVALUE = /([^[.\s]+)((?:\s*\[[^\]]+\]\s*)+)?\s*\.?\s*/g;
 const REGEXP_OBJECTINDEX = /\[\s*(["'])?(.+?)\1\s*\]/g;
 
@@ -215,7 +215,7 @@ function removeCss(this: IChromeDocument, source: string) {
     if (usedFontFace) {
         const fonts = usedFontFace.map(value => value.toLowerCase());
         while (match = REGEXP_CSSFONT.exec(current)) {
-            const font = /\bfont-family\s*:([^;}]+)/i.exec(match[0]);
+            const font = /font-family\s*:([^;}]+)/i.exec(match[0]);
             if (font && !fonts.includes(font[1].trim().replace(/^(["'])(.+)\1$/, (...content) => content[2]).toLowerCase())) {
                 const startIndex = match.index;
                 [current, offset] = spliceString(current, startIndex, startIndex + match[0].length - 1, match[1], match[3]);
@@ -252,7 +252,6 @@ function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: Docum
     if (cssFile.inlineContent) {
         return asset.relativeUri!;
     }
-    const splitPath = (value: string) => value.split(/[\\/]/).filter(segment => segment.trim());
     let fileDir = cssFile.pathname,
         assetDir = asset.pathname;
     if (fileDir === assetDir && (cssFile.moveTo || '') === (asset.moveTo || '')) {
@@ -276,6 +275,7 @@ function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: Docum
         }
         fileDir = Document.joinPath(cssFile.moveTo, cssFile.pathname);
     }
+    const splitPath = (value: string) => value.split(/[\\/]/).filter(segment => segment.trim());
     const prefix = splitPath(fileDir);
     const suffix = splitPath(assetDir);
     let found: Undef<boolean>;
@@ -731,11 +731,11 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                 const collection = client.db(name).collection(table);
                                                 if (query) {
                                                     const checkString = (value: string) => {
-                                                        let match = /^\$date\s*=\s*(.+)$/.exec(value);
+                                                        let match = /^\$date\s*=\s*(.+)$/.exec(value = value.trim());
                                                         if (match) {
                                                             return new Date(match[1]);
                                                         }
-                                                        if (match = /^\$regex\s*=\s*\/(.+)\/([gimsuy]*)\s*$/.exec(value)) {
+                                                        if (match = /^\$regex\s*=\s*\/(.+)\/([gimsuy]*)$/.exec(value)) {
                                                             return new RegExp(match[1], match[2]);
                                                         }
                                                         return (match = /^\$function\s*=\s*(.+)$/.exec(value)) ? Document.parseFunction(match[1]) : value;
@@ -948,7 +948,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     value = '',
                                                     valid: Undef<boolean>;
                                                 if (item.viewEngine) {
-                                                    if (typeof segment === 'string') {
+                                                    if (Document.isString(segment)) {
                                                         const content = await instance.parseTemplate(item.viewEngine, segment, result);
                                                         if (content !== null) {
                                                             value = content;
@@ -965,7 +965,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     }
                                                 }
                                                 else {
-                                                    if (typeof segment === 'string') {
+                                                    if (Document.isString(segment)) {
                                                         segment = [segment];
                                                     }
                                                     else if (!Array.isArray(segment)) {
@@ -1024,7 +1024,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         if (item.value) {
                                             if (item.viewEngine) {
                                                 errors = true;
-                                                if (typeof template === 'string') {
+                                                if (Document.isString(template)) {
                                                     const content = await instance.parseTemplate(item.viewEngine, template, result);
                                                     if (content !== null) {
                                                         if (content.trim() === '') {
@@ -1035,7 +1035,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                 }
                                             }
                                             else {
-                                                if (typeof template === 'string') {
+                                                if (Document.isString(template)) {
                                                     template = [template];
                                                 }
                                                 if (!Array.isArray(template) || template.length === 0) {
@@ -1047,15 +1047,15 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                         const row = result[0];
                                                         let condition = NaN;
                                                         for (let seg of template) {
-                                                            switch (seg = seg.trim()) {
-                                                                case ':logical(AND)':
+                                                            switch ((seg = seg.trim()).toLowerCase()) {
+                                                                case ':is(and)':
                                                                     if (condition === 0) {
                                                                         remove = false;
                                                                         break complete;
                                                                     }
                                                                     condition = NaN;
                                                                     continue;
-                                                                case ':logical(OR)':
+                                                                case ':is(or)':
                                                                     if (isNaN(condition)) {
                                                                         condition = 0;
                                                                     }
@@ -1217,7 +1217,7 @@ class ChromeDocument extends Document implements IChromeDocument {
 
     static async cleanup(this: IFileManager, instance: IChromeDocument) {
         const productionRelease = instance.productionRelease;
-        if (typeof productionRelease === 'string') {
+        if (Document.isString(productionRelease)) {
             if (path.isAbsolute(productionRelease) && fs.pathExistsSync(productionRelease)) {
                 try {
                     const src = path.join(this.baseDirectory, instance.internalServerRoot);
