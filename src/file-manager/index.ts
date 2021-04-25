@@ -599,8 +599,8 @@ class FileManager extends Module implements IFileManager {
         const downloading: ObjectMap<ExternalAsset[]> = {};
         const appending: ObjectMap<ExternalAsset[]> = {};
         const completed: string[] = [];
-        const emptied = new Set<string>();
-        const notFound: ObjectMap<boolean> = {};
+        const emptied: string[] = [];
+        const notFound: string[] = [];
         const checkQueue = (file: ExternalAsset, localUri: string, content?: boolean) => {
             const bundleIndex = file.bundleIndex;
             if (bundleIndex !== undefined && bundleIndex !== -1) {
@@ -671,7 +671,7 @@ class FileManager extends Module implements IFileManager {
                             request(uri, (err, res) => {
                                 if (err || res.statusCode >= 300) {
                                     this.writeFail(['Unable to download file', uri], err || res.statusCode + ' ' + res.statusMessage);
-                                    notFound[uri] = true;
+                                    notFound.push(uri);
                                     queue!.invalid = true;
                                     resumeQueue();
                                 }
@@ -775,14 +775,14 @@ class FileManager extends Module implements IFileManager {
                 delete downloading[uri];
             }
             delete processing[localUri];
-            if (!notFound[uri]) {
+            if (!notFound.includes(uri)) {
                 if (appending[localUri]) {
                     processQueue(file, localUri);
                 }
                 else {
                     this.completeAsyncTask();
                 }
-                notFound[uri] = true;
+                notFound.push(uri);
             }
             if (stream) {
                 try {
@@ -813,7 +813,7 @@ class FileManager extends Module implements IFileManager {
                 }
             };
             const createFolder = () => {
-                if (!emptied.has(pathname)) {
+                if (!emptied.includes(pathname)) {
                     if (emptyDir) {
                         try {
                             fs.emptyDirSync(pathname);
@@ -824,7 +824,7 @@ class FileManager extends Module implements IFileManager {
                     }
                     try {
                         fs.mkdirpSync(pathname);
-                        emptied.add(pathname);
+                        emptied.push(pathname);
                     }
                     catch (err) {
                         this.writeFail(['Unable to create directory', pathname], err, this.logType.FILE);
@@ -857,7 +857,7 @@ class FileManager extends Module implements IFileManager {
             }
             else {
                 const uri = item.uri;
-                if (!uri || notFound[uri]) {
+                if (!uri || notFound.includes(uri)) {
                     item.invalid = true;
                     continue;
                 }
@@ -888,7 +888,7 @@ class FileManager extends Module implements IFileManager {
                                 const downloadUri = (etag?: string) => {
                                     const stream = fs.createWriteStream(localUri);
                                     stream.on('finish', () => {
-                                        if (!notFound[uri]) {
+                                        if (!notFound.includes(uri)) {
                                             processQueue(item, localUri);
                                             if (tempDir && etag) {
                                                 try {

@@ -703,7 +703,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                                 uri += '&ssl=true';
                                                             }
                                                             else {
-                                                                reject(new Error('Missing SSL credentials (MongoDB)'));
+                                                                reject(new Error('Data source -> Missing SSL credentials (MongoDB)'));
                                                                 return;
                                                             }
                                                             break;
@@ -723,7 +723,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     }
                                                 }
                                                 else {
-                                                    reject(new Error('Invalid or missing credentials (MongoDB)'));
+                                                    reject(new Error('Data source -> Invalid credentials (MongoDB)'));
                                                     return;
                                                 }
                                                 options.useUnifiedTopology = true;
@@ -783,7 +783,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         }
                                     }
                                     else if (!credential && !uri) {
-                                        reject(new Error('Missing URI connection string (MongoDB)'));
+                                        reject(new Error('Data source -> Missing URI connection string (MongoDB)'));
                                         return;
                                     }
                                     break;
@@ -816,7 +816,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                 }
                                                 else {
                                                     removeElement();
-                                                    reject(new Error(`Insufficient read permissions (${uri})`));
+                                                    reject(new Error(`Data source -> No read permission (${uri})`));
                                                     return;
                                                 }
                                             }
@@ -845,7 +845,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     break;
                                                 default:
                                                     removeElement();
-                                                    reject(new Error(`Data source format invalid (${format})`));
+                                                    reject(new Error(`Data source -> Format invalid (${format})`));
                                                     return;
                                             }
                                         }
@@ -866,14 +866,14 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         }
                                         else {
                                             removeElement();
-                                            reject(new Error(`Data source URI invalid (${uri})`));
+                                            reject(new Error(`Data source -> URI invalid (${uri})`));
                                             return;
                                         }
                                     }
                                     else {
                                         removeElement();
                                         if (content !== null) {
-                                            reject(new Error('Data source response was empty'));
+                                            reject(new Error(`Data source -> Empty response (${uri})`));
                                         }
                                         else {
                                             resolve();
@@ -884,7 +884,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 }
                                 default:
                                     removeElement();
-                                    reject(new Error('Invalid data source'));
+                                    reject(new Error(`Data source -> Invalid (${item.source ? item.source : 'Unknown'})`));
                                     return;
                             }
                             if (index !== undefined) {
@@ -1129,7 +1129,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         break;
                                     default:
                                         removeElement();
-                                        reject(new Error('Invalid data source action'));
+                                        reject(new Error(`Data source -> Invalid action (${item.type ? item.type : 'Unknown'})`));
                                         return;
                                 }
                                 if (!domBase.write(domElement) || errors) {
@@ -1157,7 +1157,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     }
                                     case 'mongodb': {
                                         const { uri, name, table } = item as MongoDataSource;
-                                        this.formatFail(this.logType.PROCESS, name || 'MONGO', ['MongoDB query had no results', table ? 'table: ' + table : ''], new Error(`MongoDB -> ${uri!} (Empty)`));
+                                        this.formatFail(this.logType.PROCESS, name || 'MONGO', ['MongoDB query had no results', table ? 'table: ' + table : ''], new Error(`mongodb -> ${uri!} (Empty)`));
                                         break;
                                     }
                                     case 'uri': {
@@ -1201,7 +1201,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             htmlFile.sourceUTF8 = source;
             const failCount = domBase.failCount;
             if (failCount) {
-                this.writeFail([`DOM update had ${failCount} ${failCount === 1 ? 'error' : 'errors'}`, moduleName], new Error(moduleName + ` -> Modified (${failCount} failed)`));
+                this.writeFail([`DOM update had ${failCount} ${failCount === 1 ? 'error' : 'errors'}`, moduleName], new Error(moduleName + ` -> DOM update (${failCount} failed)`));
             }
             else {
                 this.writeTimeProcess('HTML', path.basename(localUri) + `: ${domBase.modifyCount} modified`, time);
@@ -1230,7 +1230,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
             }
             else {
-                this.writeFail(['Path not found', instance.moduleName], new Error(productionRelease + '(Invalid root directory)'));
+                this.writeFail(['Path not found', instance.moduleName], new Error(instance.moduleName + ` -> Invalid path (${productionRelease})`));
             }
         }
     }

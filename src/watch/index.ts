@@ -199,7 +199,7 @@ class Watch extends Module implements IWatch {
                                         }
                                     }
                                     else {
-                                        this.writeFail('SSL key and cert not found', new Error('Missing SSL credentials'));
+                                        this.writeFail('SSL key and cert not found', new Error(`Watch -> Missing SSL credentials (${socketId})`));
                                     }
                                 }
                                 secure = true;

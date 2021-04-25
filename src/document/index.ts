@@ -11,6 +11,7 @@ import fs = require('fs-extra');
 
 import Module from '../module';
 
+const errorMessage = (hint: string, process: string, message: string) => new Error(hint + ` -> ${process} (${message})`);
 const getSourceMappingURL = (value: string) => `\n//# sourceMappingURL=${value}\n`;
 
 abstract class Document extends Module implements IDocument {
@@ -179,7 +180,7 @@ abstract class Document extends Module implements IDocument {
                     }
                 }
                 else if (path.isAbsolute(value)) {
-                    this.writeFail('Only relative paths are supported', new Error(`Config -> ${name} -> ${value} (Unknown)`));
+                    this.writeFail('Only relative paths are supported', errorMessage(name, value, '(Unknown config)'));
                 }
                 else if (evaluate) {
                     const transformer = Module.parseFunction(value);
@@ -204,7 +205,7 @@ abstract class Document extends Module implements IDocument {
         if (Module.isString(viewEngine)) {
             const view = (this.module.settings?.view_engine as Undef<StandardMap>)?.[viewEngine] as Undef<ViewEngine>;
             if (!view) {
-                this.writeFail(['Setting not found', viewEngine], new Error(`View engine -> ${viewEngine} (Unknown)`));
+                this.writeFail(['Setting not found', viewEngine], errorMessage('View engine', viewEngine, '(Unknown)'));
                 return null;
             }
             viewEngine = view;
@@ -241,7 +242,6 @@ abstract class Document extends Module implements IDocument {
         if (data) {
             const sourceMap = options.sourceMap ||= Document.createSourceMap(code);
             const writeFail = this.writeFail.bind(this);
-            const errorMessage = (plugin: string, process: string, message: string) => new Error(plugin + ` -> ${process} (${message})`);
             let valid: Undef<boolean>;
             for (let process of format.split('+')) {
                 const [plugin, baseConfig, outputConfig = {}] = this.findConfig(data, process = process.trim(), type);
