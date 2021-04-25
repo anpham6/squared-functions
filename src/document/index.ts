@@ -120,7 +120,7 @@ abstract class Document extends Module implements IDocument {
     abstract init(assets: ExternalAsset[], body: RequestBody): void;
 
     findConfig(settings: StandardMap, name: string, type?: string): PluginConfig {
-        if (this.configData && type && this.module.eval_template) {
+        if (type && this.module.eval_template && this.configData) {
             const data = this.configData[type] as Undef<StandardMap>;
             if (data) {
                 for (const attr in data) {
@@ -283,7 +283,7 @@ abstract class Document extends Module implements IDocument {
                                             context = this;
                                         }
                                         else {
-                                            this.writeFail(['Transformer not compatible', plugin], errorMessage(plugin, process, 'Invalid function name'));
+                                            this.writeFail(['Transformer not compatible', plugin], errorMessage(plugin, process, 'Invalid function'));
                                             continue;
                                         }
                                     }

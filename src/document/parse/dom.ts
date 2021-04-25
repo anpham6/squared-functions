@@ -78,6 +78,10 @@ export class DomWriter extends XmlWriter implements IDomWriter {
                 }
             }
         }
+        if (!documentElement && normalize) {
+            source = DomWriter.normalize(source, this.newline);
+            ++this.modifyCount;
+        }
         const html = /<html[\s>]/i.exec(source);
         if (source.indexOf('\r\n') !== -1) {
             this.newline = '\r\n';
@@ -104,10 +108,6 @@ export class DomWriter extends XmlWriter implements IDomWriter {
             this.documentElement = documentElement;
         }
         else {
-            if (normalize) {
-                source = DomWriter.normalize(source, this.newline);
-                ++this.modifyCount;
-            }
             const trailing = items.find(item => item.textContent);
             if (trailing) {
                 const match = /<\/body\s*>/i.exec(source);
@@ -150,7 +150,9 @@ export class DomWriter extends XmlWriter implements IDomWriter {
         return super.save();
     }
     close() {
-        this.source = this.source.replace(new RegExp(this.patternId, 'g'), '');
+        if (this.documentElement) {
+            this.source = this.source.replace(new RegExp(this.patternId, 'g'), '');
+        }
         return super.close();
     }
     get nameOfId() {

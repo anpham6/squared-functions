@@ -21,6 +21,7 @@ let HTTP_MAP: FileWatchMap = {};
 let DISK_MAP: FileWatchMap = {};
 let PORT_MAP: ObjectMap<Server> = {};
 let SECURE_MAP: ObjectMap<Server> = {};
+let WATCH_MAP: ObjectMap<number> = {};
 
 function getPostFinalize(watch: FileWatch) {
     const { socketId, port } = watch;
@@ -90,6 +91,7 @@ class Watch extends Module implements IWatch {
         DISK_MAP = {};
         PORT_MAP = {};
         SECURE_MAP = {};
+        WATCH_MAP = {};
     }
 
     private _sslKey = '';
@@ -306,8 +308,13 @@ class Watch extends Module implements IWatch {
                                 case 'change': {
                                     const disk = DISK_MAP[uri];
                                     if (disk) {
-                                        for (const input of disk.values()) {
-                                            this.modified(input.data);
+                                        const mtime = Math.floor(fs.statSync(uri).mtimeMs);
+                                        const ptime = WATCH_MAP[uri] || 0;
+                                        if (mtime > ptime) {
+                                            for (const input of disk.values()) {
+                                                this.modified(input.data);
+                                            }
+                                            WATCH_MAP[uri] = Math.ceil(fs.statSync(uri).mtimeMs);
                                         }
                                     }
                                     break;
