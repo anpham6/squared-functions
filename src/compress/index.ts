@@ -164,7 +164,7 @@ const Compress = new class extends Module implements ICompress {
             });
         }
         else {
-            throw new Error('Plugin not found');
+            throw new Error('Compress -> Image plugin (Unknown)');
         }
     }
 }();

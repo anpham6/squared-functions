@@ -266,7 +266,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                         }
                         break;
                     default:
-                        this.writeFail(['Method not found', MODULE_NAME + ':' + name], new Error(`Unknown: ${name} <${MODULE_NAME}>`));
+                        this.writeFail(['Method not found', MODULE_NAME + ':' + name], new Error(name + ` -> ${MODULE_NAME} (Unknown)`));
                         break;
                 }
             }

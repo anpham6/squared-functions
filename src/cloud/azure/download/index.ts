@@ -40,7 +40,7 @@ export default function download(this: IModule, credential: AzureStorageCredenti
             }
         }
         else {
-            const writeFail = (prop: string) => this.formatFail(this.logType.CLOUD, service, prop + ' not specified', new Error(`Missing property <${service}:${prop.toLowerCase()}>`));
+            const writeFail = (prop: string) => this.formatFail(this.logType.CLOUD, service, prop + ' not specified', new Error(service + ` -> ${prop.toLowerCase()} (Missing property)`));
             if (!Bucket) {
                 writeFail('Bucket');
             }

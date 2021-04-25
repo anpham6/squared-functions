@@ -1,3 +1,5 @@
+/* eslint no-console: "off" */
+
 import type { IModule } from '../types/lib';
 import type { LogMessageOptions, LogValue } from '../types/lib/logger';
 import type { LoggerModule } from '../types/lib/module';
@@ -126,7 +128,7 @@ abstract class Module implements IModule {
         const useColor = !(options.useColor === false || SETTINGS.color === false);
         if (Array.isArray(value)) {
             const hint = value[1] as string;
-            let length = 0;
+            let length: number;
             if (this.isString(hint) && (length = hint.length)) {
                 const getHint = () => length > 32 ? hint.substring(0, 29) + '...' : hint;
                 const formatHint = (content: string) => {
@@ -156,6 +158,13 @@ abstract class Module implements IModule {
         else {
             value = value.padEnd(72);
         }
+        title = title.toUpperCase();
+        if (title.length < 7) {
+            title = (title + ' ').padStart(7);
+        }
+        if (message instanceof Error) {
+            message = message.message;
+        }
         if (useColor) {
             const { titleColor = 'green', titleBgColor = 'bgBlack', valueColor, valueBgColor, messageColor, messageBgColor } = options;
             if (valueColor) {
@@ -173,10 +182,10 @@ abstract class Module implements IModule {
                 }
                 message = ' ' + chalk.blackBright('(') + message + chalk.blackBright(')');
             }
-            console.log(chalk[titleBgColor].bold[titleColor](title.toUpperCase().padEnd(7)) + chalk.blackBright(':') + ' ' + value + (message || '')); // eslint-disable-line no-console
+            console.log(chalk[titleBgColor].bold[titleColor](title) + chalk.blackBright(':') + ' ' + value + (message || ''));
         }
         else {
-            console.log(title.toUpperCase().padEnd(7) + ':' + ' ' + value + (message && ` (${message as string})` || '')); // eslint-disable-line no-console
+            console.log(title + ': ' + value + (message ? ` (${message as string})` : ''));
         }
     }
 
@@ -402,7 +411,11 @@ abstract class Module implements IModule {
         Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Complete', (Date.now() - time) / 1000 + 's'], value, options);
     }
     formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: Null<Error>, options?: LogMessageOptions) {
-        Module.formatMessage(type, title, value, message, applyFailStyle(options));
+        const padding = 7 - title.length;
+        if (padding > 1) {
+            title = title.padStart(title.length + Math.floor(padding / 2));
+        }
+        Module.formatMessage(type, title.padEnd(7), value, message, applyFailStyle(options));
         if (message) {
             this.errors.push(message instanceof Error ? message.message : (message as string).toString());
         }

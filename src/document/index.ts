@@ -179,7 +179,7 @@ abstract class Document extends Module implements IDocument {
                     }
                 }
                 else if (path.isAbsolute(value)) {
-                    this.writeFail('Only relative paths are supported', new Error(`Unknown config <${name}:${value}>`));
+                    this.writeFail('Only relative paths are supported', new Error(`Config -> ${name} -> ${value} (Unknown)`));
                 }
                 else if (evaluate) {
                     const transformer = Module.parseFunction(value);
@@ -204,7 +204,7 @@ abstract class Document extends Module implements IDocument {
         if (Module.isString(viewEngine)) {
             const view = (this.module.settings?.view_engine as Undef<StandardMap>)?.[viewEngine] as Undef<ViewEngine>;
             if (!view) {
-                this.writeFail(['Setting not found', viewEngine], new Error('Unknown view engine: ' + viewEngine));
+                this.writeFail(['Setting not found', viewEngine], new Error(`View engine -> ${viewEngine} (Unknown)`));
                 return null;
             }
             viewEngine = view;
@@ -241,7 +241,7 @@ abstract class Document extends Module implements IDocument {
         if (data) {
             const sourceMap = options.sourceMap ||= Document.createSourceMap(code);
             const writeFail = this.writeFail.bind(this);
-            const errorMessage = (plugin: string, process: string, message: string) => new Error(message + ` <${plugin}:${process}>`);
+            const errorMessage = (plugin: string, process: string, message: string) => new Error(plugin + ` -> ${process} (${message})`);
             let valid: Undef<boolean>;
             for (let process of format.split('+')) {
                 const [plugin, baseConfig, outputConfig = {}] = this.findConfig(data, process = process.trim(), type);
@@ -259,7 +259,7 @@ abstract class Document extends Module implements IDocument {
                                 this.writeTimeProcess(type, plugin + ': ' + process, time);
                             }
                             else {
-                                this.writeFail(['Transform returned empty result', plugin], errorMessage(plugin, process, 'Empty result'));
+                                this.writeFail(['Transform returned empty result', plugin], errorMessage(plugin, process, 'Empty'));
                             }
                         };
                         this.formatMessage(this.logType.PROCESS, type, ['Transforming source...', plugin], process, { hintColor: 'cyan' });

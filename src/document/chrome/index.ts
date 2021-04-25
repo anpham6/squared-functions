@@ -440,7 +440,7 @@ function spliceString(source: string, startIndex: number, endIndex: number, lead
 const isRemoved = (item: DocumentAsset) => item.exclude === true || item.bundleIndex !== undefined && item.bundleIndex > 0;
 const concatString = (values: Undef<string[]>): string => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const escapePosix = (value: string) => value.split(/[\\/]/).map(seg => Document.escapePattern(seg)).join('[\\\\/]');
-const getErrorDOM = (tagName: string, tagIndex: Undef<number>) => new Error(tagName.toUpperCase() + (tagIndex !== undefined && tagIndex >= 0 ? ' ' + tagIndex : '') + ': Unable to parse DOM');
+const getErrorDOM = (tagName: string, tagIndex: Undef<number>) => new Error(tagName.toUpperCase() + (tagIndex !== undefined && tagIndex >= 0 ? ' -> ' + tagIndex : '') + ' (Unable to parse DOM)');
 
 class ChromeDocument extends Document implements IChromeDocument {
     static async using(this: IFileManager, instance: ChromeDocument, file: DocumentAsset) {
@@ -675,10 +675,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     }
                                     break;
                                 case 'mongodb': {
-                                    const { name, table, query } = item as MongoDataSource;
-                                    let { credential, uri, options } = item as MongoDataSource;
+                                    let { name, table, query, credential, uri, options = {} } = item as MongoDataSource; // eslint-disable-line prefer-const
                                     if ((credential || uri) && name && table) {
-                                        const key = JSON.stringify(credential || uri) + name + table + (query ? JSON.stringify(query) : '') + (limit || '') + (options ? JSON.stringify(options) : '');
+                                        const key = JSON.stringify(credential || uri) + name + table + (query ? JSON.stringify(query) : '') + (limit || '') + (Object.keys(options).length ? JSON.stringify(options) : '');
                                         if (key in cacheData) {
                                             result = cacheData[key] as PlainObject[];
                                         }
@@ -696,7 +695,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                         case 'MONGODB-X509': {
                                                             const { sslKey, sslCert, sslValidate } = credential;
                                                             if (sslKey && sslCert && path.isAbsolute(sslKey) && path.isAbsolute(sslCert) && fs.existsSync(sslKey) && fs.existsSync(sslCert)) {
-                                                                (options ||= {}).sslKey = fs.readFileSync(sslKey);
+                                                                options.sslKey = fs.readFileSync(sslKey);
                                                                 options.sslCert = fs.readFileSync(sslCert);
                                                                 if (typeof sslValidate === 'boolean') {
                                                                     options.sslValidate = sslValidate;
@@ -727,6 +726,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     reject(new Error('Invalid or missing credentials (MongoDB)'));
                                                     return;
                                                 }
+                                                options.useUnifiedTopology = true;
                                                 client = await new MongoClient(uri, options).connect();
                                                 const collection = client.db(name).collection(table);
                                                 if (query) {
@@ -1145,24 +1145,24 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 switch (item.source) {
                                     case 'cloud': {
                                         const { service, table, id, query } = item as CloudDatabase;
-                                        let queryString = table;
+                                        let queryString = table!;
                                         if (id) {
                                             queryString = 'id: ' + id;
                                         }
                                         else if (query) {
                                             queryString = typeof query !== 'string' ? JSON.stringify(query) : query;
                                         }
-                                        this.formatFail(this.logType.CLOUD, service, ['Database query had no results', table ? 'table: ' + table : ''], new Error('Empty: ' + queryString));
+                                        this.formatFail(this.logType.CLOUD, service, ['Database query had no results', table ? 'table: ' + table : ''], new Error(service + ` -> ${queryString} (Empty)`));
                                         break;
                                     }
                                     case 'mongodb': {
                                         const { uri, name, table } = item as MongoDataSource;
-                                        this.formatFail(this.logType.PROCESS, name || 'MONGO', ['MongoDB query had no results', table ? 'table: ' + table : ''], new Error('Empty: ' + uri));
+                                        this.formatFail(this.logType.PROCESS, name || 'MONGO', ['MongoDB query had no results', table ? 'table: ' + table : ''], new Error(`MongoDB -> ${uri!} (Empty)`));
                                         break;
                                     }
                                     case 'uri': {
                                         const { uri, format = path.extname(uri).substring(1) } = item as UriDataSource;
-                                        this.formatFail(this.logType.PROCESS, format, ['URI data source had no results', uri], new Error('Empty: ' + uri));
+                                        this.formatFail(this.logType.PROCESS, format, ['URI data source had no results', uri], new Error(uri + ' (Empty)'));
                                         break;
                                     }
                                 }
@@ -1201,7 +1201,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             htmlFile.sourceUTF8 = source;
             const failCount = domBase.failCount;
             if (failCount) {
-                this.writeFail([`DOM update had ${failCount} ${failCount === 1 ? 'error' : 'errors'}`, moduleName], new Error(`${moduleName}: ${failCount} modifications failed`));
+                this.writeFail([`DOM update had ${failCount} ${failCount === 1 ? 'error' : 'errors'}`, moduleName], new Error(moduleName + ` -> Modified (${failCount} failed)`));
             }
             else {
                 this.writeTimeProcess('HTML', path.basename(localUri) + `: ${domBase.modifyCount} modified`, time);
@@ -1230,7 +1230,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
             }
             else {
-                this.writeFail(['Path not found', instance.moduleName], new Error('Invalid root directory: ' + productionRelease));
+                this.writeFail(['Path not found', instance.moduleName], new Error(productionRelease + '(Invalid root directory)'));
             }
         }
     }
