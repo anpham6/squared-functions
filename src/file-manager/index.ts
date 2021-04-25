@@ -65,6 +65,7 @@ class FileManager extends Module implements IFileManager {
 
     delayed = 0;
     cacheHttpRequest = false;
+    permission = new Permission();
     Document: InstallData<IDocument, DocumentConstructor>[] = [];
     Task: InstallData<ITask, TaskConstructor>[] = [];
     Image: Null<Map<string, ImageConstructor>> = null;
@@ -82,7 +83,6 @@ class FileManager extends Module implements IFileManager {
     readonly filesToCompare = new Map<ExternalAsset, string[]>();
     readonly contentToAppend = new Map<string, string[]>();
     readonly emptyDir = new Set<string>();
-    readonly permission = new Permission();
     readonly postFinalize?: PostFinalizeCallback;
 
     private _cleared = false;
@@ -157,6 +157,7 @@ class FileManager extends Module implements IFileManager {
                     if (this.Compress) {
                         manager.install('compress', this.Compress);
                     }
+                    manager.permission = this.permission;
                     manager.cacheHttpRequest = this.cacheHttpRequest;
                     manager.processAssets();
                 };
