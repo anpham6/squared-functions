@@ -11,7 +11,7 @@ function convertPosix(value: Undef<StringOfArray>) {
         else if (!Array.isArray(value)) {
             return [];
         }
-        return path.sep === '\\' ? value.map(item => item.replace(/\\/g, '/')) : value;
+        return value.map(item => asPosix(item));
     }
 }
 
