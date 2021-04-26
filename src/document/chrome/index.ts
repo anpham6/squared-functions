@@ -33,7 +33,7 @@ const REGEXP_CSSFONT = new RegExp(`(\\s*)@font-face\\s*{([^}]+)}` + DomWriter.PA
 const REGEXP_CSSKEYFRAME = /(\s*)@keyframes\s+([^{]+){/gi;
 const REGEXP_CSSCLOSING = /\s*(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^\s)]+)\s*\))/gi;
 const REGEXP_TEMPLATECONDITIONAL = /(\n\s+)?\{\{\s*if\s+(!)?\s*([^}\s]+)\s*\}\}(\s*)([\S\s]*?)(?:\s*\{\{\s*else\s*\}\}(\s*)([\S\s]*?)\s*)?\s*\{\{\s*end\s*\}\}/gi;
-const REGEXP_OBJECTPROPERTY = /\$\{\s*([^\s]+)\s*\}/g;
+const REGEXP_OBJECTPROPERTY = /\$\{\s*([^\s}]+)\s*\}/g;
 const REGEXP_OBJECTVALUE = /([^[.\s]+)((?:\s*\[[^\]]+\]\s*)+)?\s*\.?\s*/g;
 const REGEXP_OBJECTINDEX = /\[\s*(["'])?(.+?)\1\s*\]/g;
 
