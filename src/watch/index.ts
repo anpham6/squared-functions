@@ -1,7 +1,8 @@
-import type { WatchInterval, WatchReload } from '../types/lib/squared';
+import type { FileInfo, WatchInterval, WatchReload } from '../types/lib/squared';
 
 import type { IPermission, IWatch } from '../types/lib';
 import type { ExternalAsset } from '../types/lib/asset';
+import type { PostFinalizeCallback } from '../types/lib/filemanager';
 import type { FileWatch } from '../types/lib/watch';
 
 import type { Server } from 'ws';
@@ -29,7 +30,7 @@ function getPostFinalize(watch: FileWatch) {
         const asset = watch.assets[0];
         const server = watch.secure ? SECURE_MAP[port] : PORT_MAP[port];
         if (asset && server) {
-            return (errors: string[]) => {
+            return (files: FileInfo[], errors: string[]) => {
                 const src = asset.cloudUrl || asset.relativeUri || '';
                 const type = (asset.mimeType || '').replace(/[^A-Za-z\d/.+-]/g, '');
                 const hot = watch.hot && src && (type === 'text/css' || type.startsWith('image/')) ? (src.indexOf('?') !== -1 ? '' : '?') + 'q=' + Date.now() : '';
@@ -101,7 +102,7 @@ class Watch extends Module implements IWatch {
         super();
     }
 
-    whenModified?: (assets: ExternalAsset[], postFinalize?: FunctionType<void>) => void;
+    whenModified?: (assets: ExternalAsset[], postFinalize?: PostFinalizeCallback) => void;
 
     start(assets: ExternalAsset[], permission?: IPermission) {
         const destMap: ObjectMap<ExternalAsset[]> = {};

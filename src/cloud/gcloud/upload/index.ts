@@ -11,18 +11,18 @@ import Module from '../../../module';
 
 import { GCloudStorageCredential, createBucket, createStorageClient, setPublicRead } from '../index';
 
-const BUCKET_MAP: ObjectMap<boolean> = {};
+const BUCKET_MAP = new Set<string>();
 
 export default function upload(this: IModule, credential: GCloudStorageCredential, service = 'gcloud'): UploadCallback {
     const storage = createStorageClient.call(this, credential);
     return async (data: UploadData, success: (value: string) => void) => {
         const bucket = data.bucket ||= data.bucketGroup || uuid.v4();
-        if (!BUCKET_MAP[bucket]) {
+        if (!BUCKET_MAP.has(bucket)) {
             if (!await createBucket.call(this, credential, bucket, data.admin?.publicRead)) {
                 success('');
                 return;
             }
-            BUCKET_MAP[bucket] = true;
+            BUCKET_MAP.add(bucket);
         }
         const bucketClient = storage.bucket(bucket);
         const localUri = data.localUri;

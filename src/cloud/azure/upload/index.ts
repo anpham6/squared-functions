@@ -10,7 +10,7 @@ import Module from '../../../module';
 
 import { AzureStorageCredential, createBucket, createStorageClient } from '../index';
 
-const BUCKET_MAP: ObjectMap<boolean> = {};
+const BUCKET_MAP = new Set<string>();
 
 export default function upload(this: IModule, credential: AzureStorageCredential, service = 'azure'): UploadCallback {
     const blobServiceClient = createStorageClient.call(this, credential);
@@ -18,13 +18,13 @@ export default function upload(this: IModule, credential: AzureStorageCredential
         const bucket = data.bucket ||= data.bucketGroup || uuid.v4();
         const localUri = data.localUri;
         const containerClient = blobServiceClient.getContainerClient(bucket);
-        if (!BUCKET_MAP[bucket]) {
+        if (!BUCKET_MAP.has(bucket)) {
             const { active, publicRead } = data.upload;
             if (!await createBucket.call(this, credential, bucket, data.admin?.publicRead || publicRead || active && publicRead !== false)) {
                 success('');
                 return;
             }
-            BUCKET_MAP[bucket] = true;
+            BUCKET_MAP.add(bucket);
         }
         const pathname = data.upload?.pathname || '';
         let filename = data.filename;

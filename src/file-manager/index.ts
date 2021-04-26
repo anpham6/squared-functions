@@ -140,7 +140,7 @@ class FileManager extends Module implements IFileManager {
             case 'watch': {
                 const [port, securePort] = params;
                 const instance = new Watch(typeof target === 'number' && target > 0 ? target : undefined, typeof port === 'number' && port > 0 ? port : undefined, typeof securePort === 'number' && securePort > 0 ? securePort : undefined);
-                instance.whenModified = (assets: ExternalAsset[], postFinalize?: FunctionType<void>) => {
+                instance.whenModified = (assets: ExternalAsset[], postFinalize?: PostFinalizeCallback) => {
                     const manager = new FileManager(this.baseDirectory, { ...this.body, assets }, postFinalize);
                     for (const { constructor, params } of this.Document) { // eslint-disable-line no-shadow
                         manager.install('document', constructor, ...params);
