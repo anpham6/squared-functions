@@ -258,7 +258,7 @@ abstract class Module implements IModule {
         return /^(?:\\\\|\/\/)([\w.-]+)[\\/]([\w-]+\$?)((?<=\$)(?:[^\\/]*|[\\/].+)|[\\/].+)$/.test(value);
     }
 
-    static isDirectoryUNC(value: string) {
+    static isPathUNC(value: string) {
         return /^(?:\\\\|\/\/)([\w.-]+)[\\/]([\w-]+\$|[\w-]+\$[\\/].+|[\w-]+[\\/].*)$/.test(value);
     }
 

@@ -273,7 +273,7 @@ declare namespace functions {
         hasSameOrigin(value: string, other: string): boolean;
         isFileHTTP(value: string): boolean;
         isFileUNC(value: string): boolean;
-        isDirectoryUNC(value: string): boolean;
+        isPathUNC(value: string): boolean;
         isUUID(value: string): boolean;
         resolveUri(value: string): string;
         resolvePath(value: string, href: string): string;
