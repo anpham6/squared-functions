@@ -130,6 +130,7 @@ function removeCss(this: IChromeDocument, source: string) {
     let current = source,
         offset: number,
         modified: Undef<boolean>,
+        checkEmpty: Undef<Set<string>>,
         match: Null<RegExpExecArray>;
     while (match = REGEXP_CSSCLOSING.exec(source)) {
         if (match[0].indexOf('}') !== -1) {
@@ -148,9 +149,18 @@ function removeCss(this: IChromeDocument, source: string) {
                 if (endIndex !== -1) {
                     [current, offset] = spliceString(current, startIndex, endIndex, match[1], trailing);
                     modified = true;
+                    (checkEmpty ||= new Set()).add(name);
                     pattern.lastIndex = startIndex + offset;
                 }
             }
+        }
+    };
+    const removeEmpty = (name: string) => {
+        const pattern = new RegExp(`(\\s*)@${name}\\s*[^{]*{\\s*}` + DomWriter.PATTERN_TRAILINGSPACE, 'gi');
+        while (match = pattern.exec(current)) {
+            const startIndex = match.index;
+            [current, offset] = spliceString(current, startIndex, startIndex + match[0].length - 1, match[1], match[2]);
+            pattern.lastIndex = startIndex + offset;
         }
     };
     if (unusedMedia) {
@@ -240,6 +250,11 @@ function removeCss(this: IChromeDocument, source: string) {
         REGEXP_CSSKEYFRAME.lastIndex = 0;
     }
     if (modified) {
+        if (checkEmpty) {
+            for (const name of checkEmpty) {
+                removeEmpty(name);
+            }
+        }
         for (const attr in replaceMap) {
             current = current.replace(attr, replaceMap[attr]!);
         }
@@ -348,7 +363,7 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
             }
         }
         else {
-            const asset = this.findAsset(Document.resolvePath(url, cssUri)) as DocumentAsset;
+            const asset = this.findAsset(Document.resolvePath(url, cssUri)) as Undef<DocumentAsset>;
             if (asset && !asset.invalid) {
                 if (asset.format === 'base64') {
                     url = asset.inlineBase64 ||= uuid.v4();
