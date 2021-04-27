@@ -604,7 +604,7 @@ class FileManager extends Module implements IFileManager {
         const notFound: string[] = [];
         const checkQueue = (file: ExternalAsset, localUri: string, content?: boolean) => {
             const bundleIndex = file.bundleIndex;
-            if (bundleIndex !== undefined && bundleIndex !== -1) {
+            if (bundleIndex !== undefined && bundleIndex >= 0) {
                 const bundle = appending[localUri] ||= [];
                 if (bundleIndex > 0) {
                     bundle[bundleIndex - 1] = file;
@@ -627,7 +627,7 @@ class FileManager extends Module implements IFileManager {
         };
         const processQueue = async (file: ExternalAsset, localUri: string, bundleMain?: ExternalAsset) => {
             const bundleIndex = file.bundleIndex;
-            if (bundleIndex !== undefined && bundleIndex !== -1) {
+            if (bundleIndex !== undefined && bundleIndex >= 0) {
                 let cloudStorage: Undef<CloudService[]>;
                 if (bundleIndex === 0) {
                     const content = await this.setAssetContent(file, localUri, this.getUTF8String(file, localUri));

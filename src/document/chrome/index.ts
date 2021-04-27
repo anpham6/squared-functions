@@ -173,7 +173,7 @@ function removeCss(this: IChromeDocument, source: string) {
         for (let value of unusedStyles) {
             const block = `(\\s*)${value = Document.escapePattern(value).replace(/\s+/g, '\\s+')}\\s*\\{[^}]*\\}` + DomWriter.PATTERN_TRAILINGSPACE;
             for (let i = 0; i < 2; ++i) {
-                const pattern = new RegExp((i === 0 ? '(^)' : '([{}])') + block, i === 0 ? 'm' : 'g');
+                const pattern = new RegExp(`(${i === 0 ? '^' : '[{}]'})` + block, i === 0 ? 'm' : 'g');
                 while (match = pattern.exec(current)) {
                     const startIndex = match.index;
                     [current, offset] = spliceString(current, startIndex, startIndex + match[0].length - 1, match[2], match[3], i === 0 ? '' : match[1]);
@@ -1151,36 +1151,37 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     this.writeFail(item.type === 'display' ? errors && domElement.remove ? 'Element was removed with errors' : 'Unable to remove element' : 'Unable to replace ' + item.type, getErrorDOM(element!.tagName, element!.tagIndex));
                                 }
                             }
-                            else if (item.type === 'display') {
-                                item.removeEmpty = true;
-                                removeElement();
-                            }
                             else {
-                                removeElement();
-                                switch (item.source) {
-                                    case 'cloud': {
-                                        const { service, table, id, query } = item as CloudDatabase;
-                                        let queryString = table!;
-                                        if (id) {
-                                            queryString = 'id: ' + id;
+                                if (item.type === 'display') {
+                                    item.removeEmpty = true;
+                                }
+                                else {
+                                    switch (item.source) {
+                                        case 'cloud': {
+                                            const { service, table, id, query } = item as CloudDatabase;
+                                            let queryString = table!;
+                                            if (id) {
+                                                queryString = 'id: ' + id;
+                                            }
+                                            else if (query) {
+                                                queryString = typeof query !== 'string' ? JSON.stringify(query) : query;
+                                            }
+                                            this.formatFail(this.logType.CLOUD, service, ['Database query had no results', table ? 'table: ' + table : ''], new Error(service + ` -> ${queryString} (Empty)`));
+                                            break;
                                         }
-                                        else if (query) {
-                                            queryString = typeof query !== 'string' ? JSON.stringify(query) : query;
+                                        case 'mongodb': {
+                                            const { uri, name, table } = item as MongoDataSource;
+                                            this.formatFail(this.logType.PROCESS, name || 'MONGO', ['MongoDB query had no results', table ? 'table: ' + table : ''], new Error(`mongodb -> ${uri!} (Empty)`));
+                                            break;
                                         }
-                                        this.formatFail(this.logType.CLOUD, service, ['Database query had no results', table ? 'table: ' + table : ''], new Error(service + ` -> ${queryString} (Empty)`));
-                                        break;
-                                    }
-                                    case 'mongodb': {
-                                        const { uri, name, table } = item as MongoDataSource;
-                                        this.formatFail(this.logType.PROCESS, name || 'MONGO', ['MongoDB query had no results', table ? 'table: ' + table : ''], new Error(`mongodb -> ${uri!} (Empty)`));
-                                        break;
-                                    }
-                                    case 'uri': {
-                                        const { uri, format = path.extname(uri).substring(1) } = item as UriDataSource;
-                                        this.formatFail(this.logType.PROCESS, format, ['URI data source had no results', uri], new Error(uri + ' (Empty)'));
-                                        break;
+                                        case 'uri': {
+                                            const { uri, format = path.extname(uri).substring(1) } = item as UriDataSource;
+                                            this.formatFail(this.logType.PROCESS, format, ['URI data source had no results', uri], new Error(uri + ' (Empty)'));
+                                            break;
+                                        }
                                     }
                                 }
+                                removeElement();
                             }
                             resolve();
                         });
@@ -1290,7 +1291,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     init(assets: DocumentAsset[], body: RequestBody) {
         assets.sort((a, b) => {
             if (a.bundleId && a.bundleId === b.bundleId) {
-                return a.bundleIndex! - b.bundleIndex!;
+                return b.bundleIndex! - a.bundleIndex!;
             }
             return 0;
         });
