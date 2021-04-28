@@ -24,6 +24,7 @@
     "@squared-functions/types": "^0.14.3",
     "@squared-functions/watch": "^0.14.3",
     "fs-extra": "^9.1.0",
+    "file-type": "^16.3.0",
     "mime-types": "^2.1.29",
     "request": "^2.88.2"
   }
