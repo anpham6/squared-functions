@@ -557,7 +557,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 source = source.replace(new RegExp(Document.escapePattern(id), 'g'), base64Map[id]!);
             }
             if (instance.productionRelease) {
-                source = source.replace(new RegExp('(\\.\\./)*' + Document.escapePattern(instance.internalServerRoot), 'g'), '');
+                source = instance.removeServerRoot(source);
             }
             return source;
         };
@@ -576,6 +576,14 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
         for (const css of instance.cssFiles) {
+            if (instance.productionRelease) {
+                const inlineCssMap = css.inlineCssMap;
+                if (inlineCssMap) {
+                    for (const id in inlineCssMap) {
+                        inlineCssMap[id] = instance.removeServerRoot(inlineCssMap[id]!).replace(/^\//, '');
+                    }
+                }
+            }
             let source = replaceContent(this.getUTF8String(css, css.localUri));
             if (css.format) {
                 const result = await instance.transform('css', source, css.format);
@@ -1351,6 +1359,9 @@ class ChromeDocument extends Document implements IChromeDocument {
             file.filename = filename.replace(this.internalAssignUUID, format ? Document.generateUUID(format) : uuid.v4());
         }
     }
+    removeServerRoot(value: string) {
+        return value.replace(new RegExp('(\\.\\./)*' + Document.escapePattern(this.internalServerRoot), 'g'), '');
+    }
     addCopy(data: FileData, saveAs: string) {
         if (data.command && this.host) {
             const match = REGEXP_SRCSETSIZE.exec(data.command);
@@ -1437,7 +1448,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                         localStorage.delete(this._cloudCssMap[id]!);
                     }
                 }
-                tasks.push(fs.writeFile(item.localUri!, source, 'utf8'));
+                tasks.push(fs.writeFile(item.localUri!, source, 'utf8').then(() => item.sourceUTF8 = source).catch(err => {
+                    throw err;
+                }));
             }
         }
         if (tasks.length) {
@@ -1470,6 +1483,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
                 try {
                     fs.writeFileSync(htmlFile.localUri!, source, 'utf8');
+                    htmlFile.sourceUTF8 = source;
                 }
                 catch (err) {
                     this.writeFail(['Unable to write file', path.basename(htmlFile.localUri!)], err, this.logType.FILE);

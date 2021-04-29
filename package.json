@@ -3,9 +3,9 @@
   "version": "0.14.2",
   "description": "Parent folder for @squared-functions packages.",
   "scripts": {
-    "dev": "npm run build && copyfiles -a ./publish/**/**/**/* -u 1 ../squared/node_modules/@squared-functions && copyfiles -a ./publish/**/**/**/* -u 1 ../squared-express/node_modules/@squared-functions",
+    "dev": "npm run build && copyfiles -a ./publish/**/** -u 1 ../squared/node_modules/@squared-functions && copyfiles -a ./publish/**/** -u 1 ../squared-express/node_modules/@squared-functions",
     "prod": "rimraf build/* && eslint --fix ./src/**/*.ts && npm run build",
-    "build": "tsc && rollup --silent -c rollup.config.js && rollup --silent -c ./src/cloud/rollup.config.js && rollup --silent -c ./src/document/rollup.config.js && copyfiles -a ./src/**/*.d.ts -u 1 ./publish",
+    "build": "tsc && rollup --silent -c rollup.config.js && rollup --silent -c ./src/cloud/rollup.config.js && rollup --silent -c ./src/document/rollup.config.js && copyfiles -a ./src/**/**.d.ts -u 1 ./publish",
     "dev-publish": "npm publish --dry-run && cd publish && cd types && npm publish --dry-run && cd ../module && npm publish --dry-run && cd ../document && npm publish --dry-run && cd ../task && npm publish --dry-run && cd ../cloud && npm publish --dry-run && cd ../compress && npm publish --dry-run && cd ../image && npm publish --dry-run && cd ../watch && cd ../file-manager && npm publish --dry-run",
     "prod-publish": "npm publish && cd publish && cd types && npm publish && cd ../module && npm publish && cd ../document && npm publish && cd ../task && npm publish && cd ../cloud && npm publish && cd ../compress && npm publish && cd ../image && npm publish && cd ../watch && npm publish && cd ../file-manager && npm publish"
   },
@@ -25,6 +25,9 @@
   "license": "MIT",
   "homepage": "https://github.com/anpham6/squared-functions#readme",
   "devDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.13.1",
+    "@aws-sdk/client-s3": "^3.13.1",
+    "@aws-sdk/lib-dynamodb": "^3.13.1",
     "@azure/cosmos": "^3.11.0",
     "@azure/storage-blob": "^12.5.0",
     "@cloudant/cloudant": "^4.3.1",

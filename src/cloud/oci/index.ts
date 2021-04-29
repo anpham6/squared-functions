@@ -54,58 +54,55 @@ export async function deleteObjects(this: IModule, credential: OCIStorageCredent
 }
 
 export async function executeQuery(this: ICloud, credential: OCIDatabaseCredential, data: OCIDatabaseQuery, cacheKey?: string) {
-    let result: Undef<unknown[]>,
-        queryString = '';
+    const getConnection = () => createDatabaseClient.call(this, { ...credential });
     try {
         const { table, id, query, limit = 0 } = data;
-        if (table) {
-            const getConnection = () => createDatabaseClient.call(this, { ...credential });
-            queryString = table;
-            if (id) {
-                queryString += id;
+        let result: Undef<unknown[]>,
+            queryString = table!;
+        if (id) {
+            queryString += id;
+            if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+                return result;
+            }
+            const collection = await (await getConnection()).getSodaDatabase().openCollection(table!);
+            if (collection) {
+                const item = await collection.find().key(id).getOne();
+                if (item) {
+                    result = [item.getContent()];
+                }
+            }
+        }
+        else if (query && !Array.isArray(query)) {
+            const maxRows = Math.max(limit, 0);
+            if (typeof query === 'object') {
+                queryString += JSON.stringify(query) + maxRows;
                 if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
                     return result;
                 }
-                const collection = await (await getConnection()).getSodaDatabase().openCollection(table);
+                const collection = await (await getConnection()).getSodaDatabase().openCollection(table!);
                 if (collection) {
-                    const item = await collection.find().key(id).getOne();
-                    if (item) {
-                        result = [item.getContent()];
+                    let operation = collection.find().filter(query);
+                    if (maxRows > 0) {
+                        operation = operation.limit(maxRows);
                     }
+                    result = (await operation.getDocuments()).map(item => item.getContent());
                 }
             }
-            else if (query && !Array.isArray(query)) {
-                const maxRows = Math.max(limit, 0);
-                if (typeof query === 'object') {
-                    queryString += JSON.stringify(query) + maxRows;
-                    if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
-                        return result;
-                    }
-                    const collection = await (await getConnection()).getSodaDatabase().openCollection(table);
-                    if (collection) {
-                        let operation = collection.find().filter(query);
-                        if (maxRows > 0) {
-                            operation = operation.limit(maxRows);
-                        }
-                        result = (await operation.getDocuments()).map(item => item.getContent());
-                    }
+            else {
+                queryString += query + (data.params ? JSON.stringify(data.params) : '') + (data.options ? JSON.stringify(data.options) : '') + maxRows;
+                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+                    return result;
                 }
-                else {
-                    queryString += query + (data.params ? JSON.stringify(data.params) : '') + (data.options ? JSON.stringify(data.options) : '') + maxRows;
-                    if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
-                        return result;
-                    }
-                    result = (await (await getConnection()).execute(query, data.params || [], { ...data.options, outFormat: OUT_FORMAT_OBJECT, maxRows })).rows;
-                }
+                result = (await (await getConnection()).execute(query, data.params || [], { ...data.options, outFormat: OUT_FORMAT_OBJECT, maxRows })).rows;
             }
+        }
+        if (result) {
+            this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);
+            return result;
         }
     }
     catch (err) {
         this.writeFail(['Unable to execute DB query', data.service], err);
-    }
-    if (result) {
-        this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);
-        return result;
     }
     return [];
 }

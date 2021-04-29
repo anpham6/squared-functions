@@ -53,39 +53,36 @@ export async function deleteObjects(this: IModule, credential: IBMStorageCredent
 }
 
 export async function executeQuery(this: ICloud, credential: IBMDatabaseCredential, data: IBMDatabaseQuery, cacheKey?: string) {
-    let result: Undef<unknown[]>,
-        queryString = '';
     try {
         const { table, id, query, partitionKey = '', limit = 0 } = data;
-        if (table) {
-            const getScope = () => createDatabaseClient.call(this, { ...credential }).db.use(table);
+        const getScope = () => createDatabaseClient.call(this, { ...credential }).db.use(table!);
+        let result: Undef<unknown[]>,
             queryString = table + partitionKey;
-            if (id) {
-                queryString += id;
-                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
-                    return result;
-                }
-                const item = await getScope().get((partitionKey ? partitionKey + ':' : '') + id);
-                result = [item];
+        if (id) {
+            queryString += id;
+            if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+                return result;
             }
-            else if (query && typeof query === 'object') {
-                queryString += JSON.stringify(query) + limit;
-                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
-                    return result;
-                }
-                if (limit > 0) {
-                    query.limit = limit;
-                }
-                result = (partitionKey ? await getScope().partitionedFind(partitionKey, query) : await getScope().find(query)).docs;
+            const item = await getScope().get((partitionKey ? partitionKey + ':' : '') + id);
+            result = [item];
+        }
+        else if (query && typeof query === 'object') {
+            queryString += JSON.stringify(query) + limit;
+            if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+                return result;
             }
+            if (limit > 0) {
+                query.limit = limit;
+            }
+            result = (partitionKey ? await getScope().partitionedFind(partitionKey, query) : await getScope().find(query)).docs;
+        }
+        if (result) {
+            this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);
+            return result;
         }
     }
     catch (err) {
         this.writeFail(['Unable to execute DB query', data.service], err);
-    }
-    if (result) {
-        this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);
-        return result;
     }
     return [];
 }

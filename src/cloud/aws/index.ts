@@ -1,9 +1,10 @@
 import type { ICloud, IModule } from '../../types/lib';
 import type { CloudDatabase } from '../../types/lib/cloud';
-import type { ConfigurationOptions, SharedIniFileCredentials } from 'aws-sdk/lib/core';
+import type { ConfigurationOptions } from 'aws-sdk/lib/core';
 import type { ServiceConfigurationOptions } from 'aws-sdk/lib/service';
 
 import type * as aws from 'aws-sdk';
+import type * as awsS3 from 'aws-sdk/clients/s3';
 
 export interface AWSStorageCredential extends ConfigurationOptions {
     fromPath?: string;
@@ -22,19 +23,6 @@ const AccessControlPolicy: aws.S3.Types.AccessControlPolicy = {
         Permission: 'READ'
     }]
 };
-
-function getPublicReadPolicy(bucket: string) {
-    return JSON.stringify({
-        "Version": "2012-10-17",
-        "Statement": [{
-            "Sid": "PublicRead",
-            "Effect": "Allow",
-            "Principal": "*",
-            "Action": ["s3:GetObject", "s3:GetObjectVersion"],
-            "Resource": [`arn:aws:s3:::${bucket}/*`]
-        }]
-    });
-}
 
 function setPublicRead(this: IModule, s3: aws.S3, Bucket: string, service = 'aws') {
     const callback = (err: Null<Error>) => {
@@ -55,33 +43,46 @@ function setPublicRead(this: IModule, s3: aws.S3, Bucket: string, service = 'aws
     }
 }
 
+export function getPublicReadPolicy(bucket: string) {
+    return JSON.stringify({
+        "Version": "2012-10-17",
+        "Statement": [{
+            "Sid": "PublicRead",
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": ["s3:GetObject", "s3:GetObjectVersion"],
+            "Resource": [`arn:aws:s3:::${bucket}/*`]
+        }]
+    });
+}
+
 export function validateStorage(credential: AWSStorageCredential) {
-    return !!(credential.accessKeyId && credential.secretAccessKey || credential.fromPath || credential.profile || process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY || process.env.AWS_SDK_LOAD_CONFIG);
+    return !!(credential.accessKeyId && credential.secretAccessKey || credential.sessionToken || credential.fromPath || credential.profile || process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY || process.env.AWS_SDK_LOAD_CONFIG);
 }
 
 export function validateDatabase(credential: AWSDatabaseCredential, data: CloudDatabase) {
-    return validateStorage(credential) && !!(credential.region || credential.endpoint) && !!data.table;
+    return validateStorage(credential) && !!((credential.region || credential.endpoint) && data.table);
 }
 
 export function createStorageClient(this: IModule, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3') {
     try {
         if (service === 'aws') {
-            const AWS = require('aws-sdk');
+            const AWS = require('aws-sdk') as typeof aws;
             if (credential.fromPath) {
-                const s3 = new AWS.S3() as aws.S3;
+                const s3 = new AWS.S3();
                 s3.config.loadFromPath(credential.fromPath);
                 return s3;
             }
             let options: Undef<AWSStorageCredential>;
             if (credential.profile) {
-                options = new AWS.SharedIniFileCredentials(credential) as SharedIniFileCredentials;
+                options = new AWS.SharedIniFileCredentials(credential);
             }
-            else if (credential.accessKeyId && credential.secretAccessKey) {
+            else if (credential.accessKeyId && credential.secretAccessKey || credential.sessionToken) {
                 options = credential;
             }
-            return new AWS.S3(options) as aws.S3;
+            return new AWS.S3(options);
         }
-        const S3 = require(sdk) as Constructor<aws.S3>;
+        const S3 = require(sdk) as typeof awsS3;
         return new S3(credential);
     }
     catch (err) {
@@ -93,18 +94,18 @@ export function createStorageClient(this: IModule, credential: AWSStorageCredent
 export function createDatabaseClient(this: IModule, credential: AWSDatabaseCredential) {
     credential.endpoint ||= `https://dynamodb.${credential.region!}.amazonaws.com`;
     try {
-        const AWS = require('aws-sdk');
+        const AWS = require('aws-sdk') as typeof aws;
         let options: Undef<AWSDatabaseCredential>;
         if (credential.fromPath) {
             AWS.config.loadFromPath(credential.fromPath);
         }
         else if (credential.profile) {
-            options = new AWS.SharedIniFileCredentials(credential) as SharedIniFileCredentials;
+            options = new AWS.SharedIniFileCredentials(credential);
         }
-        else if (credential.accessKeyId && credential.secretAccessKey) {
+        else if (credential.accessKeyId && credential.secretAccessKey || credential.sessionToken) {
             options = credential;
         }
-        return new AWS.DynamoDB.DocumentClient(options) as aws.DynamoDB.DocumentClient;
+        return new AWS.DynamoDB.DocumentClient(options);
     }
     catch (err) {
         this.writeFail(['Install AWS SDK?', 'npm i aws-sdk']);
@@ -123,7 +124,7 @@ export async function createBucket(this: IModule, credential: ConfigurationOptio
         })
         .catch(async () => {
             const bucketRequest = { Bucket } as aws.S3.CreateBucketRequest;
-            if (credential.region) {
+            if (typeof credential.region === 'string' && credential.region !== 'us-east-1') {
                 bucketRequest.CreateBucketConfiguration = { LocationConstraint: credential.region };
             }
             return await s3.createBucket(bucketRequest).promise()
@@ -163,45 +164,42 @@ export async function deleteObjects(this: IModule, credential: AWSStorageCredent
 }
 
 export async function executeQuery(this: ICloud, credential: AWSDatabaseCredential, data: AWSDatabaseQuery, cacheKey?: string) {
-    let result: Undef<unknown[]>,
-        queryString = '';
     try {
-        const { table: TableName, id, query, partitionKey, limit = 0 } = data;
-        if (TableName) {
-            const getClient = () => createDatabaseClient.call(this, { ...credential });
-            queryString = TableName;
-            if (partitionKey && id) {
-                queryString += partitionKey + id;
-                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
-                    return result;
-                }
-                const output = await getClient().get({ TableName, Key: { [partitionKey]: id } }).promise();
-                if (output.Item) {
-                    result = [output.Item];
-                }
+        const { table, id, query, partitionKey, limit = 0 } = data;
+        const getClient = () => createDatabaseClient.call(this, { ...credential });
+        let result: Undef<unknown[]>,
+            queryString = table!;
+        if (partitionKey && id) {
+            queryString += partitionKey + id;
+            if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+                return result;
             }
-            else if (query && typeof query === 'object') {
-                queryString += JSON.stringify(query) + limit;
-                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
-                    return result;
-                }
-                query.TableName = TableName;
-                if (limit > 0) {
-                    query.Limit = limit;
-                }
-                const output = await getClient().query(query).promise();
-                if (output.Count && output.Items) {
-                    result = output.Items;
-                }
+            const output = await getClient().get({ TableName: table!, Key: { [partitionKey]: id } }).promise();
+            if (output.Item) {
+                result = [output.Item];
             }
+        }
+        else if (query && typeof query === 'object') {
+            queryString += JSON.stringify(query) + limit;
+            if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+                return result;
+            }
+            query.TableName = table!;
+            if (limit > 0) {
+                query.Limit = limit;
+            }
+            const output = await getClient().query(query).promise();
+            if (output.Count && output.Items) {
+                result = output.Items;
+            }
+        }
+        if (result) {
+            this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);
+            return result;
         }
     }
     catch (err) {
         this.writeFail(['Unable to execute DB query', data.service], err);
-    }
-    if (result) {
-        this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);
-        return result;
     }
     return [];
 }
@@ -214,7 +212,8 @@ if (typeof module !== 'undefined' && module.exports) {
         createDatabaseClient,
         createBucket,
         deleteObjects,
-        executeQuery
+        executeQuery,
+        getPublicReadPolicy
     };
     Object.defineProperty(module.exports, '__esModule', { value: true });
 }

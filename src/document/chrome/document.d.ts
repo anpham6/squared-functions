@@ -33,4 +33,5 @@ export interface IChromeDocument extends IDocument, DocumentOutput, CssSelectorD
     internalServerRoot: string;
     internalAssignUUID: string;
     baseUrl?: string;
+    removeServerRoot(value: string): string;
 }

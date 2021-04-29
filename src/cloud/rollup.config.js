@@ -32,6 +32,36 @@ export default [
         }
     },
     {
+        input: './build/cloud/aws-v3/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/cloud/aws-v3/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/cloud/aws-v3 ${version}\n   https://github.com/anpham6/squared-functions */\n`
+        }
+    },
+    {
+        input: './build/cloud/aws-v3/upload/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/cloud/aws-v3/upload/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/cloud/aws-v3/upload ${version}\n   https://github.com/anpham6/squared-functions */\n`
+        }
+    },
+    {
+        input: './build/cloud/aws-v3/download/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/cloud/aws-v3/download/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/cloud/aws-v3/download ${version}\n   https://github.com/anpham6/squared-functions */\n`
+        }
+    },
+    {
         input: './build/cloud/azure/index.js',
         treeshake: false,
         output: {

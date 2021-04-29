@@ -106,13 +106,12 @@ export async function deleteObjects(this: IModule, credential: AzureStorageCrede
 }
 
 export async function executeQuery(this: ICloud, credential: AzureDatabaseCredential, data: AzureDatabaseQuery, cacheKey?: string) {
-    let result: Undef<unknown[]>,
-        queryString = '';
     try {
         const { name, table, id, query, storedProcedureId, params, partitionKey = '', limit = 0 } = data;
-        if (table && name) {
-            const getContainer = () => createDatabaseClient.call(this, { ...credential }).database(name).container(table);
-            queryString = name + table + partitionKey + (data.options ? JSON.stringify(data.options) : '');
+        if (name) {
+            const getContainer = () => createDatabaseClient.call(this, { ...credential }).database(name).container(table!);
+            let result: Undef<unknown[]>,
+                queryString = name + table + partitionKey + (data.options ? JSON.stringify(data.options) : '');
             if (storedProcedureId && params) {
                 queryString += storedProcedureId + JSON.stringify(params);
                 if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
@@ -143,14 +142,14 @@ export async function executeQuery(this: ICloud, credential: AzureDatabaseCreden
                 }
                 result = (await getContainer().items.query(query, data.options).fetchAll()).resources;
             }
+            if (result) {
+                this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);
+                return result;
+            }
         }
     }
     catch (err) {
         this.writeFail(['Unable to execute DB query', data.service], err);
-    }
-    if (result) {
-        this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);
-        return result;
     }
     return [];
 }

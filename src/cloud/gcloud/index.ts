@@ -93,11 +93,11 @@ export async function deleteObjects(this: IModule, credential: GCloudStorageCred
 }
 
 export async function executeQuery(this: ICloud, credential: GCloudDatabaseCredential, data: GCloudDatabaseQuery, cacheKey?: string) {
-    const getClient = () => createDatabaseClient.call(this, { ...credential }, data);
-    let result: Undef<unknown[]>,
-        queryString = '';
     try {
         const { table, id, query, orderBy, limit = 0 } = data;
+        const getClient = () => createDatabaseClient.call(this, { ...credential }, data);
+        let result: Undef<unknown[]>,
+            queryString = '';
         if (typeof query === 'string') {
             queryString = query + (data.params ? JSON.stringify(data.params) : '') + (data.options ? JSON.stringify(data.options) : '') + limit;
             const options: gcb.Query = { ...data.options, query };
@@ -108,14 +108,14 @@ export async function executeQuery(this: ICloud, credential: GCloudDatabaseCrede
             const [job] = await (getClient() as gcb.BigQuery).createQueryJob(options);
             [result] = await job.getQueryResults();
         }
-        else if (table) {
-            queryString = table;
+        else {
+            queryString = table!;
             if (id) {
                 queryString += id;
                 if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
                     return result;
                 }
-                const item = await (getClient() as gcf.Firestore).collection(table).doc(id).get();
+                const item = await (getClient() as gcf.Firestore).collection(table!).doc(id).get();
                 result = [item.data()];
             }
             else if (Array.isArray(query)) {
@@ -123,7 +123,7 @@ export async function executeQuery(this: ICloud, credential: GCloudDatabaseCrede
                 if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
                     return result;
                 }
-                let collection = (getClient() as gcf.Firestore).collection(table) as gcf.Query<gcf.DocumentData>;
+                let collection = (getClient() as gcf.Firestore).collection(table!) as gcf.Query<gcf.DocumentData>;
                 for (const where of query) {
                     if (where.length === 3) {
                         collection = collection.where(where[0], where[1] as gcf.WhereFilterOp, where[2] );
@@ -142,13 +142,13 @@ export async function executeQuery(this: ICloud, credential: GCloudDatabaseCrede
                 result = (await collection.get()).docs.map(item => item.data());
             }
         }
+        if (result) {
+            this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);
+            return result;
+        }
     }
     catch (err) {
         this.writeFail(['Unable to execute DB query', data.service], err);
-    }
-    if (result) {
-        this.setDatabaseResult(data.service, credential, queryString, result, cacheKey);
-        return result;
     }
     return [];
 }

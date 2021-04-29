@@ -87,7 +87,7 @@ webp(50000)(800x600[bezier]^contain[right|bottom]#FFFFFF)(-50,50|200x200){45,135
 webp!opacity(0.5) // OR
 webp!op(0.5)
 
-webp~800w(800x600) // "srcset" attribute (chrome)
+webp~800w(800x600) // "srcset" (chrome)
 webp~2x(1024x768)
 ```
 
@@ -232,7 +232,7 @@ JS and CSS files can be bundled together with the "saveAs" or "exportAs" action.
 
 ```javascript
 
-+ saveAs: location | ~  // same
++ saveAs: location | ~  // Same
 + exportAs: location
 
 - ::
@@ -404,7 +404,7 @@ Custom plugins can also be installed from NPM. The function has to be named "tra
 }
 ```
 
-Custom asynchronous functions in settings is supported as of @squared-functions 0.14 (squared 2.5).
+NOTE: Custom asynchronous functions in settings are supported. (squared 2.5)
 
 ```javascript
 // es5.js
@@ -454,11 +454,10 @@ async function (context, value, options) {
 
 Transpiling with Babel is also configurable with a .babelrc file in the base folder.
 
-Here is the equivalent configuration in YAML/TOML and when available has higher precedence than JSON.
+Here is the equivalent configuration in YAML and when available has higher precedence than JSON.
 
 - [squared.settings.json](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.json)
 - [squared.settings.yml](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.yml)
-- [squared.settings.toml](https://github.com/anpham6/squared-functions/blob/master/examples/squared.settings.toml) (npm i toml)
 
 ### External configuration
 
@@ -484,7 +483,7 @@ interface AssetCommand extends OutputModifiers {
     filename?: string; // type: html | ...image
     process?: string[]; // type: js | css
     commands?: string[]; // type: image
-    download?: boolean; // Same as preserveCrossOrigin (default is "true")
+    download?: boolean; // Same as preserveCrossOrigin (default: "true")
     cloudStorage?: CloudService[];
     tasks?: string[];
     watch?: boolean | { interval?: number, expires?: string }; // type: js | css | image (expires: 1h 1m 1s)
@@ -495,13 +494,13 @@ interface AssetCommand extends OutputModifiers {
         value?: string;
     };
 
-    type: "text" | "attribute" | "display" // database
+    type: "text" | "attribute" | "display"
     dataSource?: {
         source: "uri";
         format: string; // json | yaml | toml
         uri: string;
     };
-    dataSource?: CloudDatabase; // source: "cloud"
+    dataSource?: CloudDatabase; // "cloud" (source)
     dataSource?: {
         source: "mongodb";
         // Same as CloudDatabase
@@ -597,7 +596,7 @@ Appends will fail if you remove the sibling selector element from the document.
 [
   {
     "selector": "title",
-    "type": "append/script", // all tags supported except "html"
+    "type": "append/script", // All tags supported except "html"
     "textContent": "\\nwindow.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;\\nga('create', 'UA-XXXXX-Y', 'auto');\\nga('send', 'pageview');\\n" // YAML "|" operator preserves indentation (optional)
   },
   {
@@ -605,7 +604,7 @@ Appends will fail if you remove the sibling selector element from the document.
     "type": "append/js", // prepend/css
     "download": false, // Explicit "false"
     "attributes": {
-      "src": "https://www.google-analytics.com/analytics.js", // css: href (required)
+      "src": "https://www.google-analytics.com/analytics.js", // CSS: href (required)
       "async": null
     }
   }
@@ -614,7 +613,7 @@ Appends will fail if you remove the sibling selector element from the document.
 
 If you are having replacement errors (useOriginalHtmlPage=true) then adding an id will usually be able to locate the element (data-chrome-id="111-111-111").
 
-NOTE: As of squared 2.4 the current state of the DOM (useOriginalHtmlPage=false) is sent to the server which including any updates made with JavaScript. (removeInlineStyles)
+NOTE: The current state of the DOM (useOriginalHtmlPage=false) is sent to the server including any updates made with JavaScript. (removeInlineStyles)
 
 ### Cloud storage
 
@@ -622,26 +621,33 @@ Manual installation of the SDK is required including an account with at least on
 
 ```xml
 * Amazon
-  - npm i aws-sdk
-  - AWS: https://aws.amazon.com/free (5GB - 12 months)
+  - https://aws.amazon.com/free (5GB - 12 months)
+
+  + npm i aws-sdk (aws)
+    <!-- OR -->
+  + npm i @aws-sdk/client-s3 (aws-v3)
 
 * Microsoft
-  - npm i @azure/storage-blob
-  - Azure: https://azure.microsoft.com/en-us/free (5GB - 12 months)
+  - https://azure.microsoft.com/en-us/free (5GB - 12 months)
+
+  + npm i @azure/storage-blob (azure)
 
 * Google
-  - npm i @google-cloud/storage
-  - GCloud: https://cloud.google.com/free (5GB - US)
+  - https://cloud.google.com/free (5GB - US)
+
+  + npm i @google-cloud/storage (gcloud)
 
 * IBM
-  - npm i ibm-cos-sdk
-  - IBM: https://www.ibm.com/cloud/free (25GB)
+  - https://www.ibm.com/cloud/free (25GB)
+
+  + npm i ibm-cos-sdk (ibm)
 
 * Oracle
-  - npm i aws-sdk
-  - OCI: https://www.oracle.com/cloud/free (10GB)
-  - Uses S3 compatibility API
+  - https://www.oracle.com/cloud/free (10GB)
+  - Uses S3 compatibility API (v2)
   - Cannot create new public buckets
+
+  + npm i aws-sdk (oci)
 ```
 
 Other service providers can be integrated similarly except for credential verification.
@@ -662,24 +668,26 @@ Other service providers can be integrated similarly except for credential verifi
       "credential": {
         "accessKeyId": "**********",
         "secretAccessKey": "**********",
-        "region": "us-west-2", // Custom properties are sent to the S3 client (optional)
-        "sessionToken": "**********" // optional
+        "region": "us-west-2",
+        "sessionToken": "**********" // Optional
       },
       "credential": "main", // OR: Load host configuration from settings at instantiation
+      /* Optional */
       "upload": {
-        "active": false, // Rewrites "src" to cloud storage location (optional)
-        "localStorage": false, // Remove current file from archive or local disk (optional)
-        "filename": "picture1.webp", // Choose a different bucket filename (optional)
-        "all": false, // Include transforms (optional)
-        "overwrite": false // Always use current filename (optional)
+        "active": false, // Rewrites "src" to cloud storage location
+        "localStorage": false, // Remove current file from archive or local disk
+        "filename": "picture1.webp", // Choose a different bucket filename
+        "all": false, // Include transforms
+        "overwrite": false // Always use current filename
       },
+      /* Optional */
       "download": {
-        "filename": "picture2.png",
-        "versionId": "12345", // Retrieve a previous file snapshot (optional)
-        "pathname": "download/images", // File adjacent or base directory when omitted (optional: Overrides "preservePath")
-        "active": false, // Always write file or rename to main file when same extension (optional)
-        "overwrite": false, // Always write file (optional)
-        "deleteObject": false // Remove if download success (optional)
+        "filename": "picture2.png", // Required
+        "versionId": "12345", // Retrieve a previous file snapshot
+        "pathname": "download/images", // File adjacent or base directory when omitted (overrides "preservePath")
+        "active": false, // Always write file or rename to main file when same extension
+        "overwrite": false, // Always write file
+        "deleteObject": false // Remove if download success
       }
     },
     {
@@ -692,8 +700,8 @@ Other service providers can be integrated similarly except for credential verifi
         "sharedAccessSignature": "**********"
       },
       "upload": {
-        "pathname": "a/b/c/", // Virtual directory in bucket (optional: Overrides "preservePath")
-        "endpoint": "http://squaredjs.azureedge.net/squared-002" // e.g. CDN (optional)
+        "pathname": "a/b/c/", // Virtual directory in bucket (overrides "preservePath")
+        "endpoint": "http://squaredjs.azureedge.net/squared-002" // e.g. CDN
       }
     },
     {
@@ -702,14 +710,16 @@ Other service providers can be integrated similarly except for credential verifi
       "credential": {
         "keyFilename": "./gcloud.json" // Path to JSON credentials
       },
+      /* Optional */
       "admin": {
-        "publicRead": false, // New buckets (optional: Not supported OCI)
-        "emptyBucket": false, // More convenient than using "overwrite" (optional),
+        "publicRead": false, // New buckets (OCI: not supported)
+        "emptyBucket": false, // More convenient than using "overwrite",
         "preservePath": false // Use current pathname as base directory
       },
+      /* Optional */
       "upload": {
         "active": false, // Implicity "publicRead: true" except when explicitly "publicRead: false"
-        "publicRead": false // User with "admin" privileges (optional: Not supported Azure and OCI)
+        "publicRead": false // User with "admin" privileges (Azure and OCI: not supported)
       }
     },
     {
@@ -748,12 +758,18 @@ squared.saveAs("index.zip", {
     saveAs: {
         html: {
             cloudStorage: [{ // Create static website
-                service: "aws",
+                service: "aws-v3",
                 bucket: "squared-001",
-                settings: "main",
+                credential: {
+                  credentials: {
+                    accessKeyId: "**********", // Only access key logins are supported with v3
+                    secretAccessKey: "**********"
+                  },
+                  region: "us-west-2"
+                },
                 upload: {
                     active: true,
-                    endpoint: "https://squared-001.s3.us-west-2.amazonaws.com",
+                    endpoint: "https://squared-001.s3.us-west-2.amazonaws.com", // Optional
                     overwrite: true
                 }
             }]
@@ -784,27 +800,35 @@ Each DocumentDB provider has a different query syntax. Consulting their document
 
 ```xml
 * Amazon DynamoDB
-  - npm i aws-sdk
-  - AWS: https://aws.amazon.com/dynamodb (25GB + 25 RCU/WCU)
+  - https://aws.amazon.com/dynamodb (25GB + 25 RCU/WCU)
+
+  + npm i aws-sdk (aws)
+    <!-- OR -->
+  + npm i @aws-sdk/client-dynamodb (aws-v3)
+  + npm i @aws-sdk/lib-dynamodb
 
 * Microsoft Cosmos DB
-  - npm i @azure/cosmos
-  - Azure: https://azure.microsoft.com/en-us/services/cosmos-db (5GB + 400RU/s)
+  - https://azure.microsoft.com/en-us/services/cosmos-db (5GB + 400RU/s)
+
+  + npm i @azure/cosmos (azure)
 
 * Google Firestore / BigQuery
-  - npm i @google-cloud/firestore
-  - npm i @google-cloud/bigquery
-  - GCloud: https://cloud.google.com/firestore (1GB + 50K/20K r/w@day)
-            https://cloud.google.com/bigquery (10GB + 1TB queries/month)
+  - https://cloud.google.com/firestore (1GB + 50K/20K r/w@day)
+  - https://cloud.google.com/bigquery (10GB + 1TB queries/month)
+
+  + npm i @google-cloud/firestore (gcloud)
+  + npm i @google-cloud/bigquery
 
 * IBM Cloudant
-  - npm i @cloudant/cloudant
   - IBM: https://www.ibm.com/cloud/cloudant (1GB + 20/10 r/w@sec)
 
+  + npm i @cloudant/cloudant (ibm)
+
 * Oracle Autonomous DB
-  - npm i oracledb
-  - OCI: https://www.oracle.com/autonomous-database (20GB)
-         https://www.oracle.com/autonomous-database/autonomous-json-database (Paid - 1TB)
+  - https://www.oracle.com/autonomous-database (20GB)
+  - https://www.oracle.com/autonomous-database/autonomous-json-database (Paid - 1TB)
+
+  + npm i oracledb (oci)
 ```
 
 ```javascript
@@ -852,7 +876,7 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
       "ExpressionAttributeNames": { "#name": "id" },
       "ExpressionAttributeValues": { ":value": "1" }
     },
-    "limit": 1, // optional
+    "limit": 1, // Optional
     "value": "<b>${title}</b>: ${description}" // Only one field per template literal (optional)
   }
 }
@@ -870,7 +894,7 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
     },
     "name": "squared", // Database name (required)
     "table": "demo",
-    "partitionKey": "Pictures", // optional
+    "partitionKey": "Pictures", // Optional
     "query": "SELECT * FROM c WHERE c.id = '1'", // OR: storedProcedureId + partitionKey? + params?
     "value": "<b>${__index__}. ${title}</b>: ${description}" // "__index__": Result row index value
   }
@@ -887,8 +911,8 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
       "keyFilename": "./gcloud.json"
     },
     "table": "demo",
-    "query": [["group", "==", "Firestore"], ["id", "==", "1"]], // where
-    "orderBy": [["title", "asc"]], // optional
+    "query": [["group", "==", "Firestore"], ["id", "==", "1"]], // API: where
+    "orderBy": [["title", "asc"]], // Optional
     "value": "{{if !expired}}<b>${title}</b>: ${description}{{else}}Expired{{end}}" // Non-nested single conditional truthy property checks
   }
 }
@@ -904,8 +928,8 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
       "keyFilename": "./gcloud.json"
     },
     "query": "SELECT name, count FROM `demo.names_2014` WHERE gender = 'M' ORDER BY count DESC LIMIT 10",
-    "limit": 5 // optional
-    "removeEmpty": false, // optional
+    "limit": 5 // Optional
+    "removeEmpty": false, // Optional
     "value": "<b>${name}</b>: ${count}"
   }
 }
@@ -962,10 +986,11 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
     "table": "demo",
     "id": "2", // OCI (server assigned)
     "partitionKey": "Pictures", // AWS (required) | Azure and IBM (optional)
-    "value": { // Result: { src: "", other: {} }
+    /* Result: { src: "", other: {} } */
+    "value": {
       "src": "src", // Use direct property access
       "alt": "{{if !expired}}other.alt{{else}}:text(Expired){{end}}", // Only one conditional per attribute
-      "style": [":join(; )" /* optional: " " */, "other.style[0]", "other.style[1]", ":text(display: none)"] // Same as: [":join(; )", "other.style", ":text(display: none)"]
+      "style": [":join(; )" /* " " (optional) */, "other.style[0]", "other.style[1]", ":text(display: none)"] // Same as: [":join(; )", "other.style", ":text(display: none)"]
     }
   }
 }
@@ -1026,8 +1051,7 @@ interface MongoDataSource {
     credential?: string | StandardMap;
     query?: FilterQuery<any>;
     value?: string | ObjectMap<string | string[]>;
-
-    // Same as CloudDatabase (except no "id")
+    /* Same as CloudDatabase (except no "id") */
 }
 ```
 
@@ -1040,7 +1064,7 @@ interface MongoDataSource {
   "dataSource": {
     "source": "mongodb",
 
-    // Choose one (required)
+    /* Choose one (required) */
     "uri": "mongodb://username@password:localhost:27017",
     "credential": { // Same as cloud database "db-main" (settings)
       "user": "**********",
@@ -1079,8 +1103,7 @@ interface MongoDataSource {
     "source": "mongodb",
     "uri": "mongodb://localhost:27017",
     "removeEmpty": true, // Includes invalid conditions (optional)
-
-    // Required
+    /* Required */
     "value": "attr1", // Remove when: null or undefined
     "value": "-attr2", // Remove when: attr2=falsey
     "value": "+attr3", // Remove when: attr3=truthy
@@ -1105,8 +1128,7 @@ interface UriDataSource {
     format: string; // json | yaml | toml
     uri: string;
     query?: string; // Uses JSONPath <https://github.com/dchester/jsonpath>
-
-    // Same as CloudDatabase (except no "id")
+    /* Same as CloudDatabase (except no "id") */
 }
 ```
 
@@ -1121,7 +1143,8 @@ interface UriDataSource {
     "format": "json",
     "uri": "http://localhost:3000/project/{{file}}.json", // Local files require read permissions
     "query": "$[1]" // Row #2 in result array (optional)
-    "value": { // Result: { src: "", other: {} }
+    /* Result: { src: "", other: {} } */
+    "value": {
       "src": "src",
       "alt": "other.alt"
     }
@@ -1151,7 +1174,7 @@ squared.saveAs("index.zip", {
     removeUnusedMedia: false, // @media
     removeUnusedSupports: false, // @supports
 
-    // Styles that should be kept which are still being used
+    /* Styles that should be kept which are still being used */
     retainUsedStyles: [
       /* CSS selectors (string | RegExp) */,
       /* CSS variables (string prefixed with '--') */,
@@ -1161,7 +1184,7 @@ squared.saveAs("index.zip", {
       /* CSS @supports (string enclosed within '|supports:(display: grid)|') */
     ],
 
-    // All attributes are optional
+    /* All attributes are optional */
     saveAs: {
         html: { filename: "index.html", format: "beautify", attributes: [{ name: "lang", value: "en" }] },
         script: { pathname: "../js", filename: "bundle.js", format: "es5+es5-minify" },
@@ -1193,11 +1216,12 @@ File watching is available with "copy" methods and uses HTTP HEAD requests to de
   "watch": {
     "interval": 100,
     "expires": "1h 1m 1s",
+    /* Optional */
     "reload": { // true
-      "socketId": "111-111-111" // Use same ID to reload multiple pages (optional)
-      "port": 80 // optional
-      "secure": false // Requires SSL key and cert (optional)
-      "module": false // "img" and "link" only (optional)
+      "socketId": "111-111-111" // Use same ID to reload multiple pages
+      "port": 80
+      "secure": false // Requires SSL key and cert
+      "module": false // "img" and "link" only
     }
   },
   "process": [
