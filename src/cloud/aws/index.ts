@@ -37,7 +37,7 @@ function getPublicReadPolicy(bucket: string) {
 }
 
 function setPublicRead(this: IModule, s3: aws.S3, Bucket: string, service = 'aws') {
-    const callback = (err: Null<Error>) => {
+    const callback = (err: Null<aws.AWSError>) => {
         if (!err) {
             this.formatMessage(this.logType.CLOUD, service, 'Grant public-read', Bucket, { titleColor: 'blue' });
         }
@@ -123,7 +123,7 @@ export async function createBucket(this: IModule, credential: ConfigurationOptio
         })
         .catch(async () => {
             const bucketRequest = { Bucket } as aws.S3.CreateBucketRequest;
-            if (credential.region) {
+            if (typeof credential.region === 'string' && credential.region !== 'us-east-1') {
                 bucketRequest.CreateBucketConfiguration = { LocationConstraint: credential.region };
             }
             return await s3.createBucket(bucketRequest).promise()
@@ -138,6 +138,9 @@ export async function createBucket(this: IModule, credential: ConfigurationOptio
                     if (err.code !== 'BucketAlreadyExists' && err.code !== 'BucketAlreadyOwnedByYou') {
                         this.formatFail(this.logType.CLOUD, service, ['Unable to create bucket', Bucket], err);
                         return false;
+                    }
+                    if (publicRead) {
+                        setPublicRead.call(this, s3, Bucket, service);
                     }
                     return true;
                 });

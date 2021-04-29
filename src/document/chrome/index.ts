@@ -148,7 +148,6 @@ function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: Docum
     if (cssFile.inlineContent) {
         return asset.relativeUri!;
     }
-    const splitPath = (value: string) => value.split(/[\\/]/).filter(segment => segment.trim());
     let fileDir = cssFile.pathname,
         assetDir = asset.pathname;
     if (fileDir === assetDir && (cssFile.moveTo || '') === (asset.moveTo || '')) {
@@ -172,6 +171,7 @@ function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: Docum
         }
         fileDir = Document.joinPath(cssFile.moveTo, cssFile.pathname);
     }
+    const splitPath = (value: string) => value.split(/[\\/]/).filter(segment => segment.trim());
     const prefix = splitPath(fileDir);
     const suffix = splitPath(assetDir);
     let found: Undef<boolean>;
@@ -1134,7 +1134,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     init(assets: DocumentAsset[], body: RequestBody) {
         assets.sort((a, b) => {
             if (a.bundleId && a.bundleId === b.bundleId) {
-                return a.bundleIndex! - b.bundleIndex!;
+                return b.bundleIndex! - a.bundleIndex!;
             }
             return 0;
         });
@@ -1289,7 +1289,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                         localStorage.delete(this._cloudCssMap[id]);
                     }
                 }
-                tasks.push(fs.writeFile(item.localUri!, source, 'utf8'));
+                tasks.push(fs.writeFile(item.localUri!, source, 'utf8').then(() => item.sourceUTF8 = source).catch(err => {
+                    throw err;
+                }));
             }
         }
         if (tasks.length) {
@@ -1322,6 +1324,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
                 try {
                     fs.writeFileSync(htmlFile.localUri!, source, 'utf8');
+                    htmlFile.sourceUTF8 = source;
                 }
                 catch (err) {
                     this.writeFail(['Unable to write file', path.basename(htmlFile.localUri!)], err, this.logType.FILE);

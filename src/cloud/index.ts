@@ -81,7 +81,7 @@ class Cloud extends Module implements ICloud {
                     this.writeFail(['Upload function not supported', storage.service], err);
                     continue;
                 }
-                const bucket = storage.bucket;
+                const { bucket, admin } = storage;
                 tasks.push(new Promise<void>(resolve => {
                     const uploadTasks: Promise<string>[] = [];
                     getFiles(instance, file, upload).forEach((group, index) => {
@@ -117,7 +117,7 @@ class Cloud extends Module implements ICloud {
                                                 else {
                                                     mimeType = mime.lookup(localUri) || file.mimeType;
                                                 }
-                                                uploadHandler({ buffer, upload, localUri, fileGroup, bucket, bucketGroup, filename, mimeType }, success);
+                                                uploadHandler({ buffer, admin, upload, localUri, fileGroup, bucket, bucketGroup, filename, mimeType }, success);
                                             }
                                             else {
                                                 this.writeFail(['Unable to read file', path.basename(localUri)], err, this.logType.FILE);
@@ -239,7 +239,7 @@ class Cloud extends Module implements ICloud {
                         if (filename) {
                             const localUri = item.localUri;
                             let valid = false,
-                                downloadUri = pathname ? path.join(this.baseDirectory, pathname.replace(/^([A-Z]:)?[\\/]+/i, '')) : data.admin?.preservePath && localUri ? path.join(path.dirname(localUri), filename) : path.join(this.baseDirectory, filename);
+                                downloadUri = pathname ? path.join(this.baseDirectory, pathname.replace(/^([A-Z]:)?[\\/]+/i, ''), filename) : data.admin?.preservePath && localUri ? path.join(path.dirname(localUri), filename) : path.join(this.baseDirectory, filename);
                             if (fs.existsSync(downloadUri)) {
                                 valid = !!(active || overwrite);
                             }
@@ -259,16 +259,18 @@ class Cloud extends Module implements ICloud {
                             }
                             if (valid) {
                                 const location = data.service + data.bucket + filename;
-                                if (downloadMap[location]) {
-                                    downloadMap[location].add(downloadUri);
+                                let download = downloadMap[location];
+                                if (download) {
+                                    download.add(downloadUri);
                                 }
                                 else {
+                                    download = new Set<string>([downloadUri]);
                                     try {
                                         tasks.push(cloud.downloadObject(data.service, cloud.getCredential(data), data.bucket!, data.download!, (value: Null<Buffer | string>) => {
                                             if (value) {
                                                 let destUri = '';
                                                 try {
-                                                    const items = Array.from(downloadMap[location]);
+                                                    const items = Array.from(download);
                                                     for (let i = 0, length = items.length; i < length; ++i) {
                                                         destUri = items[i];
                                                         if (typeof value === 'string') {
@@ -285,8 +287,8 @@ class Cloud extends Module implements ICloud {
                                                 }
                                             }
                                         }, bucketGroup));
-                                        downloadMap[location] = new Set<string>([downloadUri]);
-                                    }
+                                        downloadMap[location] = download;
+                                     }
                                     catch (err) {
                                         this.writeFail(['Download function not supported', data.service], err);
                                     }
@@ -325,11 +327,9 @@ class Cloud extends Module implements ICloud {
                         if (upload.filename) {
                             setUploadFilename(upload, Cloud.toPosix(upload.filename));
                         }
-                        if (upload.pathname) {
-                            upload.pathname = Cloud.toPosix(upload.pathname).replace(/^\/+/, '') + '/';
-                        }
-                        else if (data.admin?.preservePath && item.pathname) {
-                            upload.pathname = Cloud.toPosix(Module.joinPath(item.moveTo, item.pathname)) + '/';
+                        const pathname = upload.pathname || data.admin?.preservePath && item.pathname;
+                        if (pathname) {
+                            upload.pathname = Cloud.toPosix(pathname).replace(/^\/+/, '') + '/';
                         }
                     }
                 }

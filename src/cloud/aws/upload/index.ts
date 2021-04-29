@@ -10,23 +10,31 @@ import Module from '../../../module';
 
 import { AWSStorageCredential, createBucket, createStorageClient } from '../index';
 
-const BUCKET_MAP: ObjectMap<boolean> = {};
+const BUCKET_MAP = new Map<string, Promise<boolean>>();
 
 export default function upload(this: IModule, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3'): UploadCallback {
     const s3 = createStorageClient.call(this, credential, service, sdk);
     return async (data: UploadData, success: (value: string) => void) => {
         const Bucket = data.bucket ||= data.bucketGroup || uuid.v4();
         const admin = data.admin;
-        if (!BUCKET_MAP[service + Bucket] || admin?.publicRead) {
-            if (!await createBucket.call(this, credential, Bucket, admin?.publicRead, service, sdk)) {
-                success('');
-                return;
-            }
-            BUCKET_MAP[service + Bucket] = true;
+        const bucketKey = service + (credential.region || '') + Bucket;
+        let promise = BUCKET_MAP.get(bucketKey);
+        if (!promise) {
+            BUCKET_MAP.set(bucketKey, promise = createBucket.call(this, credential, Bucket, admin?.publicRead, service, sdk));
+        }
+        if (!await promise) {
+            success('');
+            return;
         }
         const localUri = data.localUri;
         const pathname = data.upload?.pathname || '';
         let filename = data.filename;
+        const errorResponse = (err: any) => {
+            BUCKET_MAP.delete(bucketKey);
+            this.formatFail(this.logType.CLOUD, service, ['Upload failed', err.Code === 'PermanentRedirect' && err.Endpoint ? err.Endpoint : path.basename(localUri)], err);
+            success('');
+            return false;
+        };
         if (!filename || !data.upload.overwrite) {
             filename ||= path.basename(localUri);
             try {
@@ -76,8 +84,8 @@ export default function upload(this: IModule, credential: AWSStorageCredential, 
                 return;
             }
         }
-        if (pathname) {
-            await s3.putObject({ Bucket, Key: pathname, Body: Buffer.from(''), ContentLength: 0 }).promise();
+        if (pathname && !await s3.putObject({ Bucket, Key: pathname, Body: Buffer.from(''), ContentLength: 0 }).promise().then(() => true).catch(err => errorResponse(err))) {
+            return;
         }
         const { active, publicRead, endpoint } = data.upload;
         const ACL = publicRead || active && publicRead !== false ? 'public-read' : '';
@@ -92,14 +100,13 @@ export default function upload(this: IModule, credential: AWSStorageCredential, 
             s3.upload({ Bucket, Key: pathname + Key[i], ACL, Body: Body[i], ContentType: ContentType[i] }, (err, result) => {
                 if (!err) {
                     const url = endpoint ? Module.joinPath(endpoint, result.Key) : result.Location;
-                    this.formatMessage(this.logType.CLOUD, service, 'Upload success', url);
                     if (i === 0) {
                         success(url);
                     }
+                    this.formatMessage(this.logType.CLOUD, service, 'Upload success', url);
                 }
                 else if (i === 0) {
-                    this.formatFail(this.logType.CLOUD, service, ['Upload failed', path.basename(localUri)], err);
-                    success('');
+                    errorResponse(err);
                 }
             });
         }
