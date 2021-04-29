@@ -1,6 +1,6 @@
 {
   "name": "@squared-functions/module",
-  "version": "0.14.3",
+  "version": "0.14.4",
   "description": "Module extension class for squared-functions",
   "main": "index.js",
   "types": "index.d.ts",
@@ -15,8 +15,8 @@
   "license": "MIT",
   "homepage": "https://github.com/anpham6/squared-functions#readme",
   "dependencies": {
-    "@squared-functions/types": "^0.14.3",
+    "@squared-functions/types": "^0.14.4",
     "uuid": "^8.3.2",
-    "chalk": "^4.1.0"
+    "chalk": "^4.1.1"
   }
 }
