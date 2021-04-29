@@ -21,6 +21,7 @@ let HTTP_MAP: FileWatchMap = {};
 let DISK_MAP: FileWatchMap = {};
 let PORT_MAP: ObjectMap<Server> = {};
 let SECURE_MAP: ObjectMap<Server> = {};
+let WATCH_MAP: ObjectMap<number> = {};
 
 function getPostFinalize(watch: FileWatch) {
     const { socketId, port } = watch;
@@ -29,12 +30,9 @@ function getPostFinalize(watch: FileWatch) {
         const server = watch.secure ? SECURE_MAP[port] : PORT_MAP[port];
         if (asset && server) {
             return (errors: string[]) => {
-                let type = asset.mimeType;
-                if (type[0] === '@') {
-                    type = type.substring(1);
-                }
                 const src = asset.cloudUrl || asset.relativeUri || '';
-                const hot = watch.hot && src && (type === 'text/css' || type.startsWith('image/')) ? (src.includes('?') ? '' : '?') + 'q=' + Date.now() : '';
+                const type = (asset.mimeType || '').replace(/[^A-Za-z\d/.+-]/g, '');
+                const hot = watch.hot && src && (type === 'text/css' || type.startsWith('image/')) ? (src.indexOf('?') !== -1 ? '' : '?') + 'q=' + Date.now() : '';
                 const data = JSON.stringify({ socketId, module: 'watch', action: 'modified', src, type, hot, errors });
                 for (const client of server.clients) {
                     if (client.readyState === WebSocket.OPEN) {
@@ -93,6 +91,7 @@ class Watch extends Module implements IWatch {
         DISK_MAP = {};
         PORT_MAP = {};
         SECURE_MAP = {};
+        WATCH_MAP = {};
     }
 
     private _sslKey = '';
@@ -182,9 +181,8 @@ class Watch extends Module implements IWatch {
                         }
                         const reload = watch.reload;
                         if (Module.isObject<WatchReload>(reload) && (socketId = reload.socketId)) {
-                            let wss: Server;
-                            port = reload.port;
-                            hot = reload.module;
+                            let wss: Undef<Server>;
+                            ({ port, module: hot } = reload);
                             if (reload.secure) {
                                 port ||= this.securePort;
                                 wss = SECURE_MAP[port];
@@ -288,7 +286,7 @@ class Watch extends Module implements IWatch {
                         }, interval);
                         (HTTP_MAP[uri] ||= new Map()).set(dest, { data, timeout: [timeout, interval] });
                     }
-                    else if (permission && (permission.hasUNCRead() && Module.isFileUNC(uri) || permission.hasDiskRead() && path.isAbsolute(uri))) {
+                    else if (permission && (Module.isFileUNC(uri) && permission.hasUNCRead() || path.isAbsolute(uri) && permission.hasDiskRead())) {
                         const previous = DISK_MAP[uri]?.get(dest);
                         if (previous) {
                             if (expires > previous.data.expires && previous.data.expires !== 0) {
@@ -307,11 +305,20 @@ class Watch extends Module implements IWatch {
                         }
                         const watcher = fs.watch(uri, (event, filename) => {
                             switch (event) {
-                                case 'change':
-                                    for (const input of DISK_MAP[uri].values()) {
-                                        this.modified(input.data);
+                                case 'change': {
+                                    const disk = DISK_MAP[uri];
+                                    if (disk) {
+                                        const mtime = Math.floor(fs.statSync(uri).mtimeMs);
+                                        const ptime = WATCH_MAP[uri] || 0;
+                                        if (mtime > ptime) {
+                                            for (const input of disk.values()) {
+                                                this.modified(input.data);
+                                            }
+                                            WATCH_MAP[uri] = Math.ceil(fs.statSync(uri).mtimeMs);
+                                        }
                                     }
                                     break;
+                                }
                                 case 'rename':
                                     if (timeout) {
                                         clearTimeout(timeout);
@@ -326,7 +333,7 @@ class Watch extends Module implements IWatch {
                     else {
                         continue;
                     }
-                    this.formatMessage(this.logType.WATCH, ' WATCH ', ['Start', interval + 'ms ' + (expires ? formatDate(expires) : 'never')], uri, { titleColor: 'blue' });
+                    this.formatMessage(this.logType.WATCH, 'WATCH', ['Start', interval + 'ms ' + (expires ? formatDate(expires) : 'never')], uri, { titleColor: 'blue' });
                 }
             }
         }
@@ -339,14 +346,12 @@ class Watch extends Module implements IWatch {
         }
     }
     setSSLKey(value: string) {
-        value = path.resolve(value);
-        if (fs.existsSync(value)) {
+        if (fs.existsSync(value = path.resolve(value))) {
             this._sslKey = value;
         }
     }
     setSSLCert(value: string) {
-        value = path.resolve(value);
-        if (fs.existsSync(value)) {
+        if (fs.existsSync(value = path.resolve(value))) {
             this._sslCert = value;
         }
     }
