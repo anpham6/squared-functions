@@ -1,6 +1,6 @@
-## squared-functions 0.14
+## squared-functions 1.0
 
-These are the available options when creating archives or copying files. Examples use squared 2.4 although the concepts can be used similarly with any NodeJS application.
+These are the available options when creating archives or copying files. Examples use squared 3.0 although the concepts can be used similarly with any NodeJS application.
 
 Using Express is not required.
 
