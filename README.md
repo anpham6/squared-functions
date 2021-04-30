@@ -519,7 +519,7 @@ Only one command per element is supported (except data sources) with the latter 
 - [YAML](https://github.com/anpham6/squared/blob/master/html/chrome/bundle.yml)
 
 ```javascript
-squared.saveAs("bundle.zip", { configUri: "http://localhost:3000/chrome/bundle.yml" });
+squared.saveAs("bundle.zip", { config: { uri: "http://localhost:3000/chrome/bundle.yml", mimeType: "text/yaml" } }); // "mimeType" (optional)
 ```
 
 Here is the equivalent page using only inline commands with "data-chrome-file" and "data-chrome-tasks".
@@ -754,7 +754,7 @@ Serving CSS files from cloud storage or CDN requires every image inside the file
 
 ```javascript
 squared.saveAs("index.zip", {
-    configUri: "http://localhost:3000/chrome/bundle.yml",
+    config: { uri: "http://localhost:3000/chrome/bundle.yml" },
     saveAs: {
         html: {
             cloudStorage: [{ // Create static website
@@ -1160,14 +1160,14 @@ The entire page can similarly be transformed as a group using the "saveAs" attri
 
 ```javascript
 squared.saveAs("index.zip", {
-    productionRelease: false || true || "/absolute/path/wwwroot/", // Ignore local url rewriting and load assets using absolute paths
+    productionRelease: false || true || "/absolute/path/wwwroot/", // Ignore local url rewriting and use absolute paths
     preserveCrossOrigin: false, // Ignore downloading a local copy of assets hosted on other domains
-    normalizeHtmlOutput: false, // Remove unnecessary self-closing and spaces inside elements
+    normalizeHtmlOutput: false, // Remove unnecessary spaces inside elements
     useOriginalHtmlPage: false, // May produce better results when using custom elements
 
     removeInlineStyles: false, // Strip style="" attribute from all elements (useOriginalHtmlPage: false)
-    removeUnusedSelectors: false, // Selectors with :pseudo-class (not recommend for pages with forms [:valid] and active states [:hover])
     removeUnusedClasses: false, // Selectors without :pseudo-class
+    removeUnusedPseudoClasses: false, // Selectors with :pseudo-class (not recommend with forms :valid and active states :hover)
     removeUnusedVariables: false, // --custom-variables
     removeUnusedFontFace: false, // @font-face
     removeUnusedKeyframes: false, // @keyframes

@@ -39,6 +39,8 @@ function applyFailStyle(options: LogMessageOptions = {}) {
     return options;
 }
 
+const useColor = (options: Undef<LogMessageOptions>) => !(options && options.useColor === false || SETTINGS.color === false);
+
 abstract class Module implements IModule {
     static LOG_TYPE = LOG_TYPE;
     static LOG_STYLE_FAIL: LogMessageOptions = { titleColor: 'white', titleBgColor: 'bgRed' };
@@ -125,7 +127,7 @@ abstract class Module implements IModule {
                 }
                 break;
         }
-        const useColor = !(options.useColor === false || SETTINGS.color === false);
+        const coloring = useColor(options);
         if (Array.isArray(value)) {
             const hint = value[1] as string;
             let length: number;
@@ -144,12 +146,12 @@ abstract class Module implements IModule {
                 value = value[0].padEnd(38);
                 if (length < 32) {
                     let padding = ' '.repeat(32 - length);
-                    if (useColor) {
+                    if (coloring) {
                         padding = chalk.blackBright(padding);
                     }
                     value += padding;
                 }
-                value += useColor ? chalk.blackBright('[') + formatHint(getHint()) + chalk.blackBright(']') : `[${getHint()}]`;
+                value += coloring ? chalk.blackBright('[') + formatHint(getHint()) + chalk.blackBright(']') : `[${getHint()}]`;
             }
             else {
                 value = value[0].padEnd(72);
@@ -165,7 +167,7 @@ abstract class Module implements IModule {
         if (message instanceof Error) {
             message = message.message;
         }
-        if (useColor) {
+        if (coloring) {
             const { titleColor = 'green', titleBgColor = 'bgBlack', valueColor, valueBgColor, messageColor, messageBgColor } = options;
             if (valueColor) {
                 value = chalk[valueColor](value);
@@ -405,7 +407,8 @@ abstract class Module implements IModule {
     }
     writeTimeProcess(title: string, value: string, time: number, options?: LogMessageOptions) {
         time = Date.now() - time;
-        Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, [value, time / 1000 + 's'], chalk.bgCyan('>'.repeat(Math.ceil(time / 250))), options);
+        const progress = '>'.repeat(Math.ceil(time / 250));
+        Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, [value, time / 1000 + 's'], useColor(options) ? chalk.bgCyan(progress) : progress, options);
     }
     writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions) {
         Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Complete', (Date.now() - time) / 1000 + 's'], value, options);

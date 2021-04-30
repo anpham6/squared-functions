@@ -749,7 +749,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     reject(new Error('Data source -> Invalid credentials (MongoDB)'));
                                                     return;
                                                 }
-                                                options.useUnifiedTopology = true;
+                                                if (!('useUnifiedTopology' in options)) {
+                                                    options.useUnifiedTopology = true;
+                                                }
                                                 client = await new MongoClient(uri, options).connect();
                                                 const collection = client.db(name).collection(table);
                                                 if (query) {

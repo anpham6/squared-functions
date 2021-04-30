@@ -103,7 +103,7 @@ export default function upload(this: IModule, config: AWSStorageConfig, service 
             const objectKey = pathname + Key[i];
             client.send(new AWS.PutObjectCommand({ Bucket, Key: objectKey, ACL, Body: Body[i], ContentType: ContentType[i] }))
                 .then(() => {
-                    const url = Module.joinPath(endpoint || `https://${Bucket}.s3.${config.region as Undef<string> || 'us-east-1'}.amazonaws.com`, objectKey);
+                    const url = Module.joinPath(endpoint || `https://${Bucket}.s3.${config.region === 'us-east-1' ? 'us-east-1.' : ''}amazonaws.com`, objectKey);
                     if (i === 0) {
                         success(url);
                     }
