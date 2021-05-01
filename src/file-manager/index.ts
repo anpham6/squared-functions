@@ -1,4 +1,4 @@
-import type { CompressFormat, DataSource, ElementAction, FileInfo, XmlTagNode } from '../types/lib/squared';
+import type { DataSource, ElementAction, FileInfo, XmlTagNode } from '../types/lib/squared';
 
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
@@ -43,7 +43,6 @@ function withinSizeRange(uri: string, value: Undef<string>) {
 }
 
 const concatString = (values: Undef<string[]>) => Array.isArray(values) ? values.reduce((a, b) => a + '\n' + b, '') : '';
-const findFormat = (compress: Undef<CompressFormat[]>, format: string) => Array.isArray(compress) ? compress.filter(item => item.format === format) : [];
 const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
 
 class FileManager extends Module implements IFileManager {
@@ -1049,7 +1048,7 @@ class FileManager extends Module implements IFileManager {
                     for (const file of files) {
                         const mimeType = mime.lookup(file);
                         if (mimeType && mimeType.startsWith('image/')) {
-                            for (const image of findFormat(item.compress, mimeType.split('/')[1])) {
+                            for (const image of item.compress) {
                                 if (withinSizeRange(file, image.condition)) {
                                     tasks.push(new Promise(resolve => {
                                         try {
