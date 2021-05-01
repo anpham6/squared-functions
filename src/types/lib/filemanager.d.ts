@@ -1,5 +1,3 @@
-import type { ExternalAsset } from './asset';
-
 export interface InstallData<T, U> {
     instance: T;
     constructor: U;
@@ -7,4 +5,4 @@ export interface InstallData<T, U> {
 }
 
 export type PerformAsyncTaskMethod = () => void;
-export type CompleteAsyncTaskCallback = (err?: Null<Error>, value?: unknown, parent?: ExternalAsset) => void;
+export type CompleteAsyncTaskCallback<T = unknown, U = unknown> = (err?: Null<Error>, value?: T, parent?: U) => void;
