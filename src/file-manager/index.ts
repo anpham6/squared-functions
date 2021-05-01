@@ -993,6 +993,26 @@ class FileManager extends Module implements IFileManager {
     }
     async finalize() {
         let tasks: Promise<unknown>[] = [];
+        const removeFiles = () => {
+            const filesToRemove = this.filesToRemove;
+            if (filesToRemove.size) {
+                for (const value of this.filesToRemove) {
+                    try {
+                        fs.unlinkSync(value);
+                        this.delete(value);
+                    }
+                    catch (err) {
+                        if (err.code !== 'ENOENT') {
+                            this.writeFail(['Unable to delete file', path.basename(value)], err, this.logType.FILE);
+                        }
+                        else {
+                            this.delete(value);
+                        }
+                    }
+                }
+                filesToRemove.clear();
+            }
+        };
         for (const [file, output] of this.filesToCompare) {
             const localUri = file.localUri!;
             let minFile = localUri,
@@ -1012,6 +1032,41 @@ class FileManager extends Module implements IFileManager {
                 this.replace(file, minFile);
             }
         }
+        removeFiles();
+        if (this.Compress) {
+            for (const item of this.assets) {
+                if (item.compress && !item.invalid) {
+                    const files = [item.localUri!];
+                    if (item.transforms) {
+                        files.push(...item.transforms);
+                    }
+                    for (const file of files) {
+                        if (this.has(file)) {
+                            const mimeType = mime.lookup(file);
+                            if (mimeType && mimeType.startsWith('image/')) {
+                                for (const image of item.compress) {
+                                    if (withinSizeRange(file, image.condition)) {
+                                        tasks.push(new Promise(resolve => {
+                                            try {
+                                                Compress.tryImage(file, image, resolve);
+                                            }
+                                            catch (err) {
+                                                this.writeFail(['Unable to compress image', path.basename(file)], err, this.logType.FILE);
+                                                resolve(null);
+                                            }
+                                        }));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (tasks.length) {
+                await Module.allSettled(tasks);
+                tasks = [];
+            }
+        }
         for (const { instance, constructor } of this.Document) {
             if (instance.assets.length) {
                 await constructor.finalize.call(this, instance);
@@ -1026,53 +1081,7 @@ class FileManager extends Module implements IFileManager {
             await Module.allSettled(tasks, 'Write modified files', this.errors);
             tasks = [];
         }
-        for (const value of this.filesToRemove) {
-            tasks.push(
-                fs.unlink(value)
-                    .then(() => this.delete(value))
-                    .catch(err => {
-                        if (err.code !== 'ENOENT') {
-                            this.writeFail(['Unable to delete file', path.basename(value)], err, this.logType.FILE);
-                        }
-                    })
-            );
-        }
-        if (tasks.length) {
-            await Module.allSettled(tasks);
-            tasks = [];
-        }
-        if (this.Compress) {
-            for (const item of this.assets) {
-                if (item.compress && !item.invalid) {
-                    const files = [item.localUri!];
-                    if (item.transforms) {
-                        files.push(...item.transforms);
-                    }
-                    for (const file of files) {
-                        const mimeType = mime.lookup(file);
-                        if (mimeType && mimeType.startsWith('image/')) {
-                            for (const image of item.compress) {
-                                if (withinSizeRange(file, image.condition)) {
-                                    tasks.push(new Promise(resolve => {
-                                        try {
-                                            Compress.tryImage(file, image, resolve);
-                                        }
-                                        catch (err) {
-                                            this.writeFail(['Unable to compress image', path.basename(file)], err, this.logType.FILE);
-                                            resolve(null);
-                                        }
-                                    }));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if (tasks.length) {
-                await Module.allSettled(tasks);
-                tasks = [];
-            }
-        }
+        removeFiles();
         if (this.taskAssets.length) {
             for (const { instance, constructor } of this.Task) {
                 const assets = this.taskAssets.filter(item => item.tasks!.find(data => data.handler === instance.moduleName && !data.preceding && item.localUri && !item.invalid));
@@ -1081,9 +1090,11 @@ class FileManager extends Module implements IFileManager {
                 }
             }
         }
+        removeFiles();
         if (this.Cloud) {
             await Cloud.finalize.call(this, this.Cloud);
         }
+        removeFiles();
         if (this.Compress) {
             for (const item of this.assets) {
                 if (item.compress && !item.invalid) {
