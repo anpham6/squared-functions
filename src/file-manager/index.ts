@@ -980,6 +980,26 @@ class FileManager extends Module implements IFileManager {
     }
     async finalize() {
         let tasks: Promise<unknown>[] = [];
+        const removeFiles = () => {
+            const filesToRemove = this.filesToRemove;
+            if (filesToRemove.size) {
+                for (const value of this.filesToRemove) {
+                    try {
+                        fs.unlinkSync(value);
+                        this.delete(value);
+                    }
+                    catch (err) {
+                        if (err.code !== 'ENOENT') {
+                            this.writeFail(['Unable to delete file', path.basename(value)], err, this.logType.FILE);
+                        }
+                        else {
+                            this.delete(value);
+                        }
+                    }
+                }
+                filesToRemove.clear();
+            }
+        };
         for (const [file, output] of this.filesToCompare) {
             const localUri = file.localUri!;
             let minFile = localUri,
@@ -999,35 +1019,7 @@ class FileManager extends Module implements IFileManager {
                 this.replace(file, minFile);
             }
         }
-        for (const { instance, constructor } of this.Document) {
-            if (instance.assets.length) {
-                await constructor.finalize.call(this, instance);
-            }
-        }
-        for (const item of this.assets) {
-            if (item.sourceUTF8 && !item.invalid) {
-                tasks.push(fs.writeFile(item.localUri!, item.sourceUTF8, 'utf8'));
-            }
-        }
-        if (tasks.length) {
-            await Module.allSettled(tasks, 'Write modified files', this.errors);
-            tasks = [];
-        }
-        for (const value of this.filesToRemove) {
-            tasks.push(
-                fs.unlink(value)
-                    .then(() => this.delete(value))
-                    .catch(err => {
-                        if (err.code !== 'ENOENT') {
-                            this.writeFail(['Unable to delete file', path.basename(value)], err, this.logType.FILE);
-                        }
-                    })
-            );
-        }
-        if (tasks.length) {
-            await Module.allSettled(tasks);
-            tasks = [];
-        }
+        removeFiles();
         if (this.Compress) {
             for (const item of this.assets) {
                 if (item.compress && !item.invalid) {
@@ -1062,6 +1054,21 @@ class FileManager extends Module implements IFileManager {
                 tasks = [];
             }
         }
+        for (const { instance, constructor } of this.Document) {
+            if (instance.assets.length) {
+                await constructor.finalize.call(this, instance);
+            }
+        }
+        for (const item of this.assets) {
+            if (item.sourceUTF8 && !item.invalid) {
+                tasks.push(fs.writeFile(item.localUri!, item.sourceUTF8, 'utf8'));
+            }
+        }
+        if (tasks.length) {
+            await Module.allSettled(tasks, 'Write modified files', this.errors);
+            tasks = [];
+        }
+        removeFiles();
         if (this.taskAssets.length) {
             for (const { instance, constructor } of this.Task) {
                 const assets = this.taskAssets.filter(item => item.tasks!.find(data => data.handler === instance.moduleName && !data.preceding && item.localUri && !item.invalid));
@@ -1070,9 +1077,11 @@ class FileManager extends Module implements IFileManager {
                 }
             }
         }
+        removeFiles();
         if (this.Cloud) {
             await Cloud.finalize.call(this, this.Cloud);
         }
+        removeFiles();
         if (this.Compress) {
             for (const item of this.assets) {
                 if (item.compress && !item.invalid) {
