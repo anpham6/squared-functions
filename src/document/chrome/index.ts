@@ -560,10 +560,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     }
                                     break;
                                 case 'mongodb': {
-                                    const { name, table, query } = item as MongoDataSource;
-                                    let { credential, uri, options } = item as MongoDataSource;
+                                    let { name, table, query, credential, uri, options = {} } = item as MongoDataSource; // eslint-disable-line prefer-const
                                     if ((credential || uri) && name && table) {
-                                        const key = JSON.stringify(credential || uri) + name + table + (query ? JSON.stringify(query) : '') + (limit || '') + (options ? JSON.stringify(options) : '');
+                                        const key = JSON.stringify(credential || uri) + name + table + (query ? JSON.stringify(query) : '') + (limit || '') + (Object.keys(options).length ? JSON.stringify(options) : '');
                                         if (key in cacheData) {
                                             result = cacheData[key] as PlainObject[];
                                         }
@@ -581,7 +580,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                         case 'MONGODB-X509': {
                                                             const { sslKey, sslCert, sslValidate } = credential;
                                                             if (sslKey && sslCert && path.isAbsolute(sslKey) && path.isAbsolute(sslCert) && fs.existsSync(sslKey) && fs.existsSync(sslCert)) {
-                                                                (options ||= {}).sslKey = fs.readFileSync(sslKey);
+                                                                options.sslKey = fs.readFileSync(sslKey);
                                                                 options.sslCert = fs.readFileSync(sslCert);
                                                                 if (typeof sslValidate === 'boolean') {
                                                                     options.sslValidate = sslValidate;
@@ -611,6 +610,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                 else {
                                                     reject(new Error('Invalid or missing credentials (MongoDB)'));
                                                     return;
+                                                }
+                                                if (!('useUnifiedTopology' in options)) {
+                                                    options.useUnifiedTopology = true;
                                                 }
                                                 client = await new MongoClient(uri, options).connect();
                                                 const collection = client.db(name).collection(table);
