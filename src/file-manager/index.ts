@@ -506,11 +506,14 @@ class FileManager extends Module implements IFileManager {
                 if (overwrite || !fs.existsSync(output) || fs.statSync(output).mtimeMs < this.startTime) {
                     tasks.push(
                         new Promise<void>(resolve => {
+                            const complete = (err?: Null<Error>) => {
+                                if (err) {
+                                    this.writeFail(['Unable to compress file', path.basename(localUri)], err, this.logType.FILE);
+                                }
+                                resolve();
+                            };
                             try {
                                 Compress.tryFile(localUri, output, data, (err?: Null<Error>, result?: string) => {
-                                    if (err) {
-                                        throw err;
-                                    }
                                     if (result) {
                                         if (data.condition?.includes('%') && Module.getFileSize(result) >= Module.getFileSize(localUri)) {
                                             try {
@@ -524,12 +527,11 @@ class FileManager extends Module implements IFileManager {
                                             this.add(result, file);
                                         }
                                     }
-                                    resolve();
+                                    complete(err);
                                 });
                             }
                             catch (err) {
-                                this.writeFail(['Unable to compress file', path.basename(localUri)], err, this.logType.FILE);
-                                resolve();
+                                complete(err);
                             }
                         })
                     );

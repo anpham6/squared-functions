@@ -18,9 +18,7 @@ async function readableAsBuffer(stream: Readable) {
             result = result ? Buffer.concat([result, buffer]) : buffer;
         });
         stream.on('end', () => resolve(result));
-        stream.on('error', err => {
-            throw err;
-        });
+        stream.on('error', () => resolve(null));
         stream.read();
     });
 }
@@ -32,30 +30,29 @@ export default function download(this: IModule, config: AWSStorageConfig, servic
         const { bucket: Bucket, download: Download } = data;
         const Key = Download && Download.filename;
         if (Bucket && Key) {
-            try {
-                const location = Module.joinPath(Bucket, Key);
-                const input: s3.GetObjectRequest = { Bucket, Key, VersionId: Download.versionId };
-                client.send(new AWS.GetObjectCommand(input)).then(async result => {
-                    this.formatMessage(this.logType.CLOUD, service, 'Download success', location);
-                    success(await readableAsBuffer(result.Body as Readable));
-                    if (Download.deleteObject) {
-                        client.send(new AWS.DeleteObjectCommand(input))
-                            .then(() => {
-                                this.formatMessage(this.logType.CLOUD, service, 'Delete success', location, { titleColor: 'grey' });
-                            })
-                            .catch(err => {
-                                this.formatFail(this.logType.CLOUD, service, ['Delete failed', location], err);
-                            });
-                    }
-                })
-                .catch(err => {
+            const location = Module.joinPath(Bucket, Key);
+            const complete = (err: Null<Error>, buffer: Null<Buffer> = null) => {
+                if (err || buffer) {
                     this.formatFail(this.logType.CLOUD, service, ['Download failed', location], err);
-                    success(null);
-                });
+                }
+                success(buffer);
+            };
+            try {
+                const input: s3.GetObjectRequest = { Bucket, Key, VersionId: Download.versionId };
+                client.send(new AWS.GetObjectCommand(input))
+                    .then(async result => {
+                        this.formatMessage(this.logType.CLOUD, service, 'Download success', location);
+                        complete(null, await readableAsBuffer(result.Body as Readable));
+                        if (Download.deleteObject) {
+                            client.send(new AWS.DeleteObjectCommand(input))
+                                .then(() => this.formatMessage(this.logType.CLOUD, service, 'Delete success', location, { titleColor: 'grey' }))
+                                .catch(err => this.formatFail(this.logType.CLOUD, service, ['Delete failed', location], err));
+                        }
+                    })
+                    .catch(err => complete(err));
             }
             catch (err) {
-                this.formatFail(this.logType.CLOUD, service, 'Unknown', err);
-                success(null);
+                complete(err);
             }
         }
         else {

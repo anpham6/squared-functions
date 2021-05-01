@@ -74,7 +74,9 @@ const Compress = new class extends Module implements ICompress {
                         }
                     })
                     .on('error', err => {
-                        throw err;
+                        if (callback) {
+                            callback(err);
+                        }
                     });
                 break;
             }
