@@ -26,7 +26,7 @@ const Compress = new class extends Module implements ICompress {
         }
     }
     getLevel(output: string, fallback?: number) {
-        const result = this.level[path.extname(output).substring(1).toLowerCase()];
+        const result = this.level[path.extname(output).substring(1).toLowerCase()]!;
         return !isNaN(result) ? result : fallback;
     }
     createWriteStreamAsGzip(uri: string, output: string, options?: CompressLevel) {
@@ -94,42 +94,49 @@ const Compress = new class extends Module implements ICompress {
         const ext = path.extname(uri).substring(1);
         const time = Date.now();
         const writeFile = (result: Buffer | Uint8Array) => {
-            fs.writeFile(uri, result, err => {
-                if (!err) {
-                    this.writeTimeElapsed(ext, path.basename(uri), time);
-                    if (callback) {
-                        callback(null);
-                    }
-                }
-                else {
-                    throw err;
-                }
-            });
+            fs.writeFileSync(uri, result);
+            this.writeTimeElapsed(ext, path.basename(uri), time);
+            if (callback) {
+                callback(null);
+            }
+        };
+        const writeError = (err: Error) => {
+            if (callback) {
+                callback(null);
+            }
+            this.writeFail(['Unable to compress image', path.basename(uri)], err, this.logType.FILE);
         };
         const loadBuffer = () => {
-            fs.readFile(uri, (err, buffer) => {
-                if (!err) {
-                    tinify.fromBuffer(buffer).toBuffer((err_1, result) => {
-                        if (!err_1 && result) {
-                            writeFile(result);
-                        }
-                        else {
-                            delete tinify['_key'];
-                            if (err_1) {
-                                throw err_1;
-                            }
-                        }
-                    });
-                }
-                else {
-                    throw err;
-                }
-            });
+            try {
+                tinify.fromBuffer(fs.readFileSync(uri)).toBuffer((err, result) => {
+                    if (!err && result) {
+                        writeFile(result);
+                    }
+                    else if (err) {
+                        writeError(err);
+                    }
+                    else if (callback) {
+                        callback(null);
+                    }
+                });
+            }
+            catch (err) {
+                writeError(err);
+            }
         };
         let apiKey: Undef<string>;
         if ((data.plugin ||= 'tinify') === 'tinify') {
-            if (data.options && (data.format === 'png' || data.format === 'jpeg')) {
-                apiKey = data.options.apiKey as Undef<string>;
+            if (data.options) {
+                if (data.format === 'png' || data.format === 'jpeg') {
+                    apiKey = data.options.apiKey as Undef<string>;
+                }
+                else {
+                    if (callback) {
+                        callback(null);
+                    }
+                    this.formatMessage(this.logType.COMPRESS, ext, ['Compression not supported', 'tinify:' + ext], uri, { titleColor: 'grey' });
+                    return;
+                }
             }
             if (!apiKey) {
                 throw new Error('Tinify API key not found');
@@ -144,7 +151,8 @@ const Compress = new class extends Module implements ICompress {
                         loadBuffer();
                     }
                     else {
-                        throw err;
+                        delete tinify['_key'];
+                        writeError(err);
                     }
                 });
             }
@@ -159,7 +167,7 @@ const Compress = new class extends Module implements ICompress {
                     writeFile(await plugin(data.options)(buffer));
                 }
                 else {
-                    throw err;
+                    writeError(err);
                 }
             });
         }

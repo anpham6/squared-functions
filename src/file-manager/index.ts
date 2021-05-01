@@ -1,4 +1,4 @@
-import type { CompressFormat, DataSource, ElementAction, XmlTagNode } from '../types/lib/squared';
+import type { DataSource, ElementAction, XmlTagNode } from '../types/lib/squared';
 
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
@@ -42,7 +42,6 @@ function withinSizeRange(uri: string, value: Undef<string>) {
 }
 
 const concatString = (values: Undef<string[]>) => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
-const findFormat = (compress: Undef<CompressFormat[]>, format: string) => compress ? compress.filter(item => item.format === format) : [];
 const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
 
 class FileManager extends Module implements IFileManager {
@@ -1037,19 +1036,21 @@ class FileManager extends Module implements IFileManager {
                         files.push(...item.transforms);
                     }
                     for (const file of files) {
-                        const mimeType = mime.lookup(file);
-                        if (mimeType && mimeType.startsWith('image/')) {
-                            for (const image of findFormat(item.compress, mimeType.split('/')[1])) {
-                                if (withinSizeRange(file, image.condition)) {
-                                    tasks.push(new Promise(resolve => {
-                                        try {
-                                            Compress.tryImage(file, image, resolve);
-                                        }
-                                        catch (err) {
-                                            this.writeFail(['Unable to compress image', path.basename(file)], err, this.logType.FILE);
-                                            resolve(null);
-                                        }
-                                    }));
+                        if (this.has(file)) {
+                            const mimeType = mime.lookup(file);
+                            if (mimeType && mimeType.startsWith('image/')) {
+                                for (const image of item.compress) {
+                                    if (withinSizeRange(file, image.condition)) {
+                                        tasks.push(new Promise(resolve => {
+                                            try {
+                                                Compress.tryImage(file, image, resolve);
+                                            }
+                                            catch (err) {
+                                                this.writeFail(['Unable to compress image', path.basename(file)], err, this.logType.FILE);
+                                                resolve(null);
+                                            }
+                                        }));
+                                    }
                                 }
                             }
                         }
