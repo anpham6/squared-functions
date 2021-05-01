@@ -1439,7 +1439,6 @@ class ChromeDocument extends Document implements IChromeDocument {
         const { host, localStorage } = state;
         const htmlFile = this.htmlFile;
         const cloudMap = this._cloudMap;
-        let tasks: Promise<unknown>[] = [];
         for (const item of this.cssFiles) {
             if (item.inlineCssMap) {
                 let source = host.getUTF8String(item);
@@ -1450,15 +1449,16 @@ class ChromeDocument extends Document implements IChromeDocument {
                         localStorage.delete(this._cloudCssMap[id]!);
                     }
                 }
-                tasks.push(fs.writeFile(item.localUri!, source, 'utf8').then(() => item.sourceUTF8 = source).catch(err => {
-                    throw err;
-                }));
+                try {
+                    fs.writeFileSync(item.localUri!, source, 'utf8');
+                    item.sourceUTF8 = source;
+                }
+                catch (err) {
+                    this.writeFail(['Cloud update "text/css"', path.basename(item.localUri!)], err, this.logType.FILE);
+                }
             }
         }
-        if (tasks.length) {
-            await Document.allSettled(tasks, ['Update "text/css" <cloud storage>', this.moduleName], host.errors);
-            tasks = [];
-        }
+        const tasks: Promise<unknown>[] = [];
         for (const item of this.cssFiles) {
             if (item.cloudStorage) {
                 if (item.compress) {
@@ -1468,7 +1468,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
         if (tasks.length) {
-            await Document.allSettled(tasks, ['Upload "text/css" <cloud storage>', this.moduleName], host.errors);
+            await Document.allSettled(tasks, ['Cloud upload "text/css"', this.moduleName], host.errors);
         }
         if (htmlFile) {
             if (Object.keys(cloudMap).length) {

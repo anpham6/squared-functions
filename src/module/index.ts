@@ -407,8 +407,8 @@ abstract class Module implements IModule {
     }
     writeTimeProcess(title: string, value: string, time: number, options?: LogMessageOptions) {
         time = Date.now() - time;
-        const progress = '>'.repeat(Math.ceil(time / 250));
-        Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, [value, time / 1000 + 's'], useColor(options) ? chalk.bgCyan(progress) : progress, options);
+        const meter = '>'.repeat(Math.ceil(time / 250));
+        Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, [value, time / 1000 + 's'], useColor(options) ? chalk.bgCyan(meter) : meter, options);
     }
     writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions) {
         Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Complete', (Date.now() - time) / 1000 + 's'], value, options);

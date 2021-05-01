@@ -410,15 +410,19 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                                 resolve(output);
                             }
                             else {
-                                fs.readFile(result, (err_2: Null<Error>, data: Buffer) => {
-                                    resolve(!err_2 ? data : null);
-                                    try {
-                                        fs.unlinkSync(result);
-                                    }
-                                    catch (err_3) {
-                                        this.writeFail(['Unable to delete file', path.basename(result)], err_3, this.logType.FILE);
-                                    }
-                                });
+                                try {
+                                    resolve(fs.readFileSync(result));
+                                }
+                                catch (err_2) {
+                                    resolve(null);
+                                    this.writeFail(['Unable to read file', path.basename(result)], err_2, this.logType.FILE);
+                                }
+                                try {
+                                    fs.unlinkSync(result);
+                                }
+                                catch (err_2) {
+                                    this.writeFail(['Unable to delete file', path.basename(result)], err_2, this.logType.FILE);
+                                }
                             }
                         }
                         else {

@@ -714,7 +714,7 @@ class FileManager extends Module implements IFileManager {
                 else {
                     completed.push(localUri);
                     if (copying?.length) {
-                        const tasks: string[] = [];
+                        const files: string[] = [];
                         const uriMap = new Map<string, ExternalAsset[]>();
                         for (const item of copying) {
                             const copyUri = item.localUri!;
@@ -729,26 +729,26 @@ class FileManager extends Module implements IFileManager {
                                     item.invalid = true;
                                     continue;
                                 }
-                                tasks.push(copyUri);
+                                files.push(copyUri);
                             }
                             items.push(item);
                             uriMap.set(copyUri, items);
                         }
-                        await Promise.all(tasks.map(copyUri => {
-                            return fs.copyFile(localUri, copyUri)
-                                .then(() => {
-                                    for (const queue of uriMap.get(copyUri)!) {
-                                        this.performAsyncTask();
-                                        this.transformAsset({ file: queue });
-                                    }
-                                })
-                                .catch(err => {
-                                    for (const queue of uriMap.get(copyUri)!) {
-                                        queue.invalid = true;
-                                    }
-                                    this.writeFail(['Unable to copy file', path.basename(localUri)], err, this.logType.FILE);
-                                });
-                        }));
+                        for (const copyUri of files) {
+                            try {
+                                fs.copyFileSync(localUri, copyUri);
+                                for (const queue of uriMap.get(copyUri)!) {
+                                    this.performAsyncTask();
+                                    this.transformAsset({ file: queue });
+                                }
+                            }
+                            catch (err) {
+                                for (const queue of uriMap.get(copyUri)!) {
+                                    queue.invalid = true;
+                                }
+                                this.writeFail(['Unable to copy file', path.basename(localUri)], err, this.logType.FILE);
+                            }
+                        }
                     }
                     if (ready) {
                         for (const item of ready) {
@@ -838,22 +838,25 @@ class FileManager extends Module implements IFileManager {
                 if (!checkQueue(item, localUri, true) && createFolder()) {
                     item.sourceUTF8 = item.content;
                     this.performAsyncTask();
-                    fs.writeFile(localUri, item.content, 'utf8', err => fileReceived(err));
+                    try {
+                        fs.writeFileSync(localUri, item.content, 'utf8');
+                        fileReceived();
+                    }
+                    catch (err) {
+                        fileReceived(err);
+                    }
                 }
             }
             else if (item.base64) {
-                if (createFolder()) {
-                    this.performAsyncTask();
-                    fs.writeFile(localUri, item.base64, 'base64', err => {
-                        if (!err) {
-                            this.transformAsset({ file: item });
-                        }
-                        else {
-                            item.invalid = true;
-                            this.completeAsyncTask(err);
-                        }
-                    });
-                }
+                fs.writeFile(localUri, item.base64, 'base64', err => {
+                    if (!err) {
+                        this.transformAsset({ file: item });
+                    }
+                    else {
+                        item.invalid = true;
+                        this.completeAsyncTask(err);
+                    }
+                });
             }
             else {
                 const uri = item.uri;
@@ -895,7 +898,7 @@ class FileManager extends Module implements IFileManager {
                                                     if (!fs.pathExistsSync(tempDir = path.join(tempDir, etag))) {
                                                         fs.mkdirSync(tempDir);
                                                     }
-                                                    fs.copyFile(localUri, path.join(tempDir, path.basename(localUri)));
+                                                    fs.copyFileSync(localUri, path.join(tempDir, path.basename(localUri)));
                                                 }
                                                 catch {
                                                 }
@@ -941,14 +944,14 @@ class FileManager extends Module implements IFileManager {
                                                             fileReceived();
                                                         }
                                                         else {
-                                                            fs.copyFile(tempUri, localUri, err => {
-                                                                if (!err) {
-                                                                    fileReceived();
-                                                                }
-                                                                else {
-                                                                    downloadUri(subDir);
-                                                                }
-                                                            });
+                                                            try {
+                                                                fs.copyFileSync(tempUri, localUri);
+                                                                fileReceived();
+                                                            }
+                                                            catch (err) {
+                                                                downloadUri(subDir);
+                                                                this.writeFail(['Unable to copy file', path.basename(tempUri)], err, this.logType.FILE);
+                                                            }
                                                         }
                                                         return;
                                                     }

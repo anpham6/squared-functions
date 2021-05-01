@@ -100,30 +100,29 @@ class Cloud extends Module implements ICloud {
                                 }
                                 uploadTasks.push(
                                     new Promise(success => {
-                                        fs.readFile(localUri, (err, buffer) => {
-                                            if (!err) {
-                                                let filename: Undef<string>;
-                                                if (index === 0) {
-                                                    if (file.cloudUrl) {
-                                                        filename = path.basename(file.cloudUrl);
-                                                    }
-                                                    else if (upload.filename) {
-                                                        filename = upload.filename;
-                                                    }
-                                                    else if (upload.overwrite) {
-                                                        filename = path.basename(localUri);
-                                                    }
+                                        try {
+                                            const buffer = fs.readFileSync(localUri);
+                                            let filename: Undef<string>;
+                                            if (index === 0) {
+                                                if (file.cloudUrl) {
+                                                    filename = path.basename(file.cloudUrl);
                                                 }
-                                                else {
-                                                    mimeType = mime.lookup(localUri) || file.mimeType;
+                                                else if (upload.filename) {
+                                                    filename = upload.filename;
                                                 }
-                                                uploadHandler({ buffer, admin, upload, localUri, fileGroup, bucket, bucketGroup, filename, mimeType }, success);
+                                                else if (upload.overwrite) {
+                                                    filename = path.basename(localUri);
+                                                }
                                             }
                                             else {
-                                                this.writeFail(['Unable to read file', path.basename(localUri)], err, this.logType.FILE);
-                                                success('');
+                                                mimeType = mime.lookup(localUri) || file.mimeType;
                                             }
-                                        });
+                                            uploadHandler({ buffer, admin, upload, localUri, fileGroup, bucket, bucketGroup, filename, mimeType }, success);
+                                        }
+                                        catch (err) {
+                                            this.writeFail(['Unable to read file', path.basename(localUri)], err, this.logType.FILE);
+                                            success('');
+                                        }
                                     })
                                 );
                                 if (index === 0) {
