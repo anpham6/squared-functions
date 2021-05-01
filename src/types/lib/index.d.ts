@@ -6,7 +6,7 @@ import type { CompressFormat, CompressLevel, DataSource, LocationUri, ViewEngine
 
 import type { ExternalAsset, FileData, FileOutput, OutputData } from './asset';
 import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload } from './cloud';
-import type { CompressTryFileMethod, CompressTryImageCallback } from './compress';
+import type { CompressTryFileMethod } from './compress';
 import type { ConfigOrTransformer, PluginConfig, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
 import type { CompleteAsyncTaskCallback, InstallData, PerformAsyncTaskMethod, PostFinalizeCallback } from './filemanager';
 import type { CropData, QualityData, ResizeData, RotateData } from './image';
@@ -32,7 +32,7 @@ declare namespace functions {
         createWriteStreamAsGzip(uri: string, output: string, options?: CompressLevel): WriteStream;
         createWriteStreamAsBrotli(uri: string, output: string, options?: CompressLevel): WriteStream;
         tryFile: CompressTryFileMethod;
-        tryImage(uri: string, data: CompressFormat, callback?: CompressTryImageCallback): void;
+        tryImage(uri: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<Buffer | Uint8Array>): void;
     }
 
     interface IImage extends IModule {
@@ -207,7 +207,7 @@ declare namespace functions {
         removeAsset(file: ExternalAsset): void;
         performAsyncTask: PerformAsyncTaskMethod;
         removeAsyncTask(): void;
-        completeAsyncTask: CompleteAsyncTaskCallback;
+        completeAsyncTask: CompleteAsyncTaskCallback<string, ExternalAsset>;
         performFinalize(): void;
         hasDocument(instance: IModule, document: Undef<StringOfArray>): boolean;
         getDocumentAssets(instance: IModule): ExternalAsset[];

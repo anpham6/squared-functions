@@ -1,7 +1,7 @@
 import type { CompressFormat, CompressLevel } from '../types/lib/squared';
 
 import type { ICompress } from '../types/lib';
-import type { CompressTryFileMethod, CompressTryImageCallback } from '../types/lib/compress';
+import type { CompressTryFileMethod } from '../types/lib/compress';
 import type { CompleteAsyncTaskCallback } from '../types/lib/filemanager';
 
 import path = require('path');
@@ -59,7 +59,7 @@ const Compress = new class extends Module implements ICompress {
             )
             .pipe(fs.createWriteStream(output));
     }
-    tryFile(uri: string, output: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback) {
+    tryFile(uri: string, output: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<string>) {
         const format = data.format;
         switch (format) {
             case 'gz':
@@ -86,27 +86,34 @@ const Compress = new class extends Module implements ICompress {
                     compressor.call(this, uri, output, data, callback);
                 }
                 else if (callback) {
-                    callback();
+                    callback(new Error('Compressor not found'));
                 }
                 break;
             }
         }
     }
-    tryImage(uri: string, data: CompressFormat, callback?: CompressTryImageCallback) {
+    tryImage(uri: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<Buffer | Uint8Array>) {
         const ext = path.extname(uri).substring(1);
         const time = Date.now();
-        const writeFile = (result: Buffer | Uint8Array) => {
-            fs.writeFileSync(uri, result);
-            this.writeTimeProcess(ext, path.basename(uri), time);
+        const writeError = (err?: Null<Error>) => {
             if (callback) {
-                callback(null);
+                callback(err);
+            }
+            else if (err) {
+                this.writeFail(['Unable to compress image', path.basename(uri)], err, this.logType.FILE);
             }
         };
-        const writeError = (err: Error) => {
-            if (callback) {
-                callback(null);
+        const writeFile = (result: Buffer | Uint8Array) => {
+            try {
+                fs.writeFileSync(uri, result);
+                this.writeTimeProcess(ext, path.basename(uri), time);
+                if (callback) {
+                    callback(null, result);
+                }
             }
-            this.writeFail(['Unable to compress image', path.basename(uri)], err, this.logType.FILE);
+            catch (err) {
+                writeError(err);
+            }
         };
         const loadBuffer = () => {
             try {
@@ -114,11 +121,8 @@ const Compress = new class extends Module implements ICompress {
                     if (!err && result) {
                         writeFile(result);
                     }
-                    else if (err) {
+                    else {
                         writeError(err);
-                    }
-                    else if (callback) {
-                        callback(null);
                     }
                 });
             }
@@ -134,7 +138,7 @@ const Compress = new class extends Module implements ICompress {
                 }
                 else {
                     if (callback) {
-                        callback(null);
+                        callback();
                     }
                     this.formatMessage(this.logType.COMPRESS, ext, ['Compression not supported', 'tinify:' + ext], uri, { titleColor: 'grey' });
                     return;
@@ -166,7 +170,12 @@ const Compress = new class extends Module implements ICompress {
             const plugin = require(data.plugin);
             fs.readFile(uri, async (err, buffer) => {
                 if (!err) {
-                    writeFile(await plugin(data.options)(buffer));
+                    try {
+                        writeFile(await plugin(data.options)(buffer));
+                    }
+                    catch (err_1) {
+                        writeError(err_1);
+                    }
                 }
                 else {
                     writeError(err);

@@ -508,7 +508,7 @@ class FileManager extends Module implements IFileManager {
                         new Promise<void>(resolve => {
                             const complete = (err?: Null<Error>) => {
                                 if (err) {
-                                    this.writeFail(['Unable to compress file', path.basename(localUri)], err, this.logType.FILE);
+                                    this.writeFail(['Unable to compress file', path.basename(localUri)], err);
                                 }
                                 resolve();
                             };
@@ -1034,27 +1034,34 @@ class FileManager extends Module implements IFileManager {
         removeFiles();
         if (this.Compress) {
             for (const item of this.assets) {
-                if (item.compress && !item.invalid) {
+                if (item.compress && item.mimeType?.startsWith('image/') && !item.invalid) {
                     const files = [item.localUri!];
                     if (item.transforms) {
                         files.push(...item.transforms);
                     }
                     for (const file of files) {
                         if (this.has(file)) {
-                            const mimeType = mime.lookup(file);
-                            if (mimeType && mimeType.startsWith('image/')) {
-                                for (const image of item.compress) {
-                                    if (withinSizeRange(file, image.condition)) {
-                                        tasks.push(new Promise(resolve => {
-                                            try {
-                                                Compress.tryImage(file, image, resolve);
+                            for (const image of item.compress) {
+                                if (withinSizeRange(file, image.condition)) {
+                                    tasks.push(new Promise(resolve => {
+                                        const complete = (err?: Null<Error>) => {
+                                            if (err) {
+                                                this.writeFail(['Unable to compress image', path.basename(file)], err);
                                             }
-                                            catch (err) {
-                                                this.writeFail(['Unable to compress image', path.basename(file)], err, this.logType.FILE);
-                                                resolve(null);
-                                            }
-                                        }));
-                                    }
+                                            resolve(null);
+                                        };
+                                        try {
+                                            Compress.tryImage(file, image, (err?: Null<Error>, value?: Null<unknown>) => {
+                                                if (file === item.localUri) {
+                                                    item.buffer = value instanceof Buffer ? value : undefined;
+                                                }
+                                                complete(err);
+                                            });
+                                        }
+                                        catch (err) {
+                                            complete(err);
+                                        }
+                                    }));
                                 }
                             }
                         }
