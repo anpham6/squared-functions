@@ -838,25 +838,22 @@ class FileManager extends Module implements IFileManager {
                 if (!checkQueue(item, localUri, true) && createFolder()) {
                     item.sourceUTF8 = item.content;
                     this.performAsyncTask();
-                    try {
-                        fs.writeFileSync(localUri, item.content, 'utf8');
-                        fileReceived();
-                    }
-                    catch (err) {
-                        fileReceived(err);
-                    }
+                    fs.writeFile(localUri, item.content, 'utf8', err => fileReceived(err));
                 }
             }
             else if (item.base64) {
-                fs.writeFile(localUri, item.base64, 'base64', err => {
-                    if (!err) {
-                        this.transformAsset({ file: item });
-                    }
-                    else {
-                        item.invalid = true;
-                        this.completeAsyncTask(err);
-                    }
-                });
+                if (createFolder()) {
+                    this.performAsyncTask();
+                    fs.writeFile(localUri, item.base64, 'base64', err => {
+                        if (!err) {
+                            this.transformAsset({ file: item });
+                        }
+                        else {
+                            item.invalid = true;
+                            this.completeAsyncTask(err);
+                        }
+                    });
+                }
             }
             else {
                 const uri = item.uri;
