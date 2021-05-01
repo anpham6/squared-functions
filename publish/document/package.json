@@ -1,6 +1,6 @@
 {
   "name": "@squared-functions/document",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Document functions for squared-functions",
   "main": "index.js",
   "types": "index.d.ts",
@@ -15,8 +15,8 @@
   "license": "MIT",
   "homepage": "https://github.com/anpham6/squared-functions#readme",
   "dependencies": {
-    "@squared-functions/module": "^1.0.0",
-    "@squared-functions/types": "^1.0.0",
+    "@squared-functions/module": "^1.0.1",
+    "@squared-functions/types": "^1.0.1",
     "fs-extra": "^9.1.0",
     "htmlparser2": "^6.1.0",
     "jsonpath": "^1.1.1",
