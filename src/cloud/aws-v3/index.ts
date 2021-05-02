@@ -2,7 +2,6 @@ import type { ICloud, IModule } from '../../types/lib';
 import type { CloudDatabase } from '../../types/lib/cloud';
 
 import type { Credentials } from '@aws-sdk/types';
-import type { EndpointsInputConfig, RegionInputConfig } from "@aws-sdk/config-resolver";
 
 import type * as s3 from '@aws-sdk/client-s3';
 import type * as dynamodb from '@aws-sdk/client-dynamodb';
@@ -10,11 +9,13 @@ import type * as documentdb from '@aws-sdk/lib-dynamodb';
 
 import { getPublicReadPolicy } from '../aws/index';
 
-export interface AWSStorageConfig extends RegionInputConfig {
+export interface AWSStorageConfig extends s3.S3ClientConfig {
     credentials: Credentials;
 }
 
-export interface AWSDatabaseConfig extends AWSStorageConfig, EndpointsInputConfig {}
+export interface AWSDatabaseConfig extends dynamodb.DynamoDBClientConfig {
+    credentials: Credentials;
+}
 
 export interface AWSDatabaseQuery extends CloudDatabase<dynamodb.QueryInput> {
     partitionKey?: string;
@@ -107,7 +108,9 @@ export async function deleteObjects(this: IModule, config: AWSStorageConfig, Buc
 }
 
 export async function executeQuery(this: ICloud, config: AWSDatabaseConfig, data: AWSDatabaseQuery, cacheKey?: string) {
-    config.endpoint ||= `https://dynamodb.${config.region as string}.amazonaws.com`;
+    if (!config.endpoint && typeof config.region === 'string') {
+        config.endpoint = `https://dynamodb.${config.region}.amazonaws.com`;
+    }
     try {
         const { DynamoDBClient } = require('@aws-sdk/client-dynamodb') as typeof dynamodb;
         try {
