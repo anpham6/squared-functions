@@ -247,7 +247,7 @@ class Watch extends Module implements IWatch {
                                 clearInterval(previous.timeout[0]!);
                             }
                             else {
-                                return;
+                                continue;
                             }
                         }
                         const timeout = setInterval(() => {
@@ -293,7 +293,7 @@ class Watch extends Module implements IWatch {
                                 clearTimeout(previous.timeout[0]!);
                             }
                             else {
-                                return;
+                                continue;
                             }
                         }
                         let timeout: Null<NodeJS.Timeout> = null;
