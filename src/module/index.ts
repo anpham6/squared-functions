@@ -39,6 +39,8 @@ const SETTINGS: LoggerModule = {
         }
     }
 };
+
+const PROCESS_VERSION = process.version.substring(1).split('.').map(value => +value) as [number, number, number];
 const ASYNC_FUNCTION = Object.getPrototypeOf(async () => {}).constructor as Constructor<FunctionType<Promise<string>, string>>;
 const HEX_STRING = '0123456789abcdef';
 
@@ -49,7 +51,7 @@ function allSettled<T>(values: readonly (T | PromiseLike<T>)[]) {
 function applyFailStyle(options: LogMessageOptions = {}) {
     for (const attr in Module.LOG_STYLE_FAIL) {
         if (!(attr in options)) {
-            options[attr] ||= Module.LOG_STYLE_FAIL[attr];
+            options[attr] = Module.LOG_STYLE_FAIL[attr];
         }
     }
     return options;
@@ -420,16 +422,12 @@ abstract class Module implements IModule {
         }
     }
 
-    major: number;
-    minor: number;
-    patch: number;
+    major = PROCESS_VERSION[0];
+    minor = PROCESS_VERSION[1];
+    patch = PROCESS_VERSION[2];
     tempDir = 'tmp';
     moduleName?: string;
     readonly errors: string[] = [];
-
-    constructor() {
-        [this.major, this.minor, this.patch] = process.version.substring(1).split('.').map(value => +value);
-    }
 
     supported(major: number, minor: number, patch = 0) {
         if (this.major < major) {
