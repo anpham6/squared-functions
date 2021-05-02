@@ -231,10 +231,10 @@ abstract class Module implements IModule {
                 }
                 message = ' ' + chalk.blackBright('(') + message + chalk.blackBright(')');
             }
-            console.log(chalk[titleBgColor].bold[titleColor](title) + chalk.blackBright(':') + ' ' + value + (message || ''));
+            console.log(chalk[titleBgColor].bold[titleColor](title) + chalk.blackBright(':') + ' ' + value + (SETTINGS.message !== false && message || ''));
         }
         else {
-            console.log(title + ': ' + value + (message ? ` (${message as string})` : ''));
+            console.log(title + ': ' + value + (message && SETTINGS.message !== false ? ` (${message as string})` : ''));
         }
     }
 
