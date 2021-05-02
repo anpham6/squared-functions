@@ -279,16 +279,22 @@ class FileManager extends Module implements IFileManager {
                 this.writeFail(['Unable to parse file:// protocol', uri], new Error('Path not absolute'));
             }
         }
-        file.pathname = Module.toPosix(file.pathname);
+        const segments: string[] = [];
+        if (file.moveTo) {
+            segments.push(file.moveTo);
+        }
+        if (file.pathname) {
+            segments.push(file.pathname);
+            file.pathname = Module.toPosix(file.pathname);
+        }
         if (file.document) {
             for (const { instance } of this.Document) {
                 if (instance.setLocalUri && this.hasDocument(instance, file.document)) {
-                    instance.setLocalUri(file, this);
+                    instance.setLocalUri(file);
                 }
             }
         }
-        const segments = [this.baseDirectory, file.moveTo, file.pathname].filter(value => value) as string[];
-        const pathname = segments.length > 1 ? path.join(...segments) : this.baseDirectory;
+        const pathname = segments.length ? path.join(this.baseDirectory, ...segments) : this.baseDirectory;
         const localUri = path.join(pathname, file.filename);
         file.localUri = localUri;
         file.relativeUri = this.getRelativeUri(file);
