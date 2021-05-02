@@ -32,7 +32,7 @@ export default function download(this: IModule, config: AWSStorageConfig, servic
         if (Bucket && Key) {
             const location = Module.joinPath(Bucket, Key);
             const complete = (err: Null<Error>, buffer: Null<Buffer> = null) => {
-                if (err || buffer) {
+                if (err || !buffer) {
                     this.formatFail(this.logType.CLOUD, service, ['Download failed', location], err);
                 }
                 success(buffer);
