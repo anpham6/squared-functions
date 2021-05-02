@@ -1,7 +1,7 @@
 /* eslint no-console: "off" */
 
 import type { IModule } from '../types/lib';
-import type { LogMessageOptions, LogValue } from '../types/lib/logger';
+import type { LogMessageOptions, LogValue, LoggerFormat } from '../types/lib/logger';
 import type { LoggerModule } from '../types/lib/module';
 import type { Settings } from '../types/lib/node';
 
@@ -19,11 +19,27 @@ export enum LOG_TYPE { // eslint-disable-line no-shadow
     WATCH = 16,
     FILE = 32,
     CLOUD = 64,
-    TIME_ELAPSED = 128
+    TIME_ELAPSED = 128,
+    TIME_PROCESS = 256,
+    FAIL = 512
 }
 
+const SETTINGS: LoggerModule = {
+    format: {
+        title: {
+            width: 6,
+            justify: 'right'
+        },
+        value: {
+            width: 71,
+            justify: 'left'
+        },
+        hint: {
+            width: 32
+        }
+    }
+};
 const ASYNC_FUNCTION = Object.getPrototypeOf(async () => {}).constructor as Constructor<FunctionType<Promise<string>, string>>;
-const SETTINGS: LoggerModule = {};
 const HEX_STRING = '0123456789abcdef';
 
 function allSettled<T>(values: readonly (T | PromiseLike<T>)[]) {
@@ -37,6 +53,50 @@ function applyFailStyle(options: LogMessageOptions = {}) {
         }
     }
     return options;
+}
+
+function applyFormatPadding(value: string, width: number, justify = 'left', paddingRight = 0) {
+    const offset = width - value.length;
+    if (offset > 0) {
+        switch (justify) {
+            case 'right':
+                value = value.padStart(width);
+                if (paddingRight === 0) {
+                    return value;
+                }
+                break;
+            case 'center':
+                value = value.padStart(value.length + Math.ceil(offset / 2));
+                break;
+        }
+        return value.padEnd(width + paddingRight);
+    }
+    else if (paddingRight > 0 && offset === 0) {
+        return value + (paddingRight === 1 ? ' ' : ' '.repeat(paddingRight));
+    }
+    return value;
+}
+
+function getFormatWidth(format: Undef<LoggerFormat>, fallback: number) {
+    if (format) {
+        const value = format.width;
+        if (typeof value === 'number' && value > 0) {
+            return value;
+        }
+    }
+    return fallback;
+}
+
+function getFormatJustify(format: Undef<LoggerFormat>, fallback?: Undef<string>) {
+    if (format) {
+        switch (format.justify) {
+            case 'left':
+            case 'center':
+            case 'right':
+                return format.justify;
+        }
+    }
+    return fallback || 'left';
 }
 
 const useColor = (options: Undef<LogMessageOptions>) => !(options && options.useColor === false || SETTINGS.color === false);
@@ -75,64 +135,62 @@ abstract class Module implements IModule {
     }
 
     static formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
-        switch (type) {
-            case LOG_TYPE.SYSTEM:
+        const format = SETTINGS.format ||= {};
+        let titleJustify = (type & LOG_TYPE.FAIL) === LOG_TYPE.FAIL ? 'center' : getFormatJustify(format.title, 'right');
+        if (type === 0) {
+            if (SETTINGS.unknown === false) {
+                return;
+            }
+        }
+        else if ((type & LOG_TYPE.FILE) && SETTINGS.file === false || (type & LOG_TYPE.CLOUD) && SETTINGS.cloud === false || (type & LOG_TYPE.COMPRESS) && SETTINGS.compress === false) {
+            return;
+        }
+        else {
+            if (type & LOG_TYPE.SYSTEM) {
                 if (SETTINGS.system === false) {
                     return;
                 }
-                break;
-            case LOG_TYPE.PROCESS:
-                if (SETTINGS.process === false) {
-                    return;
+                if (options.titleBgColor) {
+                    titleJustify = 'center';
                 }
-                options.titleColor ||= 'magenta';
-                break;
-            case LOG_TYPE.NODE:
+            }
+            if (type & LOG_TYPE.NODE) {
                 if (SETTINGS.node === false) {
                     return;
                 }
                 options.titleColor ||= 'black';
                 options.titleBgColor ||= 'bgWhite';
                 options.hintColor ||= 'yellow';
-                break;
-            case LOG_TYPE.COMPRESS:
-                if (SETTINGS.compress === false) {
+                titleJustify = 'center';
+            }
+            if (type & LOG_TYPE.PROCESS) {
+                if (SETTINGS.process === false) {
                     return;
                 }
-                break;
-            case LOG_TYPE.WATCH:
+                options.titleColor ||= 'magenta';
+            }
+            if (type & LOG_TYPE.WATCH) {
                 if (SETTINGS.watch === false) {
                     return;
                 }
-                break;
-            case LOG_TYPE.FILE:
-                if (SETTINGS.file === false) {
-                    return;
-                }
-                break;
-            case LOG_TYPE.CLOUD:
-                if (SETTINGS.cloud === false) {
-                    return;
-                }
-                break;
-            case LOG_TYPE.TIME_ELAPSED:
+                titleJustify = 'center';
+            }
+            if (type & LOG_TYPE.TIME_ELAPSED) {
                 if (SETTINGS.time_elapsed === false) {
                     return;
                 }
-                options.hintColor ||= 'yellow';
-                break;
-            default:
-                if (SETTINGS.unknown === false) {
-                    return;
+                if (options.titleBgColor) {
+                    titleJustify = 'center';
                 }
-                break;
+                options.hintColor ||= 'yellow';
+            }
         }
-        const coloring = useColor(options);
+        const valueWidth = getFormatWidth(format.value, 71);
         if (Array.isArray(value)) {
-            const hint = value[1] as string;
-            let length: number;
-            if (this.isString(hint) && (length = hint.length)) {
-                const getHint = () => length > 32 ? hint.substring(0, 29) + '...' : hint;
+            const hint = value[1];
+            if (this.isString(hint)) {
+                const hintWidth = getFormatWidth(format.hint, 32);
+                const getHint = () => hint.length > hintWidth ? hint.substring(0, hintWidth - 3) + '...' : hint;
                 const formatHint = (content: string) => {
                     const { hintColor, hintBgColor } = options;
                     if (hintColor) {
@@ -143,31 +201,20 @@ abstract class Module implements IModule {
                     }
                     return content;
                 };
-                value = value[0].padEnd(38);
-                if (length < 32) {
-                    let padding = ' '.repeat(32 - length);
-                    if (coloring) {
-                        padding = chalk.blackBright(padding);
-                    }
-                    value += padding;
-                }
-                value += coloring ? chalk.blackBright('[') + formatHint(getHint()) + chalk.blackBright(']') : `[${getHint()}]`;
+                value = applyFormatPadding(value[0], valueWidth - Math.min(hint.length, hintWidth) - 2, getFormatJustify(format.value)) + (useColor(options) ? chalk.blackBright('[') + formatHint(getHint()) + chalk.blackBright(']') : `[${getHint()}]`);
             }
             else {
-                value = value[0].padEnd(72);
+                value = applyFormatPadding(value[0], valueWidth, getFormatJustify(format.value));
             }
         }
         else {
-            value = value.padEnd(72);
+            value = applyFormatPadding(value, valueWidth, getFormatJustify(format.value));
         }
-        title = title.toUpperCase();
-        if (title.length < 7) {
-            title = (title + ' ').padStart(7);
-        }
+        title = applyFormatPadding(title.toUpperCase(), getFormatWidth(format.title, 7), titleJustify, 1);
         if (message instanceof Error) {
             message = message.message;
         }
-        if (coloring) {
+        if (useColor(options)) {
             const { titleColor = 'green', titleBgColor = 'bgBlack', valueColor, valueBgColor, messageColor, messageBgColor } = options;
             if (valueColor) {
                 value = chalk[valueColor](value);
@@ -402,23 +449,21 @@ abstract class Module implements IModule {
     getTempDir(uuidDir?: boolean, filename = '') {
         return process.cwd() + path.sep + this.tempDir + path.sep + (uuidDir ? uuid.v4() + path.sep : '') + (filename[0] === '.' ? uuid.v4() : '') + filename;
     }
-    writeFail(value: LogValue, message?: Null<Error>, type?: LOG_TYPE) {
-        this.formatFail(type || LOG_TYPE.SYSTEM, ' FAIL! ', value, message);
+    writeFail(value: LogValue, message?: Null<Error>, type: LOG_TYPE = LOG_TYPE.SYSTEM) {
+        type |= LOG_TYPE.FAIL;
+        this.formatFail(type, 'FAIL!', value, message);
     }
     writeTimeProcess(title: string, value: string, time: number, options?: LogMessageOptions) {
         time = Date.now() - time;
         const meter = '>'.repeat(Math.ceil(time / 250));
-        Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, [value, time / 1000 + 's'], useColor(options) ? chalk.bgCyan(meter) : meter, options);
+        Module.formatMessage(LOG_TYPE.TIME_PROCESS, title, [value, time / 1000 + 's'], useColor(options) ? chalk.bgCyan(meter) : meter, options);
     }
     writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions) {
         Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Complete', (Date.now() - time) / 1000 + 's'], value, options);
     }
     formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: Null<Error>, options?: LogMessageOptions) {
-        const padding = 7 - title.length;
-        if (padding > 1) {
-            title = title.padStart(title.length + Math.floor(padding / 2));
-        }
-        Module.formatMessage(type, title.padEnd(7), value, message, applyFailStyle(options));
+        type |= LOG_TYPE.FAIL;
+        Module.formatMessage(type, title, value, message, applyFailStyle(options));
         if (message) {
             this.errors.push(message instanceof Error ? message.message : (message as string).toString());
         }

@@ -11,7 +11,9 @@ export enum LOG_TYPE {
     WATCH = 16,
     FILE = 32,
     CLOUD = 64,
-    TIME_ELAPSED = 128
+    TIME_ELAPSED = 128,
+    TIME_PROCESS = 256,
+    FAIL = 512
 }
 
 export interface LogMessageOptions {
@@ -24,6 +26,11 @@ export interface LogMessageOptions {
     hintBgColor?: typeof BackgroundColor;
     messageColor?: typeof ForegroundColor;
     messageBgColor?: typeof BackgroundColor;
+}
+
+export interface LoggerFormat {
+    width?: number;
+    justify?: "left" | "center" | "right";
 }
 
 export type LogValue = string | [string, Optional<string>];
