@@ -1,6 +1,6 @@
 {
   "name": "@squared-functions/task",
-  "version": "0.14.4",
+  "version": "0.15.0",
   "description": "Task functions for squared-functions",
   "main": "index.js",
   "types": "index.d.ts",
@@ -15,8 +15,8 @@
   "license": "MIT",
   "homepage": "https://github.com/anpham6/squared-functions#readme",
   "dependencies": {
-    "@squared-functions/module": "^0.14.4",
-    "@squared-functions/types": "^0.14.4",
+    "@squared-functions/module": "^0.15.0",
+    "@squared-functions/types": "^0.15.0",
     "fs-extra": "^9.1.0"
   }
 }
