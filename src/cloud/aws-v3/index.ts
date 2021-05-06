@@ -1,7 +1,7 @@
 import type { ICloud, IModule } from '../../types/lib';
 import type { CloudDatabase } from '../../types/lib/cloud';
 
-import type { Credentials } from '@aws-sdk/types';
+import type { Credentials, Provider } from '@aws-sdk/types';
 
 import type * as s3 from '@aws-sdk/client-s3';
 import type * as dynamodb from '@aws-sdk/client-dynamodb';
@@ -9,8 +9,11 @@ import type * as documentdb from '@aws-sdk/lib-dynamodb';
 
 import { getPublicReadPolicy } from '../aws/index';
 
+import { fromIni } from '@aws-sdk/credential-provider-ini';
+
 export interface AWSStorageConfig extends s3.S3ClientConfig {
-    credentials: Credentials;
+    credentials: Credentials | Provider<Credentials>;
+    profile?: string;
 }
 
 export interface AWSDatabaseConfig extends dynamodb.DynamoDBClientConfig {
@@ -32,7 +35,11 @@ function setPublicRead(this: IModule, S3: typeof s3, client: s3.S3Client, Bucket
 }
 
 export function validateStorage(config: AWSStorageConfig) {
-    const credentials = config.credentials;
+    if (config.profile) {
+        config.credentials = fromIni(config);
+        return true;
+    }
+    const credentials = config.credentials as Credentials;
     return !!credentials && !!(credentials.accessKeyId && credentials.secretAccessKey || credentials.sessionToken);
 }
 
