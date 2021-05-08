@@ -68,6 +68,29 @@ function clearCache(items: ExternalAsset[]) {
 const formatDate = (value: number) => new Date(value).toLocaleString().replace(/\/20\d+, /, '@').replace(/:\d+ (AM|PM)$/, (...match) => match[1]);
 
 class Watch extends Module implements IWatch {
+    static parseExpires(value: string, start = 0) {
+        let result = 0;
+        const match = /^\s*(?:([\d.]+)\s*h)?(?:\s*([\d.]+)\s*m)?(?:\s*([\d.]+)\s*s)?\s*$/i.exec(value);
+        if (match) {
+            if (match[1]) {
+                result += +match[1] * 1000 * 60 * 60 || 0;
+            }
+            if (match[2]) {
+                result += +match[2] * 1000 * 60 || 0;
+            }
+            if (match[3]) {
+                result += +match[3] * 1000 || 0;
+            }
+            if (result > 0) {
+                result += start;
+            }
+            else {
+                result = 0;
+            }
+        }
+        return result;
+    }
+
     static shutdown() {
         for (const item of [HTTP_MAP, DISK_MAP]) {
             for (const uri in item) {
@@ -155,30 +178,15 @@ class Watch extends Module implements IWatch {
                         delete map[input.uri];
                     };
                     let expires = 0,
+                        id: Undef<string>,
                         port: Undef<number>,
                         socketId: Undef<string>,
                         secure: Undef<boolean>,
                         hot: Undef<boolean>;
                     if (typeof watch === 'object') {
+                        id = watch.id;
                         if (watch.expires) {
-                            const match = /^\s*(?:([\d.]+)\s*h)?(?:\s*([\d.]+)\s*m)?(?:\s*([\d.]+)\s*s)?\s*$/i.exec(watch.expires);
-                            if (match) {
-                                if (match[1]) {
-                                    expires += parseFloat(match[1]) * 1000 * 60 * 60 || 0;
-                                }
-                                if (match[2]) {
-                                    expires += parseFloat(match[2]) * 1000 * 60 || 0;
-                                }
-                                if (match[3]) {
-                                    expires += parseFloat(match[3]) * 1000 || 0;
-                                }
-                                if (expires > 0) {
-                                    expires += start;
-                                }
-                                else {
-                                    expires = 0;
-                                }
-                            }
+                            expires = Watch.parseExpires(watch.expires, start);
                         }
                         const reload = watch.reload;
                         if (Module.isObject<WatchReload>(reload) && (socketId = reload.socketId)) {
@@ -230,6 +238,7 @@ class Watch extends Module implements IWatch {
                         etag,
                         assets,
                         start,
+                        id,
                         interval,
                         socketId,
                         port,
@@ -244,7 +253,7 @@ class Watch extends Module implements IWatch {
                         const http = HTTP_MAP[uri];
                         const previous = http?.get(dest);
                         if (previous) {
-                            if (expires > previous.data.expires || expires === previous.data.expires && interval < previous.timeout[1]) {
+                            if (id && previous.data.id === id || expires > previous.data.expires || expires === previous.data.expires && interval < previous.timeout[1]) {
                                 clearInterval(previous.timeout[0]!);
                             }
                             else {
@@ -290,7 +299,7 @@ class Watch extends Module implements IWatch {
                     else if (permission && (Module.isFileUNC(uri) && permission.hasUNCRead(uri) || path.isAbsolute(uri) && permission.hasDiskRead(uri))) {
                         const previous = DISK_MAP[uri]?.get(dest);
                         if (previous) {
-                            if (expires > previous.data.expires && previous.data.expires !== 0) {
+                            if (id && previous.data.id === id || expires > previous.data.expires && previous.data.expires !== 0) {
                                 clearTimeout(previous.timeout[0]!);
                             }
                             else {

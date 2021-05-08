@@ -120,6 +120,7 @@ export interface CompressFormat extends CompressLevel {
 }
 
 export interface WatchInterval<T = FileAsset> {
+    id?: string;
     interval?: number;
     expires?: string;
     reload?: WatchReload;

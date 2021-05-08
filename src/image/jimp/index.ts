@@ -114,6 +114,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                                 if (file.document) {
                                     this.writeImage(file.document, { ...data, command, output: result, baseDirectory: this.baseDirectory } as OutputData);
                                 }
+                                this.writeTimeProcess(handler.moduleName, path.basename(result), time);
                                 if (this.getLocalUri(data) !== result) {
                                     if (command.indexOf('%') !== -1) {
                                         if (this.filesToCompare.has(file)) {
@@ -132,7 +133,6 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                                         parent = file;
                                     }
                                 }
-                                this.writeTimeProcess(handler.moduleName, path.basename(result), time);
                             }
                             else {
                                 this.writeFail(['Unable to finalize image', path.basename(result)], err);

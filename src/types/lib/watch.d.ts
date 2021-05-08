@@ -6,6 +6,7 @@ interface FileWatch {
     start: number;
     expires: number;
     interval: number;
+    id?: string;
     port?: number;
     socketId?: string;
     secure?: boolean;
