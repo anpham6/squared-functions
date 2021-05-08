@@ -233,11 +233,12 @@ abstract class Module implements IModule {
                 }
                 message = ' ' + chalk.blackBright('(') + message + chalk.blackBright(')');
             }
-            console.log(chalk[titleBgColor].bold[titleColor](title) + chalk.blackBright(':') + ' ' + value + (SETTINGS.message !== false && message || ''));
+            message = chalk[titleBgColor].bold[titleColor](title) + chalk.blackBright(':') + ' ' + value + (SETTINGS.message !== false && message || '');
         }
         else {
-            console.log(title + ': ' + value + (message && SETTINGS.message !== false ? ` (${message as string})` : ''));
+            message = title + ': ' + value + (message && SETTINGS.message !== false ? ` (${message as string})` : '');
         }
+        console[(type & LOG_TYPE.FAIL) && (type & LOG_TYPE.FILE) ? 'error' : 'log'](message);
     }
 
     static writeFail(value: LogValue, message?: Null<Error>, type?: LOG_TYPE) {

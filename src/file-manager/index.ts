@@ -102,7 +102,6 @@ class FileManager extends Module implements IFileManager {
             if (item.tasks) {
                 this.taskAssets.push(item);
             }
-            item.mimeType ||= mime.lookup(item.uri || item.filename) || '';
         }
         if (Array.isArray(this.body.dataSource)) {
             this.dataSourceItems.push(...this.body.dataSource);
@@ -289,7 +288,7 @@ class FileManager extends Module implements IFileManager {
     }
     hasDocument(instance: IModule, document: Undef<StringOfArray>) {
         const moduleName = instance.moduleName;
-        return moduleName ? document === moduleName || Array.isArray(document) && document.includes(moduleName) : false;
+        return !!moduleName && (document === moduleName || Array.isArray(document) && document.includes(moduleName));
     }
     setLocalUri(file: ExternalAsset) {
         const uri = file.uri;
@@ -319,13 +318,14 @@ class FileManager extends Module implements IFileManager {
         const localUri = path.join(pathname, file.filename);
         file.localUri = localUri;
         file.relativeUri = this.getRelativeUri(file);
+        file.mimeType ||= mime.lookup(uri && uri.split('?')[0] || file.filename) || '';
         return { pathname, localUri } as FileOutput;
     }
     getLocalUri(data: FileData) {
         return data.file.localUri || '';
     }
     getMimeType(data: FileData) {
-        return data.mimeType || (data.mimeType = mime.lookup(this.getLocalUri(data)) || data.file.mimeType);
+        return data.mimeType ||= mime.lookup(this.getLocalUri(data)) || data.file.mimeType;
     }
     getRelativeUri(file: ExternalAsset, filename = file.filename) {
         return Module.joinPath(file.moveTo, file.pathname, filename);
