@@ -9,7 +9,7 @@ export function loadPlugins<T = unknown>(name: string, plugins: unknown[], write
             }
             catch (err) {
                 if (writeFail) {
-                    writeFail([`Install required? <npm i ${plugin[0]}>`, name], err);
+                    writeFail([`Install required? <${name}>`, 'npm i ' + plugin[0]], err);
                 }
             }
         }

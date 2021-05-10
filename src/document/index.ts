@@ -296,7 +296,7 @@ abstract class Document extends Module implements IDocument {
                             }
                         }
                         catch (err) {
-                            this.writeFail([`Install required? <npm i ${plugin}>`, this.moduleName], err);
+                            this.writeFail([`Install required? <${this.moduleName}>`, 'npm i ' + plugin], err);
                         }
                     }
                 }

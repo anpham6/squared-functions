@@ -1047,10 +1047,15 @@ MongoDB Atlas installations also use the "mongodb" source format. All MongoDB au
 ```javascript
 interface MongoDataSource {
     source: "mongodb"
+
+    /* Choose one (required) */
     uri?: string; // Connection string
     credential?: string | StandardMap;
+
+    /* Optional */
     query?: FilterQuery<any>;
     value?: string | ObjectMap<string | string[]>;
+
     /* Same as CloudDatabase (except no "id") */
 }
 ```
@@ -1127,7 +1132,11 @@ interface UriDataSource {
     source: "uri";
     format: string; // json | yaml | toml
     uri: string;
-    query?: string; // Uses JSONPath <https://github.com/dchester/jsonpath>
+
+    /* Optional */
+    query?: string; // if startsWith("/") Uses JSONPath <https://github.com/dchester/jsonpath> (npm i jsonpath)
+    query?: string; // else Uses JMESPath <https://jmespath.org> (npm i jmespath)
+
     /* Same as CloudDatabase (except no "id") */
 }
 ```

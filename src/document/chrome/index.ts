@@ -10,6 +10,9 @@ import type { RequestBody as IRequestBody } from '../../types/lib/node';
 import type { CloudScopeOrigin } from '../../cloud';
 import type { DocumentAsset, DocumentModule, IChromeDocument } from './document';
 
+import type * as jsonpath from 'jsonpath';
+import type * as jmespath from 'jmespath';
+
 import path = require('path');
 import fs = require('fs-extra');
 import request = require('request-promise-native');
@@ -17,7 +20,6 @@ import yaml = require('js-yaml');
 import uuid = require('uuid');
 
 import mongodb = require('mongodb');
-import jp = require('jsonpath');
 
 import Document from '../../document';
 import Cloud from '../../cloud';
@@ -881,7 +883,18 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             return;
                                         }
                                         if (data && query) {
-                                            data = jp.query(data, query, limit);
+                                            const lib = query[0] === '/' ? 'jsonpath' : 'jmespath';
+                                            try {
+                                                if (lib === 'jsonpath') {
+                                                    data = (require(lib) as typeof jsonpath).query(data, query, limit);
+                                                }
+                                                else {
+                                                    data = (require(lib) as typeof jmespath).search(data, query);
+                                                }
+                                            }
+                                            catch (err) {
+                                                this.writeFail([`Install required?`, 'npm i ' + lib], err);
+                                            }
                                         }
                                         if (Array.isArray(data)) {
                                             result = data;
