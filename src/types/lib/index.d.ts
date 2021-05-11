@@ -278,7 +278,7 @@ declare namespace functions {
         isUUID(value: string): boolean;
         resolveUri(value: string): string;
         resolvePath(value: string, href: string): string;
-        joinPath(...values: Undef<string>[]): string;
+        joinPath(...values: unknown[]): string;
         getFileSize(value: PathLike): number;
         loadSettings(value: Settings): void;
         allSettled<T>(values: readonly (T | PromiseLike<T>)[], rejected?: string | [string, string]): Promise<PromiseSettledResult<T>[]>;

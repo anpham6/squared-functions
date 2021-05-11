@@ -280,8 +280,8 @@ abstract class Module implements IModule {
         }
     }
 
-    static toPosix(value: unknown, filename?: string) {
-        return this.isString(value) ? value.replace(/(?:^\\|\\+)/g, '/').replace(/\/+$/, '') + (filename ? '/' + filename : '') : '';
+    static toPosix(value: unknown, filename = '') {
+        return this.isString(value) ? value.trim().replace(/(?:^\\|\\+)/g, '/').replace(/\/+$/, '') + (filename ? '/' + filename : '') : filename;
     }
 
     static renameExt(value: string, ext: string) {
@@ -319,7 +319,7 @@ abstract class Module implements IModule {
     }
 
     static resolveUri(value: string) {
-        if (value.startsWith('file://')) {
+        if ((value = value.trim()).startsWith('file://')) {
             try {
                 let url = new URL(value).pathname;
                 if (path.isAbsolute(url)) {
@@ -375,20 +375,14 @@ abstract class Module implements IModule {
         return '';
     }
 
-    static joinPath(...values: Undef<string>[]) {
+    static joinPath(...values: unknown[]) {
         values = values.filter(value => this.toPosix(value));
-        let result = '';
-        for (let i = 0; i < values.length; ++i) {
-            const trailing = values[i]!;
-            if (i === 0) {
-                result = trailing;
-            }
-            else {
-                const leading = values[i - 1];
-                result += (leading && trailing && !leading.endsWith('/') && trailing[0] !== '/' ? '/' : '') + trailing;
-            }
+        let result = values[0] as string;
+        for (let i = 1; i < values.length; ++i) {
+            const trailing = values[i] as string;
+            result += (trailing[0] !== '/' && !result.endsWith('/') ? '/' : '') + trailing;
         }
-        return result;
+        return result || '';
     }
 
     static getFileSize(value: fs.PathLike) {
