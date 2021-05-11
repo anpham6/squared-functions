@@ -11,13 +11,16 @@ import { getPublicReadPolicy } from '../aws/index';
 
 import { fromIni } from '@aws-sdk/credential-provider-ini';
 
-export interface AWSStorageConfig extends s3.S3ClientConfig {
-    credentials: Credentials | Provider<Credentials>;
+interface AWSBaseConfig {
     profile?: string;
 }
 
-export interface AWSDatabaseConfig extends dynamodb.DynamoDBClientConfig {
-    credentials: Credentials;
+export interface AWSStorageConfig extends s3.S3ClientConfig, AWSBaseConfig {
+    credentials: Credentials | Provider<Credentials>;
+}
+
+export interface AWSDatabaseConfig extends dynamodb.DynamoDBClientConfig, AWSBaseConfig {
+    credentials: Credentials | Provider<Credentials>;
 }
 
 export interface AWSDatabaseQuery extends CloudDatabase<dynamodb.QueryInput> {
@@ -50,38 +53,44 @@ export function validateDatabase(config: AWSDatabaseConfig, data: CloudDatabase)
 export function createBucket(this: IModule, config: AWSStorageConfig, Bucket: string, publicRead?: boolean, service = 'aws-v3', sdk = '@aws-sdk/client-s3') {
     try {
         const AWS = require(sdk) as typeof s3;
-        const client = new AWS.S3Client(config);
-        return client.send(new AWS.HeadBucketCommand({ Bucket }))
-            .then(() => {
-                if (publicRead) {
-                    setPublicRead.call(this, AWS, client, Bucket, service);
-                }
-                return true;
-            })
-            .catch(() => {
-                const input: s3.CreateBucketRequest = { Bucket };
-                if (typeof config.region === 'string' && config.region !== 'us-east-1') {
-                    input.CreateBucketConfiguration = { LocationConstraint: config.region };
-                }
-                return client.send(new AWS.CreateBucketCommand(input))
-                    .then(() => {
-                        this.formatMessage(this.logType.CLOUD, service, 'Bucket created', Bucket, { titleColor: 'blue' });
-                        if (publicRead) {
-                            setPublicRead.call(this, AWS, client, Bucket, service);
-                        }
-                        return true;
-                    })
-                    .catch(err => {
-                        if (err.message !== 'BucketAlreadyExists' && err.message !== 'BucketAlreadyOwnedByYou') {
-                            this.formatFail(this.logType.CLOUD, service, ['Unable to create bucket', Bucket], err);
-                            return false;
-                        }
-                        if (publicRead) {
-                            setPublicRead.call(this, AWS, client, Bucket, service);
-                        }
-                        return true;
-                    });
-            });
+        try {
+            const client = new AWS.S3Client(config);
+            return client.send(new AWS.HeadBucketCommand({ Bucket }))
+                .then(() => {
+                    if (publicRead) {
+                        setPublicRead.call(this, AWS, client, Bucket, service);
+                    }
+                    return true;
+                })
+                .catch(() => {
+                    const input: s3.CreateBucketRequest = { Bucket };
+                    if (typeof config.region === 'string' && config.region !== 'us-east-1') {
+                        input.CreateBucketConfiguration = { LocationConstraint: config.region };
+                    }
+                    return client.send(new AWS.CreateBucketCommand(input))
+                        .then(() => {
+                            this.formatMessage(this.logType.CLOUD, service, 'Bucket created', Bucket, { titleColor: 'blue' });
+                            if (publicRead) {
+                                setPublicRead.call(this, AWS, client, Bucket, service);
+                            }
+                            return true;
+                        })
+                        .catch(err => {
+                            if (err.message !== 'BucketAlreadyExists' && err.message !== 'BucketAlreadyOwnedByYou') {
+                                this.formatFail(this.logType.CLOUD, service, ['Unable to create bucket', Bucket], err);
+                                return false;
+                            }
+                            if (publicRead) {
+                                setPublicRead.call(this, AWS, client, Bucket, service);
+                            }
+                            return true;
+                        });
+                });
+        }
+        catch (err) {
+            this.formatMessage(this.logType.CLOUD, service, ['Unable to create bucket', Bucket], err, { titleColor: 'yellow' });
+        }
+        return Promise.resolve(false);
     }
     catch (err) {
         this.writeFail([`Install AWS SDK S3 v3?`, 'npm i ' + sdk]);
@@ -92,8 +101,8 @@ export function createBucket(this: IModule, config: AWSStorageConfig, Bucket: st
 export async function deleteObjects(this: IModule, config: AWSStorageConfig, Bucket: string, service = 'aws-v3', sdk = '@aws-sdk/client-s3') {
     try {
         const AWS = require(sdk) as typeof s3;
-        const client = new AWS.S3Client(config);
         try {
+            const client = new AWS.S3Client(config);
             const Contents = (await client.send(new AWS.ListObjectsCommand({ Bucket }))).Contents;
             if (Contents?.length) {
                 return client.send(new AWS.DeleteObjectsCommand({ Bucket, Delete: { Objects: Contents.map(data => ({ Key: data.Key! })) } }))
@@ -122,8 +131,8 @@ export async function executeQuery(this: ICloud, config: AWSDatabaseConfig, data
         const { DynamoDBClient } = require('@aws-sdk/client-dynamodb') as typeof dynamodb;
         try {
             const AWS = require('@aws-sdk/lib-dynamodb') as typeof documentdb;
-            const client = AWS.DynamoDBDocumentClient.from(new DynamoDBClient(config));
             try {
+                const client = AWS.DynamoDBDocumentClient.from(new DynamoDBClient(config));
                 const { table: TableName, id, query, partitionKey, limit = 0 } = data;
                 let result: Undef<unknown[]>,
                     queryString = TableName!;

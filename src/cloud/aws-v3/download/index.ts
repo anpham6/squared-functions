@@ -25,7 +25,6 @@ async function readableAsBuffer(stream: Readable) {
 
 export default function download(this: IModule, config: AWSStorageConfig, service = 'aws-v3', sdk = '@aws-sdk/client-s3'): DownloadCallback {
     const AWS = require(sdk) as typeof s3;
-    const client = new AWS.S3Client(config);
     return async (data: DownloadData, success: (value: Null<Buffer>) => void) => {
         const { bucket: Bucket, download: Download } = data;
         const Key = Download && Download.filename;
@@ -38,6 +37,7 @@ export default function download(this: IModule, config: AWSStorageConfig, servic
                 success(buffer);
             };
             try {
+                const client = new AWS.S3Client(config);
                 const input: s3.GetObjectRequest = { Bucket, Key, VersionId: Download.versionId };
                 client.send(new AWS.GetObjectCommand(input))
                     .then(async result => {

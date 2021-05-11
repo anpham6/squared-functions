@@ -12,9 +12,8 @@ import Module from '../module';
 import path = require('path');
 import fs = require('fs');
 import https = require('https');
+import ws = require('ws');
 import request = require('request');
-
-import WebSocket = require('ws');
 
 type FileWatchMap = ObjectMap<Map<string, { data: FileWatch; timeout: [Null<NodeJS.Timeout>, number] }>>;
 
@@ -36,7 +35,7 @@ function getPostFinalize(watch: FileWatch) {
                 const hot = watch.hot && src && (type === 'text/css' || type.startsWith('image/')) ? (src.indexOf('?') !== -1 ? '&' : '?') + 'q=' + Date.now() : '';
                 const data = JSON.stringify({ socketId, module: 'watch', action: 'modified', src, type, hot, errors });
                 for (const client of server.clients) {
-                    if (client.readyState === WebSocket.OPEN) {
+                    if (client.readyState === ws.OPEN) {
                         client.send(data);
                     }
                 }
@@ -202,7 +201,7 @@ class Watch extends Module implements IWatch {
                                         try {
                                             const server = https.createServer({ key: fs.readFileSync(sslKey), cert: fs.readFileSync(sslCert) });
                                             server.listen(port);
-                                            wss = new WebSocket.Server({ server });
+                                            wss = new ws.Server({ server });
                                             SECURE_MAP[port] = wss;
                                         }
                                         catch (err) {
@@ -217,7 +216,7 @@ class Watch extends Module implements IWatch {
                             }
                             else {
                                 port ||= this.port;
-                                wss = PORT_MAP[port] ||= new WebSocket.Server({ port });
+                                wss = PORT_MAP[port] ||= new ws.Server({ port });
                             }
                             if (wss) {
                                 wss.on('error', function(this: Server, err) {
@@ -307,12 +306,6 @@ class Watch extends Module implements IWatch {
                             }
                         }
                         let timeout: Null<NodeJS.Timeout> = null;
-                        if (expires) {
-                            timeout = setTimeout(() => {
-                                watcher.close();
-                                watchExpired(DISK_MAP, data);
-                            }, expires - start);
-                        }
                         const watcher = fs.watch(uri, (event, filename) => {
                             switch (event) {
                                 case 'change': {
@@ -338,6 +331,12 @@ class Watch extends Module implements IWatch {
                                     break;
                             }
                         });
+                        if (expires) {
+                            timeout = setTimeout(() => {
+                                watcher.close();
+                                watchExpired(DISK_MAP, data);
+                            }, expires - start);
+                        }
                         (DISK_MAP[uri] ||= new Map()).set(dest, { data, timeout: [timeout, Infinity] });
                     }
                     else {
