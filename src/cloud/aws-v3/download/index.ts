@@ -30,6 +30,7 @@ export default function download(this: IModule, config: AWSStorageConfig, servic
         const Key = Download && Download.filename;
         if (Bucket && Key) {
             const location = Module.joinPath(Bucket, Key);
+            const input: s3.GetObjectRequest = { Bucket, Key, VersionId: Download.versionId };
             const complete = (err: Null<Error>, buffer: Null<Buffer> = null) => {
                 if (err || !buffer) {
                     this.formatFail(this.logType.CLOUD, service, ['Download failed', location], err);
@@ -38,7 +39,6 @@ export default function download(this: IModule, config: AWSStorageConfig, servic
             };
             try {
                 const client = new AWS.S3Client(config);
-                const input: s3.GetObjectRequest = { Bucket, Key, VersionId: Download.versionId };
                 client.send(new AWS.GetObjectCommand(input))
                     .then(async result => {
                         this.formatMessage(this.logType.CLOUD, service, 'Download success', location);

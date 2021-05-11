@@ -61,7 +61,7 @@ export function validateStorage(credential: AWSStorageCredential) {
 }
 
 export function validateDatabase(credential: AWSDatabaseCredential, data: CloudDatabase) {
-    return validateStorage(credential) && !!((credential.region || credential.endpoint) && data.table);
+    return !!((credential.region || credential.endpoint) && data.table) && validateStorage(credential);
 }
 
 export function createStorageClient(this: IModule, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3') {
@@ -123,11 +123,12 @@ export async function createBucket(this: IModule, credential: ConfigurationOptio
             return true;
         })
         .catch(async () => {
-            const bucketRequest = { Bucket } as aws.S3.CreateBucketRequest;
-            if (typeof credential.region === 'string' && credential.region !== 'us-east-1') {
-                bucketRequest.CreateBucketConfiguration = { LocationConstraint: credential.region };
+            const input: aws.S3.CreateBucketRequest = { Bucket };
+            const LocationConstraint = credential.region;
+            if (typeof LocationConstraint === 'string' && LocationConstraint !== 'us-east-1') {
+                input.CreateBucketConfiguration = { LocationConstraint };
             }
-            return await s3.createBucket(bucketRequest).promise()
+            return await s3.createBucket(input).promise()
                 .then(() => {
                     this.formatMessage(this.logType.CLOUD, service, 'Bucket created', Bucket, { titleColor: 'blue' });
                     if (publicRead) {

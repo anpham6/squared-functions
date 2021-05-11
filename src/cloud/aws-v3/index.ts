@@ -6,10 +6,9 @@ import type { Credentials, Provider } from '@aws-sdk/types';
 import type * as s3 from '@aws-sdk/client-s3';
 import type * as dynamodb from '@aws-sdk/client-dynamodb';
 import type * as documentdb from '@aws-sdk/lib-dynamodb';
+import type * as credential from '@aws-sdk/credential-provider-ini';
 
 import { getPublicReadPolicy } from '../aws/index';
-
-import { fromIni } from '@aws-sdk/credential-provider-ini';
 
 interface AWSBaseConfig {
     profile?: string;
@@ -37,9 +36,15 @@ function setPublicRead(this: IModule, S3: typeof s3, client: s3.S3Client, Bucket
         });
 }
 
-export function validateStorage(config: AWSStorageConfig) {
+export function validateStorage(config: AWSStorageConfig, lib = '@aws-sdk/client-s3') {
     if (config.profile) {
-        config.credentials = fromIni(config);
+        try {
+            const { fromIni } = require('@aws-sdk/credential-provider-ini') as typeof credential;
+            config.credentials = fromIni(config);
+        }
+        catch (err) {
+            throw new Error(`Install AWS? -> npm i ${lib} -> ` + (err instanceof Error ? err.message : err));
+        }
         return true;
     }
     const credentials = config.credentials as Credentials;
@@ -47,7 +52,7 @@ export function validateStorage(config: AWSStorageConfig) {
 }
 
 export function validateDatabase(config: AWSDatabaseConfig, data: CloudDatabase) {
-    return validateStorage(config) && !!((config.region || config.endpoint) && data.table);
+    return !!((config.region || config.endpoint) && data.table) && validateStorage(config, '@aws-sdk/client-dynamodb');
 }
 
 export function createBucket(this: IModule, config: AWSStorageConfig, Bucket: string, publicRead?: boolean, service = 'aws-v3', sdk = '@aws-sdk/client-s3') {
@@ -64,8 +69,9 @@ export function createBucket(this: IModule, config: AWSStorageConfig, Bucket: st
                 })
                 .catch(() => {
                     const input: s3.CreateBucketRequest = { Bucket };
-                    if (typeof config.region === 'string' && config.region !== 'us-east-1') {
-                        input.CreateBucketConfiguration = { LocationConstraint: config.region };
+                    const LocationConstraint = config.region;
+                    if (typeof LocationConstraint === 'string' && LocationConstraint !== 'us-east-1') {
+                        input.CreateBucketConfiguration = { LocationConstraint };
                     }
                     return client.send(new AWS.CreateBucketCommand(input))
                         .then(() => {

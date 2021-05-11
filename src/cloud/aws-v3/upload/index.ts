@@ -35,11 +35,11 @@ export default function upload(this: IModule, config: AWSStorageConfig, service 
             success('');
             return false;
         };
+        const { pathname = '', active, publicRead, endpoint, overwrite } = data.upload;
+        let filename = data.filename;
         try {
             const client = new AWS.S3Client(config);
-            const pathname = data.upload?.pathname || '';
-            let filename = data.filename;
-            if (!filename || !data.upload.overwrite) {
+            if (!filename || !overwrite) {
                 filename ||= path.basename(localUri);
                 try {
                     let i = 0,
@@ -91,7 +91,6 @@ export default function upload(this: IModule, config: AWSStorageConfig, service 
             if (pathname && !await client.send(new AWS.PutObjectCommand({ Bucket, Key: pathname, Body: Buffer.from(''), ContentLength: 0 })).then(() => true).catch(err => errorResponse(err))) {
                 return;
             }
-            const { active, publicRead, endpoint } = data.upload;
             const ACL = publicRead || active && publicRead !== false ? 'public-read' : '';
             const Key = [filename];
             const Body = [data.buffer];
