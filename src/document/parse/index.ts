@@ -582,9 +582,7 @@ export abstract class XmlWriter implements IXmlWriter {
         const revised = this.decrement(node);
         if (revised.includes(node)) {
             if (tagName in this._tagCount) {
-                for (const item of revised) {
-                    updateTagName(item, tagName);
-                }
+                revised.forEach(item => updateTagName(item, tagName));
                 this.indexTag(tagName);
                 this.increment(revised);
             }
@@ -708,9 +706,7 @@ export abstract class XmlWriter implements IXmlWriter {
     }
     resetPosition(startIndex?: number) {
         const rootName = this.rootName;
-        for (const item of this.elements) {
-            deletePosition(item, rootName, startIndex);
-        }
+        this.elements.forEach(item => deletePosition(item, rootName, startIndex));
     }
     close() {
         const source = this.source;

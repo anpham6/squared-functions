@@ -124,17 +124,9 @@ export async function executeQuery(this: ICloud, credential: GCloudDatabaseCrede
                     return result;
                 }
                 let collection = (getClient() as gcf.Firestore).collection(table!) as gcf.Query<gcf.DocumentData>;
-                for (const where of query) {
-                    if (where.length === 3) {
-                        collection = collection.where(where[0], where[1] as gcf.WhereFilterOp, where[2] );
-                    }
-                }
+                query.forEach(where => where.length === 3 && (collection = collection.where(where[0], where[1] as gcf.WhereFilterOp, where[2])));
                 if (orderBy) {
-                    for (const order of orderBy) {
-                        if (order.length) {
-                            collection = collection.orderBy(order[0], order[1] === 'desc' || order[1] === 'asc' ? order[1] : undefined);
-                        }
-                    }
+                    orderBy.forEach(order => order.length && (collection = collection.orderBy(order[0], order[1] === 'desc' || order[1] === 'asc' ? order[1] : undefined)));
                 }
                 if (limit > 0) {
                     collection = collection.limit(limit);

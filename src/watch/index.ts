@@ -34,11 +34,7 @@ function getPostFinalize(watch: FileWatch) {
                 const type = (asset.mimeType || '').replace(/[^A-Za-z\d/.+-]/g, '');
                 const hot = watch.hot && src && (type === 'text/css' || type.startsWith('image/')) ? (src.indexOf('?') !== -1 ? '&' : '?') + 'q=' + Date.now() : '';
                 const data = JSON.stringify({ socketId, module: 'watch', action: 'modified', src, type, hot, errors });
-                for (const client of server.clients) {
-                    if (client.readyState === ws.OPEN) {
-                        client.send(data);
-                    }
-                }
+                server.clients.forEach(client => client.readyState === ws.OPEN && client.send(data));
             };
         }
     }
@@ -157,9 +153,7 @@ class Watch extends Module implements IWatch {
             for (const item of items) {
                 const watch = item.watch;
                 if (Module.isObject<WatchInterval<ExternalAsset>>(watch) && watch.assets) {
-                    for (const other of watch.assets) {
-                        related.add(other);
-                    }
+                    watch.assets.forEach(other => related.add(other));
                 }
             }
             assets = Array.from(related);
@@ -220,14 +214,10 @@ class Watch extends Module implements IWatch {
                             }
                             if (wss) {
                                 wss.on('error', function(this: Server, err) {
-                                    for (const client of this.clients) {
-                                        client.send(JSON.stringify(err));
-                                    }
+                                    this.clients.forEach(client => client.send(JSON.stringify(err)));
                                 });
                                 wss.on('close', function(this: Server) {
-                                    for (const client of this.clients) {
-                                        client.terminate();
-                                    }
+                                    this.clients.forEach(client => client.terminate());
                                 });
                             }
                         }

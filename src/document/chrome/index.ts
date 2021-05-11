@@ -253,9 +253,7 @@ function removeCss(this: IChromeDocument, source: string) {
     }
     if (modified) {
         if (checkEmpty) {
-            for (const name of checkEmpty) {
-                removeEmpty(name);
-            }
+            checkEmpty.forEach(name => removeEmpty(name));
         }
         for (const attr in replaceMap) {
             current = current.replace(attr, replaceMap[attr]!);
@@ -666,14 +664,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 const cacheData: ObjectMap<Optional<PlainObject[] | string>> = {};
                 const dataItems: DataSource[] = [];
                 const displayItems: DataSource[] = [];
-                for (const item of dataSource) {
-                    if (item.type === 'display') {
-                        displayItems.push(item);
-                    }
-                    else {
-                        dataItems.push(item);
-                    }
-                }
+                dataSource.forEach(item => item.type === 'display' ? displayItems.push(item) : dataItems.push(item));
                 for (const db of [dataItems, displayItems]) {
                     await Document.allSettled(db.map(item => {
                         return new Promise<void>(async (resolve, reject) => {
@@ -1249,9 +1240,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 this.errors.push(...domBase.errors.map(item => item.message));
             }
         }
-        for (const file of inlineMap) {
-            this.removeAsset(file);
-        }
+        inlineMap.forEach(file => this.removeAsset(file));
     }
 
     static async cleanup(this: IFileManager, instance: IChromeDocument) {
