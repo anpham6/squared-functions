@@ -208,7 +208,9 @@ class Cloud extends Module implements ICloud {
             await Module.allSettled(tasks, ['Empty bucket', 'cloud storage'], this.errors);
             tasks = [];
         }
-        rawFiles.forEach(item => tasks.push(...Cloud.uploadAsset.call(this, state, item)));
+        for (const item of rawFiles) {
+            tasks.push(...Cloud.uploadAsset.call(this, state, item));
+        }
         if (tasks.length) {
             await Module.allSettled(tasks, ['Upload raw assets', 'cloud storage'], this.errors);
             tasks = [];

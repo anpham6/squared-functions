@@ -572,7 +572,11 @@ class FileManager extends Module implements IFileManager {
                 const ext = mimeType.split('/')[1];
                 const handler = this.Image.get(ext) || this.Image.get('handler');
                 if (handler) {
-                    file.commands.forEach(command => withinSizeRange(localUri, command) && handler.using.call(this, data, command));
+                    for (const command of file.commands) {
+                        if (withinSizeRange(localUri, command)) {
+                            handler.using.call(this, data, command);
+                        }
+                    }
                 }
             }
         }
@@ -584,13 +588,13 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (file.invalid) {
-            if (!file.bundleId) {
-                try {
+            try {
+                if (localUri && fs.existsSync(localUri) && !file.bundleId) {
                     fs.unlinkSync(localUri);
                 }
-                catch (err) {
-                    this.writeFail(['Unable to delete file', path.basename(localUri)], err, this.logType.FILE);
-                }
+            }
+            catch (err) {
+                this.writeFail(['Unable to delete file', path.basename(localUri)], err, this.logType.FILE);
             }
             this.completeAsyncTask();
         }
@@ -991,7 +995,7 @@ class FileManager extends Module implements IFileManager {
         const removeFiles = () => {
             const filesToRemove = this.filesToRemove;
             if (filesToRemove.size) {
-                for (const value of this.filesToRemove) {
+                for (const value of filesToRemove) {
                     try {
                         fs.unlinkSync(value);
                         this.delete(value);
@@ -1074,7 +1078,11 @@ class FileManager extends Module implements IFileManager {
                 await constructor.finalize.call(this, instance);
             }
         }
-        this.assets.forEach(item => item.sourceUTF8 && !item.invalid && tasks.push(fs.writeFile(item.localUri!, item.sourceUTF8, 'utf8')));
+        for (const item of this.assets) {
+            if (item.sourceUTF8 && !item.invalid) {
+                tasks.push(fs.writeFile(item.localUri!, item.sourceUTF8, 'utf8'));
+            }
+        }
         if (tasks.length) {
             await Module.allSettled(tasks, 'Write modified files', this.errors);
             tasks = [];
@@ -1094,7 +1102,11 @@ class FileManager extends Module implements IFileManager {
         }
         removeFiles();
         if (this.Compress) {
-            this.assets.forEach(item => item.compress && !item.invalid && tasks.push(this.compressFile(item, false)));
+            for (const item of this.assets) {
+                if (item.compress && !item.invalid) {
+                    tasks.push(this.compressFile(item, false));
+                }
+            }
             if (tasks.length) {
                 await Module.allSettled(tasks, 'Compress files', this.errors);
                 tasks = [];

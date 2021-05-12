@@ -19,7 +19,9 @@ export class DomWriter extends XmlWriter implements IDomWriter {
     }
 
     static normalize(source: string, newline?: string) {
-        REGEX_VOID.forEach(tag => source = source.replace(tag, (...capture) => DomWriter.getNewlineString(capture[1], capture[2], newline)));
+        for (const tag of REGEX_VOID) {
+            source = source.replace(tag, (...capture) => DomWriter.getNewlineString(capture[1], capture[2], newline));
+        }
         let match: Null<RegExpExecArray>;
         while (match = REGEX_NORMALIZE.exec(source)) {
             let tag: Undef<string>;

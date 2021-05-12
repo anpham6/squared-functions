@@ -719,7 +719,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                                 uri += '&ssl=true';
                                                             }
                                                             else {
-                                                                reject(new Error('Data source -> Missing SSL credentials (MongoDB)'));
+                                                                reject(new Error('Data source -> Missing SSL credentials (mongodb)'));
                                                                 return;
                                                             }
                                                             break;
@@ -739,7 +739,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     }
                                                 }
                                                 else {
-                                                    reject(new Error('Data source -> Invalid credentials (MongoDB)'));
+                                                    reject(new Error('Data source -> Invalid credentials (mongodb)'));
                                                     return;
                                                 }
                                                 if (!('useUnifiedTopology' in options)) {
@@ -801,7 +801,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         }
                                     }
                                     else if (!credential && !uri) {
-                                        reject(new Error('Data source -> Missing URI connection string (MongoDB)'));
+                                        reject(new Error('Data source -> Missing URI connection string (mongodb)'));
                                         return;
                                     }
                                     break;
@@ -874,7 +874,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             return;
                                         }
                                         if (data && query) {
-                                            const lib = query[0] === '/' ? 'jsonpath' : 'jmespath';
+                                            const lib = query[0] === '$' ? 'jsonpath' : 'jmespath';
                                             try {
                                                 if (lib === 'jsonpath') {
                                                     data = (require(lib) as typeof jsonpath).query(data, query, limit);

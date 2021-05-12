@@ -1134,7 +1134,7 @@ interface UriDataSource {
     uri: string;
 
     /* Optional */
-    query?: string; // if startsWith("/") Uses JSONPath <https://github.com/dchester/jsonpath> (npm i jsonpath)
+    query?: string; // if startsWith("$") Uses JSONPath <https://github.com/dchester/jsonpath> (npm i jsonpath)
     query?: string; // else Uses JMESPath <https://jmespath.org> (npm i jmespath)
 
     /* Same as CloudDatabase (except no "id") */

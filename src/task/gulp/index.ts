@@ -99,7 +99,9 @@ class Gulp extends Task {
             }
             return 0;
         });
-        itemsAsync.forEach(item => tasks.push(new Promise(resolve => instance.execute(this, item, resolve))));
+        for (const item of itemsAsync) {
+            tasks.push(new Promise(resolve => instance.execute(this, item, resolve)));
+        }
         if (itemsSync.length) {
             tasks.push(new Promise<void>(resolve => {
                 (function nextTask(this: IFileManager) { // eslint-disable-line no-shadow

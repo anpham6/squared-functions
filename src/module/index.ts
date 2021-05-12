@@ -213,8 +213,10 @@ abstract class Module implements IModule {
             value = applyFormatPadding(value, valueWidth, getFormatJustify(format.value));
         }
         title = applyFormatPadding(title.toUpperCase(), getFormatWidth(format.title, 7), titleJustify, 1);
+        let error: Undef<boolean>;
         if (message instanceof Error) {
             message = message.message;
+            error = true;
         }
         if (useColor(options)) {
             const { titleColor = 'green', titleBgColor = 'bgBlack', valueColor, valueBgColor, messageColor, messageBgColor } = options;
@@ -231,12 +233,12 @@ abstract class Module implements IModule {
                 if (messageBgColor) {
                     message = chalk[messageBgColor](message);
                 }
-                message = ' ' + chalk.blackBright('(') + message + chalk.blackBright(')');
+                message = ' ' + (error ? chalk.redBright('{') + chalk.bgWhite.blackBright(message) + chalk.redBright('}') : chalk.blackBright('(') + message + chalk.blackBright(')'));
             }
             message = chalk[titleBgColor].bold[titleColor](title) + chalk.blackBright(':') + ' ' + value + (SETTINGS.message !== false && message || '');
         }
         else {
-            message = title + ': ' + value + (message && SETTINGS.message !== false ? ` (${message as string})` : '');
+            message = title + ': ' + value + (message && SETTINGS.message !== false ? ' ' + (error ? '{' : '(') + message + (error ? '}' : ')') : '');
         }
         console[(type & LOG_TYPE.FAIL) && (type & LOG_TYPE.FILE) ? 'error' : 'log'](message);
     }
