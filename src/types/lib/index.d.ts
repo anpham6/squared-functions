@@ -120,6 +120,7 @@ declare namespace functions {
         parseTemplate(viewEngine: ViewEngine | string, template: string, data: PlainObject[]): Promise<Null<string>>;
         transform(type: string, code: string, format: string, options?: TransformOutput): Promise<Void<TransformResult>>;
         setLocalUri?(file: Partial<LocationUri>): void;
+        resolveUri?(file: ExternalAsset, source: string): string;
         addCopy?(data: FileData, saveAs: string, replace?: boolean): Undef<string>;
         writeImage?(data: OutputData): boolean;
         cloudInit?(state: IScopeOrigin<T, U>): void;
@@ -196,6 +197,7 @@ declare namespace functions {
         readonly filesToRemove: Set<string>;
         readonly filesToCompare: Map<ExternalAsset, string[]>;
         readonly contentToAppend: Map<string, string[]>;
+        readonly contentToReplace: Map<string, string[]>;
         readonly emptyDir: Set<string>;
         readonly permission: IPermission;
         readonly archiving: boolean;
@@ -221,8 +223,8 @@ declare namespace functions {
         findAsset(uri: string, instance?: IModule): Undef<ExternalAsset>;
         removeCwd(value: Undef<string>): string;
         getUTF8String(file: ExternalAsset, localUri?: string): string;
-        setAssetContent(file: ExternalAsset, localUri: string, content: string, index?: number): Promise<string>;
-        getAssetContent(file: ExternalAsset): Undef<string>;
+        setAssetContent(file: ExternalAsset, localUri: string, content: string, index?: number, replacePattern?: string): Promise<string>;
+        getAssetContent(file: ExternalAsset, source?: string): Undef<string>;
         writeBuffer(file: ExternalAsset): Null<Buffer>;
         writeImage(document: StringOfArray, data: OutputData): boolean;
         compressFile(file: ExternalAsset, overwrite?: boolean): Promise<unknown>;

@@ -43,6 +43,7 @@ export interface TaskAction {
 export interface BundleAction {
     bundleId?: number;
     bundleIndex?: number;
+    bundleReplace?: string;
     bundleRoot?: string;
     trailingContent?: string[];
 }

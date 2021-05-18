@@ -248,6 +248,8 @@ These are the available option modifiers:
     - js: Rendered inline with <script>
     - css: Rendered inline with <style>
     - image: Rendered as base64 from file
+* extract
+    - css: @import rules are inlined into parent file (same origin)
 * blob
     - image: Rendered as file from base64
 * compress
@@ -468,6 +470,7 @@ interface OutputModifiers {
     inline?: boolean; // type: js | css | base64: image | font
     blob?: boolean; // type: image | font (base64)
     preserve?: boolean; // type: css | cross-origin: append/js | append/css
+    extract?: boolean; // type: css
     ignore?: boolean;
     exclude?: boolean // type: js | css (remove from HTML)
 }
@@ -1208,6 +1211,8 @@ squared.saveAs("index.zip", {
                     return "filename.ttf";
                 }
                 return ""; // Do not alter filename
+                /* OR */
+                return null; // Ignore file
             }
         }
     }

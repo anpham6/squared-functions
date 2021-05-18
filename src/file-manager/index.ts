@@ -81,6 +81,7 @@ class FileManager extends Module implements IFileManager {
     readonly filesToRemove = new Set<string>();
     readonly filesToCompare = new Map<ExternalAsset, string[]>();
     readonly contentToAppend = new Map<string, string[]>();
+    readonly contentToReplace = new Map<string, string[]>();
     readonly emptyDir = new Set<string>();
     readonly postFinalize?: PostFinalizeCallback;
 
@@ -347,6 +348,7 @@ class FileManager extends Module implements IFileManager {
     }
     findAsset(uri: string, instance?: IModule) {
         if (uri) {
+            uri = Module.toPosix(uri);
             return this.assets.find(item => Module.toPosix(item.uri) === uri && (!instance || this.hasDocument(instance, item.document)));
         }
     }
@@ -369,7 +371,7 @@ class FileManager extends Module implements IFileManager {
         }
         return file.sourceUTF8 || '';
     }
-    async setAssetContent(file: ExternalAsset, localUri: string, content: string, index = 0) {
+    async setAssetContent(file: ExternalAsset, localUri: string, content: string, index = 0, replacePattern?: string) {
         const trailing = concatString(file.trailingContent);
         if (trailing) {
             content += trailing;
@@ -377,16 +379,53 @@ class FileManager extends Module implements IFileManager {
         if (index === 0) {
             return content;
         }
-        const items = this.contentToAppend.get(localUri) || [];
-        items[index - 1] = content;
-        this.contentToAppend.set(localUri, items);
+        let appending = this.contentToAppend.get(localUri),
+            replacing = this.contentToReplace.get(localUri);
+        if (!appending) {
+            this.contentToAppend.set(localUri, appending = []);
+        }
+        if (!replacing) {
+            this.contentToReplace.set(localUri, replacing = []);
+        }
+        if (file.document) {
+            for (const { instance } of this.Document) {
+                if (instance.resolveUri && this.hasDocument(instance, file.document)) {
+                    content = instance.resolveUri(file, content);
+                }
+            }
+        }
+        appending[index - 1] = content;
+        if (replacePattern) {
+            replacing[index - 1] = replacePattern;
+        }
+        file.invalid = true;
         return '';
     }
-    getAssetContent(file: ExternalAsset) {
-        const content = this.contentToAppend.get(file.localUri!);
-        if (content) {
-            return content.reduce((a, b) => b ? a + '\n' + b : a, '');
+    getAssetContent(file: ExternalAsset, source?: string) {
+        const appending = this.contentToAppend.get(file.localUri!);
+        if (appending) {
+            if (source) {
+                const replacing = this.contentToReplace.get(file.localUri!);
+                if (replacing && replacing.length) {
+                    for (let i = 0; i < replacing.length; ++i) {
+                        const content = appending[i];
+                        if (content) {
+                            if (replacing[i]) {
+                                const match = new RegExp(replacing[i], 'i').exec(source);
+                                if (match) {
+                                    source = source.substring(0, match.index) + content + '\n' + source.substring(match.index + match[0].length);
+                                    continue;
+                                }
+                            }
+                            source += content;
+                        }
+                    }
+                    return source;
+                }
+            }
+            return (source || '') + appending.reduce((a, b) => b ? a + '\n' + b : a, '');
         }
+        return source;
     }
     writeBuffer(file: ExternalAsset) {
         const buffer = file.sourceUTF8 ? Buffer.from(file.sourceUTF8, 'utf8') : file.buffer;
@@ -660,7 +699,7 @@ class FileManager extends Module implements IFileManager {
                         const { uri, content } = queue;
                         const verifyBundle = async (next: ExternalAsset, value: string) => {
                             if (bundleMain) {
-                                return this.setAssetContent(next, localUri, value, next.bundleIndex);
+                                return this.setAssetContent(next, localUri, value, next.bundleIndex, next.bundleReplace);
                             }
                             if (value) {
                                 next.sourceUTF8 = await this.setAssetContent(next, localUri, value);
@@ -729,7 +768,7 @@ class FileManager extends Module implements IFileManager {
                                     fs.mkdirpSync(pathname);
                                 }
                                 catch (err) {
-                                    this.writeFail(['Unable to create directory', pathname], err, this.logType.FILE);
+                                    this.writeFail(['Unable to create directory', this.removeCwd(pathname)], err, this.logType.FILE);
                                     item.invalid = true;
                                     continue;
                                 }
@@ -821,7 +860,7 @@ class FileManager extends Module implements IFileManager {
                             fs.emptyDirSync(pathname);
                         }
                         catch (err) {
-                            this.writeFail(['Unable to empty sub directory', pathname], err);
+                            this.writeFail(['Unable to empty sub directory', this.removeCwd(pathname)], err);
                         }
                     }
                     try {
@@ -829,7 +868,7 @@ class FileManager extends Module implements IFileManager {
                         emptied.push(pathname);
                     }
                     catch (err) {
-                        this.writeFail(['Unable to create directory', pathname], err, this.logType.FILE);
+                        this.writeFail(['Unable to create directory', this.removeCwd(pathname)], err, this.logType.FILE);
                         item.invalid = true;
                         return false;
                     }

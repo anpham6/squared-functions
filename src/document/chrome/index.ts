@@ -308,7 +308,7 @@ function trimQuote(value: string) {
     return first === last && (first === '"' || first === "'") ? value.substring(1, value.length - 1) : value;
 }
 
-function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: DocumentAsset, source: string, fromHTML?: boolean) {
+function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: DocumentAsset, source: string, fromHTML?: boolean, mainFile?: DocumentAsset) {
     const cloud = this.Cloud;
     const cssUri = cssFile.uri!;
     const related: DocumentAsset[] = [];
@@ -363,20 +363,23 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
             }
         }
         else {
-            const asset = this.findAsset(Document.resolvePath(url, cssUri)) as Undef<DocumentAsset>;
+            let fullUrl = Document.resolvePath(url, cssUri);
+            const asset = this.findAsset(fullUrl) as Undef<DocumentAsset>;
             if (asset && !asset.invalid) {
                 if (asset.format === 'base64') {
-                    url = asset.inlineBase64 ||= uuid.v4();
+                    fullUrl = asset.inlineBase64 ||= uuid.v4();
                 }
-                else if (!Document.isFileHTTP(url) || Document.hasSameOrigin(cssUri, url)) {
-                    url = getRelativeUri.call(this, cssFile, asset);
+                else if (!Document.isFileHTTP(fullUrl) || Document.hasSameOrigin(cssUri, fullUrl)) {
+                    fullUrl = getRelativeUri.call(this, mainFile || cssFile, asset);
                 }
                 else {
                     const pathname = cssFile.pathname;
                     const count = pathname && pathname !== '/' ? pathname.split(/[\\/]/).length : 0;
-                    url = (count ? '../'.repeat(count) : '') + asset.relativeUri;
+                    fullUrl = (count ? '../'.repeat(count) : '') + asset.relativeUri;
                 }
-                setOutputUrl(asset, url);
+                if (url !== fullUrl) {
+                    setOutputUrl(asset, fullUrl);
+                }
             }
         }
     }
@@ -531,17 +534,8 @@ class ChromeDocument extends Document implements IChromeDocument {
                 break;
             }
             case '@text/css': {
-                const bundle = this.getAssetContent(file);
-                let source = this.getUTF8String(file, localUri) + concatString(file.trailingContent);
-                if (bundle) {
-                    source += bundle;
-                }
-                file.sourceUTF8 = transformCss.call(
-                    this,
-                    this.getDocumentAssets(instance),
-                    file,
-                    !file.preserve ? removeCss.call(instance, source) : source
-                );
+                const source = this.getAssetContent(file, this.getUTF8String(file, localUri) + concatString(file.trailingContent))!;
+                file.sourceUTF8 = transformCss.call(this, instance.assets, file, !file.preserve ? removeCss.call(instance, source) : source);
                 break;
             }
         }
@@ -1362,6 +1356,16 @@ class ChromeDocument extends Document implements IChromeDocument {
             const format = this.module.format_uuid?.filename;
             file.filename = filename.replace(this.internalAssignUUID, format ? Document.generateUUID(format) : uuid.v4());
         }
+    }
+    resolveUri(file: DocumentAsset, source: string) {
+        if (file.mimeType === '@text/css') {
+            for (const asset of this.assets) {
+                if (asset.bundleId === file.bundleId && asset.bundleIndex === 0) {
+                    return transformCss.call(this.host, this.assets, file, source, false, asset);
+                }
+            }
+        }
+        return source;
     }
     removeServerRoot(value: string) {
         return value.replace(new RegExp('(\\.\\./)*' + Document.escapePattern(this.internalServerRoot), 'g'), '');
