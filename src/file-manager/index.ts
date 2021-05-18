@@ -368,6 +368,7 @@ class FileManager extends Module implements IFileManager {
         }
         const items = this.contentToAppend.get(localUri) || [];
         items[index - 1] = content;
+        file.invalid = true;
         this.contentToAppend.set(localUri, items);
         return '';
     }
