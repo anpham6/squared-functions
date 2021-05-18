@@ -244,20 +244,23 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
             }
         }
         else {
-            const asset = this.findAsset(Document.resolvePath(url, cssUri)) as DocumentAsset;
+            let fullUrl = Document.resolvePath(url, cssUri);
+            const asset = this.findAsset(fullUrl) as Undef<DocumentAsset>;
             if (asset && !asset.invalid) {
                 if (asset.format === 'base64') {
-                    url = asset.inlineBase64 ||= uuid.v4();
+                    fullUrl = asset.inlineBase64 ||= uuid.v4();
                 }
-                else if (!Document.isFileHTTP(url) || Document.hasSameOrigin(cssUri, url)) {
-                    url = getRelativeUri.call(this, cssFile, asset);
+                else if (!Document.isFileHTTP(fullUrl) || Document.hasSameOrigin(cssUri, fullUrl)) {
+                    fullUrl = getRelativeUri.call(this, cssFile, asset);
                 }
                 else {
                     const pathname = cssFile.pathname;
                     const count = pathname && pathname !== '/' ? pathname.split(/[\\/]/).length : 0;
-                    url = (count ? '../'.repeat(count) : '') + asset.relativeUri;
+                    fullUrl = (count ? '../'.repeat(count) : '') + asset.relativeUri;
                 }
-                setOutputUrl(asset, url);
+                if (url !== fullUrl) {
+                    setOutputUrl(asset, fullUrl);
+                }
             }
         }
     }

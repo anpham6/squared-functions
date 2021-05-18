@@ -106,14 +106,12 @@ class Watch extends Module implements IWatch {
     start(assets: ExternalAsset[], permission?: IPermission) {
         const destMap: ObjectMap<ExternalAsset[]> = {};
         for (const item of assets) {
-            if (!item.invalid) {
-                const { bundleId, uri, relativeUri } = item;
-                if (bundleId) {
-                    (destMap[bundleId] ||= []).push(item);
-                }
-                else if (uri && relativeUri) {
-                    (destMap[relativeUri] ||= []).push(item);
-                }
+            const { bundleId, uri, relativeUri } = item;
+            if (bundleId) {
+                (destMap[bundleId] ||= []).push(item);
+            }
+            else if (uri && relativeUri && !item.invalid) {
+                (destMap[relativeUri] ||= []).push(item);
             }
         }
         for (let dest in destMap) {
