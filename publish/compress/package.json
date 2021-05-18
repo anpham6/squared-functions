@@ -1,6 +1,6 @@
 {
   "name": "@squared-functions/compress",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Compress functions for squared-functions",
   "main": "index.js",
   "types": "index.d.ts",
@@ -18,8 +18,8 @@
   "license": "MIT",
   "homepage": "https://github.com/anpham6/squared-functions#readme",
   "dependencies": {
-    "@squared-functions/module": "^1.0.4",
-    "@squared-functions/types": "^1.0.4",
+    "@squared-functions/module": "^1.0.5",
+    "@squared-functions/types": "^1.0.5",
     "tinify": "^1.6.0-beta.2"
   }
 }
