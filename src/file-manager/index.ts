@@ -252,7 +252,7 @@ class FileManager extends Module implements IFileManager {
         if (this.cleared && this.delayed <= 0) {
             this.delayed = Infinity;
             this.finalize().then(() => {
-                this.writeTimeElapsed('END', this.baseDirectory, this.startTime, { titleBgColor: 'bgYellow', titleColor: 'black' });
+                this.writeTimeElapsed(' END ', this.baseDirectory, this.startTime, { titleBgColor: 'bgYellow', titleColor: 'black' });
                 const files = Array.from(this.files).sort((a, b) => {
                     if (a.indexOf(path.sep) !== -1 && b.indexOf(path.sep) === -1) {
                         return -1;
