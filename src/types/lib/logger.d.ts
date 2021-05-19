@@ -30,6 +30,8 @@ export interface LogMessageOptions {
 
 export interface LoggerFormat {
     width?: number;
+    color?: typeof ForegroundColor;
+    bgColor?: typeof BackgroundColor;
     justify?: "left" | "center" | "right";
 }
 

@@ -31,7 +31,9 @@ export interface LoggerModule {
         title?: LoggerFormat;
         value?: LoggerFormat;
         hint?: LoggerFormat;
+        message?: LoggerFormat;
     };
+    silent?: boolean;
     message?: boolean;
     color?: boolean;
     unknown?: boolean;

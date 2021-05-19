@@ -129,7 +129,7 @@ class Watch extends Module implements IWatch {
             if (bundleId) {
                 (destMap[bundleId] ||= []).push(item);
             }
-            else if (uri && relativeUri) {
+            else if (uri && relativeUri && !item.invalid) {
                 (destMap[relativeUri] ||= []).push(item);
             }
         }

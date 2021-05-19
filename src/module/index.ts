@@ -36,7 +36,8 @@ const SETTINGS: LoggerModule = {
         },
         hint: {
             width: 32
-        }
+        },
+        message: {}
     }
 };
 
@@ -57,7 +58,7 @@ function applyFailStyle(options: LogMessageOptions = {}) {
     return options;
 }
 
-function applyFormatPadding(value: string, width: number, justify = 'left', paddingRight = 0) {
+function applyFormatPadding(value: string, width: number, justify?: string, paddingRight = 0) {
     const offset = width - value.length;
     if (offset > 0) {
         switch (justify) {
@@ -137,7 +138,7 @@ abstract class Module implements IModule {
     }
 
     static formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
-        const format = SETTINGS.format ||= {};
+        const format = SETTINGS.format!;
         let titleJustify = (type & LOG_TYPE.FAIL) === LOG_TYPE.FAIL ? 'center' : getFormatJustify(format.title, 'right');
         if (type === 0) {
             if (SETTINGS.unknown === false) {
@@ -194,12 +195,21 @@ abstract class Module implements IModule {
                 const hintWidth = getFormatWidth(format.hint, 32);
                 const getHint = () => hint.length > hintWidth ? hint.substring(0, hintWidth - 3) + '...' : hint;
                 const formatHint = (content: string) => {
-                    const { hintColor, hintBgColor } = options;
-                    if (hintColor) {
-                        content = chalk[hintColor](content);
+                    let { hintColor, hintBgColor } = options;
+                    if (!hintColor && !hintBgColor) {
+                        ({ color: hintColor, bgColor: hintBgColor } = format.hint!);
                     }
-                    if (hintBgColor) {
-                        content = chalk[hintBgColor](content);
+                    try {
+                        let output = content;
+                        if (hintColor) {
+                            output = chalk[hintColor](output);
+                        }
+                        if (hintBgColor) {
+                            output = chalk[hintBgColor](output);
+                        }
+                        return output;
+                    }
+                    catch {
                     }
                     return content;
                 };
@@ -213,38 +223,56 @@ abstract class Module implements IModule {
             value = applyFormatPadding(value, valueWidth, getFormatJustify(format.value));
         }
         title = applyFormatPadding(title.toUpperCase(), getFormatWidth(format.title, 7), titleJustify, 1);
-        let error: Undef<boolean>;
+        let output: Undef<string>,
+            error: Undef<boolean>;
         if (message instanceof Error) {
             message = message.message;
             error = true;
         }
         if (useColor(options)) {
-            const { titleColor = 'green', titleBgColor = 'bgBlack', valueColor, valueBgColor, messageColor, messageBgColor } = options;
-            if (valueColor) {
-                value = chalk[valueColor](value);
+            let { titleColor, titleBgColor, valueColor, valueBgColor, messageColor, messageBgColor } = options;
+            if (!titleColor && !titleBgColor) {
+                ({ color: titleColor, bgColor: titleBgColor } = format.title!);
             }
-            if (valueBgColor) {
-                value = chalk[valueBgColor](value);
+            if (!valueColor && !valueBgColor) {
+                ({ color: valueColor, bgColor: valueBgColor } = format.value!);
             }
-            if (message) {
-                if (messageColor) {
-                    message = chalk[messageColor](message);
+            if (!messageColor && !messageBgColor) {
+                ({ color: messageColor, bgColor: messageBgColor } = format.message!);
+            }
+            try {
+                let v = value,
+                    m = message;
+                if (valueColor) {
+                    v = chalk[valueColor](v);
                 }
-                if (messageBgColor) {
-                    message = chalk[messageBgColor](message);
+                if (valueBgColor) {
+                    v = chalk[valueBgColor](v);
                 }
-                message = ' ' + (error ? chalk.redBright('{') + chalk.bgWhite.blackBright(message) + chalk.redBright('}') : chalk.blackBright('(') + message + chalk.blackBright(')'));
+                if (m && SETTINGS.message !== false) {
+                    if (messageColor) {
+                        m = chalk[messageColor](m);
+                    }
+                    if (messageBgColor) {
+                        m = chalk[messageBgColor](m);
+                    }
+                    m = ' ' + (error ? chalk.redBright('{') + chalk.bgWhite.blackBright(m) + chalk.redBright('}') : chalk.blackBright('(') + m + chalk.blackBright(')'));
+                }
+                else {
+                    m = '';
+                }
+                output = chalk[titleBgColor || 'bgBlack'].bold[titleColor || 'green'](title) + chalk.blackBright(':') + ' ' + v + m;
             }
-            message = chalk[titleBgColor].bold[titleColor](title) + chalk.blackBright(':') + ' ' + value + (SETTINGS.message !== false && message || '');
+            catch (err) {
+                this.writeFail('Invalid logger color scheme', err);
+            }
         }
-        else {
-            message = title + ': ' + value + (message && SETTINGS.message !== false ? ' ' + (error ? '{' : '(') + message + (error ? '}' : ')') : '');
-        }
-        console[(type & LOG_TYPE.FAIL) && (type & LOG_TYPE.FILE) ? 'error' : 'log'](message);
+        output ||= title + ': ' + value + (message && SETTINGS.message !== false ? ' ' + (error ? '{' : '(') + message + (error ? '}' : ')') : '');
+        console[(type & LOG_TYPE.FAIL) && (type & LOG_TYPE.FILE) ? 'error' : 'log'](output);
     }
 
     static writeFail(value: LogValue, message?: Null<Error>, type?: LOG_TYPE) {
-        this.formatMessage(type || LOG_TYPE.SYSTEM, ' FAIL! ', value, message, applyFailStyle());
+        this.formatMessage(type || LOG_TYPE.SYSTEM, 'FAIL!', value, message, { ...Module.LOG_STYLE_FAIL });
     }
 
     static parseFunction(value: string, name?: string, sync = true): Undef<FunctionType<Promise<string> | string>> {
@@ -414,8 +442,25 @@ abstract class Module implements IModule {
     }
 
     static loadSettings(value: Settings) {
-        if (value.logger) {
-            Object.assign(SETTINGS, value.logger);
+        const logger = value.logger;
+        if (this.isObject<LoggerModule>(logger)) {
+            for (const attr in logger) {
+                if (attr === 'format') {
+                    const current = SETTINGS.format!;
+                    const format = logger.format;
+                    if (this.isObject(format)) {
+                        for (const section in format) {
+                            const item = format[section] as LoggerModule;
+                            if (this.isObject(item)) {
+                                Object.assign(current[section], item);
+                            }
+                        }
+                    }
+                }
+                else {
+                    SETTINGS[attr] = logger[attr];
+                }
+            }
         }
     }
 

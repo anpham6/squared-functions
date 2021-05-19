@@ -3,7 +3,7 @@ type Null<T> = T | null;
 type Void<T> = T | void;
 type Optional<T> = Undef<T> | Null<T>;
 type Constructor<T> = new(...args: any[]) => T;
-type FunctionType<T, U = unknown> = (...args: U[]) => T;
+type FunctionType<T = unknown, U = unknown> = (...args: U[]) => T;
 
 type NumString = number | string;
 type StringOfArray = string | string[];

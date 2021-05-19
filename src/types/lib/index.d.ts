@@ -143,7 +143,7 @@ declare namespace functions {
         interval: number;
         port: number;
         securePort: number;
-        whenModified?: (assets: ExternalAsset[], postFinalize?: FunctionType<void>) => void;
+        whenModified?: (assets: ExternalAsset[], postFinalize?: FunctionType) => void;
         start(assets: ExternalAsset[], permission?: IPermission): void;
         modified(watch: FileWatch): void;
         setSSLKey(value: string): void;
