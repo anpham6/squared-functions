@@ -1,6 +1,6 @@
 import type { TransformOptions } from '../../types/lib/document';
 
-export default async function transform(context: any, value: string, options: TransformOptions) {
+export default function transform(context: any, value: string, options: TransformOptions) {
     const { baseConfig, outputConfig, external } = options;
     Object.assign(baseConfig, outputConfig);
     if (external) {

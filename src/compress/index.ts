@@ -86,7 +86,7 @@ const Compress = new class extends Module implements ICompress {
                     compressor.call(this, uri, output, data, callback);
                 }
                 else if (callback) {
-                    callback(new Error('Compressor not found'));
+                    callback(new Error(`Compress -> "${format}" not a registered format`));
                 }
                 break;
             }
@@ -145,7 +145,7 @@ const Compress = new class extends Module implements ICompress {
                 }
             }
             if (!apiKey) {
-                throw new Error('Tinify API key not found');
+                throw new Error('Compress -> Tinify API key not found');
             }
         }
         this.formatMessage(this.logType.COMPRESS, ext, ['Compressing image...', data.plugin], uri, { titleColor: 'magenta' });
@@ -183,7 +183,7 @@ const Compress = new class extends Module implements ICompress {
             });
         }
         else {
-            throw new Error('Compress -> Image (Missing plugin)');
+            throw new Error('Compress -> Missing image plugin');
         }
     }
 }();
