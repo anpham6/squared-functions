@@ -145,7 +145,7 @@ abstract class Module implements IModule {
                 return;
             }
         }
-        else if ((type & LOG_TYPE.FILE) && SETTINGS.file === false || (type & LOG_TYPE.CLOUD) && SETTINGS.cloud === false || (type & LOG_TYPE.COMPRESS) && SETTINGS.compress === false) {
+        else if ((type & LOG_TYPE.FILE) && SETTINGS.file === false|| (type & LOG_TYPE.CLOUD) && SETTINGS.cloud === false || (type & LOG_TYPE.COMPRESS) && SETTINGS.compress === false) {
             return;
         }
         else {
@@ -186,6 +186,12 @@ abstract class Module implements IModule {
                     titleJustify = 'center';
                 }
                 options.hintColor ||= 'yellow';
+            }
+            if (type & LOG_TYPE.TIME_PROCESS) {
+                if (SETTINGS.time_process === false) {
+                    return;
+                }
+                options.messageBgColor ||= 'bgCyan';
             }
         }
         const valueWidth = getFormatWidth(format.value, 71);
@@ -496,7 +502,7 @@ abstract class Module implements IModule {
     writeTimeProcess(title: string, value: string, time: number, options?: LogMessageOptions) {
         time = Date.now() - time;
         const meter = '>'.repeat(Math.ceil(time / 250));
-        Module.formatMessage(LOG_TYPE.TIME_PROCESS, title, [value, time / 1000 + 's'], useColor(options) ? chalk.bgCyan(meter) : meter, options);
+        Module.formatMessage(LOG_TYPE.TIME_PROCESS, title, [value, time / 1000 + 's'], meter, options);
     }
     writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions) {
         Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Complete', (Date.now() - time) / 1000 + 's'], value, options);
