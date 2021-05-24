@@ -123,8 +123,8 @@ function findClosingIndex(source: string, lastIndex: number): [number, string] {
     return [endIndex, trailing];
 }
 
-function removeCss(this: IChromeDocument, source: string) {
-    const { usedVariables, usedFontFace, usedKeyframes, unusedStyles, unusedMedia, unusedSupports } = this;
+function removeCss(document: IChromeDocument, source: string) {
+    const { usedVariables, usedFontFace, usedKeyframes, unusedStyles, unusedMedia, unusedSupports } = document;
     if (!usedVariables && !usedFontFace && !usedKeyframes && !unusedStyles && !unusedMedia && !unusedSupports) {
         return source;
     }
@@ -263,7 +263,7 @@ function removeCss(this: IChromeDocument, source: string) {
     return source;
 }
 
-function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: DocumentAsset) {
+function getRelativeUri(manager: IFileManager, cssFile: DocumentAsset, asset: DocumentAsset) {
     if (cssFile.inlineContent) {
         return asset.relativeUri!;
     }
@@ -277,7 +277,7 @@ function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: Docum
             assetDir = Document.joinPath(asset.moveTo, asset.pathname);
         }
         else {
-            const moveUri = path.join(this.baseDirectory, cssFile.moveTo, asset.relativeUri!);
+            const moveUri = path.join(manager.baseDirectory, cssFile.moveTo, asset.relativeUri!);
             try {
                 if (!fs.existsSync(moveUri)) {
                     fs.mkdirpSync(path.dirname(moveUri));
@@ -285,7 +285,7 @@ function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: Docum
                 }
             }
             catch (err) {
-                this.writeFail(['Unable to copy file', path.basename(moveUri)], err, this.logType.FILE);
+                manager.writeFail(['Unable to copy file', path.basename(moveUri)], err, manager.logType.FILE);
             }
         }
         fileDir = Document.joinPath(cssFile.moveTo, cssFile.pathname);
@@ -308,8 +308,8 @@ function trimQuote(value: string) {
     return first === last && (first === '"' || first === "'") ? value.substring(1, value.length - 1) : value;
 }
 
-function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: DocumentAsset, source: string, fromHTML?: boolean, mainFile?: DocumentAsset) {
-    const cloud = this.Cloud;
+function transformCss(manager: IFileManager, assets: DocumentAsset[], cssFile: DocumentAsset, source: string, fromHTML?: boolean, mainFile?: DocumentAsset) {
+    const cloud = manager.Cloud;
     const cssUri = cssFile.uri!;
     const related: DocumentAsset[] = [];
     const length = source.length;
@@ -357,20 +357,20 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
             const base64 = url.split(',')[1];
             for (const item of assets) {
                 if (item.base64 === base64) {
-                    setOutputUrl(item, getRelativeUri.call(this, cssFile, item));
+                    setOutputUrl(item, getRelativeUri(manager, cssFile, item));
                     break;
                 }
             }
         }
         else {
             let fullUrl = Document.resolvePath(url, cssUri);
-            const asset = this.findAsset(fullUrl) as Undef<DocumentAsset>;
+            const asset = manager.findAsset(fullUrl) as Undef<DocumentAsset>;
             if (asset && !asset.invalid) {
                 if (asset.format === 'base64') {
                     fullUrl = asset.inlineBase64 ||= uuid.v4();
                 }
                 else if (!Document.isFileHTTP(fullUrl) || Document.hasSameOrigin(cssUri, fullUrl)) {
-                    fullUrl = getRelativeUri.call(this, mainFile || cssFile, asset);
+                    fullUrl = getRelativeUri(manager, mainFile || cssFile, asset);
                 }
                 else {
                     const pathname = cssFile.pathname;
@@ -392,7 +392,7 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
     return output || source;
 }
 
-function setElementAttribute(this: IChromeDocument, htmlFile: DocumentAsset, asset: DocumentAsset, element: HtmlElement, value: string) {
+function setElementAttribute(document: IChromeDocument, htmlFile: DocumentAsset, asset: DocumentAsset, element: HtmlElement, value: string) {
     switch (element.tagName) {
         case 'a':
         case 'area':
@@ -419,7 +419,7 @@ function setElementAttribute(this: IChromeDocument, htmlFile: DocumentAsset, ass
                     if (url && uri === Document.resolvePath(url = Document.toPosix(url), baseUri)) {
                         src.push(url);
                     }
-                    url = uri.startsWith(this.baseDirectory) ? uri.substring(this.baseDirectory.length) : uri.replace(new URL(baseUri).origin, '');
+                    url = uri.startsWith(document.baseDirectory) ? uri.substring(document.baseDirectory.length) : uri.replace(new URL(baseUri).origin, '');
                     if (!src.includes(url)) {
                         src.push(url);
                     }
@@ -518,7 +518,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     for (const item of items) {
                         const element = item.element!;
                         const domElement = new HtmlElement(instance.moduleName, element, item.attributes);
-                        setElementAttribute.call(instance, file, item, domElement, item.inlineBase64 ||= uuid.v4());
+                        setElementAttribute(instance, file, item, domElement, item.inlineBase64 ||= uuid.v4());
                         if (domBase.write(domElement)) {
                             item.watch = false;
                         }
@@ -535,7 +535,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
             case '@text/css': {
                 const source = this.getAssetContent(file, this.getUTF8String(file, localUri) + concatString(file.trailingContent))!;
-                file.sourceUTF8 = transformCss.call(this, instance.assets, file, !file.preserve ? removeCss.call(instance, source) : source);
+                file.sourceUTF8 = transformCss(this, instance.assets, file, !file.preserve ? removeCss(instance, source) : source);
                 break;
             }
         }
@@ -632,7 +632,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                         }
                         domElement.innerXml = '';
                     }
-                    setElementAttribute.call(instance, htmlFile, item, domElement, uri);
+                    setElementAttribute(instance, htmlFile, item, domElement, uri);
                     if (srcSet) {
                         const length = srcSet.length;
                         let src = domElement.getAttribute('srcset'),
@@ -1209,11 +1209,11 @@ class ChromeDocument extends Document implements IChromeDocument {
             if (domBase.modified) {
                 source = domBase.close();
             }
-            source = transformCss.call(
+            source = transformCss(
                 this,
                 instance.assets,
                 htmlFile,
-                removeCss.call(instance, replaceContent(removeDatasetNamespace(moduleName, source, domBase.newline))),
+                removeCss(instance, replaceContent(removeDatasetNamespace(moduleName, source, domBase.newline))),
                 true
             );
             if (htmlFile.format) {
@@ -1358,10 +1358,10 @@ class ChromeDocument extends Document implements IChromeDocument {
         }
     }
     resolveUri(file: DocumentAsset, source: string) {
-        if (file.mimeType === '@text/css') {
+        if (file.mimeType === '@text/css' && this.host) {
             for (const asset of this.assets) {
                 if (asset.bundleId === file.bundleId && asset.bundleIndex === 0) {
-                    return transformCss.call(this.host, this.assets, file, source, false, asset);
+                    return transformCss(this.host, this.assets, file, source, false, asset);
                 }
             }
         }
