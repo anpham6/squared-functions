@@ -59,9 +59,10 @@ export async function executeQuery(this: ICloud, credential: OCIDatabaseCredenti
         const { table, id, query, limit = 0 } = data;
         let result: Undef<unknown[]>,
             queryString = table!;
+        const getCache = () => this.getDatabaseResult(data.service, credential, queryString, cacheKey);
         if (id) {
             queryString += id;
-            if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+            if (result = getCache()) {
                 return result;
             }
             const collection = await (await getConnection()).getSodaDatabase().openCollection(table!);
@@ -76,7 +77,7 @@ export async function executeQuery(this: ICloud, credential: OCIDatabaseCredenti
             const maxRows = Math.max(limit, 0);
             if (typeof query === 'object') {
                 queryString += JSON.stringify(query) + maxRows;
-                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+                if (result = getCache()) {
                     return result;
                 }
                 const collection = await (await getConnection()).getSodaDatabase().openCollection(table!);
@@ -90,7 +91,7 @@ export async function executeQuery(this: ICloud, credential: OCIDatabaseCredenti
             }
             else {
                 queryString += query + (data.params ? JSON.stringify(data.params) : '') + (data.options ? JSON.stringify(data.options) : '') + maxRows;
-                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+                if (result = getCache()) {
                     return result;
                 }
                 result = (await (await getConnection()).execute(query, data.params || [], { ...data.options, outFormat: OUT_FORMAT_OBJECT, maxRows })).rows;

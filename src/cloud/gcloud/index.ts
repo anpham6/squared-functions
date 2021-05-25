@@ -1,25 +1,42 @@
 import type { ICloud, IModule } from '../../types/lib';
 import type { CloudDatabase, CloudService } from '../../types/lib/cloud';
 
-import type { GoogleAuthOptions } from 'google-auth-library';
 import type { Acl } from '@google-cloud/storage/build/src/acl';
+import type { Settings } from '@google-cloud/firestore';
+import type { PathType } from '@google-cloud/datastore/build/src';
+import type { entity } from '@google-cloud/datastore/build/src/entity';
 
 import type * as gcs from '@google-cloud/storage';
 import type * as gcf from '@google-cloud/firestore';
+import type * as gcd from '@google-cloud/datastore';
 import type * as gcb from '@google-cloud/bigquery';
 
 import path = require('path');
 
-export interface GCloudStorageCredential extends GoogleAuthOptions {
+type DatastoreKey = entity.KeyOptions | PathType[] | string;
+
+function getPackageName(value: string) {
+    switch (value.substring(value.indexOf('/') + 1)) {
+        case 'bigquery':
+            return 'BigQuery';
+        case 'datastore':
+            return 'Datastore';
+        default:
+            return 'Firestore';
+    }
+}
+
+export interface GCloudStorageCredential extends Settings {
     location?: string;
     storageClass?: "STANDARD" | "NEARLINE" | "COLDLINE" | "ARCHIVE";
 }
 
-export interface GCloudDatabaseCredential extends GoogleAuthOptions {}
+export interface GCloudDatabaseCredential extends Settings {}
 
 export interface GCloudCloudBucket extends CloudService {}
 
 export interface GCloudDatabaseQuery extends CloudDatabase<[string, string, unknown][]> {
+    keys?: DatastoreKey | DatastoreKey[];
     orderBy?: [string, string][];
 }
 
@@ -28,7 +45,7 @@ export function validateStorage(credential: GCloudStorageCredential) {
 }
 
 export function validateDatabase(credential: GCloudDatabaseCredential, data: GCloudDatabaseQuery) {
-    return validateStorage(credential) && (!!data.table || typeof data.query === 'string');
+    return validateStorage(credential) && (!!data.table || typeof data.query === 'string' || data.keys);
 }
 
 export function createStorageClient(this: IModule, credential: GCloudStorageCredential) {
@@ -43,17 +60,24 @@ export function createStorageClient(this: IModule, credential: GCloudStorageCred
 }
 
 export function createDatabaseClient(this: IModule, credential: GCloudDatabaseCredential, data?: GCloudDatabaseQuery) {
+    let packageName = '@google-cloud/firestore';
     try {
         credential.projectId = getProjectId(credential);
-        if (data && typeof data.query === 'string') {
-            const { BigQuery } = require('@google-cloud/bigquery');
-            return new BigQuery(credential) as gcb.BigQuery;
+        if (data) {
+            if (typeof data.query === 'string') {
+                const { BigQuery } = require(packageName = '@google-cloud/bigquery') as typeof gcb;
+                return new BigQuery(credential);
+            }
+            else if (data.keys) {
+                const { Datastore } = require(packageName = '@google-cloud/datastore') as typeof gcd;
+                return new Datastore(credential);
+            }
         }
-        const Firestore = require('@google-cloud/firestore');
-        return new Firestore(credential) as gcf.Firestore;
+        const { Firestore } = require(packageName) as typeof gcf;
+        return new Firestore(credential);
     }
     catch (err) {
-        this.writeFail(['Install Google Cloud Firestore?', 'npm i @google-cloud/firestore']);
+        this.writeFail([`Install Google Cloud ${getPackageName(packageName)} ?`, 'npm i ' + packageName]);
         throw err;
     }
 }
@@ -94,12 +118,16 @@ export async function deleteObjects(this: IModule, credential: GCloudStorageCred
 
 export async function executeQuery(this: ICloud, credential: GCloudDatabaseCredential, data: GCloudDatabaseQuery, cacheKey?: string) {
     try {
-        const { table, id, query, orderBy, limit = 0 } = data;
-        const getClient = () => createDatabaseClient.call(this, { ...credential }, data);
+        const { table, id, query, orderBy, keys, limit = 0 } = data;
         let result: Undef<unknown[]>,
             queryString = '';
+        const getClient = () => createDatabaseClient.call(this, { ...credential }, data);
+        const getCache = () => this.getDatabaseResult(data.service, credential, queryString, cacheKey);
         if (typeof query === 'string') {
             queryString = query + (data.params ? JSON.stringify(data.params) : '') + (data.options ? JSON.stringify(data.options) : '') + limit;
+            if (result = getCache()) {
+                return result;
+            }
             const options: gcb.Query = { ...data.options, query };
             options.params ||= data.params;
             if (limit > 0) {
@@ -108,11 +136,23 @@ export async function executeQuery(this: ICloud, credential: GCloudDatabaseCrede
             const [job] = await (getClient() as gcb.BigQuery).createQueryJob(options);
             [result] = await job.getQueryResults();
         }
+        else if (keys) {
+            queryString = JSON.stringify(keys) + (data.options ? JSON.stringify(data.options) : '') + limit;
+            if (result = getCache()) {
+                return result;
+            }
+            const client = getClient() as gcd.Datastore;
+            const items = !Array.isArray(keys) ? client.key(keys as string) : keys.map((item: string) => client.key(item));
+            result = await client.get(items, data.options);
+            if (result.length > limit) {
+                result = result.slice(0, limit);
+            }
+        }
         else {
             queryString = table!;
             if (id) {
                 queryString += id;
-                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+                if (result = getCache()) {
                     return result;
                 }
                 const item = await (getClient() as gcf.Firestore).collection(table!).doc(id).get();
@@ -120,7 +160,7 @@ export async function executeQuery(this: ICloud, credential: GCloudDatabaseCrede
             }
             else if (Array.isArray(query)) {
                 queryString += JSON.stringify(query) + (orderBy ? JSON.stringify(orderBy) : '') + limit;
-                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+                if (result = getCache()) {
                     return result;
                 }
                 let collection = (getClient() as gcf.Firestore).collection(table!) as gcf.Query<gcf.DocumentData>;
@@ -165,7 +205,7 @@ export function setPublicRead(this: IModule, acl: Acl, filename: string, request
         });
 }
 
-export function getProjectId(credential: GoogleAuthOptions) {
+export function getProjectId(credential: Settings) {
     return require(path.resolve(credential.keyFilename || credential.keyFile!)).project_id || '';
 }
 

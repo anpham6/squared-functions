@@ -167,12 +167,13 @@ export async function deleteObjects(this: IModule, credential: AWSStorageCredent
 export async function executeQuery(this: ICloud, credential: AWSDatabaseCredential, data: AWSDatabaseQuery, cacheKey?: string) {
     try {
         const { table, id, query, partitionKey, limit = 0 } = data;
-        const getClient = () => createDatabaseClient.call(this, { ...credential });
         let result: Undef<unknown[]>,
             queryString = table!;
+        const getClient = () => createDatabaseClient.call(this, { ...credential });
+        const getCache = () => this.getDatabaseResult(data.service, credential, queryString, cacheKey);
         if (partitionKey && id) {
             queryString += partitionKey + id;
-            if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+            if (result = getCache()) {
                 return result;
             }
             const output = await getClient().get({ TableName: table!, Key: { [partitionKey]: id } }).promise();
@@ -182,7 +183,7 @@ export async function executeQuery(this: ICloud, credential: AWSDatabaseCredenti
         }
         else if (query && typeof query === 'object') {
             queryString += JSON.stringify(query) + limit;
-            if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+            if (result = getCache()) {
                 return result;
             }
             query.TableName = table!;

@@ -83,7 +83,7 @@ class FileManager extends Module implements IFileManager {
     readonly contentToAppend = new Map<string, string[]>();
     readonly contentToReplace = new Map<string, string[]>();
     readonly emptyDir = new Set<string>();
-    readonly postFinalize?: PostFinalizeCallback;
+    readonly postFinalize: Null<PostFinalizeCallback> = null;
 
     private _cleared = false;
 

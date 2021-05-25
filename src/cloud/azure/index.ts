@@ -109,12 +109,13 @@ export async function executeQuery(this: ICloud, credential: AzureDatabaseCreden
     try {
         const { name, table, id, query, storedProcedureId, params, partitionKey = '', limit = 0 } = data;
         if (name) {
-            const getContainer = () => createDatabaseClient.call(this, { ...credential }).database(name).container(table!);
             let result: Undef<unknown[]>,
                 queryString = name + table + partitionKey + (data.options ? JSON.stringify(data.options) : '');
+            const getContainer = () => createDatabaseClient.call(this, { ...credential }).database(name).container(table!);
+            const getCache = () => this.getDatabaseResult(data.service, credential, queryString, cacheKey);
             if (storedProcedureId && params) {
                 queryString += storedProcedureId + JSON.stringify(params);
-                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+                if (result = getCache()) {
                     return result;
                 }
                 const item = await getContainer().scripts.storedProcedure(storedProcedureId).execute(partitionKey, params, data.options);
@@ -124,7 +125,7 @@ export async function executeQuery(this: ICloud, credential: AzureDatabaseCreden
             }
             else if (id) {
                 queryString += id;
-                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+                if (result = getCache()) {
                     return result;
                 }
                 const item = await getContainer().item(id.toString(), partitionKey).read(data.options);
@@ -134,7 +135,7 @@ export async function executeQuery(this: ICloud, credential: AzureDatabaseCreden
             }
             else if (typeof query === 'string') {
                 queryString += query + limit;
-                if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+                if (result = getCache()) {
                     return result;
                 }
                 if (limit > 0) {

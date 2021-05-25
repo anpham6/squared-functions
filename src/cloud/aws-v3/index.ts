@@ -142,9 +142,10 @@ export async function executeQuery(this: ICloud, config: AWSDatabaseConfig, data
                 const { table: TableName, id, query, partitionKey, limit = 0 } = data;
                 let result: Undef<unknown[]>,
                     queryString = TableName!;
+                const getCache = () => this.getDatabaseResult(data.service, config, queryString, cacheKey);
                 if (partitionKey && id) {
                     queryString += partitionKey + id;
-                    if (result = this.getDatabaseResult(data.service, config, queryString, cacheKey)) {
+                    if (result = getCache()) {
                         return result;
                     }
                     const output = await client.send(new AWS.GetCommand({ TableName, Key: { [partitionKey]: id } }));
@@ -154,7 +155,7 @@ export async function executeQuery(this: ICloud, config: AWSDatabaseConfig, data
                 }
                 else if (typeof query === 'object') {
                     queryString += JSON.stringify(query) + limit;
-                    if (result = this.getDatabaseResult(data.service, config, queryString, cacheKey)) {
+                    if (result = getCache()) {
                         return result;
                     }
                     query.TableName = TableName;

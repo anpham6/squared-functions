@@ -19,7 +19,7 @@ export interface FileInfo {
     size: string;
 }
 
-export interface DataSource extends ElementAction, DocumentAction, PlainObject {
+export interface DataSource extends ElementAction, DocumentAction {
     source: string;
     index?: number;
     limit?: number;

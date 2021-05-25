@@ -55,12 +55,13 @@ export async function deleteObjects(this: IModule, credential: IBMStorageCredent
 export async function executeQuery(this: ICloud, credential: IBMDatabaseCredential, data: IBMDatabaseQuery, cacheKey?: string) {
     try {
         const { table, id, query, partitionKey = '', limit = 0 } = data;
-        const getScope = () => createDatabaseClient.call(this, { ...credential }).db.use(table!);
         let result: Undef<unknown[]>,
             queryString = table + partitionKey;
+        const getScope = () => createDatabaseClient.call(this, { ...credential }).db.use(table!);
+        const getCache = () => this.getDatabaseResult(data.service, credential, queryString, cacheKey);
         if (id) {
             queryString += id;
-            if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+            if (result = getCache()) {
                 return result;
             }
             const item = await getScope().get((partitionKey ? partitionKey + ':' : '') + id);
@@ -68,7 +69,7 @@ export async function executeQuery(this: ICloud, credential: IBMDatabaseCredenti
         }
         else if (query && typeof query === 'object') {
             queryString += JSON.stringify(query) + limit;
-            if (result = this.getDatabaseResult(data.service, credential, queryString, cacheKey)) {
+            if (result = getCache()) {
                 return result;
             }
             if (limit > 0) {

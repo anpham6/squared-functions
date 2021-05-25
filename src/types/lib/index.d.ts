@@ -201,7 +201,7 @@ declare namespace functions {
         readonly emptyDir: Set<string>;
         readonly permission: IPermission;
         readonly archiving: boolean;
-        readonly postFinalize?: PostFinalizeCallback;
+        readonly postFinalize: Null<PostFinalizeCallback>;
         install(name: string, ...params: unknown[]): Undef<IModule>;
         add(value: string, parent?: ExternalAsset): void;
         delete(value: string, emptyDir?: boolean): void;

@@ -716,7 +716,7 @@ Other service providers can be integrated similarly except for credential verifi
       /* Optional */
       "admin": {
         "publicRead": false, // New buckets (OCI: not supported)
-        "emptyBucket": false, // More convenient than using "overwrite",
+        "emptyBucket": false, // More convenient than using "overwrite"
         "preservePath": false // Use current pathname as base directory
       },
       /* Optional */
@@ -820,6 +820,7 @@ Each DocumentDB provider has a different query syntax. Consulting their document
   - https://cloud.google.com/bigquery (10GB + 1TB queries/month)
 
   + npm i @google-cloud/firestore (gcloud)
+  + npm i @google-cloud/datastore
   + npm i @google-cloud/bigquery
 
 * IBM Cloudant
@@ -920,7 +921,7 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
   }
 }
 
-// BigQuery
+/* BigQuery or Datastore (keys) */
 {
   "selector": ".card:nth-of-type(1) p",
   "type": "text",
@@ -931,6 +932,8 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
       "keyFilename": "./gcloud.json"
     },
     "query": "SELECT name, count FROM `demo.names_2014` WHERE gender = 'M' ORDER BY count DESC LIMIT 10",
+    /* OR */
+    "keys": [['kind', 'name']], // PathType[] | KeyOptions | string
     "limit": 5 // Optional
     "removeEmpty": false, // Optional
     "value": "<b>${name}</b>: ${count}"
