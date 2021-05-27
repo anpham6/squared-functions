@@ -613,8 +613,24 @@ class ChromeDocument extends Document implements IChromeDocument {
                 }
                 const domElement = new HtmlElement(moduleName, element, attributes);
                 if (inlineContent) {
+                    const [innerXml, sourceMappingURL] = Document.removeSourceMappingURL(this.getUTF8String(item).trim());
+                    if (sourceMappingURL && item.localUri) {
+                        let uri = path.resolve(process.cwd(), sourceMappingURL);
+                        if (!fs.existsSync(uri)) {
+                            uri = path.join(path.dirname(item.localUri), sourceMappingURL);
+                        }
+                        if (fs.existsSync(uri)) {
+                            try {
+                                fs.unlinkSync(uri);
+                                this.delete(uri);
+                            }
+                            catch (err) {
+                                this.writeFail(['Unable to delete file', sourceMappingURL], err, this.logType.FILE);
+                            }
+                        }
+                    }
                     domElement.tagName = inlineContent;
-                    domElement.innerXml = this.getUTF8String(item).trim();
+                    domElement.innerXml = innerXml;
                     domElement.removeAttribute('src', 'href');
                 }
                 else if (uri && !crossorigin && item !== htmlFile) {

@@ -136,6 +136,7 @@ declare namespace functions {
         sanitizeAssets(assets: ExternalAsset[], exclusions?: ExternalAsset[]): void;
         createSourceMap(code: string, file?: ExternalAsset): SourceMapInput;
         writeSourceMap(localUri: string, sourceMap: SourceMapOutput, options?: SourceMapOptions): Undef<string>;
+        removeSourceMappingURL(value: string): [string, string?];
         new(module: DocumentModule, ...args: unknown[]): IDocument;
     }
 

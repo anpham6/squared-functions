@@ -11,6 +11,8 @@ import fs = require('fs-extra');
 
 import Module from '../module';
 
+const REGEXP_SOURCEMAPPINGURL = /\n*(\/\*)?\s*(\/\/)?[#@] sourceMappingURL=(['"])?([^\s'"]*)\3\s*?(\*\/)?\n?/;
+
 const errorMessage = (hint: string, process: string, message: string) => new Error(hint + ` -> ${process} (${message})`);
 const getSourceMappingURL = (value: string) => `\n//# sourceMappingURL=${value}\n`;
 
@@ -78,7 +80,7 @@ abstract class Document extends Module implements IDocument {
             code = sourceMap.code,
             found = false,
             inlineMap = false;
-        code = code.replace(/\n*(\/\*)?\s*(\/\/)?[#@] sourceMappingURL=(['"])?([^\s'"]*)\3\s*?(\*\/)?\n?/, (...capture) => {
+        code = code.replace(REGEXP_SOURCEMAPPINGURL, (...capture) => {
             found = true;
             inlineMap = capture[4].startsWith('data:application/json');
             return !inlineMap && (capture[2] && !capture[1] && !capture[5] || capture[1] && capture[5]) ? getSourceMappingURL(sourceMappingURL!) : capture[0];
@@ -104,6 +106,11 @@ abstract class Document extends Module implements IDocument {
             sourceMap.code = code;
         }
         return uri;
+    }
+
+    static removeSourceMappingURL(value: string): [string, string?] {
+        const match = REGEXP_SOURCEMAPPINGURL.exec(value);
+        return match ? [value.substring(0, match.index) + value.substring(match.index + match[0].length), match[4]] : [value];
     }
 
     public configData?: Undef<StandardMap>;
