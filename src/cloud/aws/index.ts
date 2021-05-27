@@ -46,10 +46,10 @@ function setPublicRead(this: IModule, s3: aws.S3, Bucket: string, service = 'aws
         }
     };
     switch (service) {
-        case 'AWS':
+        case 'aws':
             s3.putBucketPolicy({ Bucket, Policy: getPublicReadPolicy(Bucket) }, callback);
             break;
-        case 'IBM':
+        case 'ibm':
             s3.putBucketAcl({ Bucket, AccessControlPolicy }, callback);
             break;
     }
