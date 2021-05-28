@@ -455,6 +455,11 @@ function spliceString(source: string, startIndex: number, endIndex: number, lead
     return [source.substring(0, startIndex) + content + source.substring(endIndex + 1), content.length];
 }
 
+function isTruthy(data: PlainObject, attr: string, falsey: Undef<string | boolean>) {
+    const value = !!getObjectValue(data, attr);
+    return falsey ? !value : value;
+}
+
 const isRemoved = (item: DocumentAsset) => item.exclude === true || item.bundleIndex !== undefined && item.bundleIndex > 0;
 const concatString = (values: Undef<string[]>): string => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const escapePosix = (value: string) => value.split(/[\\/]/).map(seg => Document.escapePattern(seg)).join('[\\\\/]');
@@ -615,14 +620,14 @@ class ChromeDocument extends Document implements IChromeDocument {
                 if (inlineContent) {
                     const [innerXml, sourceMappingURL] = Document.removeSourceMappingURL(this.getUTF8String(item).trim());
                     if (sourceMappingURL && item.localUri) {
-                        let uri = path.resolve(process.cwd(), sourceMappingURL);
-                        if (!fs.existsSync(uri)) {
-                            uri = path.join(path.dirname(item.localUri), sourceMappingURL);
+                        let mapUri = path.resolve(process.cwd(), sourceMappingURL);
+                        if (!fs.existsSync(mapUri)) {
+                            mapUri = path.join(path.dirname(item.localUri), sourceMappingURL);
                         }
-                        if (fs.existsSync(uri)) {
+                        if (fs.existsSync(mapUri)) {
                             try {
-                                fs.unlinkSync(uri);
-                                this.delete(uri);
+                                fs.unlinkSync(mapUri);
+                                this.delete(mapUri);
                             }
                             catch (err) {
                                 this.writeFail(['Unable to delete file', sourceMappingURL], err, this.logType.FILE);
@@ -936,10 +941,6 @@ class ChromeDocument extends Document implements IChromeDocument {
                             if (result.length) {
                                 let template = item.value || element!.textContent || domElement.innerXml,
                                     errors: Undef<boolean>;
-                                const isTruthy = (data: PlainObject, attr: string, falsey: Undef<string | boolean>) => {
-                                    const value = !!getObjectValue(data, attr);
-                                    return falsey ? !value : value;
-                                };
                                 switch (item.type) {
                                     case 'text':
                                         if (typeof template === 'string' && !domElement.tagVoid) {
@@ -1168,7 +1169,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         break;
                                     default:
                                         removeElement();
-                                        reject(new Error(`Data source -> Invalid action (${item.type ? item.type : 'Unknown'})`));
+                                        reject(new Error(`Data source -> Invalid action (${item.type as string || 'Unknown'})`));
                                         return;
                                 }
                                 if (!domBase.write(domElement) || errors) {

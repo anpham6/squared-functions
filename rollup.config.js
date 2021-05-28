@@ -30,6 +30,16 @@ export default [
         }
     },
     {
+        input: './build/document/android/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/document/android/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/document/android ${require('./publish/document/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
+        }
+    },
+    {
         input: './build/document/chrome/index.js',
         treeshake: false,
         output: {
