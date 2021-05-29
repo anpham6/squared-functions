@@ -15,12 +15,15 @@ interface RequestBody extends IRequestBody {
 class AndroidDocument extends Document implements IAndroidDocument {
     static async finalize(this: IFileManager, instance: IAndroidDocument) {
         if (instance.dependencies) {
-            const template = path.join(this.baseDirectory, instance.module.settings?.app_directory || 'app', 'build.gradle');
+            const settings = instance.module.settings || {};
+            const gradleKts = settings.language?.gradle === 'kotlin';
+            const filename = 'build.gradle' + (gradleKts ? '.kts' : '');
+            const template = path.join(this.baseDirectory, settings.app_directory || 'app', filename);
             let content: Undef<string>,
                 existing: Undef<boolean>;
             try {
                 existing = !this.archiving && fs.existsSync(template);
-                content = fs.readFileSync(existing ? template : path.resolve(__dirname, 'template', 'build.gradle'), 'utf8');
+                content = fs.readFileSync(existing ? template : path.resolve(__dirname, 'template', gradleKts ? 'kotlin' : 'java', filename), 'utf8');
             }
             catch (err) {
                 this.writeFail(['Unable to read file', path.basename(template)], err, this.logType.FILE);
@@ -29,8 +32,8 @@ class AndroidDocument extends Document implements IAndroidDocument {
                 const items = instance.dependencies.map(item => item.split(':')) as [string, string, string][];
                 const match = /dependencies\s+\{([^}]+)\}/.exec(content);
                 if (match) {
-                    const writeImpl = (item: string[]) => `implementation '${item.join(':')}'`;
-                    const pattern = /([ \t]*)implementation\s+(?:["']([^"']+)["']|((?:\s*(?:group|name|version)\s*:\s*["'][^"']+["']\s*,?){3}))/g;
+                    const writeImpl = (item: string[]) => 'implementation' + (gradleKts ? `("${item.join(':')}")` : ` '${item.join(':')}'`);
+                    const pattern = gradleKts ? /([ \t]*)implementation\("([^"]+)"\)/g : /([ \t]*)implementation\s+(?:["']([^"']+)["']|((?:\s*(?:group|name|version)\s*:\s*["'][^"']+["']\s*,?){3}))/g;
                     let source = match[1],
                         indent = '\t',
                         modified: Undef<boolean>,
