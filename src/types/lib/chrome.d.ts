@@ -1,5 +1,3 @@
-/// <reference path="type.d.ts" />
-
 import type { AttributeMap, ElementAction, DataSource as IDataSource, ViewEngine } from './squared';
 
 import type { FilterQuery } from 'mongodb';

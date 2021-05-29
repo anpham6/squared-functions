@@ -2,10 +2,11 @@ import type { TagAppend } from '../../types/lib/squared';
 
 import type { AttributeList, AttributeMap, FindElementOptions, IXmlElement, IXmlWriter, ParserResult, ReplaceOptions, SaveResult, SourceContent, SourceIndex, SourceTagNode, TagNodeByIdOptions, TagNodeOptions, TagOffsetMap, WriteResult, XmlTagNode } from './document';
 
+import uuid = require('uuid');
+
 import htmlparser2 = require('htmlparser2');
 import domhandler = require('domhandler');
 import domutils = require('domutils');
-import uuid = require('uuid');
 
 import Module from '../../module';
 
