@@ -8,8 +8,13 @@ export interface DocumentModule extends IDocumentModule {
         language?: {
             gradle?: "java" | "kotlin";
         };
-        app_directory?: string;
+        directory?: SettingsDirectory;
     };
+}
+
+export interface SettingsDirectory {
+    main?: string;
+    template?: string;
 }
 
 export interface DocumentAsset extends ExternalAsset {}

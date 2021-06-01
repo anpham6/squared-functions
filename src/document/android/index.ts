@@ -2,7 +2,7 @@ import type { IFileManager } from '../../types/lib';
 import type { ManifestData } from '../../types/lib/android';
 import type { RequestBody as IRequestBody } from '../../types/lib/node';
 
-import type { DocumentAsset, DocumentModule, IAndroidDocument } from './document';
+import type { DocumentAsset, DocumentModule, IAndroidDocument, SettingsDirectory } from './document';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -22,18 +22,25 @@ interface RequestBody extends IRequestBody {
     dependencies?: string[];
 }
 
+function resolveTemplate(directory: Undef<SettingsDirectory>, ...paths: string[]) {
+    const template = directory?.template;
+    if (template) {
+        return path.join(path.isAbsolute(template) ? template : path.resolve(process.cwd(), template), ...paths);
+    }
+}
+
 class AndroidDocument extends Document implements IAndroidDocument {
     static async finalize(this: IFileManager, instance: IAndroidDocument) {
         const settings = instance.module.settings || {};
-        settings.app_directory ||= 'app';
+        (settings.directory ||= {}).main ||= 'app';
         if (instance.manifest) {
             const filename = instance.manifestFilename;
-            const template = path.join(this.baseDirectory, settings.app_directory, 'src', 'main', filename);
+            const template = path.join(this.baseDirectory, settings.directory.main, 'src', 'main', filename);
             let content: Undef<string>,
                 existing: Undef<boolean>;
             try {
                 existing = !this.archiving && fs.existsSync(template);
-                content = fs.readFileSync(existing ? template : path.resolve(__dirname, 'template', filename), 'utf8');
+                content = fs.readFileSync(existing ? template : resolveTemplate(settings.directory, filename) || path.resolve(__dirname, 'template', filename), 'utf8');
             }
             catch (err) {
                 this.writeFail(['Unable to read file', path.basename(template)], err, this.logType.FILE);
@@ -107,12 +114,12 @@ class AndroidDocument extends Document implements IAndroidDocument {
         if (instance.dependencies) {
             const kotlin = settings.language?.gradle === 'kotlin';
             const filename = kotlin ? 'build.gradle.kts' : 'build.gradle';
-            const template = path.join(this.baseDirectory, settings.app_directory, filename);
+            const template = path.join(this.baseDirectory, settings.directory.main, filename);
             let content: Undef<string>,
                 existing: Undef<boolean>;
             try {
                 existing = !this.archiving && fs.existsSync(template);
-                content = fs.readFileSync(existing ? template : path.resolve(__dirname, 'template', kotlin ? 'kotlin' : 'java', filename), 'utf8');
+                content = fs.readFileSync(existing ? template : resolveTemplate(settings.directory, kotlin ? 'kotlin' : 'java', filename) || path.resolve(__dirname, 'template', kotlin ? 'kotlin' : 'java', filename), 'utf8');
             }
             catch (err) {
                 this.writeFail(['Unable to read file', path.basename(template)], err, this.logType.FILE);
