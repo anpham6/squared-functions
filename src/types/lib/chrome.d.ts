@@ -17,7 +17,7 @@ export interface TemplateMap {
     css: ObjectMap<PlainObject>;
 }
 
-export interface RequestData extends DocumentOutput, CssSelectorData {
+export interface RequestData extends DocumentOutput, ICssRuleData {
     baseUrl?: string;
     templateMap?: TemplateMap;
 }
@@ -27,7 +27,7 @@ export interface DocumentOutput {
     normalizeHtmlOutput?: boolean;
 }
 
-export interface CssSelectorData {
+export interface ICssRuleData {
     usedVariables?: string[];
     usedFontFace?: string[];
     usedKeyframes?: string[];

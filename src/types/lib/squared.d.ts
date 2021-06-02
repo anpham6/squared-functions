@@ -158,5 +158,12 @@ export interface ResponseError {
     hint?: string;
 }
 
+export interface FinalizedElement {
+    documentId: string;
+    bounds: BoxRectDimension;
+    css: CssStyleMap;
+    outerWrapperIds?: string[];
+}
+
 export type AttributeMap = ObjectMap<Optional<string>>;
 export type WatchValue = boolean | WatchInterval;

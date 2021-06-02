@@ -1,8 +1,10 @@
+import type { FinalizedElement } from '../../types/lib/squared';
+
 import type { IFileManager } from '../../types/lib';
 import type { ManifestData } from '../../types/lib/android';
 import type { RequestBody as IRequestBody } from '../../types/lib/node';
 
-import type { DocumentAsset, DocumentModule, IAndroidDocument, SettingsDirectory } from './document';
+import type { DocumentAsset, DocumentModule, IAndroidDocument, IRequestData, SettingsDirectory } from './document';
 
 import path = require('path');
 import fs = require('fs-extra');
@@ -17,10 +19,7 @@ import Document from '../../document';
 const Parser = htmlparser2.Parser;
 const DomHandler = domhandler.DomHandler;
 
-interface RequestBody extends IRequestBody {
-    manifest?: ManifestData;
-    dependencies?: string[];
-}
+interface RequestBody extends IRequestBody, IRequestData {}
 
 function resolveTemplate(directory: Undef<SettingsDirectory>, ...paths: string[]) {
     const template = directory?.template;
@@ -214,11 +213,13 @@ class AndroidDocument extends Document implements IAndroidDocument {
     manifestFilename = 'AndroidManifest.xml';
     manifest?: ManifestData;
     dependencies?: string[];
+    elements?: FinalizedElement[];
 
     init(assets: DocumentAsset[], body: RequestBody) {
         this.assets = assets;
         this.manifest = body.manifest;
         this.dependencies = body.dependencies;
+        this.elements = body.elements;
     }
 }
 

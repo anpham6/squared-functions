@@ -1,7 +1,15 @@
+import type { FinalizedElement } from '../../types/lib/squared';
+
 import type { IDocument } from '../../types/lib';
 import type { ManifestData } from '../../types/lib/android';
 import type { ExternalAsset } from '../../types/lib/asset';
 import type { DocumentModule as IDocumentModule } from '../../types/lib/module';
+
+export interface IRequestData {
+    manifest?: ManifestData;
+    dependencies?: string[];
+    elements?: FinalizedElement[];
+}
 
 export interface DocumentModule extends IDocumentModule {
     settings?: {
@@ -19,10 +27,8 @@ export interface SettingsDirectory {
 
 export interface DocumentAsset extends ExternalAsset {}
 
-export interface IAndroidDocument extends IDocument {
+export interface IAndroidDocument extends IDocument, IRequestData {
     module: DocumentModule;
     assets: DocumentAsset[];
     manifestFilename: string;
-    manifest?: ManifestData;
-    dependencies?: string[];
 }
