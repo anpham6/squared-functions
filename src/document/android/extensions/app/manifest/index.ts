@@ -3,7 +3,7 @@ import type { IFileManager } from '../../../../../types/lib';
 import type { IAndroidDocument } from '../../../document';
 
 import path = require('path');
-import fs = require('fs-extra');
+import fs = require('fs');
 
 import htmlparser2 = require('htmlparser2');
 import domhandler = require('domhandler');
@@ -17,9 +17,7 @@ const MANIFEST_FILENAME = 'AndroidManifest.xml';
 
 export default function finalize(this: IFileManager, instance: IAndroidDocument) {
     if (instance.manifest) {
-        const settings = instance.module.settings || {};
-        const mainDir = settings.directory?.main || 'app';
-        const template = path.join(this.baseDirectory, mainDir, 'src', 'main', MANIFEST_FILENAME);
+        const template = path.join(this.baseDirectory, instance.mainParentDir, 'src', 'main', MANIFEST_FILENAME);
         let content: Undef<string>,
             existing: Undef<boolean>;
         try {

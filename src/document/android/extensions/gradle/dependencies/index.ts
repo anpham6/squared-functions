@@ -3,20 +3,20 @@ import type { IFileManager } from '../../../../../types/lib';
 import type { IAndroidDocument } from '../../../document';
 
 import path = require('path');
-import fs = require('fs-extra');
+import fs = require('fs');
 
 export default function finalize(this: IFileManager, instance: IAndroidDocument) {
     if (instance.dependencies) {
         const settings = instance.module.settings || {};
-        const mainDir = settings.directory?.main || 'app';
+        const mainParentDir = instance.mainParentDir;
         const kotlin = settings.language?.gradle === 'kotlin';
         const filename = kotlin ? 'build.gradle.kts' : 'build.gradle';
-        const template = path.join(this.baseDirectory, mainDir, filename);
+        const template = path.join(this.baseDirectory, mainParentDir, filename);
         let content: Undef<string>,
             existing: Undef<boolean>;
         try {
             existing = !this.archiving && fs.existsSync(template);
-            content = fs.readFileSync(existing ? template : instance.resolveTemplate(mainDir, kotlin ? 'kotlin' : 'java', filename) || path.resolve(__dirname, 'template', kotlin ? 'kotlin' : 'java', filename), 'utf8');
+            content = fs.readFileSync(existing ? template : instance.resolveTemplate(kotlin ? 'kotlin' : 'java', filename) || path.resolve(__dirname, 'template', kotlin ? 'kotlin' : 'java', filename), 'utf8');
         }
         catch (err) {
             this.writeFail(['Unable to read file', path.basename(template)], err, this.logType.FILE);

@@ -9,6 +9,8 @@ export interface IRequestData {
     manifest?: ManifestData;
     dependencies?: string[];
     elements?: FinalizedElement[];
+    mainParentDir?: string;
+    mainActivityFile?: string;
 }
 
 export interface DocumentModule extends IDocumentModule {
@@ -30,5 +32,6 @@ export interface DocumentAsset extends ExternalAsset {}
 export interface IAndroidDocument extends IDocument, IRequestData {
     module: DocumentModule;
     assets: DocumentAsset[];
+    mainParentDir: string;
     resolveTemplate(...paths: string[]): Undef<string>;
 }

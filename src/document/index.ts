@@ -7,7 +7,7 @@ import type { DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
 
 import path = require('path');
-import fs = require('fs-extra');
+import fs = require('fs');
 
 import Module from '../module';
 
