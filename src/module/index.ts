@@ -199,7 +199,7 @@ abstract class Module implements IModule {
             const hint = value[1];
             if (this.isString(hint)) {
                 const hintWidth = getFormatWidth(format.hint, 32);
-                const getHint = () => hint.length > hintWidth ? hint.substring(0, hintWidth - 3) + '...' : hint;
+                const getHint = () => hint.length > hintWidth ? '...' + hint.substring(hint.length - hintWidth + 3) : hint;
                 const formatHint = (content: string) => {
                     let { hintColor, hintBgColor } = options;
                     if (!hintColor && !hintBgColor) {

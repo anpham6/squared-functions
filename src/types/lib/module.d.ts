@@ -3,6 +3,7 @@ import type { LoggerFormat } from './logger';
 
 export interface HandlerModule {
     handler?: string;
+    extensions?: string[];
 }
 
 export interface DocumentModule extends HandlerModule {
@@ -15,7 +16,7 @@ export interface TaskModule extends HandlerModule {
     settings?: PlainObject;
 }
 
-export interface ImageModule extends HandlerModule, StringMap {}
+export interface ImageModule extends HandlerModule, PlainObject {}
 
 export interface CloudModule {
     cache?: Partial<CacheTimeout>;

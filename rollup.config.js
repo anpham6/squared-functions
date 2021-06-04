@@ -40,6 +40,26 @@ export default [
         }
     },
     {
+        input: './build/document/android/extensions/app/manifest/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/document/android/extensions/app/manifest/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/document/android/extensions/app/manifest ${require('./publish/document/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
+        }
+    },
+    {
+        input: './build/document/android/extensions/gradle/dependencies/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/document/android/extensions/gradle/dependencies/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/document/android/extensions/gradle/dependencies ${require('./publish/document/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
+        }
+    },
+    {
         input: './build/document/chrome/index.js',
         treeshake: false,
         output: {

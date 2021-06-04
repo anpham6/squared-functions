@@ -1,4 +1,5 @@
 /// <reference path="type.d.ts" />
+/// <reference path="dom.d.ts" />
 
 interface ElementScope {
     watch?: WatchValue;
