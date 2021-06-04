@@ -1,10 +1,9 @@
 import type { FinalizedElement } from '../../types/lib/squared';
 
-import type { IFileManager } from '../../types/lib';
 import type { ManifestData } from '../../types/lib/android';
 import type { RequestBody as IRequestBody } from '../../types/lib/node';
 
-import type { DocumentAsset, DocumentModule, IAndroidDocument, IRequestData, TransformCallback } from './document';
+import type { DocumentAsset, DocumentModule, IAndroidDocument, IRequestData } from './document';
 
 import path = require('path');
 
@@ -13,17 +12,6 @@ import Document from '../../document';
 interface RequestBody extends IRequestBody, IRequestData {}
 
 class AndroidDocument extends Document implements IAndroidDocument {
-    static async finalize(this: IFileManager, instance: IAndroidDocument) {
-        for (const ext of instance.module.extensions || []) {
-            try {
-                await (require(ext) as TransformCallback).call(this, instance);
-            }
-            catch (err) {
-                this.writeFail(['Unable to load extension', ext], err);
-            }
-        }
-    }
-
     moduleName = 'android';
     module!: DocumentModule;
     assets: DocumentAsset[] = [];

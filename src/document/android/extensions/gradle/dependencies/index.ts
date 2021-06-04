@@ -5,7 +5,7 @@ import type { IAndroidDocument } from '../../../document';
 import path = require('path');
 import fs = require('fs-extra');
 
-export default function transform(this: IFileManager, instance: IAndroidDocument) {
+export default function finalize(this: IFileManager, instance: IAndroidDocument) {
     if (instance.dependencies) {
         const settings = instance.module.settings || {};
         const mainDir = settings.directory?.main || 'app';
@@ -106,7 +106,7 @@ export default function transform(this: IFileManager, instance: IAndroidDocument
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = transform;
-    module.exports.default = transform;
+    module.exports = finalize;
+    module.exports.default = finalize;
     Object.defineProperty(module.exports, '__esModule', { value: true });
 }

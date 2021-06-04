@@ -2,7 +2,7 @@ import type { ViewEngine } from '../types/lib/squared';
 
 import type { IDocument, IFileManager } from '../types/lib';
 import type { ExternalAsset } from '../types/lib/asset';
-import type { ConfigOrTransformer, PluginConfig, SourceMap, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOptions, TransformOutput, TransformResult, Transformer } from '../types/lib/document';
+import type { ConfigOrTransformer, PluginConfig, SourceMap, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformCallback, TransformOptions, TransformOutput, TransformResult, Transformer } from '../types/lib/document';
 import type { DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
 
@@ -18,8 +18,21 @@ const getSourceMappingURL = (value: string) => `\n//# sourceMappingURL=${value}\
 
 abstract class Document extends Module implements IDocument {
     static async using(this: IFileManager, instance: IDocument, file: ExternalAsset) {}
-    static async finalize(this: IFileManager, instance: IDocument) {}
     static async cleanup(this: IFileManager, instance: IDocument) {}
+
+    static async finalize(this: IFileManager, instance: IDocument) {
+        const extensions = instance.module.extensions;
+        if (extensions) {
+            for (const ext of extensions) {
+                try {
+                    await (require(ext) as TransformCallback).call(this, instance);
+                }
+                catch (err) {
+                    this.writeFail([`Unable to load <${this.moduleName || 'unknown'}> extension`, ext], err);
+                }
+            }
+        }
+    }
 
     static createSourceMap(value: string) {
         return Object.create({

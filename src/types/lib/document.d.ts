@@ -1,3 +1,5 @@
+import type { IDocument, IFileManager } from './index';
+
 import type { ExternalAsset } from './asset';
 import type { ModuleWriteFailMethod } from './logger';
 
@@ -55,3 +57,4 @@ export interface SourceMap {
 export type Transformer = FunctionType<Undef<Promise<string> | string>>;
 export type ConfigOrTransformer = StandardMap | Transformer;
 export type PluginConfig = [string, Undef<ConfigOrTransformer>, Undef<StandardMap>] | [];
+export type TransformCallback = (this: IFileManager, instance: IDocument) => Void<Promise<void>>;

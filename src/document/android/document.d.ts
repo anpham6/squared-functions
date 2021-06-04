@@ -1,6 +1,6 @@
 import type { FinalizedElement } from '../../types/lib/squared';
 
-import type { IDocument, IFileManager } from '../../types/lib';
+import type { IDocument } from '../../types/lib';
 import type { ManifestData } from '../../types/lib/android';
 import type { ExternalAsset } from '../../types/lib/asset';
 import type { DocumentModule as IDocumentModule } from '../../types/lib/module';
@@ -32,5 +32,3 @@ export interface IAndroidDocument extends IDocument, IRequestData {
     assets: DocumentAsset[];
     resolveTemplate(...paths: string[]): Undef<string>;
 }
-
-export type TransformCallback = (this: IFileManager, instance: IAndroidDocument) => Void<Promise<void>>;

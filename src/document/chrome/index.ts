@@ -1252,6 +1252,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
         inlineMap.forEach(file => this.removeAsset(file));
+        return super.finalize.call(this, instance);
     }
 
     static async cleanup(this: IFileManager, instance: IChromeDocument) {
