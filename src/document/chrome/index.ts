@@ -263,7 +263,7 @@ function removeCss(this: IChromeDocument, source: string) {
     return source;
 }
 
-function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: DocumentAsset) {
+function getRelativeUri(cssFile: DocumentAsset, asset: DocumentAsset) {
     if (cssFile.inlineContent) {
         return asset.relativeUri!;
     }
@@ -275,18 +275,6 @@ function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: Docum
     if (cssFile.moveTo) {
         if (cssFile.moveTo === asset.moveTo) {
             assetDir = Document.joinPath(asset.moveTo, asset.pathname);
-        }
-        else {
-            const moveUri = path.join(this.baseDirectory, cssFile.moveTo, asset.relativeUri!);
-            try {
-                if (!fs.existsSync(moveUri)) {
-                    fs.mkdirpSync(path.dirname(moveUri));
-                    fs.copyFileSync(asset.localUri!, moveUri);
-                }
-            }
-            catch (err) {
-                this.writeFail(['Unable to copy file', path.basename(moveUri)], err, this.logType.FILE);
-            }
         }
         fileDir = Document.joinPath(cssFile.moveTo, cssFile.pathname);
     }
@@ -357,7 +345,7 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
             const base64 = url.split(',')[1];
             for (const item of assets) {
                 if (item.base64 === base64) {
-                    setOutputUrl(item, getRelativeUri.call(this, cssFile, item));
+                    setOutputUrl(item, getRelativeUri(cssFile, item));
                     break;
                 }
             }
@@ -370,7 +358,7 @@ function transformCss(this: IFileManager, assets: DocumentAsset[], cssFile: Docu
                     fullUrl = asset.inlineBase64 ||= uuid.v4();
                 }
                 else if (!Document.isFileHTTP(fullUrl) || Document.hasSameOrigin(cssUri, fullUrl)) {
-                    fullUrl = getRelativeUri.call(this, cssFile, asset);
+                    fullUrl = getRelativeUri(cssFile, asset);
                 }
                 else {
                     const pathname = cssFile.pathname;
