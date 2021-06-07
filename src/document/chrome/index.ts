@@ -157,18 +157,6 @@ function getRelativeUri(this: IFileManager, cssFile: DocumentAsset, asset: Docum
         if (cssFile.moveTo === asset.moveTo) {
             assetDir = Document.joinPath(asset.moveTo, asset.pathname);
         }
-        else {
-            const moveUri = path.join(this.baseDirectory, cssFile.moveTo, asset.relativeUri!);
-            try {
-                if (!fs.existsSync(moveUri)) {
-                    fs.mkdirpSync(path.dirname(moveUri));
-                    fs.copyFileSync(asset.localUri!, moveUri);
-                }
-            }
-            catch (err) {
-                this.writeFail(['Unable to copy file', path.basename(moveUri)], err, this.logType.FILE);
-            }
-        }
         fileDir = Document.joinPath(cssFile.moveTo, cssFile.pathname);
     }
     const splitPath = (value: string) => value.split(/[\\/]/).filter(segment => segment.trim());
