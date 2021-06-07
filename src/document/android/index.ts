@@ -18,24 +18,20 @@ class AndroidDocument extends Document implements IAndroidDocument {
     static async finalize(this: IFileManager, instance: AndroidDocument) {
         const mainActivityFile = instance.mainActivityFile;
         if (mainActivityFile && !path.isAbsolute(mainActivityFile)) {
-            const mainParentDir = path.join(this.baseDirectory, instance.mainParentDir);
-            let found: Undef<boolean>;
-            if (/[\\/]/.test(mainActivityFile)) {
-                const pathname = path.join(mainParentDir, mainActivityFile);
-                try {
-                    if (fs.existsSync(pathname)) {
-                        instance.mainActivityFile = pathname;
-                        found = true;
+            const pathname = /[\\/]/.test(mainActivityFile) ? path.join(this.baseDirectory, mainActivityFile) : path.join(this.baseDirectory, instance.mainParentDir, instance.mainSrcDir, mainActivityFile);
+            try {
+                if (fs.existsSync(pathname)) {
+                    instance.mainActivityFile = pathname;
+                }
+                else {
+                    const files = await readdirp.promise(path.join(this.baseDirectory, instance.mainParentDir), { fileFilter: mainActivityFile });
+                    if (files.length) {
+                        instance.mainActivityFile = files[0].fullPath;
                     }
                 }
-                catch {
-                }
             }
-            if (!found) {
-                const files = await readdirp.promise(mainParentDir, { fileFilter: mainActivityFile });
-                if (files.length) {
-                    instance.mainActivityFile = files[0].fullPath;
-                }
+            catch (err) {
+                this.writeFail(['Unable to locate main activity', mainActivityFile], err);
             }
         }
         return super.finalize.call(this, instance);
@@ -45,6 +41,7 @@ class AndroidDocument extends Document implements IAndroidDocument {
     module!: DocumentModule;
     assets: DocumentAsset[] = [];
     mainParentDir = 'app';
+    mainSrcDir = 'src/main';
     host?: IFileManager;
     manifest?: ManifestData;
     dependencies?: string[];
@@ -56,9 +53,11 @@ class AndroidDocument extends Document implements IAndroidDocument {
         this.manifest = body.manifest;
         this.dependencies = body.dependencies;
         this.elements = body.elements;
-        const mainParentDir = body.mainParentDir || this.module.settings?.directory?.main;
-        if (mainParentDir) {
-            this.mainParentDir = mainParentDir;
+        if (body.mainParentDir) {
+            this.mainParentDir = body.mainParentDir;
+        }
+        if (body.mainSrcDir) {
+            this.mainSrcDir = body.mainSrcDir;
         }
         this.mainActivityFile = body.mainActivityFile;
     }

@@ -166,5 +166,14 @@ export interface FinalizedElement {
     outerWrapperIds?: string[];
 }
 
+export interface ControllerSettingsDirectoryUI {
+    layout: string;
+    string: string;
+    font: string;
+    image: string;
+    video: string;
+    audio: string;
+}
+
 export type AttributeMap = ObjectMap<Optional<string>>;
 export type WatchValue = boolean | WatchInterval;

@@ -17,7 +17,7 @@ const MANIFEST_FILENAME = 'AndroidManifest.xml';
 
 export default function finalize(this: IFileManager, instance: IAndroidDocument) {
     if (instance.manifest) {
-        const template = path.join(this.baseDirectory, instance.mainParentDir, 'src', 'main', MANIFEST_FILENAME);
+        const template = path.join(this.baseDirectory, instance.mainParentDir, instance.mainSrcDir, MANIFEST_FILENAME);
         let content: Undef<string>,
             existing: Undef<boolean>;
         try {
