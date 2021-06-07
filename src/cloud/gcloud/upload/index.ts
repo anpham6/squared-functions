@@ -65,7 +65,7 @@ export default function upload(this: IModule, credential: GCloudStorageCredentia
                 }
             }
             catch (err) {
-                this.formatFail(this.logType.CLOUD, service, ['Unable to rename file', path.basename(localUri)], err);
+                this.formatFail(this.logType.CLOUD, service, ['Unable to rename file', localUri], err);
                 success('');
                 return;
             }
@@ -100,7 +100,7 @@ export default function upload(this: IModule, credential: GCloudStorageCredentia
                     }
                 }
                 catch (err) {
-                    this.writeFail(['Unable to write file', path.basename(localUri)], err, this.logType.FILE);
+                    this.writeFail(['Unable to write file', localUri], err, this.logType.FILE);
                     success('');
                     return;
                 }
@@ -118,7 +118,7 @@ export default function upload(this: IModule, credential: GCloudStorageCredentia
                     }
                 }
                 else if (i === 0) {
-                    this.formatFail(this.logType.CLOUD, service, ['Upload failed', path.basename(srcUri)], err);
+                    this.formatFail(this.logType.CLOUD, service, ['Upload failed', srcUri], err);
                     success('');
                 }
             });

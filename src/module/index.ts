@@ -289,7 +289,7 @@ abstract class Module implements IModule {
                 value = fs.readFileSync(uri, 'utf8').trim();
             }
             catch (err) {
-                this.writeFail(['Unable to read file', path.basename(uri)], err, LOG_TYPE.FILE);
+                this.writeFail(['Unable to read file', uri], err, LOG_TYPE.FILE);
                 return;
             }
         }

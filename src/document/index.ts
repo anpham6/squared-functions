@@ -111,7 +111,7 @@ abstract class Document extends Module implements IDocument {
                 fs.writeFileSync(uri, JSON.stringify(map), 'utf8');
             }
             catch (err) {
-                this.writeFail(['Unable to write file', path.basename(uri)], err, this.LOG_TYPE.FILE);
+                this.writeFail(['Unable to write file', uri], err, this.LOG_TYPE.FILE);
                 return '';
             }
         }
@@ -196,7 +196,7 @@ abstract class Document extends Module implements IDocument {
                         }
                     }
                     catch (err) {
-                        this.writeFail(['Unable to read file', path.basename(uri)], err, this.logType.FILE);
+                        this.writeFail(['Unable to read file', uri], err, this.logType.FILE);
                     }
                 }
                 else if (path.isAbsolute(value)) {

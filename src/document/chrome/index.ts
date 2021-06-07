@@ -555,7 +555,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     this.removeAsset(item);
                 }
                 catch (err) {
-                    this.writeFail(['Unable to read file', path.basename(item.localUri!)], err, this.logType.FILE);
+                    this.writeFail(['Unable to read file', item.localUri!], err, this.logType.FILE);
                 }
             }
             if (htmlFile && item.element && item.format !== 'base64') {
@@ -608,18 +608,18 @@ class ChromeDocument extends Document implements IChromeDocument {
                 if (inlineContent) {
                     const [innerXml, sourceMappingURL] = Document.removeSourceMappingURL(this.getUTF8String(item).trim());
                     if (sourceMappingURL && item.localUri) {
-                        let mapUri = path.resolve(process.cwd(), sourceMappingURL);
-                        if (!fs.existsSync(mapUri)) {
-                            mapUri = path.join(path.dirname(item.localUri), sourceMappingURL);
-                        }
-                        if (fs.existsSync(mapUri)) {
-                            try {
+                        try {
+                            let mapUri = path.resolve(process.cwd(), sourceMappingURL);
+                            if (!fs.existsSync(mapUri)) {
+                                mapUri = path.join(path.dirname(item.localUri), sourceMappingURL);
+                            }
+                            if (fs.existsSync(mapUri)) {
                                 fs.unlinkSync(mapUri);
                                 this.delete(mapUri);
                             }
-                            catch (err) {
-                                this.writeFail(['Unable to delete file', sourceMappingURL], err, this.logType.FILE);
-                            }
+                        }
+                        catch (err) {
+                            this.writeFail(['Unable to delete file', sourceMappingURL], err, this.logType.FILE);
                         }
                     }
                     domElement.tagName = inlineContent;
@@ -842,7 +842,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                 }
                                             }
                                             catch (err) {
-                                                this.writeFail(['Unable to read file', path.basename(pathname)], err, this.logType.FILE);
+                                                this.writeFail(['Unable to read file', pathname], err, this.logType.FILE);
                                             }
                                         }
                                     }
@@ -1246,19 +1246,19 @@ class ChromeDocument extends Document implements IChromeDocument {
     static async cleanup(this: IFileManager, instance: IChromeDocument) {
         const productionRelease = instance.productionRelease;
         if (Document.isString(productionRelease)) {
-            if (path.isAbsolute(productionRelease) && fs.pathExistsSync(productionRelease)) {
-                try {
+            try {
+                if (path.isAbsolute(productionRelease) && fs.pathExistsSync(productionRelease)) {
                     const src = path.join(this.baseDirectory, instance.internalServerRoot);
                     if (fs.pathExistsSync(src)) {
                         fs.moveSync(src, productionRelease, { overwrite: true });
                     }
                 }
-                catch (err) {
-                    this.writeFail(['Unable to move files', productionRelease], err, this.logType.FILE);
+                else {
+                    this.writeFail(['Path not found', instance.moduleName], new Error(instance.moduleName + ` -> Invalid path (${productionRelease})`));
                 }
             }
-            else {
-                this.writeFail(['Path not found', instance.moduleName], new Error(instance.moduleName + ` -> Invalid path (${productionRelease})`));
+            catch (err) {
+                this.writeFail(['Unable to move files', productionRelease], err, this.logType.FILE);
             }
         }
     }
@@ -1466,7 +1466,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     item.sourceUTF8 = source;
                 }
                 catch (err) {
-                    this.writeFail(['Cloud update "text/css"', path.basename(item.localUri!)], err, this.logType.FILE);
+                    this.writeFail(['Cloud update "text/css"', item.localUri!], err, this.logType.FILE);
                 }
             }
         }
@@ -1500,7 +1500,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     htmlFile.sourceUTF8 = source;
                 }
                 catch (err) {
-                    this.writeFail(['Unable to write file', path.basename(htmlFile.localUri!)], err, this.logType.FILE);
+                    this.writeFail(['Unable to write file', htmlFile.localUri!], err, this.logType.FILE);
                 }
             }
             if (htmlFile.cloudStorage) {

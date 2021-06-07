@@ -83,7 +83,7 @@ export default function upload(this: IModule, config: AWSStorageConfig, service 
                     }
                 }
                 catch (err) {
-                    this.formatFail(this.logType.CLOUD, service, ['Unable to rename file', path.basename(localUri)], err);
+                    this.formatFail(this.logType.CLOUD, service, ['Unable to rename file', localUri], err);
                     success('');
                     return;
                 }

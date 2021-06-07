@@ -72,7 +72,7 @@ export default function upload(this: IModule, credential: AWSStorageCredential, 
                 }
             }
             catch (err) {
-                this.formatFail(this.logType.CLOUD, service, ['Unable to rename file', path.basename(localUri)], err);
+                this.formatFail(this.logType.CLOUD, service, ['Unable to rename file', localUri], err);
                 success('');
                 return;
             }
@@ -99,7 +99,7 @@ export default function upload(this: IModule, credential: AWSStorageCredential, 
                     }
                 }
                 else if (i === 0) {
-                    this.formatFail(this.logType.CLOUD, service, ['Upload failed', path.basename(localUri)], err);
+                    this.formatFail(this.logType.CLOUD, service, ['Upload failed', localUri], err);
                     success('');
                 }
             });

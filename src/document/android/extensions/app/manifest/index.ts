@@ -25,7 +25,7 @@ export default function finalize(this: IFileManager, instance: IAndroidDocument)
             content = fs.readFileSync(existing ? template : instance.resolveTemplate(MANIFEST_FILENAME) || path.resolve(__dirname, 'template', MANIFEST_FILENAME), 'utf8');
         }
         catch (err) {
-            this.writeFail(['Unable to read file', path.basename(template)], err, this.logType.FILE);
+            this.writeFail(['Unable to read file', template], err, this.logType.FILE);
         }
         if (content) {
             const { package: manifestPackage = '', application: manifestApplication = {} } = instance.manifest;
@@ -88,7 +88,7 @@ export default function finalize(this: IFileManager, instance: IAndroidDocument)
                     }
                 }
                 catch (err) {
-                    this.writeFail(['Unable to write file', path.basename(template)], err, this.logType.FILE);
+                    this.writeFail(['Unable to write file', template], err, this.logType.FILE);
                 }
             }
         }

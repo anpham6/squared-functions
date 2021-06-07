@@ -189,19 +189,19 @@ class Watch extends Module implements IWatch {
                                 if (!wss) {
                                     const sslKey = this._sslKey;
                                     const sslCert = this._sslCert;
-                                    if (path.isAbsolute(sslKey) && path.isAbsolute(sslCert) && fs.existsSync(sslKey) && fs.existsSync(sslCert)) {
-                                        try {
+                                    try {
+                                        if (path.isAbsolute(sslKey) && path.isAbsolute(sslCert) && fs.existsSync(sslKey) && fs.existsSync(sslCert)) {
                                             const server = https.createServer({ key: fs.readFileSync(sslKey), cert: fs.readFileSync(sslCert) });
                                             server.listen(port);
                                             wss = new ws.Server({ server });
                                             SECURE_MAP[port] = wss;
                                         }
-                                        catch (err) {
-                                            this.writeFail('Unable to start WSS secure server', err);
+                                        else {
+                                            this.writeFail('SSL key and cert not found', new Error(`Watch -> Missing SSL credentials (${socketId})`));
                                         }
                                     }
-                                    else {
-                                        this.writeFail('SSL key and cert not found', new Error(`Watch -> Missing SSL credentials (${socketId})`));
+                                    catch (err) {
+                                        this.writeFail('Unable to start WSS secure server', err);
                                     }
                                 }
                                 secure = true;
@@ -295,28 +295,33 @@ class Watch extends Module implements IWatch {
                         }
                         let timeout: Null<NodeJS.Timeout> = null;
                         const watcher = fs.watch(uri, (event, filename) => {
-                            switch (event) {
-                                case 'change': {
-                                    const disk = DISK_MAP[uri];
-                                    if (disk) {
-                                        const mtime = Math.floor(fs.statSync(uri).mtimeMs);
-                                        const ptime = WATCH_MAP[uri] || 0;
-                                        if (mtime > ptime) {
-                                            for (const input of disk.values()) {
-                                                this.modified(input.data);
+                            try {
+                                switch (event) {
+                                    case 'change': {
+                                        const disk = DISK_MAP[uri];
+                                        if (disk) {
+                                            const mtime = Math.floor(fs.statSync(uri).mtimeMs);
+                                            const ptime = WATCH_MAP[uri] || 0;
+                                            if (mtime > ptime) {
+                                                for (const input of disk.values()) {
+                                                    this.modified(input.data);
+                                                }
+                                                WATCH_MAP[uri] = Math.ceil(fs.statSync(uri).mtimeMs);
                                             }
-                                            WATCH_MAP[uri] = Math.ceil(fs.statSync(uri).mtimeMs);
                                         }
+                                        break;
                                     }
-                                    break;
+                                    case 'rename':
+                                        if (timeout) {
+                                            clearTimeout(timeout);
+                                        }
+                                        watcher.close();
+                                        watchExpired(DISK_MAP, data, 'File renamed: ' + filename);
+                                        break;
                                 }
-                                case 'rename':
-                                    if (timeout) {
-                                        clearTimeout(timeout);
-                                    }
-                                    watcher.close();
-                                    watchExpired(DISK_MAP, data, 'File renamed: ' + filename);
-                                    break;
+                            }
+                            catch (err) {
+                                this.writeFail(['Unable to stat file', uri], err);
                             }
                         });
                         if (expires) {
@@ -343,13 +348,23 @@ class Watch extends Module implements IWatch {
         }
     }
     setSSLKey(value: string) {
-        if (fs.existsSync(value = path.resolve(value))) {
-            this._sslKey = value;
+        try {
+            if (fs.existsSync(value = path.resolve(value))) {
+                this._sslKey = value;
+            }
+        }
+        catch (err) {
+            this.writeFail(['Unable to resolve file', value], err, this.logType.FILE);
         }
     }
     setSSLCert(value: string) {
-        if (fs.existsSync(value = path.resolve(value))) {
-            this._sslCert = value;
+        try {
+            if (fs.existsSync(value = path.resolve(value))) {
+                this._sslCert = value;
+            }
+        }
+        catch (err) {
+            this.writeFail(['Unable to resolve file', value], err, this.logType.FILE);
         }
     }
 }

@@ -32,17 +32,24 @@ class Gulp extends Task {
             const scheduled = new Set<string>();
             let gulpfile: Undef<string>;
             for (const { handler, task, preceding } of item.tasks!) {
-                if (instance.moduleName === handler && !!preceding === beforeStage && !scheduled.has(task) && (gulpfile = gulp[task]) && fs.existsSync(gulpfile = path.resolve(gulpfile))) {
-                    if (!taskMap.has(task)) {
-                        taskMap.set(task, new Map<string, GulpData>());
+                if (instance.moduleName === handler && !!preceding === beforeStage && !scheduled.has(task) && (gulpfile = gulp[task])) {
+                    try {
+                        if (fs.existsSync(gulpfile = path.resolve(gulpfile))) {
+                            if (!taskMap.has(task)) {
+                                taskMap.set(task, new Map<string, GulpData>());
+                            }
+                            const dirMap = taskMap.get(task)!;
+                            if (!dirMap.has(origDir)) {
+                                dirMap.set(origDir, { gulpfile, items: [] });
+                            }
+                            dirMap.get(origDir)!.items.push(item.localUri!);
+                            scheduled.add(task);
+                            delete item.sourceUTF8;
+                        }
                     }
-                    const dirMap = taskMap.get(task)!;
-                    if (!dirMap.has(origDir)) {
-                        dirMap.set(origDir, { gulpfile, items: [] });
+                    catch (err) {
+                        this.writeFail(['Unable to resolve file', gulpfile], err);
                     }
-                    dirMap.get(origDir)!.items.push(item.localUri!);
-                    scheduled.add(task);
-                    delete item.sourceUTF8;
                 }
             }
             if (scheduled.size) {

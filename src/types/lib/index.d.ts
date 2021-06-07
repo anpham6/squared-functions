@@ -18,6 +18,8 @@ import type { FileWatch } from './watch';
 import type { PathLike, WriteStream } from 'fs';
 import type { FileTypeResult } from 'file-type';
 
+import type * as bytes from 'bytes';
+
 declare namespace functions {
     interface IScopeOrigin<T = IModule, U = IModule> {
         host?: T;
@@ -241,7 +243,7 @@ declare namespace functions {
         moduleCompress(): ICompress;
         createPermission(): IPermission;
         resolveMime(data: Buffer | string): Promise<Undef<FileTypeResult>>;
-        formatSize(value: number, options?: PlainObject): string;
+        formatSize(value: number, options?: bytes.BytesOptions): string;
         new(baseDirectory: string, body: RequestBody, postFinalize?: PostFinalizeCallback, archiving?: boolean): IFileManager;
     }
 

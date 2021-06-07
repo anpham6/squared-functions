@@ -96,7 +96,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
         }
         this.performAsyncTask();
         const transformBuffer = (tempFile?: string) => {
-            this.formatMessage(this.logType.PROCESS, MODULE_NAME, ['Transforming image...', path.basename(localUri)], command);
+            this.formatMessage(this.logType.PROCESS, MODULE_NAME, ['Transforming image...', localUri], command);
             const time = Date.now();
             performCommand(tempFile || getBuffer(data), command, outputType, finalAs, this, data)
                 .then(handler => {
@@ -135,7 +135,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                                 }
                             }
                             else {
-                                this.writeFail(['Unable to finalize image', path.basename(result)], err);
+                                this.writeFail(['Unable to finalize image', result], err);
                                 result = '';
                             }
                             this.completeAsyncTask(null, result, parent);
@@ -155,7 +155,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                         transformBuffer(tempFile);
                     }
                     else {
-                        this.writeFail(['Unable to convert image buffer', path.basename(localUri)], err);
+                        this.writeFail(['Unable to convert image buffer', localUri], err);
                         this.completeAsyncTask();
                     }
                 });
@@ -415,13 +415,13 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                                 }
                                 catch (err_2) {
                                     resolve(null);
-                                    this.writeFail(['Unable to read file', path.basename(result)], err_2, this.logType.FILE);
+                                    this.writeFail(['Unable to read file', result], err_2, this.logType.FILE);
                                 }
                                 try {
                                     fs.unlinkSync(result);
                                 }
                                 catch (err_2) {
-                                    this.writeFail(['Unable to delete file', path.basename(result)], err_2, this.logType.FILE);
+                                    this.writeFail(['Unable to delete file', result], err_2, this.logType.FILE);
                                 }
                             }
                         }
@@ -461,7 +461,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                 else if (webp !== output) {
                     fs.unlink(output, err_1 => {
                         if (err_1) {
-                            this.writeFail(['Unable to delete file', path.basename(output)], err_1, this.logType.FILE);
+                            this.writeFail(['Unable to delete file', output], err_1, this.logType.FILE);
                         }
                         callback(null, webp);
                     });

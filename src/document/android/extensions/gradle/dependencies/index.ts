@@ -19,7 +19,7 @@ export default function finalize(this: IFileManager, instance: IAndroidDocument)
             content = fs.readFileSync(existing ? template : instance.resolveTemplate(kotlin ? 'kotlin' : 'java', filename) || path.resolve(__dirname, 'template', kotlin ? 'kotlin' : 'java', filename), 'utf8');
         }
         catch (err) {
-            this.writeFail(['Unable to read file', path.basename(template)], err, this.logType.FILE);
+            this.writeFail(['Unable to read file', template], err, this.logType.FILE);
         }
         if (content) {
             const items = instance.dependencies.map(item => item.split(':')) as [string, string, string][];
@@ -97,7 +97,7 @@ export default function finalize(this: IFileManager, instance: IAndroidDocument)
                         }
                     }
                     catch (err) {
-                        this.writeFail(['Unable to write file', path.basename(template)], err, this.logType.FILE);
+                        this.writeFail(['Unable to write file', template], err, this.logType.FILE);
                     }
                 }
             }

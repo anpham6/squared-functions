@@ -72,7 +72,7 @@ export default function upload(this: IModule, credential: AzureStorageCredential
                 }
             }
             catch (err) {
-                this.formatFail(this.logType.CLOUD, service, ['Unable to rename file', path.basename(localUri)], err);
+                this.formatFail(this.logType.CLOUD, service, ['Unable to rename file', localUri], err);
                 success('');
                 return;
             }

@@ -94,7 +94,7 @@ class Cloud extends Module implements ICloud {
                                             fileGroup.push([storage.service === 'gcloud' ? group[i] : fs.readFileSync(group[i]), path.extname(group[i])]);
                                         }
                                         catch (err) {
-                                            this.writeFail(['Unable to read file', path.basename(group[i])], err, this.logType.FILE);
+                                            this.writeFail(['Unable to read file', group[i]], err, this.logType.FILE);
                                         }
                                     }
                                 }
@@ -120,7 +120,7 @@ class Cloud extends Module implements ICloud {
                                             uploadHandler({ buffer, admin, upload, localUri, fileGroup, bucket, bucketGroup, filename, mimeType }, success);
                                         }
                                         catch (err) {
-                                            this.writeFail(['Unable to read file', path.basename(localUri)], err, this.logType.FILE);
+                                            this.writeFail(['Unable to read file', localUri], err, this.logType.FILE);
                                             success('');
                                         }
                                     })
@@ -130,7 +130,7 @@ class Cloud extends Module implements ICloud {
                                 }
                             }
                         }
-                        Module.allSettled(uploadTasks, ['Upload file <cloud storage>', path.basename(file.localUri!)], this.errors).then(async result => {
+                        Module.allSettled(uploadTasks, ['Upload file <cloud storage>', file.localUri!], this.errors).then(async result => {
                             if (!uploadDocument) {
                                 for (const item of result) {
                                     if (item.status === 'fulfilled' && item.value) {
@@ -240,22 +240,22 @@ class Cloud extends Module implements ICloud {
                             const localUri = item.localUri;
                             let valid = false,
                                 downloadUri = pathname ? path.join(this.baseDirectory, pathname.replace(/^([A-Z]:)?[\\/]+/i, ''), filename) : path.join(data.admin?.preservePath && localUri ? path.dirname(localUri) : this.baseDirectory, filename);
-                            if (fs.existsSync(downloadUri)) {
-                                valid = !!(active || overwrite);
-                            }
-                            else {
-                                if (active && localUri && path.extname(localUri) === path.extname(downloadUri)) {
-                                    downloadUri = localUri;
+                            const dirname = path.dirname(downloadUri);
+                            try {
+                                if (fs.existsSync(downloadUri)) {
+                                    valid = !!(active || overwrite);
                                 }
-                                const dirname = path.dirname(downloadUri);
-                                try {
+                                else {
+                                    if (active && localUri && path.extname(localUri) === path.extname(downloadUri)) {
+                                        downloadUri = localUri;
+                                    }
                                     fs.mkdirpSync(dirname);
+                                    valid = true;
                                 }
-                                catch (err) {
-                                    this.writeFail(['Unable to create directory', dirname], err, this.logType.FILE);
-                                    continue;
-                                }
-                                valid = true;
+                            }
+                            catch (err) {
+                                this.writeFail(['Unable to create directory', dirname], err, this.logType.FILE);
+                                continue;
                             }
                             if (valid) {
                                 const location = data.service + data.bucket + filename;
@@ -283,7 +283,7 @@ class Cloud extends Module implements ICloud {
                                                     }
                                                 }
                                                 catch (err) {
-                                                    this.writeFail(['Unable to write file', path.basename(destUri)], err, this.logType.FILE);
+                                                    this.writeFail(['Unable to write file', destUri], err, this.logType.FILE);
                                                 }
                                             }
                                         }, bucketGroup));
@@ -499,9 +499,13 @@ class Cloud extends Module implements ICloud {
     resolveService(service: string, folder?: string) {
         let result = path.join(__dirname, service),
             sep = path.sep;
-        if (!fs.pathExistsSync(result)) {
-            result = service;
-            sep = '/';
+        try {
+            if (!fs.pathExistsSync(result)) {
+                result = service;
+                sep = '/';
+            }
+        }
+        catch {
         }
         return result + (folder ? sep + folder : '');
     }

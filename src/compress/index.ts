@@ -100,7 +100,7 @@ const Compress = new class extends Module implements ICompress {
                 callback(err);
             }
             else if (err) {
-                this.writeFail(['Unable to compress image', path.basename(uri)], err, this.logType.FILE);
+                this.writeFail(['Unable to compress image', uri], err, this.logType.FILE);
             }
         };
         const writeFile = (result: Buffer | Uint8Array) => {
