@@ -946,7 +946,7 @@ class FileManager extends Module implements IFileManager {
                                                         if (this.Watch) {
                                                             item.etag = etag;
                                                         }
-                                                        if (!this.archiving && fs.existsSync(localUri) && fs.statSync(tempUri).mtimeMs === fs.statSync(localUri).mtimeMs) {
+                                                        if (!this.archiving && fs.existsSync(localUri) && fs.existsSync(tempUri) && fs.statSync(tempUri).mtimeMs === fs.statSync(localUri).mtimeMs) {
                                                             fileReceived();
                                                         }
                                                         else {
