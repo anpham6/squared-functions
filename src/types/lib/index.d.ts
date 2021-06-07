@@ -207,11 +207,13 @@ declare namespace functions {
         readonly archiving: boolean;
         readonly postFinalize: Null<PostFinalizeCallback>;
         install(name: string, ...params: unknown[]): Undef<IModule>;
-        add(value: string, parent?: ExternalAsset): void;
-        delete(value: string, emptyDir?: boolean): void;
-        has(value: Undef<string>): value is string;
-        replace(file: ExternalAsset, replaceWith: string, mimeType?: string): void;
+        add(value: unknown, parent?: ExternalAsset): void;
+        delete(value: unknown, emptyDir?: boolean): void;
+        has(value: unknown): value is string;
+        removeCwd(value: unknown): string;
+        findAsset(value: unknown, instance?: IModule): Undef<ExternalAsset>;
         removeAsset(file: ExternalAsset): void;
+        replace(file: ExternalAsset, replaceWith: string, mimeType?: string): void;
         performAsyncTask: PerformAsyncTaskMethod;
         removeAsyncTask(): void;
         completeAsyncTask: CompleteAsyncTaskCallback<string, ExternalAsset>;
@@ -224,8 +226,6 @@ declare namespace functions {
         getLocalUri(data: FileData): string;
         getMimeType(data: FileData): Undef<string>;
         getRelativeUri(file: ExternalAsset, filename?: string): string;
-        findAsset(uri: string, instance?: IModule): Undef<ExternalAsset>;
-        removeCwd(value: Undef<string>): string;
         getUTF8String(file: ExternalAsset, localUri?: string): string;
         setAssetContent(file: ExternalAsset, localUri: string, content: string, index?: number, replacePattern?: string): Promise<string>;
         getAssetContent(file: ExternalAsset, source?: string): Undef<string>;

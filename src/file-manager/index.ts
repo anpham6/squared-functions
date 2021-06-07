@@ -182,8 +182,8 @@ class FileManager extends Module implements IFileManager {
                 return this.Compress = Compress;
         }
     }
-    add(value: string, parent?: ExternalAsset) {
-        if (value) {
+    add(value: unknown, parent?: ExternalAsset) {
+        if (Module.isString(value)) {
             this.files.add(this.removeCwd(value));
             if (parent) {
                 const transforms = parent.transforms ||= [];
@@ -193,24 +193,35 @@ class FileManager extends Module implements IFileManager {
             }
         }
     }
-    delete(value: string, emptyDir = true) {
-        this.files.delete(this.removeCwd(value));
-        if (emptyDir) {
-            let dir = this.baseDirectory;
-            for (const seg of path.dirname(value).substring(this.baseDirectory.length + 1).split(/[\\/]/)) {
-                if (seg) {
-                    dir += path.sep + seg;
-                    this.emptyDir.add(dir);
+    delete(value: unknown, emptyDir = true) {
+        if (Module.isString(value)) {
+            this.files.delete(this.removeCwd(value));
+            if (emptyDir) {
+                let dir = this.baseDirectory;
+                for (const seg of path.dirname(value).substring(this.baseDirectory.length + 1).split(/[\\/]/)) {
+                    if (seg) {
+                        dir += path.sep + seg;
+                        this.emptyDir.add(dir);
+                    }
                 }
             }
+        }
+    }
+    has(value: unknown): value is string {
+        return Module.isString(value) && this.files.has(this.removeCwd(value));
+    }
+    removeCwd(value: unknown) {
+        return Module.isString(value) ? value.substring(this.baseDirectory.length + 1) : '';
+    }
+    findAsset(value: unknown, instance?: IModule) {
+        if (Module.isString(value)) {
+            value = Module.toPosix(value);
+            return this.assets.find(item => Module.toPosix(item.uri) === value && (!instance || this.hasDocument(instance, item.document)));
         }
     }
     removeAsset(file: ExternalAsset) {
         this.filesToRemove.add(file.localUri!);
         file.invalid = true;
-    }
-    has(value: Undef<string>): value is string {
-        return !!value && this.files.has(this.removeCwd(value));
     }
     replace(file: ExternalAsset, replaceWith: string, mimeType?: string) {
         const localUri = file.localUri;
@@ -297,12 +308,9 @@ class FileManager extends Module implements IFileManager {
     }
     setLocalUri(file: ExternalAsset) {
         const uri = file.uri;
-        if (uri) {
-            file.uri = Module.resolveUri(uri);
-            if (!file.uri) {
-                file.invalid = true;
-                this.writeFail(['Unable to parse file:// protocol', uri], new Error('Path not absolute'));
-            }
+        if (uri && !(file.uri = Module.resolveUri(uri))) {
+            file.invalid = true;
+            this.writeFail(['Unable to parse file:// protocol', uri], new Error('Path not absolute'));
         }
         const segments: string[] = [];
         if (file.moveTo) {
@@ -349,15 +357,6 @@ class FileManager extends Module implements IFileManager {
             }
         }
         return result;
-    }
-    findAsset(uri: string, instance?: IModule) {
-        if (uri) {
-            uri = Module.toPosix(uri);
-            return this.assets.find(item => Module.toPosix(item.uri) === uri && (!instance || this.hasDocument(instance, item.document)));
-        }
-    }
-    removeCwd(value: Undef<string>) {
-        return value ? value.substring(this.baseDirectory.length + 1) : '';
     }
     getUTF8String(file: ExternalAsset, localUri?: string) {
         if (!file.sourceUTF8) {
@@ -663,7 +662,7 @@ class FileManager extends Module implements IFileManager {
         const emptied: string[] = [];
         const notFound: string[] = [];
         const cacheRequest = this.cacheHttpRequestBuffer.expires > 0;
-        const cacheBufferLimit = cacheRequest ? bytes(this.cacheHttpRequestBuffer.limit || '250mb') : 0;
+        const cacheBufferLimit = cacheRequest && bytes(this.cacheHttpRequestBuffer.limit || '100mb') || 0;
         const checkQueue = (file: ExternalAsset, localUri: string, content?: boolean) => {
             const bundleIndex = file.bundleIndex;
             if (bundleIndex !== undefined && bundleIndex >= 0) {
@@ -966,8 +965,7 @@ class FileManager extends Module implements IFileManager {
                                         if (!notFound.includes(uri)) {
                                             processQueue(item, localUri);
                                             if (tempDir && etag) {
-                                                tempDir = path.join(tempDir, etag);
-                                                const tempUri = path.join(tempDir, path.basename(localUri));
+                                                const tempUri = path.join(tempDir = path.join(tempDir, etag), path.basename(localUri));
                                                 try {
                                                     if (!fs.pathExistsSync(tempDir)) {
                                                         fs.mkdirSync(tempDir);
@@ -1022,21 +1020,23 @@ class FileManager extends Module implements IFileManager {
                                                             item.buffer = buffer;
                                                         }
                                                         else if (cacheRequest) {
-                                                            try {
-                                                                setCacheBuffer(subDir!, tempUri, fs.readFileSync(tempUri));
-                                                            }
-                                                            catch (err) {
-                                                                this.writeFail(['Unable to read file', tempUri], err, this.logType.FILE);
-                                                            }
+                                                            fs.readFile(tempUri, (err, data) => {
+                                                                if (!err) {
+                                                                    setCacheBuffer(subDir!, tempUri, data);
+                                                                }
+                                                                else {
+                                                                    this.writeFail(['Unable to read file', tempUri], err, this.logType.FILE);
+                                                                }
+                                                            });
                                                         }
                                                     };
                                                     try {
-                                                        if (!this.archiving && fs.existsSync(localUri) && fs.existsSync(tempUri) && fs.statSync(tempUri).mtimeMs === fs.statSync(localUri).mtimeMs) {
-                                                            readBuffer();
-                                                            fileReceived();
-                                                            return;
-                                                        }
-                                                        else if (fs.existsSync(tempUri)) {
+                                                        if (fs.existsSync(tempUri)) {
+                                                            if (!this.archiving && fs.existsSync(localUri) && fs.statSync(tempUri).mtimeMs === fs.statSync(localUri).mtimeMs) {
+                                                                readBuffer();
+                                                                fileReceived();
+                                                                return;
+                                                            }
                                                             fs.copyFileSync(tempUri, localUri);
                                                             readBuffer();
                                                             fileReceived();
