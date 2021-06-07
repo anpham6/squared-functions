@@ -249,12 +249,6 @@ abstract class Module implements IModule {
             try {
                 let v = value,
                     m = message;
-                if (valueColor) {
-                    v = chalk[valueColor](v);
-                }
-                if (valueBgColor) {
-                    v = chalk[valueBgColor](v);
-                }
                 if (m && SETTINGS.message !== false) {
                     if (messageColor) {
                         m = chalk[messageColor](m);
@@ -265,7 +259,14 @@ abstract class Module implements IModule {
                     m = ' ' + (error ? chalk.redBright('{') + chalk.bgWhite.blackBright(m) + chalk.redBright('}') : chalk.blackBright('(') + m + chalk.blackBright(')'));
                 }
                 else {
+                    v = v.trim();
                     m = '';
+                }
+                if (valueColor) {
+                    v = chalk[valueColor](v);
+                }
+                if (valueBgColor) {
+                    v = chalk[valueBgColor](v);
                 }
                 output = chalk[titleBgColor || 'bgBlack'].bold[titleColor || 'green'](title) + chalk.blackBright(':') + ' ' + v + m;
             }

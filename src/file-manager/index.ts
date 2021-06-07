@@ -3,7 +3,7 @@ import type { DataSource, ElementAction, FileInfo, XmlTagNode } from '../types/l
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
 import type { CloudDatabase, CloudService } from '../types/lib/cloud';
-import type { InstallData, PostFinalizeCallback } from '../types/lib/filemanager';
+import type { HttpRequestBuffer, InstallData, PostFinalizeCallback } from '../types/lib/filemanager';
 import type { CloudModule, DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
 
@@ -11,7 +11,7 @@ import path = require('path');
 import fs = require('fs-extra');
 import request = require('request');
 import mime = require('mime-types');
-import filesize = require('filesize');
+import bytes = require('bytes');
 import filetype = require('file-type');
 
 import Module from '../module';
@@ -23,6 +23,8 @@ import Watch from '../watch';
 import Permission from './permission';
 
 import Compress from '../compress';
+
+const CACHE_HTTPBUFFER: ObjectMap<Buffer> = {};
 
 function parseSizeRange(value: string) {
     const match = /\(\s*(\d+)\s*(?:,\s*(\d+|\*)\s*)?\)/.exec(value);
@@ -59,11 +61,12 @@ class FileManager extends Module implements IFileManager {
     }
 
     static formatSize(value: number, options?: PlainObject) {
-        return filesize(value, options);
+        return bytes(value, options);
     }
 
     delayed = 0;
     cacheHttpRequest = false;
+    cacheHttpRequestBuffer: HttpRequestBuffer = { expires: 0 };
     permission = new Permission();
     Document: InstallData<IDocument, DocumentConstructor>[] = [];
     Task: InstallData<ITask, TaskConstructor>[] = [];
@@ -281,7 +284,7 @@ class FileManager extends Module implements IFileManager {
                     if (this.Watch) {
                         addErrors(this.Watch.errors);
                     }
-                    this.postFinalize(files.map(name => ({ name, size: filesize(Module.getFileSize(path.join(this.baseDirectory, name))) } as FileInfo)), this.errors);
+                    this.postFinalize(files.map(name => ({ name, size: bytes(Module.getFileSize(path.join(this.baseDirectory, name))) } as FileInfo)), this.errors);
                 }
                 this.errors.length = 0;
             });
@@ -648,6 +651,8 @@ class FileManager extends Module implements IFileManager {
         const completed: string[] = [];
         const emptied: string[] = [];
         const notFound: string[] = [];
+        const cacheRequest = this.cacheHttpRequestBuffer.expires > 0;
+        const cacheBufferLimit = cacheRequest ? bytes(this.cacheHttpRequestBuffer.limit || '250mb') : 0;
         const checkQueue = (file: ExternalAsset, localUri: string, content?: boolean) => {
             const bundleIndex = file.bundleIndex;
             if (bundleIndex !== undefined && bundleIndex >= 0) {
@@ -926,6 +931,24 @@ class FileManager extends Module implements IFileManager {
                                         tempDir = '';
                                     }
                                 }
+                                const setCacheBuffer = (etag: string, tempUri: string, buffer: Buffer) => {
+                                    if (Buffer.byteLength(buffer) <= cacheBufferLimit) {
+                                        const key = uri + etag;
+                                        CACHE_HTTPBUFFER[key] = buffer;
+                                        setTimeout(
+                                            () => {
+                                                try {
+                                                    fs.unlinkSync(tempUri);
+                                                }
+                                                catch (err) {
+                                                    this.writeFail(['Unable to delete file', path.basename(tempUri)], err, this.logType.FILE);
+                                                }
+                                                delete CACHE_HTTPBUFFER[key];
+                                            },
+                                            this.cacheHttpRequestBuffer.expires * 60 * 60 * 1000
+                                        );
+                                    }
+                                };
                                 const downloadUri = (etag?: string) => {
                                     const stream = fs.createWriteStream(localUri);
                                     stream.on('finish', () => {
@@ -936,7 +959,11 @@ class FileManager extends Module implements IFileManager {
                                                     if (!fs.pathExistsSync(tempDir = path.join(tempDir, etag))) {
                                                         fs.mkdirSync(tempDir);
                                                     }
-                                                    fs.copyFileSync(localUri, path.join(tempDir, path.basename(localUri)));
+                                                    const tempUri = path.join(tempDir, path.basename(localUri));
+                                                    fs.copyFile(localUri, tempUri);
+                                                    if (cacheRequest && item.buffer) {
+                                                        setCacheBuffer(etag, tempUri, item.buffer);
+                                                    }
                                                 }
                                                 catch {
                                                 }
@@ -969,29 +996,53 @@ class FileManager extends Module implements IFileManager {
                                                 errorRequest(item, uri, localUri, new Error(statusCode + ' ' + res.statusMessage));
                                             }
                                             else {
-                                                const etag = res.headers.etag as Undef<string>;
+                                                const etag = res.headers.etag;
                                                 let subDir: Undef<string>;
                                                 if (Module.isString(etag)) {
-                                                    subDir = encodeURIComponent(etag);
-                                                    const tempUri = path.join(tempDir, subDir, path.basename(localUri));
-                                                    if (fs.existsSync(tempUri)) {
+                                                    const tempUri = path.join(tempDir, subDir = encodeURIComponent(etag), path.basename(localUri));
+                                                    const buffer = CACHE_HTTPBUFFER[uri + subDir];
+                                                    const readBuffer = () => {
+                                                        if (buffer) {
+                                                            item.buffer = buffer;
+                                                        }
+                                                        else if (cacheRequest) {
+                                                            try {
+                                                                setCacheBuffer(subDir!, tempUri, fs.readFileSync(tempUri));
+                                                            }
+                                                            catch (err) {
+                                                                this.writeFail(['Unable to read file', path.basename(tempUri)], err, this.logType.FILE);
+                                                            }
+                                                        }
+                                                    };
+                                                    if (!this.archiving && fs.existsSync(localUri) && fs.existsSync(tempUri) && fs.statSync(tempUri).mtimeMs === fs.statSync(localUri).mtimeMs) {
+                                                        readBuffer();
+                                                        fileReceived();
+                                                        return;
+                                                    }
+                                                    else if (fs.existsSync(tempUri)) {
                                                         if (this.Watch) {
                                                             item.etag = etag;
                                                         }
-                                                        if (!this.archiving && fs.existsSync(localUri) && fs.statSync(tempUri).mtimeMs === fs.statSync(localUri).mtimeMs) {
+                                                        try {
+                                                            fs.copyFileSync(tempUri, localUri);
+                                                            readBuffer();
                                                             fileReceived();
+                                                            return;
                                                         }
-                                                        else {
-                                                            try {
-                                                                fs.copyFileSync(tempUri, localUri);
-                                                                fileReceived();
-                                                            }
-                                                            catch (err) {
-                                                                downloadUri(subDir);
-                                                                this.writeFail(['Unable to copy file', path.basename(tempUri)], err, this.logType.FILE);
-                                                            }
+                                                        catch (err) {
+                                                            this.writeFail(['Unable to copy file', path.basename(tempUri)], err, this.logType.FILE);
                                                         }
-                                                        return;
+                                                    }
+                                                    else if (buffer) {
+                                                        item.buffer = buffer;
+                                                        try {
+                                                            fs.writeFileSync(localUri, buffer);
+                                                            fileReceived();
+                                                            return;
+                                                        }
+                                                        catch (err) {
+                                                            this.writeFail(['Unable to write buffer', path.basename(localUri)], err, this.logType.FILE);
+                                                        }
                                                     }
                                                 }
                                                 downloadUri(subDir);
