@@ -1,6 +1,6 @@
 {
   "name": "@squared-functions/watch",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Watch functions for squared-functions",
   "main": "index.js",
   "types": "index.d.ts",
@@ -15,8 +15,8 @@
   "license": "MIT",
   "homepage": "https://github.com/anpham6/squared-functions#readme",
   "dependencies": {
-    "@squared-functions/module": "^1.0.6",
-    "@squared-functions/types": "^1.0.6",
+    "@squared-functions/module": "^1.0.7",
+    "@squared-functions/types": "^1.0.7",
     "request": "^2.88.2",
     "ws": "^7.4.5"
   }
