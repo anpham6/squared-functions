@@ -24,10 +24,16 @@ class AndroidDocument extends Document implements IAndroidDocument {
                     instance.mainActivityFile = pathname;
                 }
                 else {
-                    const files = await readdirp.promise(path.join(this.baseDirectory, instance.mainParentDir, instance.mainSrcDir), { fileFilter: mainActivityFile });
-                    if (files.length) {
-                        instance.mainActivityFile = files[0].fullPath;
+                    const directories = [this.baseDirectory, instance.mainParentDir, instance.mainSrcDir];
+                    do {
+                        const files = await readdirp.promise(path.join(...directories), { fileFilter: mainActivityFile });
+                        if (files.length) {
+                            instance.mainActivityFile = files[0].fullPath;
+                            break;
+                        }
+                        directories.pop();
                     }
+                    while (directories.length);
                 }
             }
             catch (err) {
@@ -42,24 +48,27 @@ class AndroidDocument extends Document implements IAndroidDocument {
     assets: DocumentAsset[] = [];
     mainParentDir = 'app';
     mainSrcDir = 'src/main';
+    mainActivityFile = '';
     host?: IFileManager;
     manifest?: ManifestData;
     dependencies?: string[];
     elements?: FinalizedElement[];
-    mainActivityFile?: string;
 
     init(assets: DocumentAsset[], body: RequestBody) {
         this.assets = assets;
         this.manifest = body.manifest;
         this.dependencies = body.dependencies;
         this.elements = body.elements;
-        if (body.mainParentDir) {
-            this.mainParentDir = body.mainParentDir;
+        const { mainParentDir, mainSrcDir, mainActivityFile } = body;
+        if (mainParentDir) {
+            this.mainParentDir = mainParentDir;
         }
-        if (body.mainSrcDir) {
-            this.mainSrcDir = body.mainSrcDir;
+        if (mainSrcDir) {
+            this.mainSrcDir = mainSrcDir;
         }
-        this.mainActivityFile = body.mainActivityFile;
+        if (mainActivityFile) {
+            this.mainActivityFile = mainActivityFile;
+        }
     }
     resolveTemplate(...paths: string[]) {
         const template = this.module.settings?.directory?.template;

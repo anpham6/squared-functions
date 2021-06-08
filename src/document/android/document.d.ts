@@ -35,5 +35,6 @@ export interface IAndroidDocument extends IDocument, IRequestData {
     assets: DocumentAsset[];
     mainParentDir: string;
     mainSrcDir: string;
+    mainActivityFile: string;
     resolveTemplate(...paths: string[]): Undef<string>;
 }
