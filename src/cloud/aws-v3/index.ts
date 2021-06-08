@@ -15,12 +15,10 @@ interface AWSBaseConfig {
 }
 
 export interface AWSStorageConfig extends s3.S3ClientConfig, AWSBaseConfig {
-    credentials: Credentials | Provider<Credentials>;
+    credentials?: Credentials | Provider<Credentials>;
 }
 
-export interface AWSDatabaseConfig extends dynamodb.DynamoDBClientConfig, AWSBaseConfig {
-    credentials: Credentials | Provider<Credentials>;
-}
+export interface AWSDatabaseConfig extends dynamodb.DynamoDBClientConfig, AWSBaseConfig {}
 
 export interface AWSDatabaseQuery extends CloudDatabase<dynamodb.QueryInput> {
     partitionKey?: string;
@@ -47,7 +45,7 @@ export function validateStorage(config: AWSStorageConfig, lib = '@aws-sdk/client
         }
         return true;
     }
-    const credentials = config.credentials as Credentials;
+    const credentials = config.credentials as Undef<Credentials>;
     return !!credentials && !!(credentials.accessKeyId && credentials.secretAccessKey || credentials.sessionToken);
 }
 

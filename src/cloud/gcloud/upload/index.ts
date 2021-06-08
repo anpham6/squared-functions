@@ -26,7 +26,7 @@ export default function upload(this: IModule, credential: GCloudStorageCredentia
         }
         const bucketClient = storage.bucket(bucket);
         const localUri = data.localUri;
-        const pathname = data.upload?.pathname || '';
+        const pathname = data.upload.pathname || '';
         let filename = data.filename;
         if (!filename || !data.upload.overwrite) {
             filename ||= path.basename(localUri);

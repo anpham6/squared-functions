@@ -27,7 +27,7 @@ export default function download(this: IModule, config: AWSStorageConfig, servic
     const AWS = require(sdk) as typeof s3;
     return async (data: DownloadData, success: (value: Null<Buffer>) => void) => {
         const { bucket: Bucket, download: Download } = data;
-        const Key = Download && Download.filename;
+        const Key = Download.filename;
         if (Bucket && Key) {
             const location = Module.joinPath(Bucket, Key);
             const input: s3.GetObjectRequest = { Bucket, Key, VersionId: Download.versionId };

@@ -315,10 +315,10 @@ export abstract class XmlWriter implements IXmlWriter {
                     else if (!prependA && !prependB) {
                         return itemB.order - itemA.order;
                     }
-                    else if (prependA || !prependB) {
+                    else if (prependA || prependB === false) {
                         return 1;
                     }
-                    else if (!prependA || prependB) {
+                    else if (prependA === false) {
                         return -1;
                     }
                 }

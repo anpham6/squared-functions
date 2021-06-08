@@ -10,7 +10,7 @@ export default function download(this: IModule, credential: AzureStorageCredenti
     const blobServiceClient = createStorageClient.call(this, credential);
     return async (data: DownloadData, success: (value: Null<Buffer>) => void) => {
         const { bucket: Bucket, download: Download } = data;
-        const Key = Download && Download.filename;
+        const Key = Download.filename;
         if (Bucket && Key) {
             try {
                 const location = Module.joinPath(Bucket, Key);

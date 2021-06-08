@@ -35,9 +35,9 @@ export interface GCloudDatabaseCredential extends Settings {}
 
 export interface GCloudCloudBucket extends CloudService {}
 
-export interface GCloudDatabaseQuery extends CloudDatabase<[string, string, unknown][]> {
+export interface GCloudDatabaseQuery extends CloudDatabase<[string, string, unknown?][]> {
     keys?: DatastoreKey | DatastoreKey[];
-    orderBy?: [string, string][];
+    orderBy?: [string?, string?][];
 }
 
 export function validateStorage(credential: GCloudStorageCredential) {
@@ -172,7 +172,7 @@ export async function executeQuery(this: ICloud, credential: GCloudDatabaseCrede
                 if (orderBy) {
                     for (const order of orderBy) {
                         if (order.length) {
-                            collection = collection.orderBy(order[0], order[1] === 'desc' || order[1] === 'asc' ? order[1] : undefined);
+                            collection = collection.orderBy(order[0]!, order[1] === 'desc' || order[1] === 'asc' ? order[1] : undefined);
                         }
                     }
                 }

@@ -91,8 +91,8 @@ abstract class Document extends Module implements IDocument {
         }
         let uri = '',
             code = sourceMap.code,
-            found = false,
-            inlineMap = false;
+            found: Undef<boolean>,
+            inlineMap: Undef<boolean>;
         code = code.replace(REGEXP_SOURCEMAPPINGURL, (...capture) => {
             found = true;
             inlineMap = capture[4].startsWith('data:application/json');
@@ -258,7 +258,7 @@ abstract class Document extends Module implements IDocument {
         return null;
     }
     async transform(type: string, code: string, format: string, options: TransformOutput = {}): Promise<Void<TransformResult>> {
-        const data = (this.module.settings as Undef<StandardMap>)?.transform?.[type] as StandardMap;
+        const data = (this.module.settings as Undef<StandardMap>)?.transform?.[type] as Undef<StandardMap>;
         if (data) {
             const sourceMap = options.sourceMap ||= Document.createSourceMap(code);
             const writeFail = this.writeFail.bind(this);

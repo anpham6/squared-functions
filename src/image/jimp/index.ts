@@ -100,50 +100,45 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
             const time = Date.now();
             performCommand(tempFile || getBuffer(data), command, outputType, finalAs, this, data)
                 .then(handler => {
-                    if (handler) {
-                        if (command.indexOf('@') !== -1 && data.file) {
-                            delete data.file.buffer;
+                    if (command.indexOf('@') !== -1) {
+                        delete data.file.buffer;
+                    }
+                    handler.write(output, (err: Null<Error>, result: string) => {
+                        if (handler.errors.length) {
+                            this.errors.push(...handler.errors);
                         }
-                        handler.write(output, (err: Null<Error>, result: string) => {
-                            if (handler.errors.length) {
-                                this.errors.push(...handler.errors);
+                        let parent: Undef<ExternalAsset>;
+                        if (!err && result) {
+                            const file = data.file;
+                            if (file.document) {
+                                this.writeImage(file.document, { ...data, command, output: result, baseDirectory: this.baseDirectory } as OutputData);
                             }
-                            let parent: Undef<ExternalAsset>;
-                            if (!err && result) {
-                                const file = data.file;
-                                if (file.document) {
-                                    this.writeImage(file.document, { ...data, command, output: result, baseDirectory: this.baseDirectory } as OutputData);
-                                }
-                                this.writeTimeProcess(handler.moduleName, path.basename(result), time);
-                                if (this.getLocalUri(data) !== result) {
-                                    if (command.indexOf('%') !== -1) {
-                                        if (this.filesToCompare.has(file)) {
-                                            this.filesToCompare.get(file)!.push(result);
-                                        }
-                                        else {
-                                            this.filesToCompare.set(file, [result]);
-                                        }
-                                        result = '';
-                                    }
-                                    else if (command.indexOf('@') !== -1) {
-                                        this.replace(file, result);
-                                        result = '';
+                            this.writeTimeProcess(handler.moduleName, path.basename(result), time);
+                            if (this.getLocalUri(data) !== result) {
+                                if (command.indexOf('%') !== -1) {
+                                    if (this.filesToCompare.has(file)) {
+                                        this.filesToCompare.get(file)!.push(result);
                                     }
                                     else {
-                                        parent = file;
+                                        this.filesToCompare.set(file, [result]);
                                     }
+                                    result = '';
+                                }
+                                else if (command.indexOf('@') !== -1) {
+                                    this.replace(file, result);
+                                    result = '';
+                                }
+                                else {
+                                    parent = file;
                                 }
                             }
-                            else {
-                                this.writeFail(['Unable to finalize image', result], err);
-                                result = '';
-                            }
-                            this.completeAsyncTask(null, result, parent);
-                        });
-                    }
-                    else {
-                        this.completeAsyncTask();
-                    }
+                        }
+                        else {
+                            this.writeFail(['Unable to finalize image', result], err);
+                            result = '';
+                        }
+                        this.completeAsyncTask(null, result, parent);
+                    });
                 })
                 .catch(err => this.writeFail(['Unable to read image buffer', MODULE_NAME + path.basename(localUri)], err));
         };

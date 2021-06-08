@@ -13,7 +13,7 @@ export default function download(this: IModule, credential: GCloudStorageCredent
     const storage = createStorageClient.call(this, credential);
     return async (data: DownloadData, success: (value: string) => void) => {
         const { bucket: Bucket, download: Download } = data;
-        const Key = Download && Download.filename;
+        const Key = Download.filename;
         if (Bucket && Key) {
             try {
                 let tempDir = this.getTempDir(true);

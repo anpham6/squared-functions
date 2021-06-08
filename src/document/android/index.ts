@@ -18,13 +18,13 @@ class AndroidDocument extends Document implements IAndroidDocument {
     static async finalize(this: IFileManager, instance: AndroidDocument) {
         const mainActivityFile = instance.mainActivityFile;
         if (mainActivityFile && !path.isAbsolute(mainActivityFile)) {
-            const pathname = /[\\/]/.test(mainActivityFile) ? path.join(this.baseDirectory, mainActivityFile) : path.join(this.baseDirectory, instance.mainParentDir, instance.mainSrcDir, mainActivityFile);
             try {
-                if (fs.existsSync(pathname)) {
+                const pathname = /[\\/]/.test(mainActivityFile) && path.join(this.baseDirectory, mainActivityFile);
+                if (pathname && fs.existsSync(pathname)) {
                     instance.mainActivityFile = pathname;
                 }
                 else {
-                    const files = await readdirp.promise(path.join(this.baseDirectory, instance.mainParentDir), { fileFilter: mainActivityFile });
+                    const files = await readdirp.promise(path.join(this.baseDirectory, instance.mainParentDir, instance.mainSrcDir), { fileFilter: mainActivityFile });
                     if (files.length) {
                         instance.mainActivityFile = files[0].fullPath;
                     }

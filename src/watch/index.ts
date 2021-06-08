@@ -26,7 +26,7 @@ let WATCH_MAP: ObjectMap<number> = {};
 function getPostFinalize(watch: FileWatch) {
     const { socketId, port } = watch;
     if (socketId && port) {
-        const asset = watch.assets[0];
+        const asset = watch.assets[0] as Undef<ExternalAsset>;
         const server = watch.secure ? SECURE_MAP[port] : PORT_MAP[port];
         if (asset && server) {
             return (files: FileInfo[], errors: string[]) => {

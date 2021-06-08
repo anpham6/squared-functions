@@ -916,11 +916,11 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 }
                                 default:
                                     removeElement();
-                                    reject(new Error(`Data source -> Invalid (${item.source ? item.source : 'Unknown'})`));
+                                    reject(new Error(`Data source -> Invalid (${item.source || 'Unknown'})`)); // eslint-disable-line @typescript-eslint/restrict-template-expressions
                                     return;
                             }
                             if (index !== undefined) {
-                                const data = result[index];
+                                const data = result[index] as Undef<PlainObject>;
                                 result = data ? [data] : [];
                             }
                             else if (limit !== undefined && result.length > limit) {
