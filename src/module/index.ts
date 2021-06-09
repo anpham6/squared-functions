@@ -339,6 +339,19 @@ abstract class Module implements IModule {
         return false;
     }
 
+    static hasSameStat(src: string, dest: string) {
+        try {
+            if (fs.existsSync(dest)) {
+                const statSrc = fs.statSync(src);
+                const statDest = fs.statSync(dest);
+                return statSrc.size === statDest.size && statSrc.mtimeMs === statDest.mtimeMs;
+            }
+        }
+        catch {
+        }
+        return false;
+    }
+
     static isFileHTTP(value: string) {
         return /^https?:\/\/[^/]/i.test(value);
     }

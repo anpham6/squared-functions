@@ -412,7 +412,7 @@ class FileManager extends Module implements IFileManager {
                 if (replacing && replacing.length) {
                     for (let i = 0; i < replacing.length; ++i) {
                         const content = appending[i];
-                        if (content) {
+                        if (Module.isString(content)) {
                             if (replacing[i]) {
                                 const match = new RegExp(replacing[i], 'i').exec(source);
                                 if (match) {
@@ -762,7 +762,7 @@ class FileManager extends Module implements IFileManager {
                 const copying = downloading[uri];
                 const ready = processing[localUri];
                 if (file.invalid) {
-                    if (copying?.length) {
+                    if (copying && copying.length) {
                         copying.forEach(item => item.invalid = true);
                     }
                     if (ready) {
@@ -771,7 +771,7 @@ class FileManager extends Module implements IFileManager {
                 }
                 else {
                     completed.push(localUri);
-                    if (copying?.length) {
+                    if (copying && copying.length) {
                         const files: string[] = [];
                         const uriMap = new Map<string, ExternalAsset[]>();
                         for (const item of copying) {
@@ -1032,12 +1032,9 @@ class FileManager extends Module implements IFileManager {
                                                     };
                                                     try {
                                                         if (fs.existsSync(tempUri)) {
-                                                            if (!this.archiving && fs.existsSync(localUri) && fs.statSync(tempUri).mtimeMs === fs.statSync(localUri).mtimeMs) {
-                                                                readBuffer();
-                                                                fileReceived();
-                                                                return;
+                                                            if (this.archiving || !Module.hasSameStat(tempUri, localUri)) {
+                                                                fs.copyFileSync(tempUri, localUri);
                                                             }
-                                                            fs.copyFileSync(tempUri, localUri);
                                                             readBuffer();
                                                             fileReceived();
                                                             return;
@@ -1065,18 +1062,7 @@ class FileManager extends Module implements IFileManager {
                         }
                     }
                     else if (Module.isFileUNC(uri) && this.permission.hasUNCRead(uri) || path.isAbsolute(uri) && this.permission.hasDiskRead(uri)) {
-                        if (!checkQueue(item, localUri) && createFolder()) {
-                            try {
-                                if (!this.archiving && fs.existsSync(localUri)) {
-                                    const statSrc = fs.statSync(uri);
-                                    const statDest = fs.statSync(localUri);
-                                    if (statSrc.size === statDest.size && statSrc.mtimeMs === statDest.mtimeMs) {
-                                        continue;
-                                    }
-                                }
-                            }
-                            catch {
-                            }
+                        if (!checkQueue(item, localUri) && createFolder() && (this.archiving || !Module.hasSameStat(uri, localUri))) {
                             this.performAsyncTask();
                             fs.copyFile(uri, localUri, err => fileReceived(err));
                         }

@@ -278,6 +278,7 @@ declare namespace functions {
         renameExt(value: string, ext: string): string;
         fromLocalPath(value: string): string;
         hasSameOrigin(value: string, other: string): boolean;
+        hasSameStat(src: string, dest: string): boolean;
         isFileHTTP(value: string): boolean;
         isFileUNC(value: string): boolean;
         isPathUNC(value: string): boolean;
