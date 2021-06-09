@@ -36,5 +36,6 @@ export interface IAndroidDocument extends IDocument, IRequestData {
     mainParentDir: string;
     mainSrcDir: string;
     mainActivityFile: string;
-    resolveTemplate(...paths: string[]): Undef<string>;
+    resolveTemplateDir(...paths: string[]): Undef<string>;
+    resolveKts(...paths: string[]): Null<boolean>;
 }

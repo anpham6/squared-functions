@@ -70,11 +70,25 @@ class AndroidDocument extends Document implements IAndroidDocument {
             this.mainActivityFile = mainActivityFile;
         }
     }
-    resolveTemplate(...paths: string[]) {
+    resolveTemplateDir(...paths: string[]) {
         const template = this.module.settings?.directory?.template;
         if (template) {
             return path.join(path.isAbsolute(template) ? template : path.resolve(process.cwd(), template), ...paths);
         }
+    }
+    resolveKts(...paths: string[]) {
+        try {
+            const file = path.join(...paths);
+            if (fs.existsSync(file)) {
+                return false;
+            }
+            if (fs.existsSync(file + '.kts')) {
+                return true;
+            }
+        }
+        catch {
+        }
+        return null;
     }
 }
 

@@ -60,6 +60,16 @@ export default [
         }
     },
     {
+        input: './build/document/android/extensions/gradle/settings/index.js',
+        treeshake: false,
+        output: {
+            file: './publish/document/android/extensions/gradle/settings/index.js',
+            format: 'cjs',
+            strict: false,
+            banner: `/* @squared-functions/document/android/extensions/gradle/settings ${require('./publish/document/package.json').version}\n   https://github.com/anpham6/squared-functions */\n`
+        }
+    },
+    {
         input: './build/document/chrome/index.js',
         treeshake: false,
         output: {

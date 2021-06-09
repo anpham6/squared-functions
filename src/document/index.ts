@@ -25,7 +25,7 @@ abstract class Document extends Module implements IDocument {
         if (extensions) {
             for (const ext of extensions) {
                 try {
-                    await (require(ext) as TransformCallback).call(this, instance);
+                    await (require(ext) as TransformCallback).call(this, instance, __dirname);
                 }
                 catch (err) {
                     this.writeFail([`Unable to load <${this.moduleName || 'unknown'}> extension`, ext], err);
