@@ -7,6 +7,7 @@ import Module from '../module';
 abstract class Task extends Module implements ITask {
     static async using(this: IFileManager, instance: ITask, assets: ExternalAsset[]) {}
 
+    host?: IFileManager;
     abstract readonly moduleName: string;
 
     constructor(public module: TaskModule) {

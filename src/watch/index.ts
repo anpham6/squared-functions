@@ -1,6 +1,6 @@
 import type { FileInfo, WatchInterval, WatchReload } from '../types/lib/squared';
 
-import type { IPermission, IWatch } from '../types/lib';
+import type { IFileManager, IPermission, IWatch } from '../types/lib';
 import type { ExternalAsset } from '../types/lib/asset';
 import type { PostFinalizeCallback } from '../types/lib/filemanager';
 import type { FileWatch } from '../types/lib/watch';
@@ -112,6 +112,8 @@ class Watch extends Module implements IWatch {
         SECURE_MAP = {};
         WATCH_MAP = {};
     }
+
+    host?: IFileManager;
 
     private _sslKey = '';
     private _sslCert = '';
@@ -237,8 +239,7 @@ class Watch extends Module implements IWatch {
                         if (!etag) {
                             continue;
                         }
-                        const http = HTTP_MAP[uri];
-                        const previous = http?.get(dest);
+                        const previous = HTTP_MAP[uri]?.get(dest);
                         if (previous) {
                             if (id && previous.data.id === id || expires > previous.data.expires || expires === previous.data.expires && interval < previous.timeout[1]) {
                                 clearInterval(previous.timeout[0]!);
@@ -247,8 +248,9 @@ class Watch extends Module implements IWatch {
                                 continue;
                             }
                         }
+                        const options: request.CoreOptions = this.host ? this.host.createRequestAgentOptions(uri, { method: 'HEAD' }, expires ? expires - start : Infinity)! : { method: 'HEAD' };
                         const timeout = setInterval(() => {
-                            request(uri, { method: 'HEAD' })
+                            request(uri, options)
                                 .on('response', res => {
                                     const map = HTTP_MAP[uri];
                                     if (map) {

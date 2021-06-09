@@ -817,7 +817,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             content = cacheData[uri] as Undef<string>;
                                         }
                                         else {
-                                            content = await request(uri).catch(err => {
+                                            content = await request(uri, this.createRequestAgentOptions(uri)).catch(err => {
                                                 this.writeFail(['Unable to request URL data source', uri], err);
                                                 return null;
                                             });

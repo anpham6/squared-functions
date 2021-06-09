@@ -16,8 +16,7 @@ export default function upload(this: IModule, credential: AWSStorageCredential, 
     const s3 = createStorageClient.call(this, credential, service, sdk);
     return async (data: UploadData, success: (value: string) => void) => {
         const Bucket = data.bucket ||= data.bucketGroup || uuid.v4();
-        const admin = data.admin;
-        const adminRead = admin?.publicRead;
+        const adminRead = data.admin?.publicRead;
         if (!BUCKET_MAP.has(service + Bucket) || adminRead) {
             if (!await createBucket.call(this, credential, Bucket, adminRead, service, sdk)) {
                 success('');

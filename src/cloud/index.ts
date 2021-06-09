@@ -306,6 +306,7 @@ class Cloud extends Module implements ICloud {
 
     cacheExpires = 10 * 60 * 1000;
     compressFormat = new Set(['.map', '.gz', '.br']);
+    host?: IFileManager;
 
     private _cache: CacheTimeout = {};
 

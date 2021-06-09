@@ -9,6 +9,8 @@ import type { RequestBody } from '../types/lib/node';
 
 import path = require('path');
 import fs = require('fs-extra');
+import http = require('http');
+import https = require('https');
 import request = require('request');
 import mime = require('mime-types');
 import bytes = require('bytes');
@@ -65,6 +67,7 @@ class FileManager extends Module implements IFileManager {
     }
 
     delayed = 0;
+    keepAliveTimeout = 0;
     cacheHttpRequest = false;
     cacheHttpRequestBuffer: HttpRequestBuffer = { expires: 0 };
     permission = new Permission();
@@ -130,6 +133,7 @@ class FileManager extends Module implements IFileManager {
             case 'task':
                 if (isFunction<TaskConstructor>(target) && target.prototype instanceof Task && Module.isObject(params[0])) {
                     const instance = new target(params[0], ...params.slice(1));
+                    instance.host = this;
                     this.Task.push({ instance, constructor: target, params });
                     return instance;
                 }
@@ -142,6 +146,7 @@ class FileManager extends Module implements IFileManager {
             case 'watch': {
                 const [port, securePort] = params;
                 const instance = new Watch(typeof target === 'number' && target > 0 ? target : undefined, typeof port === 'number' && port > 0 ? port : undefined, typeof securePort === 'number' && securePort > 0 ? securePort : undefined);
+                instance.host = this;
                 instance.whenModified = (assets: ExternalAsset[], postFinalize?: PostFinalizeCallback) => {
                     const manager = new FileManager(this.baseDirectory, { ...this.body, assets }, postFinalize);
                     for (const { constructor, params } of this.Document) { // eslint-disable-line no-shadow
@@ -654,6 +659,9 @@ class FileManager extends Module implements IFileManager {
             this.completeAsyncTask(null, localUri, parent);
         }
     }
+    createRequestAgentOptions(uri: string, options?: request.CoreOptions, timeout = this.keepAliveTimeout): Undef<request.CoreOptions> {
+        return timeout > 0 ? { ...options, agentOptions: { keepAlive: true, timeout }, agentClass: uri.startsWith('https') ? https.Agent : http.Agent } : options;
+    }
     processAssets(emptyDir?: boolean) {
         const processing: ObjectMap<ExternalAsset[]> = {};
         const downloading: ObjectMap<ExternalAsset[]> = {};
@@ -730,7 +738,7 @@ class FileManager extends Module implements IFileManager {
                             verifyBundle(queue, content).then(resumeQueue);
                         }
                         else if (uri) {
-                            request(uri, (err, res) => {
+                            request(uri, this.createRequestAgentOptions(uri), (err, res) => {
                                 if (err || res.statusCode >= 300) {
                                     this.writeFail(['Unable to download file', uri], err || res.statusCode + ' ' + res.statusMessage);
                                     notFound.push(uri);
@@ -981,7 +989,7 @@ class FileManager extends Module implements IFileManager {
                                             }
                                         }
                                     });
-                                    request(uri)
+                                    request(uri, this.createRequestAgentOptions(uri))
                                         .on('response', res => {
                                             if (this.Watch) {
                                                 item.etag = (res.headers.etag || res.headers['last-modified']) as string;
@@ -1000,7 +1008,7 @@ class FileManager extends Module implements IFileManager {
                                         .pipe(stream);
                                 };
                                 if (tempDir) {
-                                    request(uri, { method: 'HEAD' })
+                                    request(uri, this.createRequestAgentOptions(uri, { method: 'HEAD' }))
                                         .on('response', res => {
                                             const statusCode = res.statusCode;
                                             if (statusCode >= 300) {

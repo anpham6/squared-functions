@@ -18,6 +18,7 @@ import type { FileWatch } from './watch';
 import type { PathLike, WriteStream } from 'fs';
 import type { FileTypeResult } from 'file-type';
 
+import type * as request from 'request';
 import type * as bytes from 'bytes';
 
 declare namespace functions {
@@ -114,7 +115,6 @@ declare namespace functions {
         module: DocumentModule;
         moduleName: string;
         assets: ExternalAsset[];
-        host?: IFileManager;
         configData?: StandardMap;
         init(assets: ExternalAsset[], body: RequestBody): void;
         findConfig(settings: StandardMap, name: string, type?: string): PluginConfig;
@@ -181,6 +181,7 @@ declare namespace functions {
     interface IFileManager extends IModule {
         delayed: number;
         cleared: boolean;
+        keepAliveTimeout: number;
         cacheHttpRequest: boolean;
         cacheHttpRequestBuffer: HttpRequestBuffer;
         Document: InstallData<IDocument, DocumentConstructor>[];
@@ -235,6 +236,7 @@ declare namespace functions {
         addCopy(data: FileData, saveAs?: string, replace?: boolean): Undef<string>;
         findMime(data: FileData, rename?: boolean): Promise<string>;
         transformAsset(data: FileData, parent?: ExternalAsset): Promise<void>;
+        createRequestAgentOptions(uri: string, options?: request.CoreOptions, timeout?: number): Undef<request.CoreOptions>;
         processAssets(emptyDir?: boolean): void;
         finalize(): Promise<void>;
     }
@@ -250,6 +252,7 @@ declare namespace functions {
     interface IModule {
         logType: typeof LOG_TYPE;
         tempDir: string;
+        host?: IFileManager;
         readonly major: number;
         readonly minor: number;
         readonly patch: number;
