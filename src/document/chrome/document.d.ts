@@ -6,6 +6,7 @@ import type { DocumentModule as IDocumentModule } from '../../types/lib/module';
 
 export interface DocumentModule extends IDocumentModule {
     format_uuid?: {
+        dictionary?: string;
         pathname?: string;
         filename?: string;
     };

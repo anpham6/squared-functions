@@ -43,7 +43,6 @@ const SETTINGS: LoggerModule = {
 
 const PROCESS_VERSION = process.version.substring(1).split('.').map(value => +value) as [number, number, number];
 const ASYNC_FUNCTION = Object.getPrototypeOf(async () => {}).constructor as Constructor<FunctionType<Promise<string>, string>>;
-const HEX_STRING = '0123456789abcdef';
 
 function allSettled<T>(values: readonly (T | PromiseLike<T>)[]) {
     return Promise.all(values.map((promise: Promise<T>) => promise.then(value => ({ status: 'fulfilled', value })).catch(reason => ({ status: 'rejected', reason })) as Promise<PromiseSettledResult<T>>));
@@ -116,14 +115,15 @@ abstract class Module implements IModule {
         return typeof value === 'string' && value.length > 0;
     }
 
-    static generateUUID(format = '8-4-4-4-12') {
+    static generateUUID(format = '8-4-4-4-12', dictionary?: string) {
         const match = format.match(/(\d+|[^\d]+)/g);
         if (match) {
+            dictionary ||= '0123456789abcdef';
             return match.reduce((a, b) => {
                 const length = +b;
                 if (!isNaN(length)) {
-                    for (let i = 0; i < length; ++i) {
-                        a += HEX_STRING[Math.floor(Math.random() * 16)];
+                    for (let i = 0, j = dictionary!.length; i < length; ++i) {
+                        a += dictionary![Math.floor(Math.random() * j)];
                     }
                     return a;
                 }

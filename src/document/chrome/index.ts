@@ -1351,16 +1351,19 @@ class ChromeDocument extends Document implements IChromeDocument {
             catch {
             }
         }
+        this.module.format_uuid ||= {};
     }
     setLocalUri(file: Partial<LocationUri>) {
         const { pathname, filename } = file;
-        if (pathname?.includes(this.internalAssignUUID)) {
-            const format = this.module.format_uuid?.pathname;
-            file.pathname = pathname.replace(this.internalAssignUUID, format ? Document.generateUUID(format) : uuid.v4());
+        if (pathname && pathname.includes(this.internalAssignUUID)) {
+            const format_uuid = this.module.format_uuid!;
+            const format = format_uuid.pathname;
+            file.pathname = pathname.replace(this.internalAssignUUID, format ? Document.generateUUID(format, format_uuid.dictionary) : uuid.v4());
         }
-        if (filename?.includes(this.internalAssignUUID)) {
-            const format = this.module.format_uuid?.filename;
-            file.filename = filename.replace(this.internalAssignUUID, format ? Document.generateUUID(format) : uuid.v4());
+        if (filename && filename.includes(this.internalAssignUUID)) {
+            const format_uuid = this.module.format_uuid!;
+            const format = format_uuid.filename;
+            file.filename = filename.replace(this.internalAssignUUID, format ? Document.generateUUID(format, format_uuid.dictionary) : uuid.v4());
         }
     }
     resolveUri(file: DocumentAsset, source: string) {
