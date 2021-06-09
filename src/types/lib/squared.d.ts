@@ -28,11 +28,12 @@ export interface DataSource extends ElementAction, DocumentAction {
     removeEmpty?: boolean;
 }
 
-export interface OutputAction<T = unknown> extends DocumentAction {
+export interface OutputAction extends DocumentAction {
     moveTo?: string;
+    process?: string[];
     commands?: string[];
     compress?: CompressFormat[];
-    cloudStorage?: T[];
+    willChange?: boolean;
 }
 
 export interface TaskAction {
@@ -55,6 +56,10 @@ export interface DocumentAction {
 
 export interface AttributeAction {
     attributes?: AttributeMap;
+}
+
+export interface StorageAction<T = unknown> {
+    cloudStorage?: T[];
 }
 
 export interface ElementAction {
@@ -94,7 +99,7 @@ export interface LocationUri {
     filename: string;
 }
 
-export interface FileAsset<T = unknown> extends TextAsset, OutputAction<T> {
+export interface FileAsset extends TextAsset, OutputAction {
     format?: string;
     base64?: string;
 }

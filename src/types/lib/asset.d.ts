@@ -1,4 +1,4 @@
-import type { BundleAction, FileAsset } from './squared';
+import type { BundleAction, FileAsset, StorageAction } from './squared';
 import type { CloudStorage } from './cloud';
 
 export interface FileData<T = ExternalAsset> {
@@ -19,7 +19,7 @@ export interface FileOutput {
     localUri: string;
 }
 
-export interface ExternalAsset extends FileAsset<CloudStorage>, BundleAction {
+export interface ExternalAsset<T = CloudStorage> extends FileAsset, BundleAction, StorageAction<T> {
     localUri?: string;
     relativeUri?: string;
     cloudUrl?: string;

@@ -992,7 +992,7 @@ class FileManager extends Module implements IFileManager {
                                             }
                                         }
                                     });
-                                    request(uri, this.createRequestAgentOptions(uri))
+                                    const client = request(uri, this.createRequestAgentOptions(uri))
                                         .on('response', res => {
                                             if (this.Watch) {
                                                 item.etag = (res.headers.etag || res.headers['last-modified']) as string;
@@ -1002,13 +1002,15 @@ class FileManager extends Module implements IFileManager {
                                                 errorRequest(item, uri, localUri, new Error(statusCode + ' ' + res.statusMessage), stream);
                                             }
                                         })
-                                        .on('data', data => {
+                                        .on('error', err => errorRequest(item, uri, localUri, err, stream));
+                                    if (item.willChange) {
+                                        client.on('data', data => {
                                             if (Buffer.isBuffer(data)) {
                                                 item.buffer = item.buffer ? Buffer.concat([item.buffer, data]) : data;
                                             }
-                                        })
-                                        .on('error', err => errorRequest(item, uri, localUri, err, stream))
-                                        .pipe(stream);
+                                        });
+                                    }
+                                    client.pipe(stream);
                                 };
                                 if (tempDir) {
                                     request(uri, this.createRequestAgentOptions(uri, { method: 'HEAD' }))
@@ -1155,7 +1157,7 @@ class FileManager extends Module implements IFileManager {
                                                     item.buffer = value instanceof Buffer ? value : undefined;
                                                 }
                                                 complete(err);
-                                            });
+                                            }, files.length === 1 ? item.buffer : undefined);
                                         }
                                         catch (err) {
                                             complete(err);

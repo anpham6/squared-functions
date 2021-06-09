@@ -35,7 +35,7 @@ declare namespace functions {
         createWriteStreamAsGzip(uri: string, output: string, options?: CompressLevel): WriteStream;
         createWriteStreamAsBrotli(uri: string, output: string, options?: CompressLevel): WriteStream;
         tryFile: CompressTryFileMethod;
-        tryImage(uri: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<Buffer | Uint8Array>): void;
+        tryImage(uri: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<Buffer | Uint8Array>, buffer?: Buffer): void;
     }
 
     interface IImage extends IModule {

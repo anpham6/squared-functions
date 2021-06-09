@@ -6,7 +6,7 @@ import path = require('path');
 import fs = require('fs');
 
 export default function finalize(this: IFileManager, instance: IAndroidDocument, documentDir: string) {
-    if (!instance.directories) {
+    if (!instance.dependencies) {
         return;
     }
     const baseDir = this.baseDirectory;

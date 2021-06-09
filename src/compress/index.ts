@@ -92,7 +92,7 @@ const Compress = new class extends Module implements ICompress {
             }
         }
     }
-    tryImage(uri: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<Buffer | Uint8Array>) {
+    tryImage(uri: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<Buffer | Uint8Array>, buffer?: Buffer) {
         const ext = path.extname(uri).substring(1);
         const time = Date.now();
         const writeError = (err?: Null<Error>) => {
@@ -117,7 +117,7 @@ const Compress = new class extends Module implements ICompress {
         };
         const loadBuffer = () => {
             try {
-                tinify.fromBuffer(fs.readFileSync(uri)).toBuffer((err, result) => {
+                tinify.fromBuffer(buffer || fs.readFileSync(uri)).toBuffer((err, result) => {
                     if (!err && result) {
                         writeFile(result);
                     }
@@ -168,19 +168,31 @@ const Compress = new class extends Module implements ICompress {
         }
         else if (data.plugin) {
             const plugin = require(data.plugin);
-            fs.readFile(uri, async (err, buffer) => {
-                if (!err) {
+            if (buffer) {
+                (async () => {
                     try {
                         writeFile(await plugin(data.options)(buffer));
                     }
-                    catch (err_1) {
-                        writeError(err_1);
+                    catch (err) {
+                        writeError(err);
                     }
-                }
-                else {
-                    writeError(err);
-                }
-            });
+                })();
+            }
+            else {
+                fs.readFile(uri, async (err, result) => {
+                    if (!err) {
+                        try {
+                            writeFile(await plugin(data.options)(result));
+                        }
+                        catch (err_1) {
+                            writeError(err_1);
+                        }
+                    }
+                    else {
+                        writeError(err);
+                    }
+                });
+            }
         }
         else {
             throw new Error('Compress -> Missing image plugin');
