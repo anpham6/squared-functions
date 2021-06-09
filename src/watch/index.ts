@@ -64,26 +64,30 @@ const formatDate = (value: number) => new Date(value).toLocaleString().replace(/
 
 class Watch extends Module implements IWatch {
     static parseExpires(value: string, start = 0) {
-        let result = 0;
-        const match = /^\s*(?:([\d.]+)\s*h)?(?:\s*([\d.]+)\s*m)?(?:\s*([\d.]+)\s*s)?\s*$/i.exec(value);
+        const match = /^\s*(?:([\d.]+)\s*w)?(?:\s*([\d.]+)\s*d)?(?:\s*([\d.]+)\s*h)?(?:\s*([\d.]+)\s*m)?(?:\s*([\d.]+)\s*s)?\s*$/i.exec(value);
         if (match) {
+            const h = 1000 * 60 * 60;
+            let result = 0;
             if (match[1]) {
-                result += +match[1] * 1000 * 60 * 60 || 0;
+                result += +match[1] * 7 * 24 * h || 0;
             }
             if (match[2]) {
-                result += +match[2] * 1000 * 60 || 0;
+                result += +match[2] * 24 * h || 0;
             }
             if (match[3]) {
-                result += +match[3] * 1000 || 0;
+                result += +match[3] * h || 0;
+            }
+            if (match[4]) {
+                result += +match[4] * 1000 * 60 || 0;
+            }
+            if (match[5]) {
+                result += +match[5] * 1000 || 0;
             }
             if (result > 0) {
-                result += start;
-            }
-            else {
-                result = 0;
+                return result + start;
             }
         }
-        return result;
+        return 0;
     }
 
     static shutdown() {

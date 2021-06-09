@@ -669,7 +669,8 @@ class FileManager extends Module implements IFileManager {
         const completed: string[] = [];
         const emptied: string[] = [];
         const notFound: string[] = [];
-        const cacheRequest = this.cacheHttpRequestBuffer.expires > 0;
+        const cacheExpires = this.cacheHttpRequestBuffer.expires;
+        const cacheRequest = cacheExpires > 0;
         const cacheBufferLimit = cacheRequest && bytes(this.cacheHttpRequestBuffer.limit || '100mb') || 0;
         const checkQueue = (file: ExternalAsset, localUri: string, content?: boolean) => {
             const bundleIndex = file.bundleIndex;
@@ -953,18 +954,20 @@ class FileManager extends Module implements IFileManager {
                                     if (Buffer.byteLength(buffer) <= cacheBufferLimit) {
                                         const key = uri + etag;
                                         CACHE_HTTPBUFFER[key] = buffer;
-                                        setTimeout(
-                                            () => {
-                                                try {
-                                                    fs.unlinkSync(tempUri);
-                                                }
-                                                catch (err) {
-                                                    this.writeFail(['Unable to delete file', tempUri], err, this.logType.FILE);
-                                                }
-                                                delete CACHE_HTTPBUFFER[key];
-                                            },
-                                            this.cacheHttpRequestBuffer.expires * 60 * 60 * 1000
-                                        );
+                                        if (cacheExpires < Infinity) {
+                                            setTimeout(
+                                                () => {
+                                                    try {
+                                                        fs.unlinkSync(tempUri);
+                                                    }
+                                                    catch (err) {
+                                                        this.writeFail(['Unable to delete file', tempUri], err, this.logType.FILE);
+                                                    }
+                                                    delete CACHE_HTTPBUFFER[key];
+                                                },
+                                                cacheExpires
+                                            );
+                                        }
                                     }
                                 };
                                 const downloadUri = (etag?: string) => {
