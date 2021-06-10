@@ -931,9 +931,8 @@ class FileManager extends Module implements IFileManager {
                         if (!checkQueue(item, localUri)) {
                             if (downloading[uri]) {
                                 downloading[uri]!.push(item);
-                                continue;
                             }
-                            if (createFolder()) {
+                            else if (createFolder()) {
                                 const { hostname, port } = new URL(uri);
                                 this.performAsyncTask();
                                 downloading[uri] = [];

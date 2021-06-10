@@ -86,7 +86,7 @@ const Compress = new class extends Module implements ICompress {
                     compressor.call(this, uri, output, data, callback);
                 }
                 else if (callback) {
-                    callback(new Error(`Compress -> "${format}" not a registered format`));
+                    callback(new Error(`Compress -> File -> Not a registered format (${format})`));
                 }
                 break;
             }
@@ -130,6 +130,7 @@ const Compress = new class extends Module implements ICompress {
                 writeError(err);
             }
         };
+        const writeFormatError = (plugin: string) => writeError(new Error(`Compress -> Image -> Unsupported format (${plugin}: ${path.basename(uri)})`));
         let apiKey: Undef<string>;
         if ((data.plugin ||= 'tinify') === 'tinify') {
             if (data.options) {
@@ -140,12 +141,12 @@ const Compress = new class extends Module implements ICompress {
                     if (callback) {
                         callback();
                     }
-                    this.formatMessage(this.logType.COMPRESS, ext, ['Compression not supported', 'tinify:' + ext], uri, { titleColor: 'grey' });
+                    writeFormatError('tinify');
                     return;
                 }
             }
             if (!apiKey) {
-                throw new Error('Compress -> Tinify API key not found');
+                throw new Error('Compress -> Image -> API key not found (tinify)');
             }
         }
         this.formatMessage(this.logType.COMPRESS, ext, ['Compressing image...', data.plugin], uri, { titleColor: 'magenta' });
@@ -167,11 +168,19 @@ const Compress = new class extends Module implements ICompress {
             }
         }
         else if (data.plugin) {
+            const checkResult = (output: Buffer, previous: Buffer) => {
+                if (output !== previous) {
+                    writeFile(output);
+                }
+                else {
+                    writeFormatError(data.plugin!);
+                }
+            };
             const plugin = require(data.plugin);
             if (buffer) {
                 (async () => {
                     try {
-                        writeFile(await plugin(data.options)(buffer));
+                        checkResult(await plugin(data.options)(buffer), buffer);
                     }
                     catch (err) {
                         writeError(err);
@@ -182,7 +191,7 @@ const Compress = new class extends Module implements ICompress {
                 fs.readFile(uri, async (err, result) => {
                     if (!err) {
                         try {
-                            writeFile(await plugin(data.options)(result));
+                            checkResult(await plugin(data.options)(result), result);
                         }
                         catch (err_1) {
                             writeError(err_1);
@@ -195,7 +204,7 @@ const Compress = new class extends Module implements ICompress {
             }
         }
         else {
-            throw new Error('Compress -> Missing image plugin');
+            throw new Error('Compress -> Image -> Missing plugin');
         }
     }
 }();

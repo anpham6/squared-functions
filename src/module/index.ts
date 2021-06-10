@@ -516,10 +516,10 @@ abstract class Module implements IModule {
     writeTimeProcess(title: string, value: string, time: number, options?: LogMessageOptions) {
         time = Date.now() - time;
         const meter = '>'.repeat(Math.ceil(time / 250));
-        Module.formatMessage(LOG_TYPE.TIME_PROCESS, title, [value, time / 1000 + 's'], meter, options);
+        Module.formatMessage(LOG_TYPE.TIME_PROCESS, title, ['Completed -> ' + value, time / 1000 + 's'], meter, options);
     }
     writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions) {
-        Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Complete', (Date.now() - time) / 1000 + 's'], value, options);
+        Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Completed', (Date.now() - time) / 1000 + 's'], value, options);
     }
     formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: Null<Error>, options?: LogMessageOptions) {
         type |= LOG_TYPE.FAIL;
