@@ -226,7 +226,6 @@ class FileManager extends Module implements IFileManager {
     }
     removeAsset(file: ExternalAsset) {
         this.filesToRemove.add(file.localUri!);
-        file.invalid = true;
     }
     replace(file: ExternalAsset, replaceWith: string, mimeType?: string) {
         const localUri = file.localUri;

@@ -1214,12 +1214,14 @@ class ChromeDocument extends Document implements IChromeDocument {
             if (domBase.modified) {
                 source = domBase.close();
             }
-            source = transformCss(
-                this,
-                instance.assets,
-                htmlFile,
-                removeCss(instance, replaceContent(removeDatasetNamespace(moduleName, source, domBase.newline))),
-                true
+            source = replaceContent(
+                transformCss(
+                    this,
+                    instance.assets,
+                    htmlFile,
+                    removeCss(instance, removeDatasetNamespace(moduleName, source, domBase.newline)),
+                    true
+                )
             );
             if (htmlFile.format) {
                 const result = await instance.transform('html', source, htmlFile.format);
