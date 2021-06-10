@@ -22,12 +22,16 @@ import type * as request from 'request';
 import type * as bytes from 'bytes';
 
 declare namespace functions {
+    interface IHost<T = IFileManager> {
+        host?: T;
+    }
+
     interface IScopeOrigin<T = IModule, U = IModule> {
         host?: T;
         instance: U;
     }
 
-    interface ICompress extends IModule {
+    interface ICompress extends IModule, IHost {
         level: ObjectMap<number>;
         compressors: ObjectMap<CompressTryFileMethod>;
         chunkSize?: number;
@@ -38,7 +42,7 @@ declare namespace functions {
         tryImage(uri: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<Buffer | Uint8Array>, buffer?: Buffer): void;
     }
 
-    interface IImage extends IModule {
+    interface IImage extends IModule, IHost {
         resizeData?: ResizeData;
         cropData?: CropData;
         rotateData?: RotateData;
@@ -64,7 +68,7 @@ declare namespace functions {
         new(): IImage;
     }
 
-    interface ITask extends IModule {
+    interface ITask extends IModule, IHost {
         module: DocumentModule;
         execute?(manager: IFileManager, task: PlainObject, callback: (value?: unknown) => void): void;
     }
@@ -74,7 +78,7 @@ declare namespace functions {
         new(module: DocumentModule, ...args: unknown[]): ITask;
     }
 
-    interface ICloud extends IModule {
+    interface ICloud extends IModule, IHost {
         settings: CloudModule;
         database: CloudDatabase[];
         compressFormat: Set<string>;
@@ -111,7 +115,7 @@ declare namespace functions {
         executeQuery?(this: ICloud, credential: unknown, data: CloudDatabase, cacheKey?: string): Promise<unknown[]>;
     }
 
-    interface IDocument<T = IFileManager, U = ICloud> extends IModule {
+    interface IDocument<T = IFileManager, U = ICloud> extends IModule, IHost<T> {
         module: DocumentModule;
         moduleName: string;
         assets: ExternalAsset[];
@@ -142,7 +146,7 @@ declare namespace functions {
         new(module: DocumentModule, ...args: unknown[]): IDocument;
     }
 
-    interface IWatch extends IModule {
+    interface IWatch extends IModule, IHost {
         interval: number;
         port: number;
         securePort: number;
@@ -252,7 +256,6 @@ declare namespace functions {
     interface IModule {
         logType: typeof LOG_TYPE;
         tempDir: string;
-        host?: IFileManager;
         readonly major: number;
         readonly minor: number;
         readonly patch: number;
