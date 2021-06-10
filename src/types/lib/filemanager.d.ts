@@ -8,7 +8,7 @@ export interface InstallData<T, U> {
 
 export interface HttpRequestBuffer {
     expires: number;
-    limit?: string;
+    limit: number;
 }
 
 export type PerformAsyncTaskMethod = () => void;

@@ -249,6 +249,7 @@ declare namespace functions {
         moduleCompress(): ICompress;
         createPermission(): IPermission;
         resolveMime(data: Buffer | string): Promise<Undef<FileTypeResult>>;
+        formatSize(value: string): number;
         formatSize(value: number, options?: bytes.BytesOptions): string;
         new(baseDirectory: string, body: RequestBody, postFinalize?: PostFinalizeCallback, archiving?: boolean): IFileManager;
     }

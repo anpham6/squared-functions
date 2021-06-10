@@ -62,14 +62,14 @@ class FileManager extends Module implements IFileManager {
         return data instanceof Buffer ? filetype.fromBuffer(data) : filetype.fromFile(data);
     }
 
-    static formatSize(value: number, options?: bytes.BytesOptions) {
-        return bytes(value, options);
+    static formatSize(value: NumString, options?: bytes.BytesOptions): NumString {
+        return Module.isString(value) ? bytes(value) : bytes(value, options);
     }
 
     delayed = 0;
     keepAliveTimeout = 0;
     cacheHttpRequest = false;
-    cacheHttpRequestBuffer: HttpRequestBuffer = { expires: 0 };
+    cacheHttpRequestBuffer: HttpRequestBuffer = { expires: 0, limit: Infinity };
     permission = new Permission();
     Document: InstallData<IDocument, DocumentConstructor>[] = [];
     Task: InstallData<ITask, TaskConstructor>[] = [];
@@ -670,7 +670,7 @@ class FileManager extends Module implements IFileManager {
         const notFound: string[] = [];
         const cacheExpires = this.cacheHttpRequestBuffer.expires;
         const cacheRequest = cacheExpires > 0;
-        const cacheBufferLimit = cacheRequest && bytes(this.cacheHttpRequestBuffer.limit || '100mb') || 0;
+        const cacheBufferLimit = cacheRequest ? this.cacheHttpRequestBuffer.limit : -1;
         const checkQueue = (file: ExternalAsset, localUri: string, content?: boolean) => {
             const bundleIndex = file.bundleIndex;
             if (bundleIndex !== undefined && bundleIndex >= 0) {
