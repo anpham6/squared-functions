@@ -25,9 +25,9 @@
     "@squared-functions/watch": "^1.0.3",
     "fs-extra": "^9.1.0",
     "bytes": "^3.1.0",
-    "file-type": "^16.4.0",
-    "picomatch": "^2.2.3",
-    "mime-types": "^2.1.30",
+    "file-type": "^16.5.0",
+    "picomatch": "^2.3.0",
+    "mime-types": "^2.1.31",
     "request": "^2.88.2"
   }
 }

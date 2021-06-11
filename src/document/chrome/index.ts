@@ -479,7 +479,8 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                 }
                 break;
-            case 'text/javascript': {
+            case 'text/javascript':
+            case 'application/javascript': {
                 const trailing = concatString(file.trailingContent);
                 const bundle = this.getAssetContent(file);
                 if (!bundle && !trailing && !format) {
