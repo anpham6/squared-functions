@@ -11,7 +11,7 @@ import type { ConfigOrTransformer, PluginConfig, SourceMapInput, SourceMapOption
 import type { CompleteAsyncTaskCallback, HttpRequestBuffer, InstallData, PerformAsyncTaskMethod, PostFinalizeCallback } from './filemanager';
 import type { CropData, QualityData, ResizeData, RotateData } from './image';
 import type { LOG_TYPE, LogMessageOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
-import type { CloudModule, DocumentModule } from './module';
+import type { CloudModule, DocumentModule, TaskModule } from './module';
 import type { RequestBody, Settings } from './node';
 import type { FileWatch } from './watch';
 
@@ -159,7 +159,7 @@ declare namespace functions {
 
     interface WatchConstructor extends ModuleConstructor {
         shutdown(): void;
-        parseExpires(value: string, start?: number) : number;
+        parseExpires(value: NumString, start?: number) : number;
         new(interval?: number, port?: number): IWatch;
     }
 
@@ -211,7 +211,13 @@ declare namespace functions {
         readonly permission: IPermission;
         readonly archiving: boolean;
         readonly postFinalize: Null<PostFinalizeCallback>;
-        install(name: string, ...params: unknown[]): Undef<IModule>;
+        install(name: "cloud", module: CloudModule): Undef<ICloud>;
+        install(name: "compress"): Undef<ICompress>;
+        install(name: "document", target: DocumentConstructor, module: DocumentModule): Undef<IDocument>;
+        install(name: "image", data: Map<string, ImageConstructor>): void;
+        install(name: "task", target: TaskConstructor, module: TaskModule): Undef<ITask>;
+        install(name: "watch", interval?: number, port?: number): Undef<IWatch>;
+        install(name: string, ...params: unknown[]): any;
         add(value: unknown, parent?: ExternalAsset): void;
         delete(value: unknown, emptyDir?: boolean): void;
         has(value: unknown): value is string;

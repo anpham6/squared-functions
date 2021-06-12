@@ -118,7 +118,7 @@ class FileManager extends Module implements IFileManager {
         }
     }
 
-    install(name: string, ...params: unknown[]): Undef<IModule> {
+    install(name: string, ...params: unknown[]): any {
         const target = params.shift();
         switch (name) {
             case 'document':
@@ -162,7 +162,7 @@ class FileManager extends Module implements IFileManager {
                         manager.install('image', this.Image);
                     }
                     if (this.Compress) {
-                        manager.install('compress', this.Compress);
+                        manager.install('compress');
                     }
                     manager.permission = this.permission;
                     manager.cacheHttpRequest = this.cacheHttpRequest;
