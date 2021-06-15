@@ -43,7 +43,7 @@ abstract class Document extends Module implements IDocument {
                 delete this.sourceMappingURL;
                 this.output.clear();
             },
-            "nextMap": function(this: SourceMapInput, name: string, code: string, map: SourceMap | string, sourceMappingURL = '') {
+            "nextMap": function(this: SourceMapInput, name: string, code: string, map: SourceMap | string, sourceMappingURL = '', emptySources?: boolean) {
                 if (Module.isString(map)) {
                     try {
                         map = JSON.parse(map) as SourceMap;
@@ -53,6 +53,9 @@ abstract class Document extends Module implements IDocument {
                     }
                 }
                 if (Module.isObject<SourceMap>(map) && Module.isString(map.mappings)) {
+                    if (emptySources) {
+                        map.sources = [""];
+                    }
                     this.code = code;
                     this.map = map;
                     if (sourceMappingURL) {

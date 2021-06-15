@@ -12,6 +12,7 @@ export default async function transform(context: any, value: string, options: Tr
     const { baseConfig, sourceMap, sourcesRelativeTo, external, writeFail } = options;
     let sourceFile = options.sourceFile,
         outputConfig = options.outputConfig,
+        tempFile = false,
         result = '',
         mappings = '';
     if (!sourceFile) {
@@ -19,6 +20,7 @@ export default async function transform(context: any, value: string, options: Tr
         sourceFile = rollupDir + path.sep + uuid.v4();
         fs.mkdirpSync(rollupDir);
         fs.writeFileSync(sourceFile, value);
+        tempFile = true;
     }
     if (Object.keys(outputConfig).length === 0) {
         outputConfig = baseConfig.output as rollup.OutputOptions || { format: 'es' };
@@ -67,7 +69,7 @@ export default async function transform(context: any, value: string, options: Tr
     }
     if (result) {
         if (mappings) {
-            sourceMap.nextMap('rollup', result, mappings, url);
+            sourceMap.nextMap('rollup', result, mappings, url, tempFile);
         }
         return result;
     }

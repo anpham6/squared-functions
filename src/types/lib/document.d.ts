@@ -37,7 +37,7 @@ export interface SourceMapOptions {
 export interface SourceMapInput extends TransformResult {
     output: Map<string, SourceMapOutput>;
     reset: () => void;
-    nextMap: (name: string, code: string, map: SourceMap | string, sourceMappingURL?: string) => boolean;
+    nextMap: (name: string, code: string, map: SourceMap | string, sourceMappingURL?: string, emptySources?: boolean) => boolean;
 }
 
 export interface SourceMapOutput extends TransformResult {}
