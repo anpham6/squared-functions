@@ -191,7 +191,6 @@ class FileManager extends Module implements IFileManager {
     }
     removeAsset(file: ExternalAsset) {
         this.filesToRemove.add(file.localUri!);
-        file.invalid = true;
     }
     has(value: Undef<string>): value is string {
         return value ? this.files.has(this.removeCwd(value)) : false;

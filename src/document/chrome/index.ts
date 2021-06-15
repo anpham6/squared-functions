@@ -1063,8 +1063,8 @@ class ChromeDocument extends Document implements IChromeDocument {
             if (domBase.modified) {
                 source = domBase.close();
             }
-            source = replaceContent(removeDatasetNamespace(moduleName, source, domBase.newline));
-            source = transformCss.call(this, instance.assets, htmlFile, source, true) || source;
+            source = removeDatasetNamespace(moduleName, source, domBase.newline);
+            source = replaceContent(transformCss.call(this, instance.assets, htmlFile, source, true) || source);
             if (htmlFile.format) {
                 const result = await instance.transform('html', source, htmlFile.format);
                 if (result) {
