@@ -1,6 +1,6 @@
 {
   "name": "squared-functions",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Parent folder for @squared-functions packages.",
   "scripts": {
     "dev": "npm run build && copyfiles -a ./publish/**/* -u 1 ../squared/node_modules/@squared-functions && copyfiles -a ./publish/**/* -u 1 ../squared-express/node_modules/@squared-functions",
@@ -33,7 +33,7 @@
     "@cloudant/cloudant": "^4.3.1",
     "@google-cloud/bigquery": "^5.6.0",
     "@google-cloud/datastore": "^6.4.1",
-    "@google-cloud/firestore": "^4.12.2",
+    "@google-cloud/firestore": "^4.12.3",
     "@google-cloud/storage": "^5.8.5",
     "@types/bytes": "^3.1.0",
     "@types/fs-extra": "^9.0.11",
@@ -51,7 +51,7 @@
     "@types/ws": "^7.4.4",
     "@typescript-eslint/eslint-plugin": "^4.27.0",
     "@typescript-eslint/parser": "^4.27.0",
-    "aws-sdk": "^2.928.0",
+    "aws-sdk": "^2.930.0",
     "copyfiles": "^2.4.1",
     "eslint": "^7.28.0",
     "file-type": "^16.5.0",
@@ -60,8 +60,8 @@
     "jimp": "^0.16.1",
     "readdirp": "^3.6.0",
     "rimraf": "^3.0.2",
-    "rollup": "^2.51.2",
+    "rollup": "^2.52.0",
     "tinify": "^1.6.0-beta.2",
-    "typescript": "^4.3.2"
+    "typescript": "^4.3.3"
   }
 }

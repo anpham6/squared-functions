@@ -1,4 +1,4 @@
-## squared-functions 1.0
+## squared-functions 1.1
 
 These are the available options when creating archives or copying files. Examples use squared 3.0 although the concepts can be used similarly with any NodeJS application.
 
@@ -382,11 +382,6 @@ Custom plugins can also be installed from NPM. The function has to be named "tra
                 "external": ["lodash"]
               },
               "bundle-es6-output": "./rollup.output.config.json" // Supplemental JSON configuration use the "-output" suffix
-            },
-            "npm-custom-plugin": {
-              "custom-example": {
-                "sourceMap": true
-              }
             }
           },
           "css": {
@@ -395,8 +390,8 @@ Custom plugins can also be installed from NPM. The function has to be named "tra
                 "plugins": ["autoprefixer", "cssnano"] // Plugins have to be installed with NPM manually
               }
             },
-            "sass": { // npm i sass
-              "sass-example": "function (context, value, options, resolve) { resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css); }" // Synchronous with Promise
+            "custom-sass": { // npm i sass && npm i custom-sass
+              "sass-example": "function (context, value, options, resolve) { resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css); }" // Using Promise
             }
           }
         }
@@ -406,7 +401,7 @@ Custom plugins can also be installed from NPM. The function has to be named "tra
 }
 ```
 
-NOTE: Custom asynchronous functions in settings are supported. (squared 2.5)
+NOTE: Asynchronous functions in settings are supported.
 
 ```javascript
 // es5.js
@@ -442,7 +437,7 @@ The same concept can be used inline anywhere using a &lt;script&gt; tag with the
 
 <script type="text/template" data-chrome-template="js::@babel/core::es5-example">
 async function (context, value, options) {
-    const options = { ...options.outputConfig, presets: ["@babel/preset-env"], sourceMaps: true }; // <https://babeljs.io/docs/en/options>
+    const options = { ...options.outputConfig, presets: ["@babel/preset-env"], sourceMaps: true }; // https://babeljs.io/docs/en/options
     const result = await context.transform(value, options);
     if (result) {
         if (result.map) {
@@ -837,7 +832,7 @@ Each DocumentDB provider has a different query syntax. Consulting their document
 
 ```javascript
 interface CloudDatabase {
-    source: "cloud"; // squared 2.5 (required)
+    source: "cloud";
     name?: string;
     table?: string; // Required except when using BigQuery
     id?: string;
@@ -985,7 +980,7 @@ View engines with a "compile" template string to function (e.g. [EJS](https://ej
   "selector": ".card:nth-of-type(2) img",
   "type": "attribute",
   "dataSource": {
-    "source": "cloud", // squared 2.5
+    "source": "cloud",
     "service": "azure",
     "credential": "db-main",
     "name": "squared", // Azure (required)
@@ -1175,7 +1170,7 @@ The entire page can similarly be transformed as a group using the "saveAs" attri
 
 ```javascript
 squared.saveAs("index.zip", {
-    productionRelease: false || true || "/absolute/path/wwwroot/", // Ignore local url rewriting and use absolute paths
+    productionRelease: false | true | "/absolute/path/wwwroot/", // Ignore local url rewriting and use absolute paths
     preserveCrossOrigin: false, // Ignore downloading a local copy of assets hosted on other domains
     normalizeHtmlOutput: false, // Remove unnecessary spaces inside elements
     useOriginalHtmlPage: false, // May produce better results when using custom elements
