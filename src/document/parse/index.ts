@@ -351,7 +351,7 @@ export abstract class XmlWriter implements IXmlWriter {
             if (index !== -1) {
                 this.elements.splice(index, 1);
             }
-            this.errors.push(new Error(`Document -> Unable to ${append.prepend ? 'prepend' : 'append'} element (${append.tagName.toUpperCase() + (isIndex(node.index) ? ' at index ' + node.index : '')})`));
+            this.errors.push(new Error(`Unable to ${append.prepend ? 'prepend' : 'append'} element (${append.tagName.toUpperCase() + (isIndex(node.index) ? ' at index ' + node.index : '')})`));
         }
         return null;
     }
@@ -371,7 +371,7 @@ export abstract class XmlWriter implements IXmlWriter {
             [output, outerXml, error] = element.write(this.source, this.getInvalidArea());
         }
         else {
-            error = new Error('Document -> Root source position not found');
+            error = new Error('Root source position not found');
         }
         if (output) {
             this.source = output;
@@ -1027,7 +1027,7 @@ export abstract class XmlElement implements IXmlElement {
                 return this.replace(source, { remove, append, startIndex: node.startIndex!, endIndex: node.endIndex! });
             }
             const { tagName, tagIndex = -1, tagCount = Infinity, ignoreCase } = node;
-            const errorResult = (): [string, string, Error] => ['', '', new Error(`Document -> Element was not found (${tagName.toUpperCase() + (isIndex(tagIndex) ? ' at index ' + tagIndex : '')})`)];
+            const errorResult = (): [string, string, Error] => ['', '', new Error(`Element was not found (${tagName.toUpperCase() + (isIndex(tagIndex) ? ' at index ' + tagIndex : '')})`)];
             const tagVoid = this.TAG_VOID.includes(tagName);
             const voidId = tagVoid && !!id;
             const onlyId = !isIndex(tagIndex) || !!append;

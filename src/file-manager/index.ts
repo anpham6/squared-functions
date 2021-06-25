@@ -66,6 +66,7 @@ class FileManager extends Module implements IFileManager {
         return Module.isString(value) ? bytes(value) : bytes(value, options);
     }
 
+    moduleName = 'filemanager';
     delayed = 0;
     keepAliveTimeout = 0;
     cacheHttpRequest = false;
@@ -282,27 +283,30 @@ class FileManager extends Module implements IFileManager {
                     return a < b ? -1 : 1;
                 });
                 if (this.postFinalize) {
-                    const addErrors = (list: string[]) => {
-                        if (list.length) {
-                            this.errors.push(...list);
-                            list.length = 0;
+                    const errors: string[] = [];
+                    const addErrors = (instance: IModule) => {
+                        const items = instance.errors;
+                        if (items.length) {
+                            const moduleName = instance.moduleName;
+                            items.forEach(value => errors.push(moduleName + '> ' + value));
+                            items.length = 0;
                         }
                     };
+                    addErrors(this);
                     for (const { instance } of this.Document) {
-                        addErrors(instance.errors);
+                        addErrors(instance);
                     }
                     for (const { instance } of this.Task) {
-                        addErrors(instance.errors);
+                        addErrors(instance);
                     }
                     if (this.Cloud) {
-                        addErrors(this.Cloud.errors);
+                        addErrors(this.Cloud);
                     }
                     if (this.Watch) {
-                        addErrors(this.Watch.errors);
+                        addErrors(this.Watch);
                     }
                     this.postFinalize(files.map(name => ({ name, size: bytes(Module.getFileSize(path.join(this.baseDirectory, name))) } as FileInfo)), this.errors);
                 }
-                this.errors.length = 0;
             });
         }
     }

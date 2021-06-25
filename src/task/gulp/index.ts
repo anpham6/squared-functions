@@ -127,7 +127,7 @@ class Gulp extends Task {
         }
     }
 
-    readonly moduleName = 'gulp';
+    moduleName = 'gulp';
 
     execute(manager: IFileManager, gulp: GulpTask, callback: (value?: unknown) => void) {
         const { task, origDir, data } = gulp;

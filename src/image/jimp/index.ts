@@ -201,7 +201,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
         return ['', '', ''];
     }
 
-    readonly moduleName = MODULE_NAME;
+    moduleName = MODULE_NAME;
 
     private _finalAs: Undef<string> = '';
 

@@ -133,6 +133,7 @@ class Watch extends Module implements IWatch {
         WATCH_MAP = {};
     }
 
+    moduleName = 'watch';
     host?: IFileManager;
 
     private _sslKey = '';
@@ -219,7 +220,7 @@ class Watch extends Module implements IWatch {
                                             SECURE_MAP[port] = wss;
                                         }
                                         else {
-                                            this.writeFail('SSL key and cert not found', new Error(`Watch -> Missing SSL credentials (${socketId})`));
+                                            this.writeFail('SSL key and cert not found', new Error(`Missing SSL credentials (${socketId})`));
                                         }
                                     }
                                     catch (err) {

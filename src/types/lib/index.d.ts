@@ -263,11 +263,11 @@ declare namespace functions {
     interface IModule {
         logType: typeof LOG_TYPE;
         tempDir: string;
+        moduleName: string;
         readonly major: number;
         readonly minor: number;
         readonly patch: number;
         readonly errors: string[];
-        readonly moduleName?: string;
         supported(major: number, minor: number, patch?: number): boolean;
         getTempDir(uuidDir?: boolean, filename?: string): string;
         formatMessage: ModuleFormatMessageMethod;

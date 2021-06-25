@@ -1233,7 +1233,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             htmlFile.sourceUTF8 = source;
             const failCount = domBase.failCount;
             if (failCount) {
-                this.writeFail([`DOM update had ${failCount} ${failCount === 1 ? 'error' : 'errors'}`, moduleName], new Error(moduleName + ` -> DOM update (${failCount} failed)`));
+                this.writeFail([`DOM update had ${failCount} ${failCount === 1 ? 'error' : 'errors'}`, moduleName], new Error(`DOM update (${failCount} failed)`));
             }
             else {
                 this.writeTimeProcess('HTML', path.basename(localUri) + `: ${domBase.modifyCount} modified`, time);
@@ -1257,7 +1257,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                 }
                 else {
-                    this.writeFail(['Path not found', instance.moduleName], new Error(instance.moduleName + ` -> Invalid path (${productionRelease})`));
+                    this.writeFail(['Path not found', instance.moduleName], new Error(`Invalid path (${productionRelease})`));
                 }
             }
             catch (err) {

@@ -484,11 +484,11 @@ abstract class Module implements IModule {
         }
     }
 
+    moduleName = 'unknown';
     major = PROCESS_VERSION[0];
     minor = PROCESS_VERSION[1];
     patch = PROCESS_VERSION[2];
     tempDir = 'tmp';
-    moduleName?: string;
     readonly errors: string[] = [];
 
     supported(major: number, minor: number, patch = 0) {

@@ -13,7 +13,7 @@ import Module from '../module';
 
 const REGEXP_SOURCEMAPPINGURL = /\n*(\/\*)?\s*(\/\/)?[#@] sourceMappingURL=(['"])?([^\s'"]*)\3\s*?(\*\/)?\n?/;
 
-const errorMessage = (hint: string, process: string, message: string) => new Error(hint + ` -> ${process} (${message})`);
+const errorMessage = (hint: string, process: string, message: string) => new Error((hint ? hint + ' -> ' : '') + process + ` (${message})`);
 const getSourceMappingURL = (value: string) => `\n//# sourceMappingURL=${value}\n`;
 
 abstract class Document extends Module implements IDocument {
