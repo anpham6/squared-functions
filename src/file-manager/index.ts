@@ -382,7 +382,7 @@ class FileManager extends Module implements IFileManager {
         }
         return file.sourceUTF8 || '';
     }
-    async setAssetContent(file: ExternalAsset, localUri: string, content: string, index = 0, replacePattern?: string) {
+    setAssetContent(file: ExternalAsset, localUri: string, content: string, index = 0, replacePattern?: string) {
         const trailing = concatString(file.trailingContent);
         if (trailing) {
             content += trailing;
@@ -698,12 +698,12 @@ class FileManager extends Module implements IFileManager {
             }
             return false;
         };
-        const processQueue = async (file: ExternalAsset, localUri: string, bundleMain?: ExternalAsset) => {
+        const processQueue = (file: ExternalAsset, localUri: string, bundleMain?: ExternalAsset) => {
             const bundleIndex = file.bundleIndex;
             if (bundleIndex !== undefined && bundleIndex >= 0) {
                 let cloudStorage: Undef<CloudService[]>;
                 if (bundleIndex === 0) {
-                    const content = await this.setAssetContent(file, localUri, this.getUTF8String(file, localUri));
+                    const content = this.setAssetContent(file, localUri, this.getUTF8String(file, localUri));
                     if (content) {
                         file.sourceUTF8 = content;
                         file.invalid = false;
@@ -724,12 +724,12 @@ class FileManager extends Module implements IFileManager {
                     }
                     if (queue) {
                         const { uri, content } = queue;
-                        const verifyBundle = async (next: ExternalAsset, value: string) => {
+                        const verifyBundle = (next: ExternalAsset, value: string) => {
                             if (bundleMain) {
-                                return this.setAssetContent(next, localUri, value, next.bundleIndex, next.bundleReplace);
+                                this.setAssetContent(next, localUri, value, next.bundleIndex, next.bundleReplace);
                             }
-                            if (value) {
-                                next.sourceUTF8 = await this.setAssetContent(next, localUri, value);
+                            else if (value) {
+                                next.sourceUTF8 = this.setAssetContent(next, localUri, value);
                                 next.cloudStorage = cloudStorage;
                                 bundleMain = queue;
                             }
@@ -737,9 +737,9 @@ class FileManager extends Module implements IFileManager {
                                 next.invalid = true;
                             }
                         };
-                        const resumeQueue = () => processQueue(queue!, localUri, bundleMain);
                         if (content) {
-                            verifyBundle(queue, content).then(resumeQueue);
+                            verifyBundle(queue, content);
+                            processQueue(queue, localUri, bundleMain);
                         }
                         else if (uri) {
                             request(uri, this.createRequestAgentOptions(uri), (err, res) => {
@@ -747,16 +747,16 @@ class FileManager extends Module implements IFileManager {
                                     this.writeFail(['Unable to download file', uri], err || res.statusCode + ' ' + res.statusMessage);
                                     notFound.push(uri);
                                     queue!.invalid = true;
-                                    resumeQueue();
                                 }
                                 else {
                                     queue!.etag = (res.headers.etag || res.headers['last-modified']) as string;
-                                    verifyBundle(queue!, res.body).then(resumeQueue);
+                                    verifyBundle(queue!, res.body);
                                 }
+                                processQueue(queue!, localUri, bundleMain);
                             });
                         }
                         else {
-                            resumeQueue();
+                            processQueue(queue, localUri, bundleMain);
                         }
                         return;
                     }

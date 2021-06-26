@@ -238,7 +238,7 @@ declare namespace functions {
         getMimeType(data: FileData): Undef<string>;
         getRelativeUri(file: ExternalAsset, filename?: string): string;
         getUTF8String(file: ExternalAsset, localUri?: string): string;
-        setAssetContent(file: ExternalAsset, localUri: string, content: string, index?: number, replacePattern?: string): Promise<string>;
+        setAssetContent(file: ExternalAsset, localUri: string, content: string, index?: number, replacePattern?: string): string;
         getAssetContent(file: ExternalAsset, source?: string): Undef<string>;
         writeBuffer(file: ExternalAsset): Null<Buffer>;
         writeImage(document: StringOfArray, data: OutputData): boolean;
