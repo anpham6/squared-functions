@@ -508,7 +508,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             case '@text/html': {
                 const items = instance.assets.filter(item => item.format === 'base64' && item.element);
                 if (items.length) {
-                    const domBase = new DomWriter(instance.moduleName, this.getUTF8String(file, localUri), this.getElements(), instance.normalizeHtmlOutput);
+                    const domBase = new DomWriter(instance.moduleName, this.getUTF8String(file, localUri), instance.xmlNodes, instance.normalizeHtmlOutput);
                     for (const item of items) {
                         const element = item.element!;
                         const domElement = new HtmlElement(instance.moduleName, element, item.attributes);
@@ -593,7 +593,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             const time = Date.now();
             const cloud = this.Cloud;
             let source = this.getUTF8String(htmlFile, localUri);
-            const domBase = new DomWriter(moduleName, source, this.getElements(), instance.normalizeHtmlOutput);
+            const domBase = new DomWriter(moduleName, source, instance.xmlNodes, instance.normalizeHtmlOutput);
             for (const item of elements) {
                 const element = item.element!;
                 if (element.removed || isRemoved(item)) {
@@ -662,7 +662,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     item.watch = false;
                 }
             }
-            const dataSource = this.getDataSourceItems(instance).filter(item => item.element) as DataSource[];
+            const dataSource = instance.dataSource as DataSource[];
             if (dataSource.length) {
                 const cacheKey = uuid.v4();
                 const cacheData: ObjectMap<Optional<PlainObject[] | string>> = {};
@@ -1282,11 +1282,10 @@ class ChromeDocument extends Document implements IChromeDocument {
 
     moduleName = 'chrome';
     module!: DocumentModule;
-    assets: DocumentAsset[] = [];
+    assets!: DocumentAsset[];
     htmlFile: Null<DocumentAsset> = null;
     cssFiles: DocumentAsset[] = [];
     baseDirectory = '';
-    host?: IFileManager;
     baseUrl?: string;
     productionRelease?: boolean | string;
     normalizeHtmlOutput?: boolean;

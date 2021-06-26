@@ -45,7 +45,7 @@ class AndroidDocument extends Document implements IAndroidDocument {
 
     moduleName = 'android';
     module!: DocumentModule;
-    assets: DocumentAsset[] = [];
+    assets!: DocumentAsset[];
     mainParentDir = 'app';
     mainSrcDir = 'src/main';
     mainActivityFile = '';

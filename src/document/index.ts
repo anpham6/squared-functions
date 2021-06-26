@@ -1,4 +1,4 @@
-import type { ViewEngine } from '../types/lib/squared';
+import type { DataSource, ElementAction, ViewEngine, XmlTagNode } from '../types/lib/squared';
 
 import type { IDocument, IFileManager } from '../types/lib';
 import type { ExternalAsset } from '../types/lib/asset';
@@ -129,12 +129,13 @@ abstract class Document extends Module implements IDocument {
         return match ? [value.substring(0, match.index) + value.substring(match.index + match[0].length), match[4]] : [value];
     }
 
-    public configData?: Undef<StandardMap>;
-
-    abstract moduleName: string;
-    abstract assets: ExternalAsset[];
+    assets: ExternalAsset[] = [];
+    host?: IFileManager;
+    configData?: Undef<StandardMap>;
 
     private _packageMap: ObjectMap<Transformer> = {};
+    private _xmlNodes: Null<XmlTagNode[]> = null;
+    private _dataSource: Null<DataSource[]> = null;
 
     constructor(public module: DocumentModule) {
         super();
@@ -331,6 +332,18 @@ abstract class Document extends Module implements IDocument {
                 return { code, map: sourceMap.code === code ? sourceMap.map : undefined };
             }
         }
+    }
+    get xmlNodes() {
+        if (!this._xmlNodes) {
+            const nodes: XmlTagNode[] = [];
+            (this.assets as ElementAction[]).forEach(item => item.element && nodes.push(item.element));
+            (this.dataSource as ElementAction[]).forEach(item => item.element && nodes.push(item.element));
+            this._xmlNodes = nodes;
+        }
+        return this._xmlNodes;
+    }
+    get dataSource() {
+        return this._dataSource ||= this.host?.getDataSourceItems(this) || [];
     }
 }
 

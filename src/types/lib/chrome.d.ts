@@ -36,7 +36,7 @@ export interface ICssRuleData {
     unusedSupports?: string[];
 }
 
-export interface DataSource extends IDataSource {
+export interface DataSource extends IDataSource, ElementAction {
     source: "uri" | "cloud" | "mongodb";
     type: "text" | "attribute" | "display";
     value?: StringOfArray | ObjectMap<unknown>;

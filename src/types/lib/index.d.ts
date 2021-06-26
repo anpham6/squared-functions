@@ -133,6 +133,8 @@ declare namespace functions {
         cloudObject?(state: IScopeOrigin<T, U>, file: ExternalAsset): boolean;
         cloudUpload?(state: IScopeOrigin<T, U>, file: ExternalAsset, url: string, active: boolean): Promise<boolean>;
         cloudFinalize?(state: IScopeOrigin<T, U>): Promise<void>;
+        get xmlNodes(): XmlTagNode[];
+        get dataSource(): DataSource[];
     }
 
     interface DocumentConstructor extends ModuleConstructor {
@@ -233,7 +235,6 @@ declare namespace functions {
         hasDocument(instance: IModule, document: Undef<StringOfArray>): boolean;
         getDocumentAssets(instance: IModule): ExternalAsset[];
         getDataSourceItems(instance: IModule): DataSource[];
-        getElements(): XmlTagNode[];
         setLocalUri(file: ExternalAsset): FileOutput;
         getLocalUri(data: FileData): string;
         getMimeType(data: FileData): Undef<string>;

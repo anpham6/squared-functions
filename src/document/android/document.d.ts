@@ -1,7 +1,7 @@
 import type { FinalizedElement } from '../../types/lib/squared';
+import type { ControllerSettingsDirectoryUI, ManifestData } from '../../types/lib/android';
 
 import type { IDocument } from '../../types/lib';
-import type { ControllerSettingsDirectoryUI, ManifestData } from '../../types/lib/android';
 import type { ExternalAsset } from '../../types/lib/asset';
 import type { DocumentModule as IDocumentModule } from '../../types/lib/module';
 

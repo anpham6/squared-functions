@@ -1,4 +1,4 @@
-import type { DataSource, ElementAction, FileInfo, XmlTagNode } from '../types/lib/squared';
+import type { DataSource, FileInfo } from '../types/lib/squared';
 
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
@@ -361,15 +361,6 @@ class FileManager extends Module implements IFileManager {
     }
     getDataSourceItems(instance: IModule) {
         return this.dataSourceItems.filter(item => this.hasDocument(instance, item.document));
-    }
-    getElements() {
-        const result: XmlTagNode[] = [];
-        for (const item of (this.documentAssets as ElementAction[]).concat(this.dataSourceItems as ElementAction[])) {
-            if (item.element) {
-                result.push(item.element);
-            }
-        }
-        return result;
     }
     getUTF8String(file: ExternalAsset, localUri?: string) {
         if (!file.sourceUTF8) {
