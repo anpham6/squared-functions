@@ -207,6 +207,7 @@ declare namespace functions {
         readonly filesToCompare: Map<ExternalAsset, string[]>;
         readonly contentToAppend: Map<string, string[]>;
         readonly contentToReplace: Map<string, string[]>;
+        readonly subProcesses: IModule[];
         readonly emptyDir: Set<string>;
         readonly permission: IPermission;
         readonly archiving: boolean;

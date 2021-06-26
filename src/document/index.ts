@@ -13,7 +13,7 @@ import Module from '../module';
 
 const REGEXP_SOURCEMAPPINGURL = /\n*(\/\*)?\s*(\/\/)?[#@] sourceMappingURL=(['"])?([^\s'"]*)\3\s*?(\*\/)?\n?/;
 
-const errorMessage = (hint: string, process: string, message: string) => new Error((hint ? hint + ' -> ' : '') + process + ` (${message})`);
+const errorMessage = (hint: string, process: string, message: string) => new Error((hint ? hint + ': ' : '') + process + ` (${message})`);
 const getSourceMappingURL = (value: string) => `\n//# sourceMappingURL=${value}\n`;
 
 abstract class Document extends Module implements IDocument {
@@ -203,7 +203,7 @@ abstract class Document extends Module implements IDocument {
                     }
                 }
                 else if (path.isAbsolute(value)) {
-                    this.writeFail('Only relative paths are supported', errorMessage(name, value, '(Unknown config)'));
+                    this.writeFail('Absolute path not supported', errorMessage(name, value, 'Unsupported access'));
                 }
                 else if (evaluate) {
                     const transformer = Module.parseFunction(value);
@@ -228,7 +228,7 @@ abstract class Document extends Module implements IDocument {
         if (Module.isString(viewEngine)) {
             const view = (this.module.settings?.view_engine as Undef<StandardMap>)?.[viewEngine] as Undef<ViewEngine>;
             if (!view) {
-                this.writeFail(['Setting not found', viewEngine], errorMessage('View engine', viewEngine, '(Unknown)'));
+                this.writeFail(['Setting not found', viewEngine], errorMessage('view engine', viewEngine, 'Unknown'));
                 return null;
             }
             viewEngine = view;
@@ -324,7 +324,7 @@ abstract class Document extends Module implements IDocument {
                     }
                 }
                 else {
-                    this.writeFail('Process format method not found', errorMessage(this.moduleName, process, 'Unknown plugin'));
+                    this.writeFail('Format method not found', errorMessage('', process, 'Unknown plugin'));
                 }
             }
             if (valid) {

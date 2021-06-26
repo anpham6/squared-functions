@@ -87,7 +87,7 @@ const Compress = new class extends Module implements ICompress {
                     compressor.call(this, uri, output, data, callback);
                 }
                 else if (callback) {
-                    callback(new Error(`file -> Not a registered format (${format})`));
+                    callback(new Error(`file: Not a registered format (${format})`));
                 }
                 break;
             }
@@ -131,7 +131,7 @@ const Compress = new class extends Module implements ICompress {
                 writeError(err);
             }
         };
-        const writeFormatError = (plugin: string) => writeError(new Error(`image -> Unsupported format (${plugin}: ${path.basename(uri)})`));
+        const writeFormatError = (plugin: string) => writeError(new Error(`image: Unsupported format (${plugin}: ${path.basename(uri)})`));
         let apiKey: Undef<string>;
         if ((data.plugin ||= 'tinify') === 'tinify') {
             if (data.options) {
@@ -147,7 +147,7 @@ const Compress = new class extends Module implements ICompress {
                 }
             }
             if (!apiKey) {
-                throw new Error('image -> API key not found (tinify)');
+                throw new Error('image: API key not found (tinify)');
             }
         }
         this.formatMessage(this.logType.COMPRESS, ext, ['Compressing image...', data.plugin], uri, { titleColor: 'magenta' });
@@ -205,7 +205,7 @@ const Compress = new class extends Module implements ICompress {
             }
         }
         else {
-            throw new Error('image -> Missing plugin');
+            throw new Error('image: Missing plugin');
         }
     }
 }();

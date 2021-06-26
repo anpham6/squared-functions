@@ -103,10 +103,8 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                     if (command.indexOf('@') !== -1) {
                         delete data.file.buffer;
                     }
+                    this.subProcesses.push(handler);
                     handler.write(output, (err: Null<Error>, result: string) => {
-                        if (handler.errors.length) {
-                            this.errors.push(...handler.errors);
-                        }
                         let parent: Undef<ExternalAsset>;
                         if (!err && result) {
                             const file = data.file;
@@ -134,13 +132,13 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                             }
                         }
                         else {
-                            this.writeFail(['Unable to finalize image', result], err);
+                            handler.writeFail(['Unable to finalize image', result], err);
                             result = '';
                         }
                         this.completeAsyncTask(null, result, parent);
                     });
                 })
-                .catch(err => this.writeFail(['Unable to read image buffer', MODULE_NAME + path.basename(localUri)], err));
+                .catch(err => this.writeFail(['Unable to read image buffer', MODULE_NAME + path.basename(localUri)], err, this.logType.FILE));
         };
         if (mimeType === 'image/webp') {
             try {
@@ -261,7 +259,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                         }
                         break;
                     default:
-                        this.writeFail(['Method not found', MODULE_NAME + ':' + name], new Error(name + ` -> ${MODULE_NAME} (Unknown)`));
+                        this.writeFail(['Method not supported', MODULE_NAME + ':' + name], new Error(`Method "${name}" (Unknown)`));
                         break;
                 }
             }

@@ -89,6 +89,7 @@ class FileManager extends Module implements IFileManager {
     readonly filesToCompare = new Map<ExternalAsset, string[]>();
     readonly contentToAppend = new Map<string, string[]>();
     readonly contentToReplace = new Map<string, string[]>();
+    readonly subProcesses: IModule[] = [];
     readonly emptyDir = new Set<string>();
     readonly postFinalize: Null<PostFinalizeCallback> = null;
 
@@ -286,9 +287,12 @@ class FileManager extends Module implements IFileManager {
                     const errors: string[] = [];
                     const addErrors = (instance: IModule) => {
                         const items = instance.errors;
-                        if (items.length) {
+                        const length = items.length;
+                        if (length) {
                             const moduleName = instance.moduleName;
-                            items.forEach(value => errors.push(moduleName + '> ' + value));
+                            for (let i = 0; i < length; ++i) {
+                                errors.push(`[${moduleName}] ` + items[i]);
+                            }
                             items.length = 0;
                         }
                     };
@@ -305,7 +309,8 @@ class FileManager extends Module implements IFileManager {
                     if (this.Watch) {
                         addErrors(this.Watch);
                     }
-                    this.postFinalize(files.map(name => ({ name, size: bytes(Module.getFileSize(path.join(this.baseDirectory, name))) } as FileInfo)), this.errors);
+                    this.subProcesses.forEach(instance => addErrors(instance));
+                    this.postFinalize(files.map(name => ({ name, size: bytes(Module.getFileSize(path.join(this.baseDirectory, name))) } as FileInfo)), errors);
                 }
             });
         }

@@ -451,7 +451,7 @@ function isTruthy(data: PlainObject, attr: string, falsey: Undef<string | boolea
 const isRemoved = (item: DocumentAsset) => item.exclude === true || item.bundleIndex !== undefined && item.bundleIndex > 0;
 const concatString = (values: Undef<string[]>): string => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const escapePosix = (value: string) => value.split(/[\\/]/).map(seg => Document.escapePattern(seg)).join('[\\\\/]');
-const getErrorDOM = (tagName: string, tagIndex: Undef<number>) => new Error(tagName.toUpperCase() + (tagIndex !== undefined && tagIndex >= 0 ? ' -> ' + tagIndex : '') + ' (Unable to parse DOM)');
+const getErrorDOM = (tagName: string, tagIndex: Undef<number>) => new Error(tagName.toLowerCase() + (tagIndex !== undefined && tagIndex >= 0 ? ': ' + tagIndex : '') + ' (Unable to parse DOM)');
 
 class ChromeDocument extends Document implements IChromeDocument {
     static async using(this: IFileManager, instance: ChromeDocument, file: DocumentAsset) {
@@ -688,7 +688,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     if (cloud) {
                                         result = await cloud.getDatabaseRows(item as CloudDatabase, cacheKey).catch(err => {
                                             if (err instanceof Error && err.message) {
-                                                this.errors.push(err.message);
+                                                instance.errors.push((item as CloudDatabase).service + ': ' + err.message);
                                             }
                                             return [];
                                         }) as PlainObject[];
@@ -723,7 +723,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                                 uri += '&ssl=true';
                                                             }
                                                             else {
-                                                                reject(new Error('Data source -> Missing SSL credentials (mongodb)'));
+                                                                reject(new Error('mongodb: Missing SSL credentials'));
                                                                 return;
                                                             }
                                                             break;
@@ -743,7 +743,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     }
                                                 }
                                                 else {
-                                                    reject(new Error('Data source -> Invalid credentials (mongodb)'));
+                                                    reject(new Error('mongodb: Invalid credentials'));
                                                     return;
                                                 }
                                                 if (!('useUnifiedTopology' in options)) {
@@ -805,7 +805,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         }
                                     }
                                     else if (!credential && !uri) {
-                                        reject(new Error('Data source -> Missing URI connection string (mongodb)'));
+                                        reject(new Error('mongodb: Missing URI connection string'));
                                         return;
                                     }
                                     break;
@@ -838,7 +838,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                 }
                                                 else {
                                                     removeElement();
-                                                    reject(new Error(`Data source -> No read permission (${uri})`));
+                                                    reject(new Error(`data-source: No read permission (${uri})`));
                                                     return;
                                                 }
                                             }
@@ -867,7 +867,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     break;
                                                 default:
                                                     removeElement();
-                                                    reject(new Error(`Data source -> Format invalid (${format})`));
+                                                    reject(new Error(`data-source: Format invalid (${format})`));
                                                     return;
                                             }
                                         }
@@ -899,14 +899,14 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         }
                                         else {
                                             removeElement();
-                                            reject(new Error(`Data source -> URI invalid (${uri})`));
+                                            reject(new Error(`data-source: URI invalid (${uri})`));
                                             return;
                                         }
                                     }
                                     else {
                                         removeElement();
                                         if (content !== null) {
-                                            reject(new Error(`Data source -> Empty response (${uri})`));
+                                            reject(new Error(`data-source: Empty response (${uri})`));
                                         }
                                         else {
                                             resolve();
@@ -917,7 +917,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 }
                                 default:
                                     removeElement();
-                                    reject(new Error(`Data source -> Invalid (${item.source || 'Unknown'})`)); // eslint-disable-line @typescript-eslint/restrict-template-expressions
+                                    reject(new Error(`data-source: Invalid (${item.source || 'Unknown'})`)); // eslint-disable-line @typescript-eslint/restrict-template-expressions
                                     return;
                             }
                             if (index !== undefined) {
@@ -1158,7 +1158,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         break;
                                     default:
                                         removeElement();
-                                        reject(new Error(`Data source -> Invalid action (${item.type as string || 'Unknown'})`));
+                                        reject(new Error(`data-source: Invalid action (${item.type as string || 'Unknown'})`));
                                         return;
                                 }
                                 if (!domBase.write(domElement) || errors) {
@@ -1180,12 +1180,12 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             else if (query) {
                                                 queryString = typeof query !== 'string' ? JSON.stringify(query) : query;
                                             }
-                                            this.formatFail(this.logType.CLOUD, service, ['Database query had no results', table ? 'table: ' + table : ''], new Error(service + ` -> ${queryString} (Empty)`));
+                                            this.formatFail(this.logType.CLOUD, service, ['Database query had no results', table ? 'table: ' + table : ''], new Error(service + `: ${queryString} (Empty)`));
                                             break;
                                         }
                                         case 'mongodb': {
                                             const { uri, name, table } = item as MongoDataSource;
-                                            this.formatFail(this.logType.PROCESS, name || 'MONGO', ['MongoDB query had no results', table ? 'table: ' + table : ''], new Error(`mongodb -> ${uri!} (Empty)`));
+                                            this.formatFail(this.logType.PROCESS, name || 'MONGO', ['MongoDB query had no results', table ? 'table: ' + table : ''], new Error(`mongodb: ${uri!} (Empty)`));
                                             break;
                                         }
                                         case 'uri': {
@@ -1239,7 +1239,8 @@ class ChromeDocument extends Document implements IChromeDocument {
                 this.writeTimeProcess('HTML', path.basename(localUri) + `: ${domBase.modifyCount} modified`, time);
             }
             if (domBase.hasErrors()) {
-                this.errors.push(...domBase.errors.map(item => item.message));
+                const errors = instance.errors;
+                domBase.errors.forEach(item => errors.push('dom-parser: ' + item.message));
             }
         }
         inlineMap.forEach(file => this.removeAsset(file));

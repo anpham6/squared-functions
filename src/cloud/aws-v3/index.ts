@@ -41,7 +41,7 @@ export function validateStorage(config: AWSStorageConfig, lib = '@aws-sdk/client
             config.credentials = fromIni(config);
         }
         catch (err) {
-            throw new Error(`Install AWS? -> npm i ${lib} -> ` + (err instanceof Error ? err.message : err));
+            throw new Error(lib + ': ' + (err instanceof Error ? err.message : err));
         }
         return true;
     }

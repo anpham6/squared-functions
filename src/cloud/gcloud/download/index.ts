@@ -53,7 +53,7 @@ export default function download(this: IModule, credential: GCloudStorageCredent
             }
         }
         else {
-            const writeFail = (prop: string) => this.formatFail(this.logType.CLOUD, service, prop + ' not specified', new Error(service + ` -> ${prop.toLowerCase()} (Missing property)`));
+            const writeFail = (prop: string) => this.formatFail(this.logType.CLOUD, service, prop + ' not specified', new Error(service + `: ${prop.toLowerCase()} (Missing property)`));
             if (!Bucket) {
                 writeFail('Bucket');
             }
