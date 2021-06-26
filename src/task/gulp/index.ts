@@ -4,6 +4,7 @@ import type { ExternalAsset } from '../../types/lib/asset';
 import path = require('path');
 import fs = require('fs-extra');
 import child_process = require('child_process');
+import which = require('which');
 
 import Task from '../index';
 
@@ -17,6 +18,10 @@ interface GulpTask extends PlainObject {
     origDir: string;
     data: GulpData;
 }
+
+const PATH_GULPBIN = which.sync('gulp', { nothrow: true });
+
+const sanitizePath = (value: string) => value.replace(/\\/g, '\\\\');
 
 class Gulp extends Task {
     static async using(this: IFileManager, instance: Gulp, assets: ExternalAsset[], beforeStage = false) {
@@ -134,13 +139,14 @@ class Gulp extends Task {
         const tempDir = this.getTempDir(true);
         try {
             fs.mkdirpSync(tempDir);
-            const errorHint = this.moduleName + ': ' + task;
+            const hint = this.moduleName + ': ' + task;
             Promise.all(data.items.map(uri => fs.copyFile(uri, path.join(tempDir, path.basename(uri)))))
                 .then(() => {
                     this.formatMessage(this.logType.PROCESS, 'gulp', ['Executing task...', task], data.gulpfile);
                     const time = Date.now();
-                    child_process.exec(`gulp ${task} --gulpfile "${data.gulpfile.replace(/\\/g, '\\\\')}" --cwd "${tempDir.replace(/\\/g, '\\\\')}"`, { cwd: process.cwd() }, err => {
-                        if (!err) {
+                    const output = PATH_GULPBIN ? child_process.execFile(PATH_GULPBIN, [task, '--gulpfile', `"${sanitizePath(data.gulpfile)}"`, '--cwd', `"${sanitizePath(tempDir)}"`], { cwd: process.cwd(), shell: true }) : child_process.exec(`gulp ${task} --gulpfile "${sanitizePath(data.gulpfile)}" --cwd "${sanitizePath(tempDir)}"`, { cwd: process.cwd() });
+                    output.on('close', code => {
+                        if (!code) {
                             Promise.all(data.items.map(uri => fs.unlink(uri).then(() => manager.delete(uri))))
                                 .then(() => {
                                     fs.readdir(tempDir)
@@ -156,30 +162,26 @@ class Gulp extends Task {
                                                 callback();
                                             })
                                             .catch(err_1 => {
-                                                this.writeFail(['Unable to replace files', errorHint], err_1, this.logType.FILE);
+                                                this.writeFail(['Unable to replace files', hint], err_1, this.logType.FILE);
                                                 callback();
                                             });
                                         }
                                     )
                                     .catch(err_1 => {
-                                        this.writeFail(['Unable to read directory', errorHint], err_1);
+                                        this.writeFail(['Unable to read directory', hint], err_1);
                                         callback();
                                     });
                                 })
                                 .catch(err_1 => {
-                                    this.writeFail(['Unable to delete files', errorHint], err_1, this.logType.FILE);
+                                    this.writeFail(['Unable to delete files', hint], err_1, this.logType.FILE);
                                     callback();
                                 });
                         }
                         else {
-                            this.writeFail(['Unknown', errorHint], err);
                             callback();
                         }
                     });
-                })
-                .catch(err => {
-                    this.writeFail(['Unable to copy files', errorHint], err, this.logType.FILE);
-                    callback();
+                    output.on('error', err => this.writeFail(['Unknown', hint], err));
                 });
         }
         catch (err) {

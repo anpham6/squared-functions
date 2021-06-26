@@ -213,14 +213,14 @@ class Watch extends Module implements IWatch {
                                     const sslKey = this._sslKey;
                                     const sslCert = this._sslCert;
                                     try {
-                                        if (path.isAbsolute(sslKey) && path.isAbsolute(sslCert) && fs.existsSync(sslKey) && fs.existsSync(sslCert)) {
+                                        if (sslKey && sslCert) {
                                             const server = https.createServer({ key: fs.readFileSync(sslKey), cert: fs.readFileSync(sslCert) });
                                             server.listen(port);
                                             wss = new ws.Server({ server });
                                             SECURE_MAP[port] = wss;
                                         }
                                         else {
-                                            this.writeFail('SSL key and cert not found', new Error(`Missing SSL credentials (${socketId})`));
+                                            this.writeFail('SSL/TSL key and cert not found', new Error(`Missing SSL/TSL credentials (${socketId})`));
                                         }
                                     }
                                     catch (err) {
@@ -372,7 +372,7 @@ class Watch extends Module implements IWatch {
     }
     setSSLKey(value: string) {
         try {
-            if (fs.existsSync(value = path.resolve(value))) {
+            if (path.isAbsolute(value) && fs.existsSync(value)) {
                 this._sslKey = value;
             }
         }
@@ -382,7 +382,7 @@ class Watch extends Module implements IWatch {
     }
     setSSLCert(value: string) {
         try {
-            if (fs.existsSync(value = path.resolve(value))) {
+            if (path.isAbsolute(value) && fs.existsSync(value)) {
                 this._sslCert = value;
             }
         }

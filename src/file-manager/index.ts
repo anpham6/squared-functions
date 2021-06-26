@@ -89,7 +89,7 @@ class FileManager extends Module implements IFileManager {
     readonly filesToCompare = new Map<ExternalAsset, string[]>();
     readonly contentToAppend = new Map<string, string[]>();
     readonly contentToReplace = new Map<string, string[]>();
-    readonly subProcesses: IModule[] = [];
+    readonly subProcesses = new Set<IModule>();
     readonly emptyDir = new Set<string>();
     readonly postFinalize: Null<PostFinalizeCallback> = null;
 
@@ -142,7 +142,9 @@ class FileManager extends Module implements IFileManager {
                 break;
             case 'cloud':
                 if (Module.isObject<CloudModule>(target)) {
-                    return this.Cloud = new Cloud(target, this.dataSourceItems.filter(item => item.source === 'cloud') as Undef<CloudDatabase[]>);
+                    const instance = new Cloud(target, this.dataSourceItems.filter(item => item.source === 'cloud') as Undef<CloudDatabase[]>);
+                    instance.host = this;
+                    return this.Cloud = instance;
                 }
                 break;
             case 'watch': {

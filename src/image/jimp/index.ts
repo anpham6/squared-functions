@@ -103,7 +103,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                     if (command.indexOf('@') !== -1) {
                         delete data.file.buffer;
                     }
-                    this.subProcesses.push(handler);
+                    this.subProcesses.add(handler);
                     handler.write(output, (err: Null<Error>, result: string) => {
                         let parent: Undef<ExternalAsset>;
                         if (!err && result) {
@@ -143,7 +143,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
         if (mimeType === 'image/webp') {
             try {
                 const tempFile = this.getTempDir(false, '.bmp');
-                child_process.execFile(require('dwebp-bin'), [localUri, '-mt', '-bmp', '-o', tempFile], null, err => {
+                child_process.execFile(require('dwebp-bin'), [`"${localUri}"`, '-mt', '-bmp', '-o', tempFile], { shell: true }, err => {
                     if (!err) {
                         transformBuffer(tempFile);
                     }
@@ -432,7 +432,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
     finalize(output: string, callback: (err: Null<Error>, result: string) => void, finalAs?: string) {
         if (this._finalAs === 'webp' || finalAs === 'webp') {
             const webp = Image.renameExt(output, 'webp');
-            const args = [output, '-mt', '-m', '6'];
+            const args = [`"${output}"`, '-mt', '-m', '6'];
             if (this.qualityData) {
                 const { value, preset, nearLossless } = this.qualityData;
                 if (preset) {
@@ -446,7 +446,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                 }
             }
             args.push('-o', webp);
-            child_process.execFile(require('cwebp-bin'), args, null, err => {
+            child_process.execFile(require('cwebp-bin'), args, { shell: true }, err => {
                 if (err) {
                     this.writeFail(['Install WebP?', 'npm i cwebp-bin'], err);
                     callback(err, output);

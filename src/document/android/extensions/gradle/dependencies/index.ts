@@ -30,7 +30,7 @@ export default function finalize(this: IFileManager, instance: IAndroidDocument,
         const match = /dependencies\s+\{([^}]+)\}/.exec(content);
         if (match) {
             const writeImpl = (item: string[]) => 'implementation' + (kotlin ? `("${item.join(':')}")` : ` '${item.join(':')}'`);
-            const pattern = kotlin ? /([ \t]*)implementation\((?:"([^"]+)"\))?/g : /([ \t]*)implementation\s+(?:["']([^"']+)["']|((?:\s*(?:group|name|version)\s*:\s*["'][^"']+["']\s*,?){3}))?/g;
+            const pattern = kotlin ? /([ \t]*)implementation\((?:\s*"([^"]+)"\s*\))?/g : /([ \t]*)implementation(?:\s*\(?\s*["']([^"']+)["']\s*\)?|\s+((?:\s*(?:group|name|version)\s*:\s*["'][^"']+["']\s*,?){3}))?/g;
             let source = match[1],
                 indent = '\t',
                 modified: Undef<boolean>,
