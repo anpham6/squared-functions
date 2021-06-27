@@ -133,7 +133,7 @@ abstract class Module implements IModule {
         return uuid.v4();
     }
 
-    static escapePattern(value: string) {
+    static escapePattern(value: unknown) {
         return this.isString(value) ? value.replace(/[-|\\{}()[\]^$+*?.]/g, capture => capture === '-' ? '\\x2d' : '\\' + capture) : '';
     }
 

@@ -23,7 +23,7 @@ let PORT_MAP: ObjectMap<Server> = {};
 let SECURE_MAP: ObjectMap<Server> = {};
 let WATCH_MAP: ObjectMap<number> = {};
 
-const REGEXP_EXPIRES = /^(?:\s*([\d.]+)\s*M)?(?:\s*([\d.]+)\s*w)?(?:\s*([\d.]+)\s*d)?(?:\s*([\d.]+)\s*h)?(?:\s*([\d.]+)\s*m)?(?:\s*([\d.]+)\s*s)?(?:\s*(\d+)\s*ms)?\s*$/;
+const REGEXP_EXPIRES = /^(?:\s*([\d.]+)\s*w)?(?:\s*([\d.]+)\s*d)?(?:\s*([\d.]+)\s*h)?(?:\s*([\d.]+)\s*m)?(?:\s*([\d.]+)\s*s)?(?:\s*(\d+)\s*ms)?\s*$/;
 
 function getPostFinalize(watch: FileWatch) {
     const { socketId, port } = watch;
@@ -72,28 +72,22 @@ class Watch extends Module implements IWatch {
                 const h = 60 * 60 * 1000;
                 let result = 0;
                 if (match[1]) {
-                    result += +match[1] * 365 * 24 * h || 0;
+                    result += +match[1] * 7 * 24 * h || 0;
                 }
                 if (match[2]) {
-                    result += +match[1] * 30 * 24 * h || 0;
+                    result += +match[2] * 24 * h || 0;
                 }
                 if (match[3]) {
-                    result += +match[3] * 7 * 24 * h || 0;
+                    result += +match[3] * h || 0;
                 }
                 if (match[4]) {
-                    result += +match[4] * 24 * h || 0;
+                    result += +match[4] * 60 * 1000 || 0;
                 }
                 if (match[5]) {
-                    result += +match[5] * h || 0;
+                    result += +match[5] * 1000 || 0;
                 }
                 if (match[6]) {
-                    result += +match[6] * 60 * 1000 || 0;
-                }
-                if (match[7]) {
-                    result += +match[7] * 1000 || 0;
-                }
-                if (match[8]) {
-                    result += +match[8];
+                    result += +match[6];
                 }
                 if (result > 0) {
                     return result + start;
@@ -139,7 +133,7 @@ class Watch extends Module implements IWatch {
     private _sslKey = '';
     private _sslCert = '';
 
-    constructor(public interval = 200, public port = 80, public securePort = 443) {
+    constructor(public interval = 500, public port = 80, public securePort = 443) {
         super();
     }
 

@@ -1230,7 +1230,7 @@ File watching is available with "copy" methods and uses HTTP HEAD requests to de
   "type": "css",
   "watch": {
     "interval": 100,
-    "expires": "1h 1m 1s",
+    "expires": "1w 1d 1h 1m 1s", // Empty is never (optional - 24 day limit)
     /* Optional */
     "reload": { // true
       "socketId": "111-111-111" // Use same ID to reload multiple pages
