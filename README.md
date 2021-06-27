@@ -518,6 +518,9 @@ Only one command per element is supported (except data sources) with the latter 
 
 ```javascript
 squared.saveAs("bundle.zip", { config: { uri: "http://localhost:3000/chrome/bundle.yml", mimeType: "text/yaml" } }); // "mimeType" (optional)
+
+// http://localhost:3000/chrome/demo.html
+squared.saveAs("demo.zip", { config: { mimeType: "json" } }); // Adjacent: http://localhost:3000/chrome/demo.html.json (js | yml | yaml)
 ```
 
 Here is the equivalent page using only inline commands with "data-chrome-file" and "data-chrome-tasks".
@@ -1232,7 +1235,7 @@ File watching is available with "copy" methods and uses HTTP HEAD requests to de
     "reload": { // true
       "socketId": "111-111-111" // Use same ID to reload multiple pages
       "port": 80
-      "secure": false // Requires SSL key and cert
+      "secure": false // Requires SSL/TSL key and cert
       "module": false // "img" and "link" only
     }
   },

@@ -36,6 +36,7 @@ export interface LoggerModule {
     };
     silent?: boolean;
     message?: boolean;
+    stack_trace?: boolean | number;
     color?: boolean;
     unknown?: boolean;
     system?: boolean;

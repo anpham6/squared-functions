@@ -232,7 +232,7 @@ abstract class Module implements IModule {
         let output: Undef<string>,
             error: Undef<boolean>;
         if (message instanceof Error) {
-            message = message.message;
+            message = SETTINGS.stack_trace && message.stack || message.message;
             error = true;
         }
         if (useColor(options)) {
@@ -481,6 +481,10 @@ abstract class Module implements IModule {
                     SETTINGS[attr] = logger[attr];
                 }
             }
+            const stack_trace = logger.stack_trace;
+            if (typeof stack_trace === 'number' && stack_trace > 0) {
+                Error.stackTraceLimit = stack_trace;
+            }
         }
     }
 
@@ -525,7 +529,7 @@ abstract class Module implements IModule {
         type |= LOG_TYPE.FAIL;
         Module.formatMessage(type, title, value, message, applyFailStyle(options));
         if (message) {
-            this.errors.push(message instanceof Error ? message.message : (message as string).toString());
+            this.errors.push(message instanceof Error ? SETTINGS.stack_trace && message.stack || message.message : (message as string).toString());
         }
     }
     formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options?: LogMessageOptions) {
