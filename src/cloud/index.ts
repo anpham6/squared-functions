@@ -78,7 +78,7 @@ class Cloud extends Module implements ICloud {
                     uploadHandler = instance.getUploadHandler(storage.service, instance.getCredential(storage));
                 }
                 catch (err) {
-                    this.writeFail(['Upload function not supported', storage.service], err);
+                    instance.writeFail(['Upload function not supported', storage.service], err);
                     continue;
                 }
                 const { admin, bucket } = storage;
@@ -94,7 +94,7 @@ class Cloud extends Module implements ICloud {
                                             fileGroup.push([storage.service === 'gcloud' ? group[i] : fs.readFileSync(group[i]), path.extname(group[i])]);
                                         }
                                         catch (err) {
-                                            this.writeFail(['Unable to read file', group[i]], err, this.logType.FILE);
+                                            instance.writeFail(['Unable to read file', group[i]], err, this.logType.FILE);
                                         }
                                     }
                                 }
@@ -120,7 +120,7 @@ class Cloud extends Module implements ICloud {
                                             uploadHandler({ buffer, admin, upload, localUri, fileGroup, bucket, bucketGroup, filename, mimeType }, success);
                                         }
                                         catch (err) {
-                                            this.writeFail(['Unable to read file', localUri], err, this.logType.FILE);
+                                            instance.writeFail(['Unable to read file', localUri], err, this.logType.FILE);
                                             success('');
                                         }
                                     })
@@ -201,7 +201,7 @@ class Cloud extends Module implements ICloud {
         }
         for (const service in bucketMap) {
             for (const [bucket, credential] of bucketMap[service]!) {
-                tasks.push(cloud.deleteObjects(service, credential, bucket).catch(err => this.writeFail(['Cloud provider not found', service], err)));
+                tasks.push(cloud.deleteObjects(service, credential, bucket).catch(err => cloud.writeFail(['Cloud provider not found', service], err)));
             }
         }
         if (tasks.length) {
@@ -254,7 +254,7 @@ class Cloud extends Module implements ICloud {
                                 }
                             }
                             catch (err) {
-                                this.writeFail(['Unable to create directory', dirname], err, this.logType.FILE);
+                                cloud.writeFail(['Unable to create directory', dirname], err, this.logType.FILE);
                                 continue;
                             }
                             if (valid) {
@@ -283,14 +283,14 @@ class Cloud extends Module implements ICloud {
                                                     }
                                                 }
                                                 catch (err) {
-                                                    this.writeFail(['Unable to write file', destUri], err, this.logType.FILE);
+                                                    cloud.writeFail(['Unable to write file', destUri], err, this.logType.FILE);
                                                 }
                                             }
                                         }, bucketGroup));
                                         downloadMap[location] = download;
                                     }
                                     catch (err) {
-                                        this.writeFail(['Download function not supported', data.service], err);
+                                        cloud.writeFail(['Download function not supported', data.service], err);
                                     }
                                 }
                             }

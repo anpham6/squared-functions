@@ -37,7 +37,7 @@ class AndroidDocument extends Document implements IAndroidDocument {
                 }
             }
             catch (err) {
-                this.writeFail(['Unable to locate main activity', mainActivityFile], err);
+                instance.writeFail(['Unable to locate main activity', mainActivityFile], err);
             }
         }
         return super.finalize.call(this, instance);

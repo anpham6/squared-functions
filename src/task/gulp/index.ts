@@ -53,7 +53,7 @@ class Gulp extends Task {
                         }
                     }
                     catch (err) {
-                        this.writeFail(['Unable to resolve file', gulpfile], err);
+                        instance.writeFail(['Unable to resolve file', gulpfile], err);
                     }
                 }
             }

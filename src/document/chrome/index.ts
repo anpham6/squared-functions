@@ -517,7 +517,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             item.watch = false;
                         }
                         else {
-                            this.writeFail('Element attribute replacement', getErrorDOM(element.tagName, element.tagIndex));
+                            instance.writeFail('Element attribute replacement', getErrorDOM(element.tagName, element.tagIndex));
                             delete item.inlineBase64;
                         }
                     }
@@ -556,7 +556,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     this.removeAsset(item);
                 }
                 catch (err) {
-                    this.writeFail(['Unable to read file', item.localUri!], err, this.logType.FILE);
+                    instance.writeFail(['Unable to read file', item.localUri!], err, this.logType.FILE);
                 }
             }
             if (htmlFile && item.element && item.format !== 'base64') {
@@ -620,7 +620,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             }
                         }
                         catch (err) {
-                            this.writeFail(['Unable to delete file', sourceMappingURL], err, this.logType.FILE);
+                            instance.writeFail(['Unable to delete file', sourceMappingURL], err, this.logType.FILE);
                         }
                     }
                     domElement.tagName = inlineContent;
@@ -654,7 +654,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                 }
                 if (!domBase.write(domElement)) {
-                    this.writeFail(inlineContent ? 'Inline tag replacement' : 'Element attribute replacement', getErrorDOM(element.tagName, element.tagIndex));
+                    instance.writeFail(inlineContent ? 'Inline tag replacement' : 'Element attribute replacement', getErrorDOM(element.tagName, element.tagIndex));
                     delete item.inlineCloud;
                 }
                 else if (inlineContent) {
@@ -678,7 +678,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 if (item.removeEmpty) {
                                     domElement.remove = true;
                                     if (!domBase.write(domElement)) {
-                                        this.writeFail('Unable to remove element', getErrorDOM(element!.tagName, element!.tagIndex));
+                                        instance.writeFail('Unable to remove element', getErrorDOM(element!.tagName, element!.tagIndex));
                                     }
                                 }
                             };
@@ -793,7 +793,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                 cacheData[key] = result;
                                             }
                                             catch (err) {
-                                                this.writeFail(['Unable to execute MongoDB query', name + ':' + table], err);
+                                                instance.writeFail(['Unable to execute MongoDB query', name + ':' + table], err);
                                             }
                                             if (client) {
                                                 try {
@@ -819,7 +819,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         }
                                         else {
                                             content = await request(uri, this.createRequestAgentOptions(uri)).catch(err => {
-                                                this.writeFail(['Unable to request URL data source', uri], err);
+                                                instance.writeFail(['Unable to request URL data source', uri], err);
                                                 return null;
                                             });
                                             cacheData[uri] = content;
@@ -843,7 +843,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                 }
                                             }
                                             catch (err) {
-                                                this.writeFail(['Unable to read file', pathname], err, this.logType.FILE);
+                                                instance.writeFail(['Unable to read file', pathname], err, this.logType.FILE);
                                             }
                                         }
                                     }
@@ -872,7 +872,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             }
                                         }
                                         catch (err) {
-                                            this.writeFail(['Unable to load data source', format], err);
+                                            instance.writeFail(['Unable to load data source', format], err);
                                             removeElement();
                                             resolve();
                                             return;
@@ -888,7 +888,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                 }
                                             }
                                             catch (err) {
-                                                this.writeFail([`Install required?`, 'npm i ' + lib], err);
+                                                instance.writeFail([`Install required?`, 'npm i ' + lib], err);
                                             }
                                         }
                                         if (Array.isArray(data)) {
@@ -1162,7 +1162,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         return;
                                 }
                                 if (!domBase.write(domElement) || errors) {
-                                    this.writeFail(item.type === 'display' ? errors && domElement.remove ? 'Element was removed with errors' : 'Unable to remove element' : 'Unable to replace ' + item.type, getErrorDOM(element!.tagName, element!.tagIndex));
+                                    instance.writeFail(item.type === 'display' ? errors && domElement.remove ? 'Element was removed with errors' : 'Unable to remove element' : 'Unable to replace ' + item.type, getErrorDOM(element!.tagName, element!.tagIndex));
                                 }
                             }
                             else {
@@ -1180,17 +1180,17 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             else if (query) {
                                                 queryString = typeof query !== 'string' ? JSON.stringify(query) : query;
                                             }
-                                            this.formatFail(this.logType.CLOUD, service, ['Database query had no results', table ? 'table: ' + table : ''], new Error(service + `: ${queryString} (Empty)`));
+                                            instance.formatFail(this.logType.CLOUD, service, ['Database query had no results', table ? 'table: ' + table : ''], new Error(service + `: ${queryString} (Empty)`));
                                             break;
                                         }
                                         case 'mongodb': {
                                             const { uri, name, table } = item as MongoDataSource;
-                                            this.formatFail(this.logType.PROCESS, name || 'MONGO', ['MongoDB query had no results', table ? 'table: ' + table : ''], new Error(`mongodb: ${uri!} (Empty)`));
+                                            instance.formatFail(this.logType.PROCESS, name || 'MONGO', ['MongoDB query had no results', table ? 'table: ' + table : ''], new Error(`mongodb: ${uri!} (Empty)`));
                                             break;
                                         }
                                         case 'uri': {
                                             const { uri, format = path.extname(uri).substring(1) } = item as UriDataSource;
-                                            this.formatFail(this.logType.PROCESS, format, ['URI data source had no results', uri], new Error(uri + ' (Empty)'));
+                                            instance.formatFail(this.logType.PROCESS, format, ['URI data source had no results', uri], new Error(uri + ' (Empty)'));
                                             break;
                                         }
                                     }
@@ -1208,7 +1208,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     const domElement = new HtmlElement(moduleName, element, item.attributes);
                     domElement.remove = true;
                     if (!domBase.write(domElement)) {
-                        this.writeFail('Exclude tag removal', getErrorDOM(element.tagName, element.tagIndex));
+                        instance.writeFail('Exclude tag removal', getErrorDOM(element.tagName, element.tagIndex));
                     }
                 }
             }
@@ -1233,7 +1233,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             htmlFile.sourceUTF8 = source;
             const failCount = domBase.failCount;
             if (failCount) {
-                this.writeFail([`DOM update had ${failCount} ${failCount === 1 ? 'error' : 'errors'}`, moduleName], new Error(`DOM update (${failCount} failed)`));
+                instance.writeFail([`DOM update had ${failCount} ${failCount === 1 ? 'error' : 'errors'}`, moduleName], new Error(`DOM update (${failCount} failed)`));
             }
             else {
                 this.writeTimeProcess('HTML', path.basename(localUri) + `: ${domBase.modifyCount} modified`, time);
@@ -1258,11 +1258,11 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                 }
                 else {
-                    this.writeFail(['Path not found', instance.moduleName], new Error(`Invalid path (${productionRelease})`));
+                    instance.writeFail(['Path not found', instance.moduleName], new Error(`Invalid path (${productionRelease})`));
                 }
             }
             catch (err) {
-                this.writeFail(['Unable to move files', productionRelease], err, this.logType.FILE);
+                instance.writeFail(['Unable to move files', productionRelease], err, this.logType.FILE);
             }
         }
     }
