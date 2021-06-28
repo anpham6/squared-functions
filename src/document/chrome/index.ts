@@ -460,7 +460,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         switch (mimeType) {
             case 'text/html':
                 if (format) {
-                    const result = await instance.transform('html', this.getUTF8String(file, localUri), format);
+                    const result = await instance.transform('html', this.getUTF8String(file, localUri), format, { mimeType });
                     if (result) {
                         file.sourceUTF8 = result.code;
                     }
@@ -468,7 +468,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 break;
             case 'text/css':
                 if (format) {
-                    const result = await instance.transform('css', this.getUTF8String(file, localUri), format);
+                    const result = await instance.transform('css', this.getUTF8String(file, localUri), format, { mimeType });
                     if (result) {
                         if (result.map) {
                             const uri = Document.writeSourceMap(localUri!, result as SourceMapOutput);
@@ -492,7 +492,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     source += bundle;
                 }
                 if (format) {
-                    const result = await instance.transform('js', source, format);
+                    const result = await instance.transform('js', source, format, { mimeType: file.attributes?.type || mimeType });
                     if (result) {
                         if (result.map) {
                             const uri = Document.writeSourceMap(localUri!, result as SourceMapOutput);
@@ -575,7 +575,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
             let source = replaceContent(this.getUTF8String(css, css.localUri));
             if (css.format) {
-                const result = await instance.transform('css', source, css.format);
+                const result = await instance.transform('css', source, css.format, { mimeType: 'text/css' });
                 if (result) {
                     if (result.map) {
                         const uri = Document.writeSourceMap(css.localUri!, result as SourceMapOutput);
@@ -1226,7 +1226,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 )
             );
             if (htmlFile.format) {
-                const result = await instance.transform('html', source, htmlFile.format);
+                const result = await instance.transform('html', source, htmlFile.format, { mimeType: 'text/html' });
                 if (result) {
                     source = result.code;
                 }

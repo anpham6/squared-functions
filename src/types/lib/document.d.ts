@@ -9,6 +9,7 @@ export interface DocumentData {
 
 export interface TransformOutput {
     file?: ExternalAsset;
+    mimeType?: string;
     sourceFile?: string;
     sourcesRelativeTo?: string;
     sourceMap?: SourceMapInput;

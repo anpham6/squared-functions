@@ -9,7 +9,7 @@ import uuid = require('uuid');
 import { loadPlugins } from '../util';
 
 export default async function transform(context: any, value: string, options: TransformOptions<rollup.RollupOptions, rollup.OutputOptions>) {
-    const { baseConfig, sourceMap, sourcesRelativeTo, external, writeFail } = options;
+    const { mimeType, baseConfig, sourceMap, sourcesRelativeTo, external, writeFail } = options;
     let sourceFile = options.sourceFile,
         outputConfig = options.outputConfig,
         tempFile = false,
@@ -23,7 +23,7 @@ export default async function transform(context: any, value: string, options: Tr
         tempFile = true;
     }
     if (Object.keys(outputConfig).length === 0) {
-        outputConfig = baseConfig.output as rollup.OutputOptions || { format: 'es' };
+        outputConfig = baseConfig.output as rollup.OutputOptions || { format: mimeType === 'application/javascript' ? 'es' : 'iife' };
     }
     baseConfig.input = sourceFile;
     if (Array.isArray(baseConfig.plugins)) {

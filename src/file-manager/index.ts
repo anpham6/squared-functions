@@ -674,8 +674,8 @@ class FileManager extends Module implements IFileManager {
         const cacheRequest = cacheExpires > 0;
         const cacheBufferLimit = cacheRequest ? this.cacheHttpRequestBuffer.limit : -1;
         const checkQueue = (file: ExternalAsset, localUri: string, content?: boolean) => {
-            const bundleIndex = file.bundleIndex;
-            if (bundleIndex !== undefined && bundleIndex >= 0) {
+            const bundleIndex = file.bundleIndex!;
+            if (bundleIndex >= 0) {
                 const bundle = appending[localUri] ||= [];
                 if (bundleIndex > 0) {
                     bundle[bundleIndex - 1] = file;
