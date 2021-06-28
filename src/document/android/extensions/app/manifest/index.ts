@@ -24,7 +24,7 @@ export default function finalize(this: IFileManager, instance: IAndroidDocument,
         existing: Undef<boolean>;
     try {
         existing = !this.archiving && fs.existsSync(template);
-        content = fs.readFileSync(existing ? template : instance.resolveTemplateDir(MANIFEST_FILENAME) || path.resolve(documentDir, instance.moduleName, 'template', MANIFEST_FILENAME), 'utf8');
+        content = fs.readFileSync(existing ? template : instance.resolveTemplateDir(MANIFEST_FILENAME) || path.resolve(path.join(documentDir, instance.moduleName, 'template', MANIFEST_FILENAME)), 'utf8');
     }
     catch (err) {
         this.writeFail(['Unable to read file', template], err, this.logType.FILE);

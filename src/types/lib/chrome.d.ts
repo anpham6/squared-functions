@@ -1,6 +1,6 @@
 import type { AttributeMap, ElementAction, DataSource as IDataSource, ViewEngine } from './squared';
 
-import type { FilterQuery } from 'mongodb';
+import type { FilterQuery, MongoClientOptions } from 'mongodb';
 
 export type UnusedStyles = string[];
 
@@ -43,12 +43,12 @@ export interface DataSource extends IDataSource, ElementAction {
     viewEngine?: ViewEngine | string;
 }
 
-export interface DBDataSource<T = string | PlainObject | unknown[]> extends DataSource {
+export interface DBDataSource<T = string | PlainObject | unknown[], U = PlainObject> extends DataSource {
     source: "cloud" | "mongodb";
     name?: string;
     table?: string;
     query?: T;
-    options?: PlainObject;
+    options?: U;
     value?: string | ObjectMap<StringOfArray>;
 }
 
@@ -59,7 +59,7 @@ export interface UriDataSource extends DataSource {
     query?: string;
 }
 
-export interface MongoDataSource extends DBDataSource<FilterQuery<unknown>> {
+export interface MongoDataSource extends DBDataSource<FilterQuery<unknown>, MongoClientOptions> {
     source: "mongodb";
     uri?: string;
     credential?: string | StandardMap;

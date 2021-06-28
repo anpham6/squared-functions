@@ -38,6 +38,7 @@ const REGEXP_TEMPLATECONDITIONAL = /(\n\s+)?\{\{\s*if\s+(!)?\s*([^}\s]+)\s*\}\}(
 const REGEXP_OBJECTPROPERTY = /\$\{\s*([^\s}]+)\s*\}/g;
 const REGEXP_OBJECTVALUE = /([^[.\s]+)((?:\s*\[[^\]]+\]\s*)+)?\s*\.?\s*/g;
 const REGEXP_OBJECTINDEX = /\[\s*(["'])?(.+?)\1\s*\]/g;
+const MONGO_SSLCACHE: ObjectMap<Buffer> = {};
 
 function removeDatasetNamespace(name: string, source: string, newline: string) {
     if (source.indexOf('data-' + name) !== -1) {
@@ -610,7 +611,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     const [innerXml, sourceMappingURL] = Document.removeSourceMappingURL(this.getUTF8String(item).trim());
                     if (sourceMappingURL && item.localUri) {
                         try {
-                            let mapUri = path.resolve(process.cwd(), sourceMappingURL);
+                            let mapUri = path.resolve(sourceMappingURL);
                             if (!fs.existsSync(mapUri)) {
                                 mapUri = path.join(path.dirname(item.localUri), sourceMappingURL);
                             }
@@ -713,10 +714,10 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     uri = `mongodb${dnsSrv ? '+srv' : ''}://` + (user ? encodeURIComponent(user) + (authMechanism !== 'GSSAPI' && credential.pwd ? ':' + encodeURIComponent(credential.pwd) : '') + '@' : '') + credential.server + '/?authMechanism=' + encodeURIComponent(authMechanism);
                                                     switch (authMechanism) {
                                                         case 'MONGODB-X509': {
-                                                            const { sslKey, sslCert, sslValidate } = credential;
-                                                            if (sslKey && sslCert && path.isAbsolute(sslKey) && path.isAbsolute(sslCert) && fs.existsSync(sslKey) && fs.existsSync(sslCert)) {
-                                                                options.sslKey = fs.readFileSync(sslKey);
-                                                                options.sslCert = fs.readFileSync(sslCert);
+                                                            let { sslKey, sslCert, sslValidate } = credential; // eslint-disable-line prefer-const
+                                                            if (sslKey && sslCert && fs.existsSync(sslKey = path.resolve(sslKey)) && fs.existsSync(sslCert = path.resolve(sslCert))) {
+                                                                options.sslKey = MONGO_SSLCACHE[sslKey] ||= fs.readFileSync(sslKey);
+                                                                options.sslCert = MONGO_SSLCACHE[sslCert] ||= fs.readFileSync(sslCert);
                                                                 if (typeof sslValidate === 'boolean') {
                                                                     options.sslValidate = sslValidate;
                                                                 }

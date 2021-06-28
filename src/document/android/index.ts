@@ -73,7 +73,7 @@ class AndroidDocument extends Document implements IAndroidDocument {
     resolveTemplateDir(...paths: string[]) {
         const template = this.module.settings?.directory?.template;
         if (template) {
-            return path.join(path.isAbsolute(template) ? template : path.resolve(process.cwd(), template), ...paths);
+            return path.join(path.resolve(template), ...paths);
         }
     }
     resolveKts(...paths: string[]) {
