@@ -102,6 +102,8 @@ export interface XmlWriterConstructor {
     getNodeId(node: XmlTagNode, document: string): string;
     getNameOfId(document: string): string;
     getCommentsAndCDATA(source: string, nodePattern?: string, ignoreCase?: boolean): SourceContent[];
+    isIndex(value: unknown): boolean;
+    isCount(value: unknown): boolean;
     isSpace(ch: string): boolean;
     new(documentName: string, source: string, elements: XmlTagNode[]): IXmlWriter;
 }

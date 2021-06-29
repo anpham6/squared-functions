@@ -1,4 +1,4 @@
-import type { LocationUri } from '../../types/lib/squared';
+import type { LocationUri, XmlTagNode } from '../../types/lib/squared';
 import type { DataSource, MongoDataSource, RequestData, UriDataSource } from '../../types/lib/chrome';
 
 import type { IFileManager } from '../../types/lib';
@@ -449,6 +449,11 @@ function isTruthy(data: PlainObject, attr: string, falsey: Undef<string | boolea
     return falsey ? !value : value;
 }
 
+function getFormatUUID(settings: DocumentModule, attr: "pathname" | "filename") {
+    const format_uuid = settings.format_uuid;
+    return format_uuid && format_uuid[attr] ? Document.generateUUID(format_uuid[attr], format_uuid.dictionary) : uuid.v4();
+}
+
 const isRemoved = (item: DocumentAsset) => item.exclude === true || item.bundleIndex !== undefined && item.bundleIndex > 0;
 const concatString = (values: Undef<string[]>): string => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const escapePosix = (value: string) => value.split(/[\\/]/).map(seg => Document.escapePattern(seg)).join('[\\\\/]');
@@ -492,7 +497,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                     source += bundle;
                 }
                 if (format) {
-                    const result = await instance.transform('js', source, format, { mimeType: file.attributes?.type || mimeType });
+                    const type = file.attributes?.type;
+                    const mimeOutput = type || mimeType;
+                    const result = await instance.transform('js', source, format, { mimeType: mimeOutput, chunks: !!file.element });
                     if (result) {
                         if (result.map) {
                             const uri = Document.writeSourceMap(localUri!, result as SourceMapOutput);
@@ -501,6 +508,47 @@ class ChromeDocument extends Document implements IChromeDocument {
                             }
                         }
                         source = result.code;
+                        const chunks = result.chunks;
+                        if (chunks) {
+                            const xmlNodes = instance.xmlNodes;
+                            const localDir = path.dirname(localUri!);
+                            const relativeDir = path.dirname(file.relativeUri!);
+                            const element = file.element!;
+                            const appending: XmlTagNode[] = [];
+                            for (const item of xmlNodes) {
+                                if (item.append && !item.append.prepend && (item.index === element.index && DomWriter.isIndex(element.index) || item.tagName === element.tagName && item.tagIndex === element.tagIndex && DomWriter.isIndex(element.tagIndex))) {
+                                    appending.push(item);
+                                }
+                            }
+                            let order = 0;
+                            for (const chunk of chunks) {
+                                const filename = chunk.filename || (getFormatUUID(instance.module, 'filename') + path.extname(localUri!));
+                                const chunkUri = path.join(localDir, filename);
+                                try {
+                                    fs.writeFileSync(chunkUri, chunk.code, 'utf8');
+                                    this.add(chunkUri, file);
+                                    if (chunk.map) {
+                                        const uri = Document.writeSourceMap(chunkUri, chunk);
+                                        if (uri) {
+                                            this.add(uri, file);
+                                        }
+                                    }
+                                    xmlNodes.push({
+                                        ...element,
+                                        append: { tagName: 'script', tagCount: element.tagCount, order: ++order },
+                                        attributes: {
+                                            ...file.attributes,
+                                            type: type || (mimeType === 'application/javascript' ? 'module' : mimeType),
+                                            src: Document.joinPath(relativeDir, filename)
+                                        }
+                                    } as XmlTagNode);
+                                }
+                                catch (err) {
+                                    instance.writeFail(['Unable to write file', chunkUri], err, instance.logType.FILE);
+                                }
+                            }
+                            appending.forEach(item => item.append!.order += order);
+                        }
                     }
                 }
                 file.sourceUTF8 = source;
@@ -1360,14 +1408,10 @@ class ChromeDocument extends Document implements IChromeDocument {
     setLocalUri(file: Partial<LocationUri>) {
         const { pathname, filename } = file;
         if (pathname && pathname.includes(this.internalAssignUUID)) {
-            const format_uuid = this.module.format_uuid!;
-            const format = format_uuid.pathname;
-            file.pathname = pathname.replace(this.internalAssignUUID, format ? Document.generateUUID(format, format_uuid.dictionary) : uuid.v4());
+            file.pathname = pathname.replace(this.internalAssignUUID, getFormatUUID(this.module, 'pathname'));
         }
         if (filename && filename.includes(this.internalAssignUUID)) {
-            const format_uuid = this.module.format_uuid!;
-            const format = format_uuid.filename;
-            file.filename = filename.replace(this.internalAssignUUID, format ? Document.generateUUID(format, format_uuid.dictionary) : uuid.v4());
+            file.filename = filename.replace(this.internalAssignUUID, getFormatUUID(this.module, 'filename'));
         }
     }
     resolveUri(file: DocumentAsset, source: string) {

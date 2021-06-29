@@ -401,7 +401,7 @@ Custom plugins can also be installed from NPM. The function has to be named "tra
 }
 ```
 
-NOTE: Asynchronous functions in settings are supported.
+NOTE: Asynchronous functions in settings and for individual output properties are supported.
 
 ```javascript
 // es5.js

@@ -2,7 +2,7 @@ import type { DataSource, ElementAction, ViewEngine, XmlTagNode } from '../types
 
 import type { IDocument, IFileManager } from '../types/lib';
 import type { ExternalAsset } from '../types/lib/asset';
-import type { ConfigOrTransformer, PluginConfig, SourceMap, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformCallback, TransformOptions, TransformOutput, TransformResult, Transformer } from '../types/lib/document';
+import type { ChunkData, ConfigOrTransformer, PluginConfig, SourceMap, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformCallback, TransformOptions, TransformOutput, TransformResult, Transformer } from '../types/lib/document';
 import type { DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
 
@@ -12,6 +12,60 @@ import fs = require('fs');
 import Module from '../module';
 
 const REGEXP_SOURCEMAPPINGURL = /\n*(\/\*)?\s*(\/\/)?[#@] sourceMappingURL=(['"])?([^\s'"]*)\3\s*?(\*\/)?\n?/;
+const CONFIG_CACHE: WeakMap<StandardMap, StandardMap> = new WeakMap();
+
+function createSourceMap(value: string) {
+    return Object.create({
+        code: value,
+        output: new Map<string, SourceMapOutput>(),
+        "reset": function(this: SourceMapInput) {
+            delete this.map;
+            delete this.sourceMappingURL;
+            this.output.clear();
+        },
+        "nextMap": function(this: SourceMapInput, name: string, code: string, map: SourceMap | string, sourceMappingURL = '', emptySources?: boolean) {
+            if (Module.isString(map)) {
+                try {
+                    map = JSON.parse(map) as SourceMap;
+                }
+                catch {
+                    return false;
+                }
+            }
+            if (Module.isObject<SourceMap>(map) && Module.isString(map.mappings)) {
+                if (emptySources) {
+                    map.sources = [""];
+                }
+                this.code = code;
+                this.map = map;
+                if (sourceMappingURL) {
+                    this.sourceMappingURL = sourceMappingURL;
+                }
+                let mapName = name,
+                    i = 0;
+                while (this.output.has(mapName)) {
+                    mapName = name + '_' + ++i;
+                }
+                this.output.set(mapName, { code, map, sourceMappingURL });
+                return true;
+            }
+            return false;
+        }
+    }) as SourceMapInput;
+}
+
+function convertOptions(options: StandardMap) {
+    for (const attr in options) {
+        const value = options[attr];
+        if (typeof value === 'string') {
+            const method = Module.asFunction(value);
+            if (method) {
+                options[attr] = method;
+            }
+        }
+    }
+    return options;
+}
 
 const errorMessage = (hint: string, process: string, message: string) => new Error((hint ? hint + ': ' : '') + process + ` (${message})`);
 const getSourceMappingURL = (value: string) => `\n//# sourceMappingURL=${value}\n`;
@@ -35,43 +89,7 @@ abstract class Document extends Module implements IDocument {
     }
 
     static createSourceMap(value: string) {
-        return Object.create({
-            code: value,
-            output: new Map<string, SourceMapOutput>(),
-            "reset": function(this: SourceMapInput) {
-                delete this.map;
-                delete this.sourceMappingURL;
-                this.output.clear();
-            },
-            "nextMap": function(this: SourceMapInput, name: string, code: string, map: SourceMap | string, sourceMappingURL = '', emptySources?: boolean) {
-                if (Module.isString(map)) {
-                    try {
-                        map = JSON.parse(map) as SourceMap;
-                    }
-                    catch {
-                        return false;
-                    }
-                }
-                if (Module.isObject<SourceMap>(map) && Module.isString(map.mappings)) {
-                    if (emptySources) {
-                        map.sources = [""];
-                    }
-                    this.code = code;
-                    this.map = map;
-                    if (sourceMappingURL) {
-                        this.sourceMappingURL = sourceMappingURL;
-                    }
-                    let mapName = name,
-                        i = 0;
-                    while (this.output.has(mapName)) {
-                        mapName = name + '_' + ++i;
-                    }
-                    this.output.set(mapName, { code, map, sourceMappingURL });
-                    return true;
-                }
-                return false;
-            }
-        }) as SourceMapInput;
+        return createSourceMap(value);
     }
 
     static writeSourceMap(localUri: string, sourceMap: SourceMapOutput, options?: SourceMapOptions) {
@@ -192,9 +210,11 @@ abstract class Document extends Module implements IDocument {
                                 }
                             }
                             else {
-                                const result = JSON.parse(contents) as Null<StandardMap>;
+                                let result = JSON.parse(contents) as Null<StandardMap>;
                                 if (Module.isObject(result)) {
-                                    return JSON.parse(JSON.stringify(data[name] = result));
+                                    data[name] = result;
+                                    CONFIG_CACHE.set(data[name], result = convertOptions(JSON.parse(JSON.stringify(result))));
+                                    return result;
                                 }
                             }
                         }
@@ -216,7 +236,12 @@ abstract class Document extends Module implements IDocument {
             }
             case 'object':
                 try {
-                    return JSON.parse(JSON.stringify(value));
+                    let result = CONFIG_CACHE.get(value);
+                    if (result) {
+                        return { ...result };
+                    }
+                    CONFIG_CACHE.set(value, result = convertOptions(JSON.parse(JSON.stringify(value))));
+                    return result;
                 }
                 catch (err) {
                     this.writeFail('Could not load config', err);
@@ -266,6 +291,7 @@ abstract class Document extends Module implements IDocument {
         if (data) {
             const sourceMap = options.sourceMap ||= Document.createSourceMap(code);
             const writeFail = this.writeFail.bind(this);
+            const supplementChunks: Undef<ChunkData[]> = options.chunks ? [] : undefined;
             let valid: Undef<boolean>;
             for (let process of format.split('+')) {
                 const [plugin, baseConfig, outputConfig = {}] = this.findConfig(data, process = process.trim(), type);
@@ -274,7 +300,7 @@ abstract class Document extends Module implements IDocument {
                         this.writeFail('Unable to load configuration', errorMessage(plugin, process, 'Invalid config'));
                     }
                     else {
-                        const output = { ...options, outputConfig, writeFail } as TransformOptions;
+                        const output = { ...options, outputConfig, supplementChunks, createSourceMap, writeFail } as TransformOptions;
                         const time = Date.now();
                         const next = (result: Undef<string>) => {
                             if (Module.isString(result)) {
@@ -329,7 +355,12 @@ abstract class Document extends Module implements IDocument {
                 }
             }
             if (valid) {
-                return { code, map: sourceMap.code === code ? sourceMap.map : undefined };
+                const map = sourceMap.map && sourceMap.code === code ? sourceMap.map : undefined;
+                return {
+                    code,
+                    map,
+                    chunks: supplementChunks?.length ? supplementChunks.map(item => ({ code: item.code, map: map && item.sourceMap && item.sourceMap.map, filename: item.filename })) : undefined
+                };
             }
         }
     }

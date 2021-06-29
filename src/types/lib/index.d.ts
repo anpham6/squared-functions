@@ -288,6 +288,7 @@ declare namespace functions {
         isString(value: unknown): value is string;
         generateUUID(format?: string, dictionary?: string): string;
         escapePattern(value: unknown): string;
+        asFunction(value: string, sync?: boolean): Undef<FunctionType<Promise<string> | string>>;
         parseFunction(value: string, name?: string, sync?: boolean): Undef<FunctionType<Promise<string> | string>>;
         toPosix(value: unknown, filename?: string): string;
         renameExt(value: string, ext: string): string;

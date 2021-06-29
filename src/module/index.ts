@@ -282,17 +282,7 @@ abstract class Module implements IModule {
         this.formatMessage(type || LOG_TYPE.SYSTEM, 'FAIL!', value, message, { ...Module.LOG_STYLE_FAIL });
     }
 
-    static parseFunction(value: string, name?: string, sync = true): Undef<FunctionType<Promise<string> | string>> {
-        const uri = Module.fromLocalPath(value = value.trim());
-        if (uri) {
-            try {
-                value = fs.readFileSync(uri, 'utf8').trim();
-            }
-            catch (err) {
-                this.writeFail(['Unable to read file', uri], err, LOG_TYPE.FILE);
-                return;
-            }
-        }
+    static asFunction(value: string, sync = true): Undef<FunctionType<Promise<string> | string>> {
         const match = /^(async\s+)?(function\s+([^(]*)\(([^)]*)\)\s*\{([\S\s]+)\})$/.exec(value);
         if (match) {
             if (!sync || match[1]) {
@@ -304,6 +294,23 @@ abstract class Module implements IModule {
         }
         if (value.startsWith('function')) {
             return (0, eval)(`(${value})`);
+        }
+    }
+
+    static parseFunction(value: string, name?: string, sync = true): Undef<FunctionType<Promise<string> | string>> {
+        const uri = Module.fromLocalPath(value = value.trim());
+        if (uri) {
+            try {
+                value = fs.readFileSync(uri, 'utf8').trim();
+            }
+            catch (err) {
+                this.writeFail(['Unable to read file', uri], err, LOG_TYPE.FILE);
+                return;
+            }
+        }
+        const result = this.asFunction(value, sync);
+        if (result) {
+            return result;
         }
         if (name) {
             try {

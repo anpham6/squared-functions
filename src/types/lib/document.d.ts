@@ -3,29 +3,43 @@ import type { IDocument, IFileManager } from './index';
 import type { ExternalAsset } from './asset';
 import type { ModuleWriteFailMethod } from './logger';
 
+export interface SourceCode {
+    code: string;
+    map?: SourceMap;
+}
+
 export interface DocumentData {
     document?: StringOfArray;
+}
+
+export interface ChunkData {
+    code: string;
+    filename?: string;
+    sourceMap?: SourceMapInput;
 }
 
 export interface TransformOutput {
     file?: ExternalAsset;
     mimeType?: string;
+    chunks?: boolean;
+    sourceDir?: string;
     sourceFile?: string;
     sourcesRelativeTo?: string;
     sourceMap?: SourceMapInput;
     external?: PlainObject;
 }
 
-export interface TransformOptions<T = StandardMap, U = StandardMap> extends TransformOutput {
+export interface TransformOptions<T = StandardMap, U = StandardMap> extends Omit<TransformOutput, "chunks"> {
     baseConfig: T;
     outputConfig: U;
     sourceMap: SourceMapInput;
     writeFail: ModuleWriteFailMethod;
+    supplementChunks?: ChunkData[];
+    createSourceMap: (value: string) => SourceMapInput;
 }
 
-export interface TransformResult {
-    code: string;
-    map?: SourceMap;
+export interface TransformResult extends SourceCode {
+    chunks?: Null<(SourceCode & { filename?: string })[]>;
     sourceMappingURL?: string;
 }
 

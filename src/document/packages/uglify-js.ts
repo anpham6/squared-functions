@@ -1,7 +1,7 @@
-import type { TransformOptions } from '../../types/lib/document';
+import type { SourceCode, TransformOptions } from '../../types/lib/document';
 
 export default function transform(context: any, value: string, options: TransformOptions) {
-    const { baseConfig, outputConfig, sourceMap, external } = options;
+    const { baseConfig, outputConfig, sourceMap, supplementChunks, createSourceMap, external } = options;
     Object.assign(baseConfig, outputConfig);
     if (external) {
         Object.assign(baseConfig, external);
@@ -11,16 +11,39 @@ export default function transform(context: any, value: string, options: Transfor
         sourceMap.reset();
     }
     else if (baseConfig.sourceMap && typeof baseConfig.sourceMap === 'object' || sourceMap.map && (baseConfig.sourceMap = {})) {
-        const mapConfig = baseConfig.sourceMap as PlainObject;
+        const map = baseConfig.sourceMap as PlainObject;
         if (sourceMap.map) {
-            mapConfig.content = sourceMap.map;
+            map.content = sourceMap.map;
         }
-        mapConfig.asObject = true;
-        if (mapConfig.url !== 'inline') {
-            url = mapConfig.url as Undef<string>;
+        map.asObject = true;
+        if (map.url !== 'inline') {
+            url = map.url as Undef<string>;
         }
     }
     delete baseConfig.name;
+    if (supplementChunks) {
+        for (const chunk of supplementChunks) {
+            const chunkConfig = { ...baseConfig };
+            if (typeof chunkConfig.sourceMap === 'object') {
+                const map = chunk.sourceMap?.map;
+                if (map) {
+                    chunkConfig.sourceMap.content = map;
+                }
+                delete chunkConfig.sourceMap.url;
+            }
+            const result = context.minify(chunk.code, chunkConfig);
+            if (result) {
+                const { code, map } = result as SourceCode;
+                chunk.code = code;
+                if (map) {
+                    (chunk.sourceMap ||= createSourceMap(code)).nextMap('uglify-js', code, map);
+                }
+                else {
+                    chunk.sourceMap?.reset();
+                }
+            }
+        }
+    }
     const result = context.minify(value, baseConfig);
     if (result) {
         if (result.map) {

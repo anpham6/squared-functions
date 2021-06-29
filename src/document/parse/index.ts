@@ -75,8 +75,8 @@ function isValidIndex(items: Optional<SourceIndex[]>, value: number) {
 }
 
 const isNode = (item: XmlTagNode, index: Undef<number>, tagIndex: Undef<number>, tagCount: Undef<number>, id: Undef<string>, documentName: string) => item.index === index && isIndex(index) || id && id === XmlWriter.getNodeId(item, documentName) || item.tagIndex === tagIndex && isIndex(tagIndex) && item.tagCount === tagCount && isCount(tagCount);
-const isIndex = (value: Undef<unknown>): value is number => typeof value === 'number' && value >= 0 && value !== Infinity;
-const isCount = (value: Undef<unknown>): value is number => typeof value === 'number' && value > 0 && value !== Infinity;
+const isIndex = (value: unknown): value is number => typeof value === 'number' && value >= 0 && value !== Infinity;
+const isCount = (value: unknown): value is number => typeof value === 'number' && value > 0 && value !== Infinity;
 const getPatternId = (name: string) => new RegExp(`\\s${Module.escapePattern(name)}="([^"]+)"`);
 
 export abstract class XmlWriter implements IXmlWriter {
@@ -242,6 +242,14 @@ export abstract class XmlWriter implements IXmlWriter {
             result.push({ type, outerXml, startIndex: match.index, endIndex });
         }
         return result;
+    }
+
+    static isIndex(value: unknown) {
+        return isIndex(value);
+    }
+
+    static isCount(value: unknown) {
+        return isCount(value);
     }
 
     static isSpace(ch: string) {

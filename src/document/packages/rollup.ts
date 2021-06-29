@@ -1,4 +1,4 @@
-import type { TransformOptions } from '../../types/lib/document';
+import type { SourceMapInput, TransformOptions } from '../../types/lib/document';
 
 import type * as rollup from 'rollup';
 
@@ -9,9 +9,7 @@ import uuid = require('uuid');
 import { loadPlugins } from '../util';
 
 export default async function transform(context: any, value: string, options: TransformOptions<rollup.RollupOptions, rollup.OutputOptions>) {
-    const { mimeType, baseConfig, sourceMap, sourcesRelativeTo, external, writeFail } = options;
-    let sourceFile = options.sourceFile,
-        outputConfig = options.outputConfig,
+    let { sourceFile, outputConfig, mimeType, baseConfig, sourceMap, sourcesRelativeTo, external, supplementChunks, createSourceMap, writeFail } = options, // eslint-disable-line prefer-const
         tempFile = false,
         result = '',
         mappings = '';
@@ -52,18 +50,40 @@ export default async function transform(context: any, value: string, options: Tr
             url = path.basename(outputConfig.sourcemapFile);
         }
     }
-    delete outputConfig.manualChunks;
-    delete outputConfig.chunkFileNames;
-    delete outputConfig.entryFileNames;
+    if (!supplementChunks || external) {
+        delete outputConfig.manualChunks;
+        delete outputConfig.chunkFileNames;
+        delete outputConfig.entryFileNames;
+        outputConfig.preserveModules = false;
+    }
     const data = await bundle.generate(outputConfig);
-    for (const item of data.output) {
+    const items = data.output;
+    for (let i = 0, j = 0; i < items.length; ++i) {
+        const item = items[i];
         if (item.type === 'chunk') {
-            result += item.code;
-            if (item.map) {
-                if (external && outputConfig.sourcemap === 'inline') {
-                    result += `\n//# sourceMappingURL=${item.map.toUrl()}\n`;
+            const code = item.code;
+            if (!supplementChunks || external || j++ === 0) {
+                result += code;
+                if (item.map) {
+                    if (external && outputConfig.sourcemap === 'inline') {
+                        result += `\n//# sourceMappingURL=${item.map.toUrl()}\n`;
+                    }
+                    else {
+                        mappings += item.map;
+                    }
                 }
-                mappings += item.map;
+            }
+            else {
+                let chunkMap: Undef<SourceMapInput>;
+                if (item.map) {
+                    chunkMap = createSourceMap(code);
+                    chunkMap.nextMap('rollup', code, item.map);
+                }
+                supplementChunks.push({
+                    code,
+                    sourceMap: chunkMap,
+                    filename: path.basename(item.fileName)
+                });
             }
         }
     }
