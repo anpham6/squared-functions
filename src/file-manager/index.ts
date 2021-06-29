@@ -793,7 +793,7 @@ class FileManager extends Module implements IFileManager {
                                     fs.mkdirpSync(pathname);
                                 }
                                 catch (err) {
-                                    this.writeFail(['Unable to create directory', this.removeCwd(pathname)], err, this.logType.FILE);
+                                    this.writeFail(['Unable to create directory', pathname], err, this.logType.FILE);
                                     item.invalid = true;
                                     continue;
                                 }
@@ -885,7 +885,7 @@ class FileManager extends Module implements IFileManager {
                             fs.emptyDirSync(pathname);
                         }
                         catch (err) {
-                            this.writeFail(['Unable to empty sub directory', this.removeCwd(pathname)], err);
+                            this.writeFail(['Unable to empty sub directory', pathname], err);
                         }
                     }
                     try {
@@ -893,7 +893,7 @@ class FileManager extends Module implements IFileManager {
                         emptied.push(pathname);
                     }
                     catch (err) {
-                        this.writeFail(['Unable to create directory', this.removeCwd(pathname)], err, this.logType.FILE);
+                        this.writeFail(['Unable to create directory', pathname], err, this.logType.FILE);
                         item.invalid = true;
                         return false;
                     }

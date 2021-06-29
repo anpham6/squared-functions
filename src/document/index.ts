@@ -359,7 +359,7 @@ abstract class Document extends Module implements IDocument {
                 return {
                     code,
                     map,
-                    chunks: supplementChunks?.length ? supplementChunks.map(item => ({ code: item.code, map: map && item.sourceMap && item.sourceMap.map, filename: item.filename })) : undefined
+                    chunks: supplementChunks && supplementChunks.length ? supplementChunks.map(item => ({ code: item.code, map: map && item.sourceMap && item.sourceMap.map, entryPoint: item.entryPoint, filename: item.filename })) : undefined
                 };
             }
         }

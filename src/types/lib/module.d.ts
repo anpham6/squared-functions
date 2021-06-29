@@ -9,6 +9,7 @@ export interface HandlerModule {
 export interface DocumentModule extends HandlerModule {
     eval_function?: boolean;
     eval_template?: boolean;
+    imports?: StringMap;
     settings?: PlainObject;
 }
 

@@ -492,19 +492,87 @@ class ChromeDocument extends Document implements IChromeDocument {
                 if (!bundle && !trailing && !format) {
                     break;
                 }
-                let source = this.getUTF8String(file, localUri) + trailing;
+                const leading = this.getUTF8String(file, localUri) + trailing;
+                let source = leading;
                 if (bundle) {
                     source += bundle;
                 }
                 if (format) {
+                    const imports = instance.imports;
+                    const uri = file.uri!;
+                    let sourceFile: Undef<[string, string?][]>,
+                        sourcesRelativeTo: Undef<string>;
+                    if (Document.isFileUNC(uri) || path.isAbsolute(uri)) {
+                        sourceFile = [[uri]];
+                    }
+                    else if (imports) {
+                        sourceFile = [];
+                        const bundleId = file.bundleId;
+                        const assets = bundleId ? instance.assets.filter(item => item.bundleId === bundleId) : [file];
+                        const contentToAppend = this.contentToAppend.get(localUri!);
+                        assets.sort((a, b) => a.bundleIndex! - b.bundleIndex!);
+                        for (let i = 0, length = assets.length; i < length; ++i) {
+                            const item = assets[i];
+                            const value = item.uri!;
+                            let localFile: Undef<string>;
+                            if (!item.trailingContent) {
+                                for (const attr in imports) {
+                                    if (value === attr) {
+                                        localFile = imports[attr]!;
+                                        break;
+                                    }
+                                }
+                                if (!localFile) {
+                                    for (let attr in imports) {
+                                        if (attr[attr.length - 1] !== '/') {
+                                            attr += '/';
+                                        }
+                                        if (value.startsWith(attr)) {
+                                            localFile = path.resolve(path.join(imports[attr]!, value.substring(attr.length)));
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            try {
+                                if (localFile && fs.existsSync(localFile)) {
+                                    sourceFile.push([localFile]);
+                                }
+                                else {
+                                    const index = item.bundleIndex!;
+                                    if (index === 0) {
+                                        if (length === 1) {
+                                            sourceFile = undefined;
+                                            break;
+                                        }
+                                        sourceFile.push(['', leading]);
+                                    }
+                                    else if (contentToAppend && contentToAppend[index - 1]) {
+                                        sourceFile.push(['', contentToAppend[index - 1]]);
+                                    }
+                                    else {
+                                        sourceFile = undefined;
+                                        break;
+                                    }
+                                }
+                            }
+                            catch (err) {
+                                instance.writeFail(['Unable to check file', localFile], err, this.logType.FILE);
+                                sourceFile = undefined;
+                                break;
+                            }
+                        }
+                    }
+                    if (sourceFile && sourceFile[0][0]) {
+                        sourcesRelativeTo = path.dirname(sourceFile[0][0]);
+                    }
                     const type = file.attributes?.type;
-                    const mimeOutput = type || mimeType;
-                    const result = await instance.transform('js', source, format, { mimeType: mimeOutput, chunks: !!file.element });
+                    const result = await instance.transform('js', source, format, { mimeType: type || mimeType, chunks: !!file.element, sourceFile, sourcesRelativeTo });
                     if (result) {
                         if (result.map) {
-                            const uri = Document.writeSourceMap(localUri!, result as SourceMapOutput);
-                            if (uri) {
-                                this.add(uri, file);
+                            const mapUri = Document.writeSourceMap(localUri!, result as SourceMapOutput);
+                            if (mapUri) {
+                                this.add(mapUri, file);
                             }
                         }
                         source = result.code;
@@ -524,24 +592,26 @@ class ChromeDocument extends Document implements IChromeDocument {
                             for (const chunk of chunks) {
                                 const filename = chunk.filename || (getFormatUUID(instance.module, 'filename') + path.extname(localUri!));
                                 const chunkUri = path.join(localDir, filename);
+                                if (chunk.map) {
+                                    const mapUri = Document.writeSourceMap(chunkUri, chunk);
+                                    if (mapUri) {
+                                        this.add(mapUri, file);
+                                    }
+                                }
                                 try {
                                     fs.writeFileSync(chunkUri, chunk.code, 'utf8');
                                     this.add(chunkUri, file);
-                                    if (chunk.map) {
-                                        const uri = Document.writeSourceMap(chunkUri, chunk);
-                                        if (uri) {
-                                            this.add(uri, file);
-                                        }
+                                    if (chunk.entryPoint) {
+                                        xmlNodes.push({
+                                            ...element,
+                                            append: { tagName: 'script', tagCount: element.tagCount, order: ++order },
+                                            attributes: {
+                                                ...file.attributes,
+                                                type: type || (mimeType === 'application/javascript' ? 'module' : mimeType),
+                                                src: Document.joinPath(relativeDir, filename)
+                                            }
+                                        } as XmlTagNode);
                                     }
-                                    xmlNodes.push({
-                                        ...element,
-                                        append: { tagName: 'script', tagCount: element.tagCount, order: ++order },
-                                        attributes: {
-                                            ...file.attributes,
-                                            type: type || (mimeType === 'application/javascript' ? 'module' : mimeType),
-                                            src: Document.joinPath(relativeDir, filename)
-                                        }
-                                    } as XmlTagNode);
                                 }
                                 catch (err) {
                                     instance.writeFail(['Unable to write file', chunkUri], err, instance.logType.FILE);
@@ -1344,6 +1414,7 @@ class ChromeDocument extends Document implements IChromeDocument {
     unusedStyles?: string[];
     unusedMedia?: string[];
     unusedSupports?: string[];
+    imports?: StringMap;
     internalAssignUUID = '__assign__';
     internalServerRoot = '__serverroot__';
 
@@ -1395,6 +1466,7 @@ class ChromeDocument extends Document implements IChromeDocument {
         this.configData = body.templateMap;
         this.productionRelease = body.productionRelease;
         this.normalizeHtmlOutput = body.normalizeHtmlOutput;
+        this.imports = body.imports ? { ...this.module.imports, ...body.imports } : this.module.imports;
         if (this.baseUrl) {
             try {
                 const { origin, pathname } = new URL(this.baseUrl);

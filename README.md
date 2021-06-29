@@ -377,7 +377,7 @@ Custom plugins can also be installed from NPM. The function has to be named "tra
             "rollup": {
               "bundle-es6": {
                 "plugins": [
-                  ["@rollup/plugin-json", { compact: true }]
+                  ["rollup-plugin-import-resolver", "@rollup/plugin-json", { compact: true }]
                 ],
                 "external": ["lodash"]
               },

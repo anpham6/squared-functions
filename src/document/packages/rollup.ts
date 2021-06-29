@@ -13,17 +13,40 @@ export default async function transform(context: any, value: string, options: Tr
         tempFile = false,
         result = '',
         mappings = '';
-    if (!sourceFile) {
-        const rollupDir = path.join(process.cwd(), 'tmp' + path.sep + 'rollup');
-        sourceFile = rollupDir + path.sep + uuid.v4();
-        fs.mkdirpSync(rollupDir);
-        fs.writeFileSync(sourceFile, value);
+    const createDir = () => {
+        const tempDir = path.join(process.cwd(), 'tmp', 'rollup');
+        fs.mkdirpSync(tempDir);
+        return tempDir;
+    };
+    const format = mimeType === 'application/javascript' ? 'es' : 'iife';
+    if (Object.keys(outputConfig).length === 0) {
+        outputConfig = baseConfig.output as rollup.OutputOptions || { format };
+    }
+    outputConfig.format ||= format as rollup.ModuleFormat;
+    if (!sourceFile || outputConfig.format === 'iife' || outputConfig.format === 'umd') {
+        fs.writeFileSync(baseConfig.input = path.join(createDir(), uuid.v4()), value);
         tempFile = true;
     }
-    if (Object.keys(outputConfig).length === 0) {
-        outputConfig = baseConfig.output as rollup.OutputOptions || { format: mimeType === 'application/javascript' ? 'es' : 'iife' };
+    else if (Array.isArray(sourceFile)) {
+        const files: string[] = [];
+        const tempDir = createDir();
+        for (let [pathname, content] of sourceFile) { // eslint-disable-line prefer-const
+            if (!pathname) {
+                if (content) {
+                    fs.writeFileSync(pathname = path.join(tempDir, uuid.v4()), content);
+                    tempFile = true;
+                }
+                else {
+                    continue;
+                }
+            }
+            files.push(pathname);
+        }
+        baseConfig.input = files;
     }
-    baseConfig.input = sourceFile;
+    else {
+        baseConfig.input = sourceFile;
+    }
     if (Array.isArray(baseConfig.plugins)) {
         baseConfig.plugins = loadPlugins<rollup.Plugin>('rollup', baseConfig.plugins, writeFail);
     }
@@ -50,27 +73,28 @@ export default async function transform(context: any, value: string, options: Tr
             url = path.basename(outputConfig.sourcemapFile);
         }
     }
-    if (!supplementChunks || external) {
-        delete outputConfig.manualChunks;
-        delete outputConfig.chunkFileNames;
-        delete outputConfig.entryFileNames;
-        outputConfig.preserveModules = false;
-    }
     const data = await bundle.generate(outputConfig);
-    const items = data.output;
+    const items = data.output as rollup.RenderedChunk[];
+    items.sort((a, b) => {
+        if (a.isEntry && !b.isEntry) {
+            return -1;
+        }
+        if (b.isEntry && !a.isEntry) {
+            return 1;
+        }
+        return 0;
+    });
     for (let i = 0, j = 0; i < items.length; ++i) {
         const item = items[i];
         if (item.type === 'chunk') {
-            const code = item.code;
-            if (!supplementChunks || external || j++ === 0) {
+            const code = item.code!;
+            if (j++ === 0 || !supplementChunks || external) {
                 result += code;
                 if (item.map) {
                     if (external && outputConfig.sourcemap === 'inline') {
                         result += `\n//# sourceMappingURL=${item.map.toUrl()}\n`;
                     }
-                    else {
-                        mappings += item.map;
-                    }
+                    mappings += item.map;
                 }
             }
             else {
@@ -82,7 +106,8 @@ export default async function transform(context: any, value: string, options: Tr
                 supplementChunks.push({
                     code,
                     sourceMap: chunkMap,
-                    filename: path.basename(item.fileName)
+                    entryPoint: item.isEntry,
+                    filename: item.fileName
                 });
             }
         }

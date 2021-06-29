@@ -12,9 +12,13 @@ export interface DocumentData {
     document?: StringOfArray;
 }
 
-export interface ChunkData {
+export interface ChunkFile {
     code: string;
     filename?: string;
+    entryPoint?: boolean;
+}
+
+export interface ChunkData extends ChunkFile {
     sourceMap?: SourceMapInput;
 }
 
@@ -22,8 +26,7 @@ export interface TransformOutput {
     file?: ExternalAsset;
     mimeType?: string;
     chunks?: boolean;
-    sourceDir?: string;
-    sourceFile?: string;
+    sourceFile?: string | [string, string?][];
     sourcesRelativeTo?: string;
     sourceMap?: SourceMapInput;
     external?: PlainObject;
@@ -39,7 +42,7 @@ export interface TransformOptions<T = StandardMap, U = StandardMap> extends Omit
 }
 
 export interface TransformResult extends SourceCode {
-    chunks?: Null<(SourceCode & { filename?: string })[]>;
+    chunks?: Null<(SourceCode & ChunkFile)[]>;
     sourceMappingURL?: string;
 }
 
