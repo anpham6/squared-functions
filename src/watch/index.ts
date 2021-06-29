@@ -23,6 +23,14 @@ let PORT_MAP: ObjectMap<Server> = {};
 let SECURE_MAP: ObjectMap<Server> = {};
 let WATCH_MAP: ObjectMap<number> = {};
 
+const enum TIME { // eslint-disable-line no-shadow
+    W = 1000 * 60 * 60 * 24 * 7,
+    D = 1000 * 60 * 60 * 24,
+    H = 1000 * 60 * 60,
+    M = 1000 * 60,
+    S = 1000
+}
+
 const REGEXP_EXPIRES = /^(?:\s*([\d.]+)\s*w)?(?:\s*([\d.]+)\s*d)?(?:\s*([\d.]+)\s*h)?(?:\s*([\d.]+)\s*m)?(?:\s*([\d.]+)\s*s)?(?:\s*(\d+)\s*ms)?\s*$/;
 
 function getPostFinalize(watch: FileWatch) {
@@ -69,22 +77,21 @@ class Watch extends Module implements IWatch {
         if (Module.isString(value)) {
             const match = REGEXP_EXPIRES.exec(value);
             if (match) {
-                const h = 60 * 60 * 1000;
                 let result = 0;
                 if (match[1]) {
-                    result += +match[1] * 7 * 24 * h || 0;
+                    result += +match[1] * TIME.W || 0;
                 }
                 if (match[2]) {
-                    result += +match[2] * 24 * h || 0;
+                    result += +match[2] * TIME.D || 0;
                 }
                 if (match[3]) {
-                    result += +match[3] * h || 0;
+                    result += +match[3] * TIME.H || 0;
                 }
                 if (match[4]) {
-                    result += +match[4] * 60 * 1000 || 0;
+                    result += +match[4] * TIME.M || 0;
                 }
                 if (match[5]) {
-                    result += +match[5] * 1000 || 0;
+                    result += +match[5] * TIME.S || 0;
                 }
                 if (match[6]) {
                     result += +match[6];
@@ -95,7 +102,7 @@ class Watch extends Module implements IWatch {
             }
         }
         else if (value > 0) {
-            return value * 1000 || 0;
+            return value * TIME.S;
         }
         return 0;
     }
