@@ -163,7 +163,8 @@ declare namespace functions {
 
     interface WatchConstructor extends ModuleConstructor {
         shutdown(): void;
-        parseExpires(value: NumString, start?: number) : number;
+        parseExpires(value: NumString, start?: number): number;
+        hasLocalAccess(permission: IPermission, uri: unknown): boolean;
         new(interval?: number, port?: number): IWatch;
     }
 

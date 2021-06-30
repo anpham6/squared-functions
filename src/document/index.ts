@@ -369,7 +369,8 @@ abstract class Document extends Module implements IDocument {
             const sourceMap = options.sourceMap ||= Document.createSourceMap(code);
             const writeFail = this.writeFail.bind(this);
             const supplementChunks: Undef<ChunkData[]> = options.chunks ? [] : undefined;
-            let valid: Undef<boolean>;
+            let valid: Undef<boolean>,
+                sourceFiles: Undef<string[]>;
             for (let process of format.split('+')) {
                 const [plugin, baseConfig, outputConfig = {}] = this.findConfig(data, process = process.trim(), type);
                 if (plugin) {
@@ -417,6 +418,14 @@ abstract class Document extends Module implements IDocument {
                                     output.baseConfig = baseConfig;
                                     next(await transformer!(context, code, output));
                                 }
+                                if (output.outputSourceFiles) {
+                                    if (!sourceFiles) {
+                                        sourceFiles = output.outputSourceFiles;
+                                    }
+                                    else {
+                                        output.outputSourceFiles.forEach(value => sourceFiles!.includes(value) && sourceFiles!.push(value));
+                                    }
+                                }
                             }
                             catch (err) {
                                 this.writeFail(['Unable to transform source', plugin], err);
@@ -436,7 +445,8 @@ abstract class Document extends Module implements IDocument {
                 return {
                     code,
                     map,
-                    chunks: supplementChunks && supplementChunks.length ? supplementChunks.map(item => ({ code: item.code, map: map && item.sourceMap && item.sourceMap.map, entryPoint: item.entryPoint, filename: item.filename })) : undefined
+                    chunks: supplementChunks && supplementChunks.length ? supplementChunks.map(item => ({ code: item.code, map: map && item.sourceMap && item.sourceMap.map, entryPoint: item.entryPoint, filename: item.filename })) : undefined,
+                    sourceFiles
                 };
             }
         }

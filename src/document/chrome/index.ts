@@ -551,6 +551,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                             }
                             appending.forEach(item => item.append!.order += order);
                         }
+                        if (result.sourceFiles) {
+                            file.sourceFiles = result.sourceFiles;
+                        }
                     }
                 }
                 file.sourceUTF8 = source;

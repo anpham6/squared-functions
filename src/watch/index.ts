@@ -31,6 +31,11 @@ const enum TIME { // eslint-disable-line no-shadow
     S = 1000
 }
 
+const enum ERROR { // eslint-disable-line no-shadow
+    ETAG = 1,
+    LOCAL_ACCESS = 2
+}
+
 const REGEXP_EXPIRES = /^(?:\s*([\d.]+)\s*w)?(?:\s*([\d.]+)\s*d)?(?:\s*([\d.]+)\s*h)?(?:\s*([\d.]+)\s*m)?(?:\s*([\d.]+)\s*s)?(?:\s*(\d+)\s*ms)?\s*$/;
 
 function getPostFinalize(watch: FileWatch) {
@@ -97,12 +102,12 @@ class Watch extends Module implements IWatch {
                     result += +match[6];
                 }
                 if (result > 0) {
-                    return result + start;
+                    return Math.ceil(result + start);
                 }
             }
         }
         else if (value > 0) {
-            return value * TIME.S;
+            return Math.ceil(value * TIME.S);
         }
         return 0;
     }
@@ -132,6 +137,10 @@ class Watch extends Module implements IWatch {
         PORT_MAP = {};
         SECURE_MAP = {};
         WATCH_MAP = {};
+    }
+
+    static hasLocalAccess(permission: IPermission, uri: unknown) {
+        return Module.isString(uri) && (Module.isFileUNC(uri) && permission.hasUNCRead(uri) || path.isAbsolute(uri) && permission.hasDiskRead(uri));
     }
 
     moduleName = 'watch';
@@ -177,15 +186,15 @@ class Watch extends Module implements IWatch {
                 if (Module.isObject<WatchInterval<ExternalAsset>>(watch) && watch.assets) {
                     watch.assets.forEach(other => related.add(other));
                 }
+                if (item.originalName) {
+                    item.filename = item.originalName;
+                    delete item.originalName;
+                }
             }
             assets = Array.from(related);
             for (const item of items) {
-                const { watch, uri, etag } = item;
-                if (watch && uri) {
-                    if (item.originalName) {
-                        item.filename = item.originalName;
-                        delete item.originalName;
-                    }
+                let { watch, uri: file, etag } = item; // eslint-disable-line prefer-const
+                if (watch && file) {
                     const start = Date.now();
                     const interval = getInterval(item) || watchInterval || this.interval;
                     const watchExpired = (map: FileWatchMap, input: FileWatch, message = 'Expired') => {
@@ -244,122 +253,140 @@ class Watch extends Module implements IWatch {
                             }
                         }
                     }
-                    const data = {
-                        uri,
-                        etag,
-                        assets,
-                        start,
-                        id,
-                        interval,
-                        socketId,
-                        port,
-                        secure,
-                        hot,
-                        expires
-                    } as FileWatch;
-                    if (Module.isFileHTTP(uri)) {
-                        if (!etag) {
-                            continue;
-                        }
-                        const previous = HTTP_MAP[uri]?.get(dest);
-                        if (previous) {
-                            if (id && previous.data.id === id || expires > previous.data.expires || expires === previous.data.expires && interval < previous.timeout[1]) {
-                                clearInterval(previous.timeout[0]!);
-                            }
-                            else {
-                                continue;
-                            }
-                        }
-                        const options: request.CoreOptions = this.host ? this.host.createRequestAgentOptions(uri, { method: 'HEAD' }, expires ? expires - start : Infinity)! : { method: 'HEAD' };
-                        const timeout = setInterval(() => {
-                            request(uri, options)
-                                .on('response', res => {
-                                    const map = HTTP_MAP[uri];
-                                    if (map) {
-                                        for (const [target, input] of map) {
-                                            const next = input.data;
-                                            const expired = next.expires;
-                                            if (!expired || Date.now() < expired) {
-                                                const value = (res.headers.etag || res.headers['last-modified']) as string;
-                                                if (value && value !== next.etag) {
-                                                    next.etag = value;
-                                                    this.modified(next);
-                                                }
-                                            }
-                                            else if (expired) {
-                                                map.delete(target);
-                                                if (map.size === 0) {
-                                                    watchExpired(HTTP_MAP, next);
-                                                    clearInterval(timeout);
-                                                }
-                                            }
-                                        }
-                                    }
-                                    else {
-                                        clearInterval(timeout);
-                                    }
-                                })
-                                .on('error', err => {
-                                    this.writeFail(['Unable to watch', uri], err);
-                                    delete HTTP_MAP[uri];
-                                    clearInterval(timeout);
-                                });
-                        }, interval);
-                        (HTTP_MAP[uri] ||= new Map()).set(dest, { data, timeout: [timeout, interval] });
-                    }
-                    else if (permission && (Module.isFileUNC(uri) && permission.hasUNCRead(uri) || path.isAbsolute(uri) && permission.hasDiskRead(uri))) {
-                        const previous = DISK_MAP[uri]?.get(dest);
-                        if (previous) {
-                            if (id && previous.data.id === id || expires > previous.data.expires && previous.data.expires !== 0) {
-                                clearTimeout(previous.timeout[0]!);
-                            }
-                            else {
-                                continue;
-                            }
-                        }
-                        let timeout: Null<NodeJS.Timeout> = null;
-                        const watcher = fs.watch(uri, (event, filename) => {
-                            try {
-                                switch (event) {
-                                    case 'change': {
-                                        const disk = DISK_MAP[uri];
-                                        if (disk) {
-                                            const mtime = Math.floor(fs.statSync(uri).mtimeMs);
-                                            const ptime = WATCH_MAP[uri] || 0;
-                                            if (mtime > ptime) {
-                                                for (const input of disk.values()) {
-                                                    this.modified(input.data);
-                                                }
-                                                WATCH_MAP[uri] = Math.ceil(fs.statSync(uri).mtimeMs);
-                                            }
-                                        }
-                                        break;
-                                    }
-                                    case 'rename':
-                                        if (timeout) {
-                                            clearTimeout(timeout);
-                                        }
-                                        watcher.close();
-                                        watchExpired(DISK_MAP, data, 'File renamed: ' + filename);
-                                        break;
-                                }
-                            }
-                            catch (err) {
-                                this.writeFail(['Unable to stat file', uri], err);
-                            }
-                        });
-                        if (expires) {
-                            timeout = setTimeout(() => {
-                                watcher.close();
-                                watchExpired(DISK_MAP, data);
-                            }, expires - start);
-                        }
-                        (DISK_MAP[uri] ||= new Map()).set(dest, { data, timeout: [timeout, Infinity] });
+                    let invalid = 0,
+                        files: string[];
+                    if (item.sourceFiles && permission && Watch.hasLocalAccess(permission, item.sourceFiles[0])) {
+                        files = item.sourceFiles;
+                        etag = '';
                     }
                     else {
-                        continue;
+                        files = [file];
                     }
-                    this.formatMessage(this.logType.WATCH, 'WATCH', ['Start', interval + 'ms ' + (expires ? formatDate(expires) : 'never')], uri, { titleColor: 'blue' });
+                    for (const uri of files) {
+                        const data = {
+                            uri,
+                            etag,
+                            assets,
+                            start,
+                            id,
+                            interval,
+                            socketId,
+                            port,
+                            secure,
+                            hot,
+                            expires
+                        } as FileWatch;
+                        if (Module.isFileHTTP(uri)) {
+                            if (!etag) {
+                                invalid = ERROR.ETAG;
+                                continue;
+                            }
+                            const previous = HTTP_MAP[uri]?.get(dest);
+                            if (previous) {
+                                if (id && previous.data.id === id || expires > previous.data.expires || expires === previous.data.expires && interval < previous.timeout[1]) {
+                                    clearInterval(previous.timeout[0]!);
+                                }
+                                else {
+                                    continue;
+                                }
+                            }
+                            const options: request.CoreOptions = this.host ? this.host.createRequestAgentOptions(uri, { method: 'HEAD' }, expires ? expires - start : Infinity)! : { method: 'HEAD' };
+                            const timeout = setInterval(() => {
+                                request(uri, options)
+                                    .on('response', res => {
+                                        const map = HTTP_MAP[uri];
+                                        if (map) {
+                                            for (const [target, input] of map) {
+                                                const next = input.data;
+                                                const expired = next.expires;
+                                                if (!expired || Date.now() < expired) {
+                                                    const value = (res.headers.etag || res.headers['last-modified']) as string;
+                                                    if (value && value !== next.etag) {
+                                                        next.etag = value;
+                                                        this.modified(next);
+                                                    }
+                                                }
+                                                else if (expired) {
+                                                    map.delete(target);
+                                                    if (map.size === 0) {
+                                                        watchExpired(HTTP_MAP, next);
+                                                        clearInterval(timeout);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        else {
+                                            clearInterval(timeout);
+                                        }
+                                    })
+                                    .on('error', err => {
+                                        this.writeFail(['Unable to watch', uri], err);
+                                        delete HTTP_MAP[uri];
+                                        clearInterval(timeout);
+                                    });
+                            }, interval);
+                            (HTTP_MAP[uri] ||= new Map()).set(dest, { data, timeout: [timeout, interval] });
+                        }
+                        else if (permission && Watch.hasLocalAccess(permission, uri)) {
+                            const previous = DISK_MAP[uri]?.get(dest);
+                            if (previous) {
+                                if (id && previous.data.id === id || expires > previous.data.expires && previous.data.expires !== 0) {
+                                    clearTimeout(previous.timeout[0]!);
+                                }
+                                else {
+                                    continue;
+                                }
+                            }
+                            let timeout: Null<NodeJS.Timeout> = null;
+                            const watcher = fs.watch(uri, (event, filename) => {
+                                try {
+                                    switch (event) {
+                                        case 'change': {
+                                            const disk = DISK_MAP[uri];
+                                            if (disk) {
+                                                const mtime = Math.floor(fs.statSync(uri).mtimeMs);
+                                                const ptime = WATCH_MAP[uri] || 0;
+                                                if (mtime > ptime) {
+                                                    for (const input of disk.values()) {
+                                                        this.modified(input.data);
+                                                    }
+                                                    WATCH_MAP[uri] = Math.ceil(fs.statSync(uri).mtimeMs);
+                                                }
+                                            }
+                                            break;
+                                        }
+                                        case 'rename':
+                                            if (timeout) {
+                                                clearTimeout(timeout);
+                                            }
+                                            watcher.close();
+                                            watchExpired(DISK_MAP, data, 'File renamed: ' + filename);
+                                            break;
+                                    }
+                                }
+                                catch (err) {
+                                    this.writeFail(['Unable to stat file', uri], err);
+                                }
+                            });
+                            if (expires) {
+                                timeout = setTimeout(() => {
+                                    watcher.close();
+                                    watchExpired(DISK_MAP, data);
+                                }, expires - start);
+                            }
+                            (DISK_MAP[uri] ||= new Map()).set(dest, { data, timeout: [timeout, Infinity] });
+                        }
+                        else {
+                            invalid = ERROR.LOCAL_ACCESS;
+                            continue;
+                        }
+                    }
+                    if (invalid) {
+                        this.formatFail(this.logType.WATCH, 'WATCH', ['Unable to watch file', file], new Error((invalid === ERROR.LOCAL_ACCESS ? 'No read permission' : 'ETag unavailable') + ` (${file})`));
+                    }
+                    else {
+                        this.formatMessage(this.logType.WATCH, 'WATCH', ['Start', interval + 'ms ' + (expires ? formatDate(expires) : 'never')], file, { titleColor: 'blue' });
+                    }
                 }
             }
         }

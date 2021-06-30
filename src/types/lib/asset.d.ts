@@ -27,6 +27,7 @@ export interface ExternalAsset<T = CloudStorage> extends FileAsset, BundleAction
     sourceUTF8?: string;
     originalName?: string;
     transforms?: string[];
+    sourceFiles?: string[];
     etag?: string;
     invalid?: boolean;
 }

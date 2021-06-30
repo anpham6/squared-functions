@@ -42,11 +42,13 @@ export interface TransformOptions<T = StandardMap, U = StandardMap> extends Omit
     sourceMap: SourceMapInput;
     writeFail: ModuleWriteFailMethod;
     supplementChunks?: ChunkData[];
+    outputSourceFiles?: string[];
     createSourceMap: (value: string) => SourceMapInput;
 }
 
 export interface TransformResult extends SourceCode {
     chunks?: Null<(SourceCode & ChunkFile)[]>;
+    sourceFiles?: string[];
     sourceMappingURL?: string;
 }
 
