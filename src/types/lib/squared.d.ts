@@ -143,8 +143,10 @@ export interface WatchReload {
 
 export interface RequestData extends PlainObject {
     assets?: FileAsset[];
+    imports?: StringMap;
     dataSource?: DataSource[];
     document?: string[];
+    update?: WatchInterval;
     task?: string[];
 }
 

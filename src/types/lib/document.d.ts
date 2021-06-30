@@ -3,6 +3,11 @@ import type { IDocument, IFileManager } from './index';
 import type { ExternalAsset } from './asset';
 import type { ModuleWriteFailMethod } from './logger';
 
+export interface SourceInput<T = [string, string?][]> {
+    sourceFile?: T;
+    sourcesRelativeTo?: string;
+}
+
 export interface SourceCode {
     code: string;
     map?: SourceMap;
@@ -22,14 +27,13 @@ export interface ChunkData extends ChunkFile {
     sourceMap?: SourceMapInput;
 }
 
-export interface TransformOutput {
+export interface TransformOutput extends SourceInput<string> {
     file?: ExternalAsset;
     mimeType?: string;
     chunks?: boolean;
-    sourceFile?: string | [string, string?][];
-    sourcesRelativeTo?: string;
     sourceMap?: SourceMapInput;
     external?: PlainObject;
+    getSourceFiles?: () => SourceInput;
 }
 
 export interface TransformOptions<T = StandardMap, U = StandardMap> extends Omit<TransformOutput, "chunks"> {

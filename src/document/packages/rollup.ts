@@ -9,10 +9,11 @@ import uuid = require('uuid');
 import { loadPlugins } from '../util';
 
 export default async function transform(context: any, value: string, options: TransformOptions<rollup.RollupOptions, rollup.OutputOptions>) {
-    let { sourceFile, outputConfig, mimeType, baseConfig, sourceMap, sourcesRelativeTo, external, supplementChunks, createSourceMap, writeFail } = options, // eslint-disable-line prefer-const
-        tempFile = false,
+    let { sourceFile, outputConfig, mimeType, baseConfig, sourceMap, sourcesRelativeTo, getSourceFiles, external, supplementChunks, createSourceMap, writeFail } = options, // eslint-disable-line prefer-const
         result = '',
-        mappings = '';
+        mappings = '',
+        tempFile: Undef<boolean>,
+        inputFile: Undef<[string, string?][]>;
     const createDir = () => {
         const tempDir = path.join(process.cwd(), 'tmp', 'rollup');
         fs.mkdirpSync(tempDir);
@@ -23,14 +24,11 @@ export default async function transform(context: any, value: string, options: Tr
         outputConfig = baseConfig.output as rollup.OutputOptions || { format };
     }
     outputConfig.format ||= format as rollup.ModuleFormat;
-    if (!sourceFile || outputConfig.format === 'iife' || outputConfig.format === 'umd') {
-        fs.writeFileSync(baseConfig.input = path.join(createDir(), uuid.v4()), value);
-        tempFile = true;
-    }
-    else if (Array.isArray(sourceFile)) {
+    const notModule = outputConfig.format === 'iife' || outputConfig.format === 'umd';
+    if (!notModule && supplementChunks && getSourceFiles && ({ sourceFile: inputFile } = getSourceFiles()) && inputFile) {
         const files: string[] = [];
         const tempDir = createDir();
-        for (let [pathname, content] of sourceFile) { // eslint-disable-line prefer-const
+        for (let [pathname, content] of inputFile) { // eslint-disable-line prefer-const
             if (!pathname) {
                 if (content) {
                     fs.writeFileSync(pathname = path.join(tempDir, uuid.v4()), content);
@@ -43,6 +41,10 @@ export default async function transform(context: any, value: string, options: Tr
             files.push(pathname);
         }
         baseConfig.input = files;
+    }
+    else if (!sourceFile || notModule) {
+        fs.writeFileSync(baseConfig.input = path.join(createDir(), uuid.v4()), value);
+        tempFile = true;
     }
     else {
         baseConfig.input = sourceFile;

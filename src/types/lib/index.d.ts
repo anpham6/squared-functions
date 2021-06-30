@@ -7,7 +7,7 @@ import type { CompressFormat, CompressLevel, DataSource, LocationUri, ViewEngine
 import type { ExternalAsset, FileData, FileOutput, OutputData } from './asset';
 import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload } from './cloud';
 import type { CompressTryFileMethod } from './compress';
-import type { ConfigOrTransformer, PluginConfig, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
+import type { ConfigOrTransformer, PluginConfig, SourceInput, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
 import type { CompleteAsyncTaskCallback, HttpRequestBuffer, InstallData, PerformAsyncTaskMethod, PostFinalizeCallback } from './filemanager';
 import type { CropData, QualityData, ResizeData, RotateData } from './image';
 import type { LOG_TYPE, LogMessageOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
@@ -119,6 +119,7 @@ declare namespace functions {
         module: DocumentModule;
         moduleName: string;
         assets: ExternalAsset[];
+        imports?: StandardMap;
         configData?: StandardMap;
         init(assets: ExternalAsset[], body: RequestBody): void;
         findConfig(settings: StandardMap, name: string, type?: string): PluginConfig;
@@ -144,6 +145,7 @@ declare namespace functions {
         createSourceMap(code: string, file?: ExternalAsset): SourceMapInput;
         writeSourceMap(localUri: string, sourceMap: SourceMapOutput, options?: SourceMapOptions, emptySources?: boolean): Undef<string>;
         removeSourceMappingURL(value: string): [string, string?];
+        createSourceFilesMethod(this: IFileManager, instance: IDocument, file: ExternalAsset, source?: string): SourceInput;
         sanitizeAssets?(assets: ExternalAsset[], exclusions?: ExternalAsset[]): void;
         new(module: DocumentModule, ...args: unknown[]): IDocument;
     }

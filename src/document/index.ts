@@ -2,7 +2,7 @@ import type { DataSource, ElementAction, ViewEngine, XmlTagNode } from '../types
 
 import type { IDocument, IFileManager } from '../types/lib';
 import type { ExternalAsset } from '../types/lib/asset';
-import type { ChunkData, ConfigOrTransformer, PluginConfig, SourceMap, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformCallback, TransformOptions, TransformOutput, TransformResult, Transformer } from '../types/lib/document';
+import type { ChunkData, ConfigOrTransformer, PluginConfig, SourceInput, SourceMap, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformCallback, TransformOptions, TransformOutput, TransformResult, Transformer } from '../types/lib/document';
 import type { DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
 
@@ -147,8 +147,83 @@ abstract class Document extends Module implements IDocument {
         return match ? [value.substring(0, match.index) + value.substring(match.index + match[0].length), match[4]] : [value];
     }
 
+    static createSourceFilesMethod(this: IFileManager, instance: IDocument, file: ExternalAsset, source?: string) {
+        return () => {
+            const imports = instance.imports;
+            const { localUri, uri } = file;
+            let sourceFile: Undef<[string, string?][]>,
+                sourcesRelativeTo: Undef<string>;
+            if (Document.isFileUNC(uri!) || path.isAbsolute(uri!)) {
+                sourceFile = [[uri!]];
+            }
+            else if (imports && Object.keys(imports).length) {
+                sourceFile = [];
+                const bundleId = file.bundleId;
+                const assets = bundleId ? instance.assets.filter(item => item.bundleId === bundleId) : [file];
+                const contentToAppend = this.contentToAppend.get(localUri!);
+                assets.sort((a, b) => a.bundleIndex! - b.bundleIndex!);
+                for (let i = 0, length = assets.length; i < length; ++i) {
+                    const item = assets[i];
+                    const value = item.uri!;
+                    let localFile: Undef<string>;
+                    if (!item.trailingContent) {
+                        for (const attr in imports) {
+                            if (value === attr) {
+                                localFile = imports[attr]!;
+                                break;
+                            }
+                        }
+                        if (!localFile) {
+                            for (let attr in imports) {
+                                if (attr[attr.length - 1] !== '/') {
+                                    attr += '/';
+                                }
+                                if (value.startsWith(attr)) {
+                                    localFile = path.resolve(path.join(imports[attr]!, value.substring(attr.length)));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    try {
+                        if (localFile && fs.existsSync(localFile)) {
+                            sourceFile.push([localFile]);
+                        }
+                        else {
+                            const index = item.bundleIndex!;
+                            if (index === 0) {
+                                if (!source || length === 1) {
+                                    sourceFile = undefined;
+                                    break;
+                                }
+                                sourceFile.push(['', source]);
+                            }
+                            else if (contentToAppend && contentToAppend[index - 1]) {
+                                sourceFile.push(['', contentToAppend[index - 1]]);
+                            }
+                            else {
+                                sourceFile = undefined;
+                                break;
+                            }
+                        }
+                    }
+                    catch (err) {
+                        instance.writeFail(['Unable to check file', localFile!], err, this.logType.FILE);
+                        sourceFile = undefined;
+                        break;
+                    }
+                }
+            }
+            if (sourceFile && sourceFile[0][0]) {
+                sourcesRelativeTo = path.dirname(sourceFile[0][0]);
+            }
+            return { sourceFile, sourcesRelativeTo } as SourceInput;
+        };
+    }
+
     assets: ExternalAsset[] = [];
     host?: IFileManager;
+    imports?: StringMap;
     configData?: Undef<StandardMap>;
 
     private _packageMap: ObjectMap<Transformer> = {};
@@ -159,7 +234,9 @@ abstract class Document extends Module implements IDocument {
         super();
     }
 
-    abstract init(assets: ExternalAsset[], body: RequestBody): void;
+    init(assets: ExternalAsset[], body: RequestBody) {
+        this.imports = body.imports ? { ...this.module.imports, ...body.imports } : this.module.imports;
+    }
 
     findConfig(settings: StandardMap, name: string, type?: string): PluginConfig {
         if (type && this.module.eval_template && this.configData) {
