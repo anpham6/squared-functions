@@ -132,15 +132,14 @@ function removeCss(document: IChromeDocument, source: string) {
     }
     const replaceMap: StringMap = {};
     let current = source,
-        offset: number,
         modified: Undef<boolean>,
         checkEmpty: Undef<Set<string>>,
         match: Null<RegExpExecArray>;
-    while (match = REGEXP_CSSCLOSING.exec(source)) {
+    while (match = REGEXP_CSSCLOSING.exec(current)) {
         if (match[0].indexOf('}') !== -1) {
             const placeholder = uuid.v4();
             replaceMap[placeholder] = match[0];
-            current = current.replace(match[0], placeholder);
+            current = spliceSource(REGEXP_CSSCLOSING, current, match.index, getEndIndex(match), placeholder);
         }
     }
     REGEXP_CSSCLOSING.lastIndex = 0;
@@ -148,13 +147,11 @@ function removeCss(document: IChromeDocument, source: string) {
         for (const value of items) {
             const pattern = new RegExp(`(\\s*)@${name}\\s+${Document.escapePattern(value.trim()).replace(/\s+/g, '\\s+')}\\s*{`, 'gi');
             while (match = pattern.exec(current)) {
-                const startIndex = match.index;
-                const [endIndex, trailing] = findClosingIndex(current, startIndex + match[0].length);
+                const [endIndex, trailing] = findClosingIndex(current, match.index + match[0].length);
                 if (endIndex !== -1) {
-                    [current, offset] = spliceString(current, startIndex, endIndex, match[1], trailing);
+                    current = spliceString(pattern, current, match.index, endIndex, match[1], trailing);
                     modified = true;
                     (checkEmpty ||= new Set()).add(name);
-                    pattern.lastIndex = startIndex + offset;
                 }
             }
         }
@@ -162,9 +159,7 @@ function removeCss(document: IChromeDocument, source: string) {
     const removeEmpty = (name: string) => {
         const pattern = new RegExp(`(\\s*)@${name}\\s*[^{]*{\\s*}` + DomWriter.PATTERN_TRAILINGSPACE, 'gi');
         while (match = pattern.exec(current)) {
-            const startIndex = match.index;
-            [current, offset] = spliceString(current, startIndex, startIndex + match[0].length - 1, match[1], match[2]);
-            pattern.lastIndex = startIndex + offset;
+            current = spliceString(pattern, current, match.index, getEndIndex(match), match[1], match[2]);
         }
     };
     if (unusedMedia) {
@@ -179,13 +174,11 @@ function removeCss(document: IChromeDocument, source: string) {
             for (let i = 0; i < 2; ++i) {
                 const pattern = new RegExp(`(${i === 0 ? '^' : '[{}]'})` + block, i === 0 ? 'm' : 'g');
                 while (match = pattern.exec(current)) {
-                    const startIndex = match.index;
-                    [current, offset] = spliceString(current, startIndex, startIndex + match[0].length - 1, match[2], match[3], i === 0 ? '' : match[1]);
+                    current = spliceString(pattern, current, match.index, getEndIndex(match), match[2], match[3], i === 0 ? '' : match[1]);
                     modified = true;
                     if (i === 0) {
                         break;
                     }
-                    pattern.lastIndex = startIndex + offset;
                 }
             }
             const pattern = new RegExp(`([{}]?[^,{}]*?)((,?\\s*)${value}\\s*[,{](\\s*)).*?\\{?`, 'g');
@@ -208,20 +201,16 @@ function removeCss(document: IChromeDocument, source: string) {
                             break;
                     }
                 }
-                const startIndex = match.index;
-                [current, offset] = spliceString(current, startIndex, startIndex + match[0].length - 1, '', '', match[0].replace(segment, outerXml));
+                current = spliceSource(pattern, current, match.index, getEndIndex(match), match[0].replace(segment, outerXml));
                 modified = true;
-                pattern.lastIndex = startIndex + offset;
             }
         }
     }
     if (usedVariables) {
         while (match = REGEXP_CSSVARIABLE.exec(current)) {
             if (!usedVariables.includes(match[2])) {
-                const startIndex = match.index;
-                [current, offset] = spliceString(current, startIndex, startIndex + match[0].length - 1, '', '', match[3] === ';' ? DomWriter.getNewlineString(match[1], match[4]) : '');
+                current = spliceSource(REGEXP_CSSVARIABLE, current, match.index, getEndIndex(match), match[3] === ';' ? DomWriter.getNewlineString(match[1], match[4]) : '');
                 modified = true;
-                REGEXP_CSSVARIABLE.lastIndex = startIndex + offset;
             }
         }
         REGEXP_CSSVARIABLE.lastIndex = 0;
@@ -231,10 +220,8 @@ function removeCss(document: IChromeDocument, source: string) {
         while (match = REGEXP_CSSFONT.exec(current)) {
             const font = /font-family\s*:([^;}]+)/i.exec(match[0]);
             if (font && !fonts.includes(font[1].trim().replace(/^(["'])(.+)\1$/, (...content) => content[2]).toLowerCase())) {
-                const startIndex = match.index;
-                [current, offset] = spliceString(current, startIndex, startIndex + match[0].length - 1, match[1], match[3]);
+                current = spliceString(REGEXP_CSSFONT, current, match.index, getEndIndex(match), match[1], match[3]);
                 modified = true;
-                REGEXP_CSSFONT.lastIndex = startIndex + offset;
             }
         }
         REGEXP_CSSFONT.lastIndex = 0;
@@ -242,12 +229,10 @@ function removeCss(document: IChromeDocument, source: string) {
     if (usedKeyframes) {
         while (match = REGEXP_CSSKEYFRAME.exec(current)) {
             if (!usedKeyframes.includes(match[2].trim())) {
-                const startIndex = match.index;
-                const [endIndex, trailing] = findClosingIndex(current, startIndex + match[0].length);
+                const [endIndex, trailing] = findClosingIndex(current, match.index + match[0].length);
                 if (endIndex !== -1) {
-                    [current, offset] = spliceString(current, startIndex, endIndex, match[1], trailing);
+                    current = spliceString(REGEXP_CSSKEYFRAME, current, match.index, endIndex, match[1], trailing);
                     modified = true;
-                    REGEXP_CSSKEYFRAME.lastIndex = startIndex + offset;
                 }
             }
         }
@@ -402,17 +387,14 @@ function setElementAttribute(document: IChromeDocument, htmlFile: DocumentAsset,
             if (srcset) {
                 const baseUri = htmlFile.uri!;
                 const uri = Document.toPosix(asset.uri);
-                const src = [uri];
+                const src = new Set([uri]);
                 const sameOrigin = Document.hasSameOrigin(baseUri, uri);
                 if (sameOrigin) {
                     let url = element.getAttribute('src');
                     if (url && uri === Document.resolvePath(url = Document.toPosix(url), baseUri)) {
-                        src.push(url);
+                        src.add(url);
                     }
-                    url = uri.startsWith(document.baseDirectory) ? uri.substring(document.baseDirectory.length) : uri.replace(new URL(baseUri).origin, '');
-                    if (!src.includes(url)) {
-                        src.push(url);
-                    }
+                    src.add(uri.startsWith(document.baseDirectory) ? uri.substring(document.baseDirectory.length) : uri.replace(new URL(baseUri).origin, ''));
                 }
                 let current = srcset,
                     match: Null<RegExpExecArray>;
@@ -420,9 +402,9 @@ function setElementAttribute(document: IChromeDocument, htmlFile: DocumentAsset,
                     const resolve = sameOrigin && !Document.isFileHTTP(url);
                     const pathname = escapePosix(url);
                     const pattern = new RegExp(`(,?\\s*)(${(resolve && url[0] !== '.' ? `(?:\\.\\.[\\\\/])*\\.\\.${pathname}|` : '') + pathname})([^,]*)`, 'g');
-                    while (match = pattern.exec(srcset)) {
+                    while (match = pattern.exec(current)) {
                         if (!resolve || uri === Document.resolvePath(match[2], baseUri)) {
-                            current = current.replace(match[0], match[1] + value + match[3]);
+                            current = spliceSource(pattern, current, match.index, getEndIndex(match), match[1] + value + match[3]);
                         }
                     }
                 }
@@ -438,11 +420,19 @@ function setElementAttribute(document: IChromeDocument, htmlFile: DocumentAsset,
     }
 }
 
-function spliceString(source: string, startIndex: number, endIndex: number, leading = '', trailing = '', content = ''): [string, number] {
+function spliceString(pattern: RegExp, source: string, startIndex: number, endIndex: number, leading = '', trailing = '', content = '') {
     if (leading || trailing) {
         content += DomWriter.getNewlineString(leading, trailing);
     }
-    return [source.substring(0, startIndex) + content + source.substring(endIndex + 1), content.length];
+    if (content) {
+        pattern.lastIndex = startIndex + content.length;
+    }
+    return source.substring(0, startIndex) + content + source.substring(endIndex + 1);
+}
+
+function spliceSource(pattern: RegExp, source: string, startIndex: number, endIndex: number, content: string) {
+    pattern.lastIndex = startIndex + content.length;
+    return source.substring(0, startIndex) + content + source.substring(endIndex + 1);
 }
 
 function isTruthy(data: PlainObject, attr: string, falsey: Undef<string | boolean>) {
@@ -455,6 +445,7 @@ function getFormatUUID(settings: DocumentModule, attr: "pathname" | "filename") 
     return format_uuid && format_uuid[attr] ? Document.generateUUID(format_uuid[attr], format_uuid.dictionary) : uuid.v4();
 }
 
+const getEndIndex = (match: RegExpExecArray) => match.index + match[0].length - 1;
 const isRemoved = (item: DocumentAsset) => item.exclude === true || item.bundleIndex !== undefined && item.bundleIndex > 0;
 const concatString = (values: Undef<string[]>): string => values ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const escapePosix = (value: string) => value.split(/[\\/]/).map(seg => Document.escapePattern(seg)).join('[\\\\/]');
