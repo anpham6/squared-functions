@@ -46,7 +46,7 @@ function getPostFinalize(watch: FileWatch) {
         if (asset && server) {
             return (files: FileInfo[], errors: string[]) => {
                 const src = asset.cloudUrl || asset.relativeUri || '';
-                const type = (asset.mimeType || '').replace(/[^A-Za-z\d/.+-]/g, '');
+                const type = asset.mimeType ? asset.mimeType.toLowerCase().replace(/[^a-z\d/.+-]/g, '') : '';
                 const hot = watch.hot && src && (type === 'text/css' || type.startsWith('image/')) ? (src.indexOf('?') !== -1 ? '&' : '?') + 'q=' + Date.now() : '';
                 const data = JSON.stringify({ socketId, module: 'watch', action: 'modified', src, type, hot, errors });
                 server.clients.forEach(client => client.readyState === ws.OPEN && client.send(data));

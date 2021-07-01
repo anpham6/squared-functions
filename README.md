@@ -556,7 +556,7 @@ There are possible scenarios when a transformation may cause an asset type to ch
 }
 ```
 
-Similar to JSON it is better to use double quotes (or &amp;quot;) and do not use unnecessary spaces around the opening and closing tags. It is also recommended to lower case every element tag name and attribute since the browser does this anyway when parsing your HTML document. Tags that are not well-formed may fail to be replaced.
+Similar to JSON it is better to use double quotes (or &amp;quot;) and do not use unnecessary spaces around the opening and closing tags. It is also recommended to lower case every element tag name and attribute since the browser does this anyway when parsing your HTML document. Tags that are not well-formed may fail to be replaced including CSS properties which uses "}" incorrectly. 
 
 ```xml
 <!-- after -->
@@ -612,9 +612,9 @@ Appends will fail if you remove the sibling selector element from the document.
 ]
 ```
 
-If you are having replacement errors (useOriginalHtmlPage=true) then adding an id will usually be able to locate the element (data-chrome-id="111-111-111").
+The current state of the DOM is sent to the server including any updates made with JavaScript. (useOriginalHtmlPage=false)
 
-NOTE: The current state of the DOM (useOriginalHtmlPage=false) is sent to the server including any updates made with JavaScript. (removeInlineStyles)
+NOTE: If you are having replacement errors (useOriginalHtmlPage=true) then adding an id will usually be sufficient in locating the element. (data-chrome-id="111-111-111")
 
 ### Cloud storage
 

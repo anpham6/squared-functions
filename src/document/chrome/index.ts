@@ -10,6 +10,7 @@ import type { RequestBody as IRequestBody } from '../../types/lib/node';
 import type { CloudScopeOrigin } from '../../cloud';
 import type { DocumentAsset, DocumentModule, IChromeDocument } from './document';
 
+import type * as toml from 'toml';
 import type * as jsonpath from 'jsonpath';
 import type * as jmespath from 'jmespath';
 
@@ -33,7 +34,7 @@ const REGEXP_SRCSETSIZE = /~\s*([\d.]+)\s*([wx])/i;
 const REGEXP_CSSVARIABLE = new RegExp(`(\\s*)(--[^\\s:]*)\\s*:[^;}]*([;}])` + DomWriter.PATTERN_TRAILINGSPACE, 'g');
 const REGEXP_CSSFONT = new RegExp(`(\\s*)@font-face\\s*{([^}]+)}` + DomWriter.PATTERN_TRAILINGSPACE, 'gi');
 const REGEXP_CSSKEYFRAME = /(\s*)@keyframes\s+([^{]+){/gi;
-const REGEXP_CSSCLOSING = /\s*(?:content\s*:\s*(?:"[^"]*"|'[^']*')|url\(\s*(?:"[^"]+"|'[^']+'|[^\s)]+)\s*\))/gi;
+const REGEXP_CSSCLOSING = /\b(?:url\(\s*(?:"[^"]+"|'[^']+'|[^\s)]+)\s*\)|content\s*:\s*(?:"[^"]*"|'[^']*'))/gi;
 const REGEXP_TEMPLATECONDITIONAL = /(\n\s+)?\{\{\s*if\s+(!)?\s*([^}\s]+)\s*\}\}(\s*)([\S\s]*?)(?:\s*\{\{\s*else\s*\}\}(\s*)([\S\s]*?)\s*)?\s*\{\{\s*end\s*\}\}/gi;
 const REGEXP_OBJECTPROPERTY = /\$\{\s*([^\s}]+)\s*\}/g;
 const REGEXP_OBJECTVALUE = /([^[.\s]+)((?:\s*\[[^\]]+\]\s*)+)?\s*\.?\s*/g;
@@ -143,7 +144,7 @@ function removeCss(document: IChromeDocument, source: string) {
         }
     }
     REGEXP_CSSCLOSING.lastIndex = 0;
-    const replaceUnunsed = (items: string[], name: string) => {
+    const replaceUnunsed = (name: string, items: string[]) => {
         for (const value of items) {
             const pattern = new RegExp(`(\\s*)@${name}\\s+${Document.escapePattern(value.trim()).replace(/\s+/g, '\\s+')}\\s*{`, 'gi');
             while (match = pattern.exec(current)) {
@@ -167,10 +168,10 @@ function removeCss(document: IChromeDocument, source: string) {
         }
     };
     if (unusedMedia) {
-        replaceUnunsed(unusedMedia, 'media');
+        replaceUnunsed('media', unusedMedia);
     }
     if (unusedSupports) {
-        replaceUnunsed(unusedSupports, 'supports');
+        replaceUnunsed('supports', unusedSupports);
     }
     if (unusedStyles) {
         for (let value of unusedStyles) {
@@ -917,7 +918,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     data = yaml.load(content);
                                                     break;
                                                 case 'toml':
-                                                    data = require('toml').parse(content); // eslint-disable-line @typescript-eslint/no-unsafe-call
+                                                    data = (require('toml') as typeof toml).parse(content);
                                                     break;
                                                 default:
                                                     removeElement();
@@ -971,7 +972,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 }
                                 default:
                                     removeElement();
-                                    reject(new Error(`data-source: Invalid (${item.source || 'Unknown'})`)); // eslint-disable-line @typescript-eslint/restrict-template-expressions
+                                    reject(new Error(`data-source: Invalid (${item.source as string || 'Unknown'})`));
                                     return;
                             }
                             if (index !== undefined) {

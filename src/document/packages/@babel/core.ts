@@ -1,9 +1,9 @@
+import type { SourceCode, TransformOptions } from '../../../types/lib/document';
+
 import path = require('path');
 
-import type { TransformOptions } from '../../../types/lib/document';
-
 export default async function transform(context: any, value: string, options: TransformOptions) {
-    const { baseConfig, outputConfig, sourceMap, external } = options;
+    const { baseConfig, outputConfig, sourceMap, supplementChunks, createSourceMap, external } = options;
     Object.assign(baseConfig, outputConfig);
     if (external) {
         Object.assign(baseConfig, external);
@@ -19,6 +19,26 @@ export default async function transform(context: any, value: string, options: Tr
         }
         if (baseConfig.sourceMaps && baseConfig.sourceFileName) {
             url = path.basename(baseConfig.sourceFileName);
+        }
+    }
+    if (supplementChunks) {
+        for (const chunk of supplementChunks) {
+            const chunkConfig = { ...baseConfig };
+            if (chunkConfig.sourceMaps) {
+                chunkConfig.inputSourceMap = chunk.sourceMap?.map || true;
+                delete chunkConfig.sourceFileName;
+            }
+            const result = await context.transform(value, chunkConfig);
+            if (result) {
+                const { code, map } = result as SourceCode;
+                chunk.code = code;
+                if (map) {
+                    (chunk.sourceMap ||= createSourceMap(code)).nextMap('babel', code, map);
+                }
+                else {
+                    chunk.sourceMap?.reset();
+                }
+            }
         }
     }
     const result = await context.transform(value, baseConfig);

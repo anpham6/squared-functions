@@ -16,7 +16,9 @@ export default async function transform(context: any, value: string, options: Tr
         inputFile: Undef<[string, string?][]>;
     const createDir = () => {
         const tempDir = path.join(process.cwd(), 'tmp', 'rollup');
-        fs.mkdirpSync(tempDir);
+        if (!fs.pathExistsSync(tempDir)) {
+            fs.mkdirpSync(tempDir);
+        }
         return tempDir;
     };
     const format = mimeType === 'application/javascript' ? 'es' : 'iife';
@@ -25,7 +27,7 @@ export default async function transform(context: any, value: string, options: Tr
     }
     outputConfig.format ||= format as rollup.ModuleFormat;
     const notModule = outputConfig.format === 'iife' || outputConfig.format === 'umd';
-    if (!notModule && supplementChunks && getSourceFiles && ({ sourceFile: inputFile } = getSourceFiles()) && inputFile) {
+    if (!notModule && supplementChunks && getSourceFiles && ({ sourceFile: inputFile, sourcesRelativeTo } = getSourceFiles()) && inputFile) {
         const files: string[] = [];
         const tempDir = createDir();
         for (let [pathname, content] of inputFile) { // eslint-disable-line prefer-const

@@ -1,11 +1,12 @@
 import type { TransformOptions } from '../../types/lib/document';
 
 export default function transform(context: any, value: string, options: TransformOptions) {
-    const { baseConfig, outputConfig, external } = options;
+    const { baseConfig, outputConfig, supplementChunks, external } = options;
     Object.assign(baseConfig, outputConfig);
     if (external) {
         Object.assign(baseConfig, external);
     }
+    let chunks: Undef<boolean>;
     switch (baseConfig.parser) {
         case 'babel':
         case 'babel-flow':
@@ -14,6 +15,7 @@ export default function transform(context: any, value: string, options: Transfor
         case 'json-5':
         case 'json-stringify':
             baseConfig.plugins = [require('prettier/parser-babel')];
+            chunks = true;
             break;
         case 'css':
         case 'scss':
@@ -43,6 +45,14 @@ export default function transform(context: any, value: string, options: Transfor
             break;
         default:
             return;
+    }
+    if (supplementChunks && chunks) {
+        for (const chunk of supplementChunks) {
+            const result = context.format(value, { ...baseConfig });
+            if (result) {
+                chunk.code = result;
+            }
+        }
     }
     return context.format(value, baseConfig);
 }

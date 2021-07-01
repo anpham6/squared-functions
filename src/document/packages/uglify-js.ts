@@ -25,11 +25,7 @@ export default function transform(context: any, value: string, options: Transfor
         for (const chunk of supplementChunks) {
             const chunkConfig = { ...baseConfig };
             if (typeof chunkConfig.sourceMap === 'object') {
-                const map = chunk.sourceMap?.map;
-                if (map) {
-                    chunkConfig.sourceMap.content = map;
-                }
-                delete chunkConfig.sourceMap.url;
+                chunkConfig.sourceMap = { content: chunk.sourceMap?.map, asObject: true };
             }
             const result = context.minify(chunk.code, chunkConfig);
             if (result) {
