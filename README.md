@@ -502,6 +502,7 @@ interface AssetCommand extends OutputModifiers {
         source: "uri";
         format: string; // json | yaml | toml
         uri: string;
+        postQuery?: string;
         preRender?: string;
     };
 
@@ -846,7 +847,8 @@ interface CloudDatabase {
     options?: PlainObject;
     index?: number;
     limit?: number;
-    preRender?: string; // function callback as string
+    postQuery?: string; // function callback as string => (PlainObject[], dbItem)
+    preRender?: string; // function callback as string => (string, dbItem)
     viewEngine?: {
         name: string; // npm package name
         singleRow?: boolean; // Template result data is sent as Array[]

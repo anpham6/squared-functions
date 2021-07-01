@@ -42,7 +42,7 @@ const SETTINGS: LoggerModule = {
 };
 
 const PROCESS_VERSION = process.version.substring(1).split('.').map(value => +value) as [number, number, number];
-const ASYNC_FUNCTION = Object.getPrototypeOf(async () => {}).constructor as Constructor<FunctionType<Promise<string>, string>>;
+const ASYNC_FUNCTION = Object.getPrototypeOf(async () => {}).constructor;
 
 function allSettled<T>(values: readonly (T | PromiseLike<T>)[]) {
     return Promise.all(values.map((promise: Promise<T>) => promise.then(value => ({ status: 'fulfilled', value })).catch(reason => ({ status: 'rejected', reason })) as Promise<PromiseSettledResult<T>>));
@@ -282,8 +282,8 @@ abstract class Module implements IModule {
         this.formatMessage(type || LOG_TYPE.SYSTEM, 'FAIL!', value, message, { ...Module.LOG_STYLE_FAIL });
     }
 
-    static asFunction(value: string, sync = true): Undef<FunctionType<Promise<string> | string>> {
-        const match = /^(async\s+)?(function\s+([^(]*)\(([^)]*)\)\s*\{([\S\s]+)\})$/.exec(value);
+    static asFunction<T = string>(value: string, sync = true): Undef<FunctionType<Promise<T> | T>> {
+        const match = /^(async\s+)?(function\b([^(]*)\(([^)]*)\)\s*\{([\S\s]+)\})$/.exec(value = value.trim());
         if (match) {
             if (!sync || match[1]) {
                 const args = match[4].trim().split(',').map(arg => arg.trim());
@@ -293,11 +293,14 @@ abstract class Module implements IModule {
             value = match[2];
         }
         if (value.startsWith('function')) {
-            return (0, eval)(`(${value})`);
+            const result = (0, eval)(`(${value})`);
+            if (typeof result === 'function') {
+                return result;
+            }
         }
     }
 
-    static parseFunction(value: string, name?: string, sync = true): Undef<FunctionType<Promise<string> | string>> {
+    static parseFunction<T = string>(value: string, name?: string, sync = true): Undef<FunctionType<Promise<T> | T>> {
         const uri = Module.fromLocalPath(value = value.trim());
         if (uri) {
             try {
@@ -308,7 +311,7 @@ abstract class Module implements IModule {
                 return;
             }
         }
-        const result = this.asFunction(value, sync);
+        const result = this.asFunction<T>(value, sync);
         if (result) {
             return result;
         }
@@ -316,7 +319,7 @@ abstract class Module implements IModule {
             try {
                 const handler = require(value);
                 if (typeof handler === 'function' && handler.name === name) {
-                    return handler as FunctionType<string>;
+                    return handler as FunctionType<T>;
                 }
             }
             catch {

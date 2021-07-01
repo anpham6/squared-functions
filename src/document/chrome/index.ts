@@ -718,7 +718,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 for (const db of [dataItems, displayItems]) {
                     await Document.allSettled(db.map(item => {
                         return new Promise<void>(async (resolve, reject) => {
-                            const { element, limit, index, preRender } = item;
+                            const { element, limit, index } = item;
                             const domElement = new HtmlElement(moduleName, element!);
                             const removeElement = () => {
                                 if (item.removeEmpty) {
@@ -972,6 +972,16 @@ class ChromeDocument extends Document implements IChromeDocument {
                             }
                             else if (limit !== undefined && result.length > limit) {
                                 result.length = limit;
+                            }
+                            const { postQuery, preRender } = item;
+                            if (postQuery) {
+                                const method = Document.asFunction<PlainObject[]>(postQuery);
+                                if (method) {
+                                    const output = await method(result, item);
+                                    if (Array.isArray(output)) {
+                                        result = output;
+                                    }
+                                }
                             }
                             if (result.length) {
                                 let template = item.value || element!.textContent || domElement.innerXml,

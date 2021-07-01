@@ -25,6 +25,7 @@ export interface DataSource extends DocumentAction {
     index?: number;
     limit?: number;
     query?: unknown;
+    postQuery?: string;
     preRender?: string;
     removeEmpty?: boolean;
 }
