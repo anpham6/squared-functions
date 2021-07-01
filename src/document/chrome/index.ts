@@ -718,7 +718,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 for (const db of [dataItems, displayItems]) {
                     await Document.allSettled(db.map(item => {
                         return new Promise<void>(async (resolve, reject) => {
-                            const { element, limit, index } = item;
+                            const { element, limit, index, preRender } = item;
                             const domElement = new HtmlElement(moduleName, element!);
                             const removeElement = () => {
                                 if (item.removeEmpty) {
@@ -1010,6 +1010,15 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     REGEXP_TEMPLATECONDITIONAL.lastIndex = 0;
                                                 }
                                             }
+                                            if (preRender) {
+                                                const method = Document.asFunction(preRender);
+                                                if (method) {
+                                                    const output = await method(innerXml, item);
+                                                    if (typeof output === 'string') {
+                                                        innerXml = output;
+                                                    }
+                                                }
+                                            }
                                             domElement.innerXml = innerXml;
                                         }
                                         else {
@@ -1084,6 +1093,15 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                     }
                                                 }
                                                 if (valid) {
+                                                    if (preRender) {
+                                                        const method = Document.asFunction(preRender);
+                                                        if (method) {
+                                                            const output = await method(value, item);
+                                                            if (typeof output === 'string') {
+                                                                value = output;
+                                                            }
+                                                        }
+                                                    }
                                                     domElement.setAttribute(attr, value);
                                                 }
                                                 else {

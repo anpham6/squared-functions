@@ -493,15 +493,16 @@ interface AssetCommand extends OutputModifiers {
     };
 
     type: "text" | "attribute" | "display"
-    dataSource?: {
-        source: "uri";
-        format: string; // json | yaml | toml
-        uri: string;
-    };
     dataSource?: CloudDatabase; // "cloud" (source)
     dataSource?: {
         source: "mongodb";
         // Same as CloudDatabase
+    };
+    dataSource?: {
+        source: "uri";
+        format: string; // json | yaml | toml
+        uri: string;
+        preRender?: string;
     };
 
     type: "replace";
@@ -845,6 +846,7 @@ interface CloudDatabase {
     options?: PlainObject;
     index?: number;
     limit?: number;
+    preRender?: string; // function callback as string
     viewEngine?: {
         name: string; // npm package name
         singleRow?: boolean; // Template result data is sent as Array[]
