@@ -34,5 +34,6 @@ export interface IChromeDocument extends IDocument, ICssRuleData, DocumentOutput
     internalServerRoot: string;
     internalAssignUUID: string;
     baseUrl?: string;
+    findDataMethodString(name: string): Undef<string>;
     removeServerRoot(value: string): string;
 }

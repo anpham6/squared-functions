@@ -419,6 +419,8 @@ interface TransformOptions extends TransformOutput {
     outputConfig: StandardMap; // Same as baseConfig when using an inline transformer
     sourceMap: SourceMapInput;
     writeFail: ModuleWriteFailMethod;
+    createSourceMap: (code: string) => SourceMapInput; // Use "nextMap" method for sourceMap
+    supplementChunks?: ChunkData[];
 }
 
 // Example using Promise "resolve" callbacks
@@ -433,7 +435,7 @@ function (context, value, options, resolve) {
 The same concept can be used inline anywhere using a &lt;script&gt; tag with the type attribute set to "text/template". The script template will be completely removed from the final output.
 
 ```javascript
-// "es5-example" is a custom name (chrome -> eval_template: true)
+// "es5-example" is a custom identifier (chrome -> eval_template: true)
 
 <script type="text/template" data-chrome-template="js::@babel/core::es5-example">
 async function (context, value, options) {
@@ -449,7 +451,7 @@ async function (context, value, options) {
 </script>
 ```
 
-Transpiling with Babel is also configurable with a .babelrc file in the base folder.
+Transpiling with Babel is also configurable with a .babelrc file in the base folder as are any other projects which use the same local configuration concept.
 
 Here is the equivalent configuration in YAML and when available has higher precedence than JSON.
 
@@ -847,8 +849,8 @@ interface CloudDatabase {
     options?: PlainObject;
     index?: number;
     limit?: number;
-    postQuery?: string; // function callback as string => (PlainObject[], dbItem)
-    preRender?: string; // function callback as string => (string, dbItem)
+    postQuery?: string; // function callback as string => (PlainObject[], dbRequest)
+    preRender?: string; // function callback as string => (string, dbRequest)
     viewEngine?: {
         name: string; // npm package name
         singleRow?: boolean; // Template result data is sent as Array[]
@@ -858,6 +860,27 @@ interface CloudDatabase {
         };
     };
 }
+```
+
+You can also used named callbacks for "postQuery" and "preRender" anywhere inside the HTML. It is more readable than inside a configuration file and can be reused for queries with the same mapping or formatting.
+
+```javascript
+// "postQuery-example" is a custom identifier (chrome -> eval_template: true)
+
+<script type="text/template" data-chrome-template="data::postQuery-example">
+async function (items, dbRequest) { // items - PlainObject[]
+    if (items.length) {
+        return await fetch("/db/url", { method: "POST", body: JSON.stringify(items) }).then(result => result.map(item => ({ name: item.key, value: item.value })));
+    }
+    return null; // "items" will display unmodified when not an array
+}
+</script>
+
+<script type="text/template" data-chrome-template="data::preRender-example">
+function (value, dbRequest) { // value - string
+    return value.replaceAll("<", "&lt;");
+}
+</script>
 ```
 
 View engines with a "compile" template string to function (e.g. [EJS](https://ejs.co)) can be used instead for "text" and "attribute". Manual NPM installation (npm i ejs) is required. Results from any data source is treated as an array with multiple rows being concatenated into one string.

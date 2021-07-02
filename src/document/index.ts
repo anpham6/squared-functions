@@ -88,8 +88,8 @@ abstract class Document extends Module implements IDocument {
         }
     }
 
-    static createSourceMap(value: string) {
-        return createSourceMap(value);
+    static createSourceMap(code: string) {
+        return createSourceMap(code);
     }
 
     static writeSourceMap(localUri: string, sourceMap: SourceMapOutput, options?: SourceMapOptions) {
@@ -224,7 +224,7 @@ abstract class Document extends Module implements IDocument {
     assets: ExternalAsset[] = [];
     host?: IFileManager;
     imports?: StringMap;
-    configData?: Undef<StandardMap>;
+    configData?: StandardMap;
 
     private _packageMap: ObjectMap<Transformer> = {};
     private _xmlNodes: Null<XmlTagNode[]> = null;
@@ -239,12 +239,12 @@ abstract class Document extends Module implements IDocument {
     }
 
     findConfig(settings: StandardMap, name: string, type?: string): PluginConfig {
-        if (type && this.module.eval_template && this.configData) {
+        if (type && this.configData && this.module.eval_template) {
             const data = this.configData[type] as Undef<StandardMap>;
             if (data) {
                 for (const attr in data) {
-                    const item = data[attr] as Undef<StandardMap>;
-                    if (item?.[name]) {
+                    const item = data[attr];
+                    if (Document.isObject(item) && item[name]) {
                         const options = this.loadConfig(item, name);
                         if (options) {
                             return [attr, options, this.loadConfig(item, name + '-output')];
@@ -259,9 +259,9 @@ abstract class Document extends Module implements IDocument {
             for (const attr in data) {
                 if (attr === name) {
                     const options = this.loadConfig(data, attr);
-                    const config = this.loadConfig(data, attr + '-output');
-                    if (options || config) {
-                        return [plugin, options, config];
+                    const output = this.loadConfig(data, attr + '-output');
+                    if (options || output) {
+                        return [plugin, options, output];
                     }
                 }
             }

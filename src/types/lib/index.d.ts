@@ -119,7 +119,7 @@ declare namespace functions {
         module: DocumentModule;
         moduleName: string;
         assets: ExternalAsset[];
-        imports?: StandardMap;
+        imports?: StringMap;
         configData?: StandardMap;
         init(assets: ExternalAsset[], body: RequestBody): void;
         findConfig(settings: StandardMap, name: string, type?: string): PluginConfig;
@@ -142,7 +142,7 @@ declare namespace functions {
         using(this: IFileManager, instance: IDocument, file: ExternalAsset): Promise<void>;
         finalize(this: IFileManager, instance: IDocument): Promise<void>;
         cleanup(this: IFileManager, instance: IDocument): Promise<void>;
-        createSourceMap(code: string, file?: ExternalAsset): SourceMapInput;
+        createSourceMap(code: string): SourceMapInput;
         writeSourceMap(localUri: string, sourceMap: SourceMapOutput, options?: SourceMapOptions, emptySources?: boolean): Undef<string>;
         removeSourceMappingURL(value: string): [string, string?];
         createSourceFilesMethod(this: IFileManager, instance: IDocument, file: ExternalAsset, source?: string): SourceInput;

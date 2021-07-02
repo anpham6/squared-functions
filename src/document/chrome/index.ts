@@ -1,5 +1,5 @@
 import type { LocationUri, XmlTagNode } from '../../types/lib/squared';
-import type { DataSource, MongoDataSource, RequestData, UriDataSource } from '../../types/lib/chrome';
+import type { DataSource, MongoDataSource, RequestData, TemplateMap, UriDataSource } from '../../types/lib/chrome';
 
 import type { IFileManager } from '../../types/lib';
 import type { FileData, OutputData } from '../../types/lib/asset';
@@ -975,25 +975,46 @@ class ChromeDocument extends Document implements IChromeDocument {
                             }
                             const { postQuery, preRender } = item;
                             if (postQuery) {
-                                const method = Document.asFunction<PlainObject[]>(postQuery);
+                                const value = instance.findDataMethodString(postQuery);
+                                const method = Document.asFunction<PlainObject[]>(value || postQuery);
                                 if (method) {
-                                    const output = await method(result, item);
-                                    if (Array.isArray(output)) {
-                                        result = output;
+                                    try {
+                                        const output = await method(result, item);
+                                        if (Array.isArray(output)) {
+                                            result = output;
+                                        }
+                                    }
+                                    catch (err) {
+                                        instance.writeFail(['Invalid external method', value ? postQuery : ''], err);
                                     }
                                 }
                             }
                             if (result.length) {
                                 let template = item.value || element!.textContent || domElement.innerXml,
+                                    value = '',
                                     errors: Undef<boolean>;
+                                const checkPreRender = async (name: string) => {
+                                    const dataString = instance.findDataMethodString(name);
+                                    const method = Document.asFunction(dataString || name);
+                                    if (method) {
+                                        try {
+                                            const output = await method(value, item);
+                                            if (typeof output === 'string') {
+                                                value = output;
+                                            }
+                                        }
+                                        catch (err) {
+                                            instance.writeFail(['Invalid external method', dataString ? preRender : ''], err);
+                                        }
+                                    }
+                                };
                                 switch (item.type) {
                                     case 'text':
                                         if (typeof template === 'string' && !domElement.tagVoid) {
-                                            let innerXml = '';
                                             if (item.viewEngine) {
                                                 const content = await instance.parseTemplate(item.viewEngine, template, result);
                                                 if (content !== null) {
-                                                    innerXml = content;
+                                                    value = content;
                                                 }
                                                 else {
                                                     ++domBase.failCount;
@@ -1015,21 +1036,15 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                         const col = isTruthy(row, match[3], match[2]) ? 5 : 7;
                                                         segment = segment.replace(match[0], match[col] ? (match[col - 1].indexOf('\n') !== -1 ? '' : match[1]) + match[col - 1] + match[col] : '');
                                                     }
-                                                    innerXml += segment;
+                                                    value += segment;
                                                     REGEXP_OBJECTPROPERTY.lastIndex = 0;
                                                     REGEXP_TEMPLATECONDITIONAL.lastIndex = 0;
                                                 }
                                             }
                                             if (preRender) {
-                                                const method = Document.asFunction(preRender);
-                                                if (method) {
-                                                    const output = await method(innerXml, item);
-                                                    if (typeof output === 'string') {
-                                                        innerXml = output;
-                                                    }
-                                                }
+                                                await checkPreRender(preRender);
                                             }
-                                            domElement.innerXml = innerXml;
+                                            domElement.innerXml = value;
                                         }
                                         else {
                                             errors = true;
@@ -1039,7 +1054,6 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         if (Document.isObject(template)) {
                                             for (const attr in template) {
                                                 let segment = template[attr],
-                                                    value = '',
                                                     valid: Undef<boolean>;
                                                 if (item.viewEngine) {
                                                     if (Document.isString(segment)) {
@@ -1104,13 +1118,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                 }
                                                 if (valid) {
                                                     if (preRender) {
-                                                        const method = Document.asFunction(preRender);
-                                                        if (method) {
-                                                            const output = await method(value, item);
-                                                            if (typeof output === 'string') {
-                                                                value = output;
-                                                            }
-                                                        }
+                                                        await checkPreRender(preRender);
                                                     }
                                                     domElement.setAttribute(attr, value);
                                                 }
@@ -1173,17 +1181,16 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                             if (match) {
                                                                 seg = (isTruthy(row, match[3], match[2]) ? match[5] : match[7] || '').trim();
                                                             }
-                                                            let keep = true,
-                                                                sign: Undef<string>;
-                                                            switch (seg[0]) {
+                                                            const sign = seg[0];
+                                                            let keep = true;
+                                                            switch (sign) {
                                                                 case '-':
                                                                 case '+':
-                                                                    sign = seg[0];
                                                                     seg = seg.substring(1);
                                                                     break;
                                                             }
-                                                            const value = getObjectValue(row, seg);
-                                                            if (value === undefined || value === null) {
+                                                            const data = getObjectValue(row, seg);
+                                                            if (data === undefined || data === null) {
                                                                 if (sign !== '+') {
                                                                     keep = false;
                                                                 }
@@ -1191,12 +1198,12 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                             else {
                                                                 switch (sign) {
                                                                     case '-':
-                                                                        if (!value) {
+                                                                        if (!data) {
                                                                             keep = false;
                                                                         }
                                                                         break;
                                                                     case '+':
-                                                                        if (value) {
+                                                                        if (data) {
                                                                             keep = false;
                                                                         }
                                                                         break;
@@ -1428,7 +1435,6 @@ class ChromeDocument extends Document implements IChromeDocument {
             catch {
             }
         }
-        this.module.format_uuid ||= {};
         super.init(assets, body);
     }
     setLocalUri(file: Partial<LocationUri>) {
@@ -1452,6 +1458,11 @@ class ChromeDocument extends Document implements IChromeDocument {
     }
     removeServerRoot(value: string) {
         return value.replace(new RegExp('(\\.\\./)*' + Document.escapePattern(this.internalServerRoot), 'g'), '');
+    }
+    findDataMethodString(name: string) {
+        if (this.configData && this.module.eval_template) {
+            return (this.configData as TemplateMap).data?.[name];
+        }
     }
     addCopy(data: FileData, saveAs: string) {
         if (data.command && this.host) {

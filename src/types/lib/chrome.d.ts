@@ -12,9 +12,10 @@ export interface ChromeAsset extends ElementAction {
 }
 
 export interface TemplateMap {
-    html: ObjectMap<PlainObject>;
-    js: ObjectMap<PlainObject>;
-    css: ObjectMap<PlainObject>;
+    html?: ObjectMap<StringMap>;
+    js?: ObjectMap<StringMap>;
+    css?: ObjectMap<StringMap>;
+    data?: StringMap;
 }
 
 export interface RequestData extends DocumentOutput, ICssRuleData {
