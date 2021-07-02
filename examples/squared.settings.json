@@ -59,6 +59,9 @@
       "handler": "@squared-functions/document/chrome",
       "eval_function": true,
       "eval_template": true,
+      "imports": {
+        "http://localhost:3000/build/": "./build"
+      },
       "settings": {
         "transform": {
           "html": {
@@ -91,8 +94,8 @@
             }
           },
           "css": {
-            "node-sass": {
-              "sass-example": "function (context, value, options, resolve) { resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css); }"
+            "custom-sass": {
+              "sass-example": "function (context, value, options, resolve) { const sass = require('sass'); resolve(sass.renderSync({ ...options.outputConfig, data: value }, functions: {}).css); }"
             }
           }
         }

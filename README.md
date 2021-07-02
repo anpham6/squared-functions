@@ -391,7 +391,7 @@ Custom plugins can also be installed from NPM. The function has to be named "tra
               }
             },
             "custom-sass": { // npm i sass && npm i custom-sass
-              "sass-example": "function (context, value, options, resolve) { resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css); }" // Using Promise
+              "sass-example": "function (context, value, options, resolve) { const sass = require('sass'); resolve(sass.renderSync({ ...options.outputConfig, data: value }, functions: {}).css); }" // Using Promise
             }
           }
         }

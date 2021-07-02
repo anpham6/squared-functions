@@ -1,3 +1,4 @@
+---
 cloud:
   aws:
     main:
@@ -41,6 +42,8 @@ document:
     handler: "@squared-functions/document/chrome"
     eval_function: true
     eval_template: true
+    imports:
+      http://localhost:3000/build/: "./build"
     settings:
       transform:
         html:
@@ -66,8 +69,9 @@ document:
               - lodash
             bundle-es6-output: "./rollup.output.config.js"
         css:
-          node-sass:
+          custom-sass:
             sass-example: |
               function(context, value, options, resolve) {
-                return resolve(context.renderSync({ ...options.outputConfig, data: value }, functions: {}).css);
+                const sass = require('sass');
+                return resolve(sass.renderSync({ ...options.outputConfig, data: value }, functions: {}).css);
               }
