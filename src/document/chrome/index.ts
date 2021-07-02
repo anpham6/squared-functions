@@ -734,7 +734,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     if (cloud) {
                                         result = await cloud.getDatabaseRows(item as CloudDatabase, cacheKey).catch(err => {
                                             if (err instanceof Error && err.message) {
-                                                instance.errors.push((item as CloudDatabase).service + ': ' + err.message);
+                                                cloud.errors.push((item as CloudDatabase).service + ': ' + err.message);
                                             }
                                             return [];
                                         }) as PlainObject[];
@@ -1261,7 +1261,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             else if (query) {
                                                 queryString = typeof query !== 'string' ? JSON.stringify(query) : query;
                                             }
-                                            instance.formatFail(this.logType.CLOUD, service, ['Database query had no results', table ? 'table: ' + table : ''], new Error(service + `: ${queryString} (Empty)`));
+                                            (cloud || instance).formatFail(this.logType.CLOUD, service, ['Database query had no results', table ? 'table: ' + table : ''], new Error(service + `: ${queryString} (Empty)`));
                                             break;
                                         }
                                         case 'mongodb': {
