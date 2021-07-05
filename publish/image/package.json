@@ -1,6 +1,6 @@
 {
   "name": "@squared-functions/image",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Image functions for squared-functions",
   "main": "index.js",
   "types": "index.d.ts",
@@ -15,8 +15,8 @@
   "license": "MIT",
   "homepage": "https://github.com/anpham6/squared-functions#readme",
   "dependencies": {
-    "@squared-functions/module": "^1.1.1",
-    "@squared-functions/types": "^1.1.1",
+    "@squared-functions/module": "^1.1.2",
+    "@squared-functions/types": "^1.1.2",
     "jimp": "^0.16.1"
   }
 }
