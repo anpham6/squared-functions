@@ -418,12 +418,12 @@ abstract class Document extends Module implements IDocument {
                                     output.baseConfig = baseConfig;
                                     next(await transformer!(context, code, output));
                                 }
-                                if (output.outputSourceFiles) {
+                                if (output.outSourceFiles) {
                                     if (!sourceFiles) {
-                                        sourceFiles = output.outputSourceFiles;
+                                        sourceFiles = output.outSourceFiles;
                                     }
                                     else {
-                                        output.outputSourceFiles.forEach(value => sourceFiles!.includes(value) && sourceFiles!.push(value));
+                                        output.outSourceFiles.forEach(value => sourceFiles!.includes(value) && sourceFiles!.push(value));
                                     }
                                 }
                             }
