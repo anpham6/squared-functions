@@ -21,7 +21,8 @@ export enum LOG_TYPE { // eslint-disable-line no-shadow
     CLOUD = 64,
     TIME_ELAPSED = 128,
     TIME_PROCESS = 256,
-    FAIL = 512
+    FAIL = 512,
+    HTTP = 1024
 }
 
 const SETTINGS: LoggerModule = {
@@ -221,6 +222,13 @@ abstract class Module implements IModule {
                     return;
                 }
                 options.messageBgColor ||= options.failed ? 'bgGray' : 'bgCyan';
+            }
+            if (type & LOG_TYPE.HTTP) {
+                if (SETTINGS.http === false) {
+                    return;
+                }
+                options.titleColor ||= 'white';
+                options.titleBgColor ||= options.failed ? 'bgGray' : 'bgGreen';
             }
         }
         const valueWidth = getFormatWidth(format.value, 71);

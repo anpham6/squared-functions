@@ -13,7 +13,8 @@ export enum LOG_TYPE {
     CLOUD = 64,
     TIME_ELAPSED = 128,
     TIME_PROCESS = 256,
-    FAIL = 512
+    FAIL = 512,
+    HTTP = 1024
 }
 
 export interface LogMessageOptions {

@@ -49,6 +49,7 @@ export interface LoggerModule {
     cloud?: boolean;
     time_elapsed?: boolean;
     time_process?: boolean;
+    http?: boolean;
 }
 
 export interface AllSettledOptions {
