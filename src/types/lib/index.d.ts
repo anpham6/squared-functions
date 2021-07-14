@@ -8,18 +8,22 @@ import type { ExternalAsset, FileData, FileOutput, OutputData } from './asset';
 import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload } from './cloud';
 import type { CompressTryFileMethod } from './compress';
 import type { ConfigOrTransformer, PluginConfig, SourceInput, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
-import type { CompleteAsyncTaskCallback, HttpRequestBuffer, InstallData, PerformAsyncTaskMethod, PostFinalizeCallback } from './filemanager';
+import type { CompleteAsyncTaskCallback, FetchBufferOptions, HttpClientOptions, HttpHostRequest, HttpRequestBuffer, HttpVersionSupport, InstallData, PerformAsyncTaskMethod, PostFinalizeCallback } from './filemanager';
 import type { CropData, QualityData, ResizeData, RotateData } from './image';
 import type { LOG_TYPE, LogMessageOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
-import type { CloudModule, DocumentModule, TaskModule } from './module';
+import type { AllSettledOptions, CloudModule, DocumentModule, TaskModule } from './module';
 import type { RequestBody, Settings } from './node';
 import type { FileWatch } from './watch';
 
 import type { PathLike, WriteStream } from 'fs';
+import type { ClientRequest, IncomingMessage } from 'http';
+import type { ClientHttp2Stream } from 'http2';
+import type { RedirectableRequest } from 'follow-redirects';
 import type { FileTypeResult } from 'file-type';
 
-import type * as request from 'request';
 import type * as bytes from 'bytes';
+
+type ModuleSupportedMethod = (major: number, minor?: number, patch?: number, lts?: boolean) => boolean;
 
 declare namespace functions {
     interface IHost<T = IFileManager> {
@@ -165,7 +169,7 @@ declare namespace functions {
         shutdown(): void;
         parseExpires(value: NumString, start?: number): number;
         hasLocalAccess(permission: IPermission, uri: unknown): boolean;
-        new(interval?: number, port?: number): IWatch;
+        new(interval?: number, port?: number, securePort?: number): IWatch;
     }
 
     interface IPermission {
@@ -190,6 +194,8 @@ declare namespace functions {
     interface IFileManager extends IModule {
         delayed: number;
         cleared: boolean;
+        httpVersion: HttpVersionSupport;
+        useAcceptEncoding: boolean;
         keepAliveTimeout: number;
         cacheHttpRequest: boolean;
         cacheHttpRequestBuffer: HttpRequestBuffer;
@@ -222,7 +228,7 @@ declare namespace functions {
         install(name: "document", target: DocumentConstructor, module: DocumentModule): Undef<IDocument>;
         install(name: "image", data: Map<string, ImageConstructor>): void;
         install(name: "task", target: TaskConstructor, module: TaskModule): Undef<ITask>;
-        install(name: "watch", interval?: number, port?: number): Undef<IWatch>;
+        install(name: "watch", interval?: number, port?: number, securePort?: number): Undef<IWatch>;
         install(name: string, ...params: unknown[]): any;
         add(value: unknown, parent?: ExternalAsset): void;
         delete(value: unknown, emptyDir?: boolean): void;
@@ -251,7 +257,9 @@ declare namespace functions {
         addCopy(data: FileData, saveAs?: string, replace?: boolean): Undef<string>;
         findMime(data: FileData, rename?: boolean): Promise<string>;
         transformAsset(data: FileData, parent?: ExternalAsset): Promise<void>;
-        createRequestAgentOptions(uri: string, options?: request.CoreOptions, timeout?: number): Undef<request.CoreOptions>;
+        getHttpHost(uri: string): Null<HttpHostRequest>;
+        getHttpClient(uri: string, options?: HttpClientOptions): RedirectableRequest<ClientRequest, IncomingMessage> | ClientHttp2Stream;
+        fetchBuffer(uri: string, options?: FetchBufferOptions): Promise<Null<Buffer>>;
         processAssets(emptyDir?: boolean): void;
         finalize(): Promise<void>;
     }
@@ -260,6 +268,9 @@ declare namespace functions {
         moduleCompress(): ICompress;
         createPermission(): IPermission;
         resolveMime(data: Buffer | string): Promise<Undef<FileTypeResult>>;
+        resetHttpHost(version?: number): void;
+        getHttpBufferSize(): number;
+        clearHttpBuffer(percent?: number): void;
         formatSize(value: string): number;
         formatSize(value: number, options?: bytes.BytesOptions): string;
         new(baseDirectory: string, body: RequestBody, postFinalize?: PostFinalizeCallback, archiving?: boolean): IFileManager;
@@ -273,7 +284,7 @@ declare namespace functions {
         readonly minor: number;
         readonly patch: number;
         readonly errors: string[];
-        supported(major: number, minor: number, patch?: number): boolean;
+        supported: ModuleSupportedMethod;
         getTempDir(uuidDir?: boolean, filename?: string): string;
         formatMessage: ModuleFormatMessageMethod;
         formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: Null<Error>): void;
@@ -297,17 +308,19 @@ declare namespace functions {
         renameExt(value: string, ext: string): string;
         fromLocalPath(value: string): string;
         hasSameOrigin(value: string, other: string): boolean;
-        hasSameStat(src: string, dest: string): boolean;
+        hasSameStat(src: string, dest: string, keepEmpty?: boolean): boolean;
+        hasSize(src: string): boolean;
         isFileHTTP(value: string): boolean;
         isFileUNC(value: string): boolean;
         isPathUNC(value: string): boolean;
         isUUID(value: string): boolean;
+        isErrorCode(err: Error, ...code: string[]): boolean;
         resolveUri(value: string): string;
         resolvePath(value: string, href: string): string;
         joinPath(...values: unknown[]): string;
         getFileSize(value: PathLike): number;
         loadSettings(value: Settings): void;
-        allSettled<T>(values: readonly (T | PromiseLike<T>)[], rejected?: string | [string, string]): Promise<PromiseSettledResult<T>[]>;
+        allSettled<T>(values: readonly (T | PromiseLike<T>)[], options?: AllSettledOptions): Promise<PromiseSettledResult<T>[]>;
         new(): IModule;
     }
 
