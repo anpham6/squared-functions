@@ -153,12 +153,12 @@ function abortHttpRequest(options: HttpClientOptions) {
 
 function warnProtocol(this: IModule, host: HttpHostData, err: Error) {
     if (host.v2()) {
-        this.formatMessage(this.logType.SYSTEM, 'HTTP' + host.version, ['Unsupported protocol', host.origin], err, { titleColor: 'white', titleBgColor: 'bgGray' });
+        this.formatMessage(this.logType.HTTP, 'HTTP' + host.version, ['Unsupported protocol', host.origin], err, { failed: true });
     }
 }
 
-function downloadFail(this: IModule, uri: string, err: Error) {
-    this.writeFail(['Unable to download file', uri], err);
+function failDownload(this: IModule, uri: string, err: Error) {
+    this.writeFail(['Unable to download file', uri], err, this.logType.HTTP);
 }
 
 function retryRequest(value: number) {
@@ -374,6 +374,7 @@ class FileManager extends Module implements IFileManager {
     private _cleared = false;
     private _httpVersion: HttpVersionSupport = 1;
     private _sessionHttp2: ObjectMap<http2.ClientHttp2Session> = {};
+    private _connectHttp2: ObjectMap<number> = {};
 
     constructor(
         readonly baseDirectory: string,
@@ -601,8 +602,12 @@ class FileManager extends Module implements IFileManager {
                     this.postFinalize(files.map(name => ({ name, size: bytes(Module.getFileSize(path.join(this.baseDirectory, name))) } as FileInfo)), errors);
                 }
                 const sessionHttp2 = this._sessionHttp2;
-                for (const name in sessionHttp2) {
-                    sessionHttp2[name]!.close();
+                for (const host in sessionHttp2) {
+                    sessionHttp2[host]!.close();
+                }
+                const connectHttp2 = this._connectHttp2;
+                for (const host in connectHttp2) {
+                    this.formatMessage(this.logType.HTTP, 'HTTP2', [host, 'downloads: ' + connectHttp2[host]!]);
                 }
                 this.assets.forEach(item => {
                     if (item.buffer) {
@@ -1041,7 +1046,8 @@ class FileManager extends Module implements IFileManager {
                 signal = ac.signal;
                 options.outAbort = ac;
             }
-            const request = (this._sessionHttp2[host.origin] ||= http2.connect(host.origin)).request({ ...headers, ':path': pathname, ':method': method }, signal && { signal } as PlainObject);
+            const origin = host.origin;
+            const request = (this._sessionHttp2[origin] ||= http2.connect(origin)).request({ ...headers, ':path': pathname, ':method': method }, signal && { signal } as PlainObject);
             request.on('response', res => {
                 if (getting && (res[':status'] || 0) < HTTP_STATUS.MULTIPLE_CHOICES) {
                     let compressStream: Undef<Transform>;
@@ -1077,6 +1083,12 @@ class FileManager extends Module implements IFileManager {
                     }
                     else if (localStream && !request.destroyed) {
                         request.pipe(localStream);
+                    }
+                    if (!this._connectHttp2[origin]) {
+                        this._connectHttp2[origin] = 1;
+                    }
+                    else {
+                        ++this._connectHttp2[origin]!;
                     }
                 }
             });
@@ -1217,7 +1229,7 @@ class FileManager extends Module implements IFileManager {
                                     setTimeout(downloadUri, HTTP_RETRYDELAY);
                                 }
                                 else {
-                                    downloadFail.call(this, uri, err);
+                                    failDownload.call(this, uri, err);
                                 }
                             });
                     }
@@ -1230,7 +1242,7 @@ class FileManager extends Module implements IFileManager {
                 downloadUri();
             }
             catch (err) {
-                this.writeFail(['Unable to fetch bufffer', uri], err);
+                this.writeFail(['Unable to fetch bufffer', uri], err, this.logType.HTTP);
                 resolve(null);
             }
         });
@@ -1313,22 +1325,39 @@ class FileManager extends Module implements IFileManager {
                         if (parent) {
                             (parent.bundleQueue ||= []).push(
                                 new Promise<ExternalAsset>(resolve => {
-                                    (this.getHttpClient(uri!, { method: 'HEAD', httpVersion: 1 }) as ClientRequest)
-                                        .on('response', res => {
-                                            const statusCode = res.statusCode!;
-                                            if (statusCode >= 400) {
-                                                file.invalid = true;
-                                                downloadFail.call(this, uri!, fromStatusCode(statusCode));
-                                            }
-                                            else {
-                                                setHeaderData(file, res.headers);
-                                            }
-                                        })
-                                        .on('end', () => resolve(file))
-                                        .on('error', err => {
+                                    let retries = 0;
+                                    (function checkHeaders(this: IFileManager) {
+                                        const errorRequest = (err: Error) => {
                                             file.invalid = true;
-                                            downloadFail.call(this, uri!, err);
-                                        });
+                                            failDownload.call(this, uri!, err);
+                                            resolve(file);
+                                        };
+                                        const client = this.getHttpClient(uri!, { method: 'HEAD', httpVersion: 1 }) as ClientRequest;
+                                        client
+                                            .on('response', res => {
+                                                const statusCode = res.statusCode!;
+                                                if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
+                                                    if (retryRequest(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
+                                                        setTimeout(checkHeaders, HTTP_RETRYDELAY);
+                                                    }
+                                                    else {
+                                                        errorRequest(fromStatusCode(statusCode));
+                                                    }
+                                                }
+                                                else {
+                                                    setHeaderData(file, res.headers);
+                                                    client.on('end', () => resolve(file));
+                                                }
+                                            })
+                                            .on('error', err => {
+                                                if (checkHttpError(err) && ++retries <= HTTP_RETRYLIMIT) {
+                                                    setTimeout(checkHeaders, HTTP_RETRYDELAY);
+                                                }
+                                                else {
+                                                    errorRequest(err);
+                                                }
+                                            });
+                                    }).bind(this)();
                                 })
                             );
                         }
@@ -1427,7 +1456,7 @@ class FileManager extends Module implements IFileManager {
                                             const errorRequest = (err: Error) => {
                                                 if (!notFound.includes(uri)) {
                                                     notFound.push(uri);
-                                                    downloadFail.call(this, uri, err);
+                                                    failDownload.call(this, uri, err);
                                                 }
                                                 closeStream();
                                                 queue.invalid = true;
@@ -1471,16 +1500,24 @@ class FileManager extends Module implements IFileManager {
                                                     }
                                                     (client as ClientHttp2Stream).close();
                                                 };
-                                                const checkResponse = (statusCode: number, headers: IncomingHttpHeaders) => {
+                                                const checkResponse = (statusCode: number, headers: IncomingHttpHeaders, flags: number) => {
                                                     if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
-                                                        if (host.v2()) {
-                                                            if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
-                                                                ++retries;
-                                                            }
-                                                            retryDownload(false, fromNgFlags(0, statusCode, headers.location));
-                                                        }
-                                                        else if (retryRequest(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
+                                                        if (retryRequest(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
                                                             setTimeout(downloadUri, HTTP_RETRYDELAY);
+                                                        }
+                                                        else if (host.v2()) {
+                                                            if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
+                                                                if (HTTP2_UNSUPPORTED.includes(flags)) {
+                                                                    retryDownload(true, fromNgFlags(flags, statusCode));
+                                                                }
+                                                                else {
+                                                                    ++retries;
+                                                                    retryDownload(false);
+                                                                }
+                                                            }
+                                                            else {
+                                                                retryDownload(false, fromNgFlags(0, statusCode, headers.location));
+                                                            }
                                                         }
                                                         else {
                                                             errorRequest(fromStatusCode(statusCode));
@@ -1517,17 +1554,8 @@ class FileManager extends Module implements IFileManager {
                                                                 else if (downgradeVersion(statusCode)) {
                                                                     retryDownload(true, fromNgFlags(http2.constants.NGHTTP2_PROTOCOL_ERROR, HTTP_STATUS.HTTP_VERSION_NOT_SUPPORTED));
                                                                 }
-                                                                else if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
-                                                                    if (HTTP2_UNSUPPORTED.includes(flags)) {
-                                                                        retryDownload(true, fromNgFlags(flags, statusCode));
-                                                                    }
-                                                                    else {
-                                                                        ++retries;
-                                                                        retryDownload(false);
-                                                                    }
-                                                                }
                                                                 else {
-                                                                    checkResponse(statusCode, headers);
+                                                                    checkResponse(statusCode, headers, flags);
                                                                 }
                                                             }
                                                         })
@@ -1539,7 +1567,7 @@ class FileManager extends Module implements IFileManager {
                                                 }
                                                 else {
                                                     (client as ClientRequest)
-                                                        .on('response', res => checkResponse(res.statusCode!, res.headers))
+                                                        .on('response', res => checkResponse(res.statusCode!, res.headers, 0))
                                                         .on('error', err => {
                                                             host.failed();
                                                             if (checkHttpError(err) && ++retries <= HTTP_RETRYLIMIT) {
@@ -1579,7 +1607,7 @@ class FileManager extends Module implements IFileManager {
                         }
                     }
                     if (tasks.length) {
-                        await Module.allSettled(tasks, { rejected: ['Unable to download file', 'bundle: ' + path.basename(localUri)], errors: this.errors });
+                        await Module.allSettled(tasks, { rejected: ['Unable to download file', 'bundle: ' + path.basename(localUri)], errors: this.errors, type: this.logType.HTTP });
                     }
                 }
                 this.transformAsset({ file });
@@ -1657,7 +1685,7 @@ class FileManager extends Module implements IFileManager {
                 notFound.push(uri);
                 this.completeAsyncTask();
             }
-            downloadFail.call(this, uri, err);
+            failDownload.call(this, uri, err);
             if (outputStream) {
                 try {
                     outputStream.destroy();
@@ -1748,6 +1776,8 @@ class FileManager extends Module implements IFileManager {
                                 const options = this.getHttpHost(uri) as Required<HttpClientOptions>;
                                 const tempDir = createTempDir(options.url);
                                 let retries = 0;
+                                downloading[uri] = [];
+                                this.performAsyncTask();
                                 const downloadUri = (etagDir?: string, httpVersion?: HttpVersionSupport) => {
                                     let retrying: Undef<boolean>,
                                         aborted: Undef<boolean>,
@@ -1785,16 +1815,24 @@ class FileManager extends Module implements IFileManager {
                                         }
                                         (client as ClientHttp2Stream).close();
                                     };
-                                    const checkResponse = (statusCode: number, headers: IncomingHttpHeaders) => {
-                                        if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
+                                    const checkResponse = (statusCode: number, headers: IncomingHttpHeaders, flags: number) => {
+                                        if (retryRequest(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
+                                            setTimeout(downloadUri, HTTP_RETRYDELAY);
+                                        }
+                                        else if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
                                             if (host.v2()) {
                                                 if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
-                                                    ++retries;
+                                                    if (HTTP2_UNSUPPORTED.includes(flags)) {
+                                                        retryDownload(true, fromNgFlags(flags, statusCode));
+                                                    }
+                                                    else {
+                                                        ++retries;
+                                                        retryDownload(false);
+                                                    }
                                                 }
-                                                retryDownload(false, fromNgFlags(0, statusCode, headers.location));
-                                            }
-                                            else if (retryRequest(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
-                                                setTimeout(downloadUri, HTTP_RETRYDELAY);
+                                                else {
+                                                    retryDownload(false, fromNgFlags(0, statusCode, headers.location));
+                                                }
                                             }
                                             else {
                                                 errorRequest(item, fromStatusCode(statusCode), localStream);
@@ -1823,17 +1861,8 @@ class FileManager extends Module implements IFileManager {
                                                     else if (downgradeVersion(statusCode)) {
                                                         retryDownload(true, fromNgFlags(http2.constants.NGHTTP2_PROTOCOL_ERROR, HTTP_STATUS.HTTP_VERSION_NOT_SUPPORTED));
                                                     }
-                                                    else if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
-                                                        if (HTTP2_UNSUPPORTED.includes(flags)) {
-                                                            retryDownload(true, fromNgFlags(flags, statusCode));
-                                                        }
-                                                        else {
-                                                            ++retries;
-                                                            retryDownload(false);
-                                                        }
-                                                    }
                                                     else {
-                                                        checkResponse(statusCode, headers);
+                                                        checkResponse(statusCode, headers, flags);
                                                     }
                                                 }
                                             })
@@ -1845,7 +1874,7 @@ class FileManager extends Module implements IFileManager {
                                     }
                                     else {
                                         (client as ClientRequest)
-                                            .on('response', res => checkResponse(res.statusCode!, res.headers))
+                                            .on('response', res => checkResponse(res.statusCode!, res.headers, 0))
                                             .on('error', err => {
                                                 host.failed();
                                                 if (checkHttpError(err) && ++retries <= HTTP_RETRYLIMIT) {
@@ -1890,81 +1919,93 @@ class FileManager extends Module implements IFileManager {
                                         }
                                     });
                                 };
-                                this.performAsyncTask();
-                                downloading[uri] = [];
-                                (this.getHttpClient(uri, { method: 'HEAD', httpVersion: 1 }) as ClientRequest)
-                                    .on('response', res => {
-                                        const statusCode = res.statusCode!;
-                                        if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
-                                            errorRequest(item, fromStatusCode(statusCode));
-                                        }
-                                        else {
-                                            const etag = setHeaderData(item, res.headers);
-                                            let etagDir: Undef<string>;
-                                            if (Module.isString(etag)) {
-                                                const cached = HTTP_BUFFER[uri];
-                                                let buffer: Null<Buffer> = null;
-                                                if (cached) {
-                                                    const etagCache = cached[0];
-                                                    if (etagDir === etagCache) {
-                                                        buffer = cached[1];
-                                                    }
-                                                    else {
-                                                        clearTempBuffer(uri, tempDir && path.join(tempDir, etagCache, path.basename(localUri)));
-                                                    }
+                                (function checkHeaders(this: IFileManager) {
+                                    (this.getHttpClient(uri, { method: 'HEAD', httpVersion: 1 }) as ClientRequest)
+                                        .on('response', res => {
+                                            const statusCode = res.statusCode!;
+                                            if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
+                                                if (retryRequest(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
+                                                    setTimeout(checkHeaders, HTTP_RETRYDELAY);
                                                 }
-                                                const checkBuffer = () => {
-                                                    if (buffer) {
-                                                        if (item.willChange) {
-                                                            item.buffer = buffer;
-                                                        }
-                                                        fs.writeFileSync(localUri, buffer);
-                                                        fileReceived();
-                                                        return true;
-                                                    }
-                                                    return false;
-                                                };
-                                                try {
-                                                    if (tempDir) {
-                                                        const tempUri = path.join(tempDir, etagDir = encodeURIComponent(etag), path.basename(localUri));
-                                                        if (Module.hasSize(tempUri)) {
-                                                            if (!buffer && isCacheable(item)) {
-                                                                setTempBuffer(item, uri, etagDir, buffer = fs.readFileSync(tempUri), tempUri);
-                                                            }
-                                                            if (this.archiving || !Module.hasSameStat(tempUri, localUri)) {
-                                                                if (buffer) {
-                                                                    fs.writeFileSync(localUri, buffer);
-                                                                }
-                                                                else {
-                                                                    fs.copyFileSync(tempUri, localUri);
-                                                                }
-                                                            }
-                                                            if (buffer && !item.willChange) {
-                                                                item.buffer = buffer;
-                                                            }
-                                                            fileReceived();
-                                                            return;
-                                                        }
-                                                        else if (checkBuffer()) {
-                                                            try {
-                                                                fs.writeFileSync(tempUri, buffer!);
-                                                            }
-                                                            catch {
-                                                            }
-                                                            return;
-                                                        }
-                                                    }
-                                                    else if (checkBuffer()) {
-                                                        return;
-                                                    }
-                                                }
-                                                catch {
+                                                else {
+                                                    errorRequest(item, fromStatusCode(statusCode));
                                                 }
                                             }
-                                            downloadUri(etagDir);
-                                        }
-                                    })
-                                    .on('error', err => errorRequest(item, err));
+                                            else {
+                                                const etag = setHeaderData(item, res.headers);
+                                                let etagDir: Undef<string>;
+                                                if (Module.isString(etag)) {
+                                                    const cached = HTTP_BUFFER[uri];
+                                                    let buffer: Null<Buffer> = null;
+                                                    if (cached) {
+                                                        const etagCache = cached[0];
+                                                        if (etagDir === etagCache) {
+                                                            buffer = cached[1];
+                                                        }
+                                                        else {
+                                                            clearTempBuffer(uri, tempDir && path.join(tempDir, etagCache, path.basename(localUri)));
+                                                        }
+                                                    }
+                                                    const checkBuffer = () => {
+                                                        if (buffer) {
+                                                            if (item.willChange) {
+                                                                item.buffer = buffer;
+                                                            }
+                                                            fs.writeFileSync(localUri, buffer);
+                                                            fileReceived();
+                                                            return true;
+                                                        }
+                                                        return false;
+                                                    };
+                                                    try {
+                                                        if (tempDir) {
+                                                            const tempUri = path.join(tempDir, etagDir = encodeURIComponent(etag), path.basename(localUri));
+                                                            if (Module.hasSize(tempUri)) {
+                                                                if (!buffer && isCacheable(item)) {
+                                                                    setTempBuffer(item, uri, etagDir, buffer = fs.readFileSync(tempUri), tempUri);
+                                                                }
+                                                                if (this.archiving || !Module.hasSameStat(tempUri, localUri)) {
+                                                                    if (buffer) {
+                                                                        fs.writeFileSync(localUri, buffer);
+                                                                    }
+                                                                    else {
+                                                                        fs.copyFileSync(tempUri, localUri);
+                                                                    }
+                                                                }
+                                                                if (buffer && !item.willChange) {
+                                                                    item.buffer = buffer;
+                                                                }
+                                                                fileReceived();
+                                                                return;
+                                                            }
+                                                            else if (checkBuffer()) {
+                                                                try {
+                                                                    fs.writeFileSync(tempUri, buffer!);
+                                                                }
+                                                                catch {
+                                                                }
+                                                                return;
+                                                            }
+                                                        }
+                                                        else if (checkBuffer()) {
+                                                            return;
+                                                        }
+                                                    }
+                                                    catch {
+                                                    }
+                                                }
+                                                downloadUri(etagDir);
+                                            }
+                                        })
+                                        .on('error', err => {
+                                            if (checkHttpError(err) && ++retries <= HTTP_RETRYLIMIT) {
+                                                setTimeout(checkHeaders, HTTP_RETRYDELAY);
+                                            }
+                                            else {
+                                                errorRequest(item, err);
+                                            }
+                                        });
+                                }).bind(this)();
                             }
                         }
                     }
