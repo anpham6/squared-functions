@@ -48,7 +48,7 @@ export interface BundleAction {
     bundleId?: number;
     bundleIndex?: number;
     bundleReplace?: string;
-    bundleRoot?: string;
+    bundleQueue?: Promise<unknown>[];
     trailingContent?: string[];
 }
 

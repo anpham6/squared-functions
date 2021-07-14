@@ -4,7 +4,7 @@ import type { CropData, QualityData, ResizeData, RotateData } from '../types/lib
 
 import Module from '../module';
 
-enum METHOD_ARGTYPE { // eslint-disable-line no-shadow
+const enum METHOD_ARGTYPE { // eslint-disable-line no-shadow
     ARRAY = 1,
     OBJECT = 2,
     STRING = 3,

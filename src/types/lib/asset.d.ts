@@ -1,4 +1,5 @@
 import type { BundleAction, FileAsset, StorageAction } from './squared';
+
 import type { CloudStorage } from './cloud';
 
 export interface FileData<T = ExternalAsset> {
@@ -29,5 +30,6 @@ export interface ExternalAsset<T = CloudStorage> extends FileAsset, BundleAction
     transforms?: string[];
     sourceFiles?: string[];
     etag?: string;
+    contentLength?: number;
     invalid?: boolean;
 }

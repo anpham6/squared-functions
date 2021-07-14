@@ -2,20 +2,25 @@ import type { DataSource, FileInfo } from '../types/lib/squared';
 
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
-import type { CloudDatabase, CloudService } from '../types/lib/cloud';
-import type { HttpRequestBuffer, InstallData, PostFinalizeCallback } from '../types/lib/filemanager';
+import type { CloudDatabase } from '../types/lib/cloud';
+import type { FetchBufferOptions, HttpClientOptions, HttpHostData, HttpHostRequest, HttpRequestBuffer, HttpVersionSupport, InstallData, PostFinalizeCallback } from '../types/lib/filemanager';
 import type { CloudModule, DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
 
+import type { ClientRequest, IncomingHttpHeaders, IncomingMessage, OutgoingHttpHeaders } from 'http';
+import type { ClientHttp2Stream } from 'http2';
+import type { Transform } from 'stream';
+
 import path = require('path');
 import fs = require('fs-extra');
-import http = require('http');
-import https = require('https');
-import request = require('request');
+import http2 = require('http2');
+import stream = require('stream');
+import zlib = require('zlib');
+import httpStatus = require('http-status-codes');
+import followRedirects = require('follow-redirects');
 import mime = require('mime-types');
-import bytes = require('bytes');
 import filetype = require('file-type');
-
+import bytes = require('bytes');
 import Module from '../module';
 import Document from '../document';
 import Task from '../task';
@@ -26,7 +31,87 @@ import Permission from './permission';
 
 import Compress from '../compress';
 
-const CACHE_HTTPBUFFER: ObjectMap<Buffer> = {};
+const { http, https } = followRedirects;
+
+const enum HTTP2 { // eslint-disable-line no-shadow
+    MAX_FAILED = 5
+}
+
+const enum HTTP_STATUS { // eslint-disable-line no-shadow
+    CONTINUE = 100,
+    SWITCHING_PROTOCOLS = 101,
+    PROCESSING = 102,
+    OK = 200,
+    CREATED = 201,
+    ACCEPTED = 202,
+    NON_AUTHORITATIVE_INFORMATION = 203,
+    NO_CONTENT = 204,
+    RESET_CONTENT = 205,
+    PARTIAL_CONTENT = 206,
+    MULTI_STATUS = 207,
+    ALREADY_REPORTED = 208,
+    IM_USED = 226,
+    MULTIPLE_CHOICES = 300,
+    MOVED_PERMANENTLY = 301,
+    FOUND = 302,
+    SEE_OTHER = 303,
+    NOT_MODIFIED = 304,
+    USE_PROXY = 305,
+    TEMPORARY_REDIRECT = 307,
+    PERMANENT_REDIRECT = 308,
+    BAD_REQUEST = 400,
+    UNAUTHORIZED = 401,
+    PAYMENT_REQUIRED = 402,
+    FORBIDDEN = 403,
+    NOT_FOUND = 404,
+    METHOD_NOT_ALLOWED = 405,
+    NOT_ACCEPTABLE = 406,
+    PROXY_AUTHENTICATION_REQUIRED = 407,
+    REQUEST_TIMEOUT = 408,
+    CONFLICT = 409,
+    GONE = 410,
+    LENGTH_REQUIRED = 411,
+    PRECONDITION_FAILED = 412,
+    PAYLOAD_TOO_LARGE = 413,
+    REQUEST_URI_TOO_LONG = 414,
+    UNSUPPORTED_MEDIA_TYPE = 415,
+    REQUESTED_RANGE_NOT_SATISFIABLE = 416,
+    EXPECTATION_FAILED = 417,
+    IM_A_TEAPOT = 418,
+    MISDIRECTED_REQUEST = 421,
+    UNPROCESSABLE_ENTITY = 422,
+    LOCKED = 423,
+    FAILED_DEPENDENCY = 424,
+    UPGRADE_REQUIRED = 426,
+    PRECONDITION_REQUIRED = 428,
+    TOO_MANY_REQUESTS = 429,
+    REQUEST_HEADER_FIELDS_TOO_LARGE = 431,
+    CONNECTION_CLOSED_WITHOUT_RESPONSE = 444,
+    UNAVAILABLE_FOR_LEGAL_REASONS = 451,
+    CLIENT_CLOSED_REQUEST = 499,
+    INTERNAL_SERVER_ERROR = 500,
+    NOT_IMPLEMENTED = 501,
+    BAD_GATEWAY = 502,
+    SERVICE_UNAVAILABLE = 503,
+    GATEWAY_TIMEOUT = 504,
+    HTTP_VERSION_NOT_SUPPORTED = 505,
+    VARIANT_ALSO_NEGOTIATES = 506,
+    INSUFFICIENT_STORAGE = 507,
+    LOOP_DETECTED = 508,
+    NOT_EXTENDED = 510,
+    NETWORK_AUTHENTICATION_REQUIRED = 511,
+    NETWORK_CONNECT_TIMEOUT_ERROR = 599
+}
+
+const HTTP2_UNSUPPORTED = [
+    http2.constants.NGHTTP2_PROTOCOL_ERROR /* 1 */,
+    http2.constants.NGHTTP2_CONNECT_ERROR /* 10 */,
+    http2.constants.NGHTTP2_INADEQUATE_SECURITY /* 12 */,
+    http2.constants.NGHTTP2_HTTP_1_1_REQUIRED /* 13 */
+];
+const HTTP_HOST: ObjectMap<HttpHostData> = {};
+const HTTP_BUFFER: ObjectMap<Null<[string, Buffer]>> = {};
+const HTTP_BROTLISUPPORT = Module.supported(11, 7) || Module.supported(10, 16, 0, true);
 
 function parseSizeRange(value: string) {
     const match = /\(\s*(\d+)\s*(?:,\s*(\d+|\*)\s*)?\)/.exec(value);
@@ -46,6 +131,44 @@ function withinSizeRange(uri: string, value: Undef<string>) {
     return true;
 }
 
+function downgradeHost(host: HttpHostData) {
+    const { version, failed } = host;
+    if (version === 2) {
+        if (!failed[0]) {
+            failed[0] = 1;
+        }
+        else {
+            failed[0]++;
+        }
+        host.version = 1;
+    }
+}
+
+function abortHttpRequest(options: HttpClientOptions) {
+    const ac = options.outAbort;
+    if (ac) {
+        ac.abort();
+        delete options.outAbort;
+        return true;
+    }
+    return false;
+}
+
+function warnProtocol(this: IModule, host: HttpHostData, err: Error) {
+    if (host.v2()) {
+        this.formatMessage(this.logType.SYSTEM, 'HTTP' + host.version, ['Unsupported protocol', host.authority], err, { titleColor: 'white', titleBgColor: 'bgGray' });
+    }
+}
+
+function downloadFail(this: IModule, uri: string, err: Error) {
+    this.writeFail(['Unable to download file', uri], err);
+}
+
+const invalidRequest = (value: number) => value >= HTTP_STATUS.UNAUTHORIZED && value <= HTTP_STATUS.NOT_FOUND;
+const downgradeVersion = (value: number) => value === HTTP_STATUS.MISDIRECTED_REQUEST || value === HTTP_STATUS.HTTP_VERSION_NOT_SUPPORTED;
+const fromNgFlags = (value: number, statusCode: number, location?: string) => location ? new Error(`Using HTTP 1.1 for URL redirect (${location})`) : fromStatusCode(statusCode, value ? 'NGHTTP2 Error ' + value : '');
+const fromStatusCode = (value: NumString, hint?: string) => new Error(value + ': ' + httpStatus.getReasonPhrase(value) + (hint ? ` (${hint})` : ''));
+const checkHostFail = (host: HttpHostData) => host.success[0] === 0 || host.failed[0] >= HTTP2.MAX_FAILED;
 const concatString = (values: Undef<string[]>) => Array.isArray(values) ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
 
@@ -66,8 +189,61 @@ class FileManager extends Module implements IFileManager {
         return Module.isString(value) ? bytes(value) : bytes(value, options);
     }
 
+    static resetHttpHost(version = 0) {
+        switch (version) {
+            case 0:
+                for (const authority in HTTP_HOST) {
+                    delete HTTP_HOST[authority];
+                }
+                break;
+            case 1:
+                for (const authority in HTTP_HOST) {
+                    HTTP_HOST[authority]!.version = 1;
+                }
+                break;
+            case 2: {
+                for (const authority in HTTP_HOST) {
+                    const host = HTTP_HOST[authority]!;
+                    const failed = host.failed[0];
+                    if (!failed || host.success[0] && failed < HTTP2.MAX_FAILED) {
+                        host.version = version;
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    static getHttpBufferSize() {
+        let result = 0;
+        for (const uri in HTTP_BUFFER) {
+            result += Buffer.byteLength(HTTP_BUFFER[uri]![1]);
+        }
+        return result;
+    }
+
+    static clearHttpBuffer(percent = 1) {
+        if (percent >= 1 || isNaN(percent)) {
+            for (const uri in HTTP_BUFFER) {
+                delete HTTP_BUFFER[uri];
+            }
+        }
+        else if (percent > 0) {
+            const bufferSize = Math.ceil(this.getHttpBufferSize() * percent);
+            let purgeSize = 0;
+            for (const uri in HTTP_BUFFER) {
+                purgeSize += Buffer.byteLength(HTTP_BUFFER[uri]![1]);
+                delete HTTP_BUFFER[uri];
+                if (purgeSize >= bufferSize) {
+                    break;
+                }
+            }
+        }
+    }
+
     moduleName = 'filemanager';
     delayed = 0;
+    useAcceptEncoding = false;
     keepAliveTimeout = 0;
     cacheHttpRequest = false;
     cacheHttpRequestBuffer: HttpRequestBuffer = { expires: 0, limit: Infinity };
@@ -94,6 +270,8 @@ class FileManager extends Module implements IFileManager {
     readonly postFinalize: Null<PostFinalizeCallback> = null;
 
     private _cleared = false;
+    private _httpVersion: HttpVersionSupport = 1;
+    private _sessionHttp2: ObjectMap<http2.ClientHttp2Session> = {};
 
     constructor(
         readonly baseDirectory: string,
@@ -149,7 +327,11 @@ class FileManager extends Module implements IFileManager {
                 break;
             case 'watch': {
                 const [port, securePort] = params;
-                const instance = new Watch(typeof target === 'number' && target > 0 ? target : undefined, typeof port === 'number' && port > 0 ? port : undefined, typeof securePort === 'number' && securePort > 0 ? securePort : undefined);
+                const instance = new Watch(
+                    typeof target === 'number' && target > 0 ? target : undefined,
+                    typeof port === 'number' && port > 0 ? port : undefined,
+                    typeof securePort === 'number' && securePort > 0 ? securePort : undefined
+                );
                 instance.host = this;
                 instance.whenModified = (assets: ExternalAsset[], postFinalize?: PostFinalizeCallback) => {
                     const manager = new FileManager(this.baseDirectory, { ...this.body, assets }, postFinalize);
@@ -169,6 +351,8 @@ class FileManager extends Module implements IFileManager {
                         manager.install('compress');
                     }
                     manager.permission = this.permission;
+                    manager.httpVersion = this.httpVersion;
+                    manager.keepAliveTimeout = this.keepAliveTimeout;
                     manager.cacheHttpRequest = this.cacheHttpRequest;
                     manager.cacheHttpRequestBuffer = this.cacheHttpRequestBuffer;
                     manager.processAssets();
@@ -259,7 +443,7 @@ class FileManager extends Module implements IFileManager {
     removeAsyncTask() {
         --this.delayed;
     }
-    completeAsyncTask(err: Null<Error> = null, localUri = '', parent?: ExternalAsset) {
+    completeAsyncTask(err?: Null<Error>, localUri = '', parent?: ExternalAsset) {
         if (this.delayed !== Infinity) {
             if (!err && localUri) {
                 this.add(localUri, parent);
@@ -314,6 +498,18 @@ class FileManager extends Module implements IFileManager {
                     this.subProcesses.forEach(instance => addErrors(instance));
                     this.postFinalize(files.map(name => ({ name, size: bytes(Module.getFileSize(path.join(this.baseDirectory, name))) } as FileInfo)), errors);
                 }
+                const sessionHttp2 = this._sessionHttp2;
+                for (const name in sessionHttp2) {
+                    sessionHttp2[name]!.close();
+                }
+                this.assets.forEach(item => {
+                    if (item.buffer) {
+                        delete item.buffer;
+                    }
+                    if (item.sourceUTF8) {
+                        delete item.sourceUTF8;
+                    }
+                });
             });
         }
     }
@@ -551,7 +747,7 @@ class FileManager extends Module implements IFileManager {
                         valid = true;
                         break;
                     case 'br':
-                        valid = this.supported(11, 7);
+                        valid = this.supported(11, 7) || this.supported(10, 16, 0, true);
                         data.mimeType ||= file.mimeType;
                         break;
                     default:
@@ -580,7 +776,9 @@ class FileManager extends Module implements IFileManager {
                                                     fs.unlinkSync(result);
                                                 }
                                                 catch (err_1) {
-                                                    this.writeFail(['Unable to delete file', result], err_1, this.logType.FILE);
+                                                    if (!Module.isErrorCode(err_1, 'ENOENT')) {
+                                                        this.writeFail(['Unable to delete file', result], err_1, this.logType.FILE);
+                                                    }
                                                 }
                                             }
                                             else {
@@ -621,8 +819,8 @@ class FileManager extends Module implements IFileManager {
                 }
             }
         }
+        let mimeType = file.mimeType;
         if (this.Image) {
-            let mimeType = file.mimeType;
             if (!mimeType && file.commands || mimeType === 'image/unknown') {
                 mimeType = await this.findMime(data, true);
             }
@@ -638,7 +836,7 @@ class FileManager extends Module implements IFileManager {
                 }
             }
         }
-        if (file.document) {
+        if (file.document && (!mimeType || !mimeType.startsWith('image/'))) {
             for (const { instance, constructor } of this.Document) {
                 if (this.hasDocument(instance, file.document)) {
                     await constructor.using.call(this, instance, file);
@@ -647,12 +845,14 @@ class FileManager extends Module implements IFileManager {
         }
         if (file.invalid) {
             try {
-                if (localUri && fs.existsSync(localUri) && !file.bundleId) {
+                if (localUri && !file.bundleId && fs.existsSync(localUri)) {
                     fs.unlinkSync(localUri);
                 }
             }
             catch (err) {
-                this.writeFail(['Unable to delete file', localUri], err, this.logType.FILE);
+                if (!Module.isErrorCode(err, 'ENOENT')) {
+                    this.writeFail(['Unable to delete file', localUri], err, this.logType.FILE);
+                }
             }
             this.completeAsyncTask();
         }
@@ -660,8 +860,267 @@ class FileManager extends Module implements IFileManager {
             this.completeAsyncTask(null, localUri, parent);
         }
     }
-    createRequestAgentOptions(uri: string, options?: request.CoreOptions, timeout = this.keepAliveTimeout): Undef<request.CoreOptions> {
-        return timeout > 0 ? { ...options, agentOptions: { keepAlive: true, timeout }, agentClass: uri.startsWith('https') ? https.Agent : http.Agent } : options;
+    getHttpHost(uri: string): HttpHostRequest {
+        const url = new URL(uri);
+        const authority = url.origin;
+        const credentials = url.username + (url.password ? ':' + url.password : '');
+        const key = authority + credentials;
+        let host = HTTP_HOST[key];
+        if (!host) {
+            const protocol = url.protocol;
+            const secure = protocol === 'https:';
+            const localhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+            let headers: Undef<OutgoingHttpHeaders>;
+            if (credentials) {
+                headers = { authorization: 'Basic ' + Buffer.from(credentials, 'base64') };
+            }
+            host = Object.create({
+                authority,
+                credentials,
+                version: secure ? this.httpVersion : 1,
+                protocol,
+                secure,
+                localhost,
+                success: [0],
+                failed: [0],
+                headers,
+                "v2": function(this: HttpHostData) { return this.version === 2; }
+            }) as HttpHostData;
+            HTTP_HOST[key] = host;
+        }
+        return { host, url };
+    }
+    getHttpClient(uri: string, options?: HttpClientOptions) {
+        let host: Undef<HttpHostData>,
+            url: Undef<URL>,
+            method: Undef<string>,
+            httpVersion: Undef<HttpVersionSupport>,
+            headers: Undef<OutgoingHttpHeaders>,
+            localStream: Undef<fs.WriteStream>,
+            timeout: Undef<number>;
+        if (options) {
+            ({ host, url, method, httpVersion, headers, localStream, timeout } = options);
+        }
+        if (!host) {
+            ({ host, url } = this.getHttpHost(uri));
+            if (options) {
+                options.host = host;
+                options.url = url;
+            }
+        }
+        else if (!url) {
+            url = new URL(uri);
+            if (options) {
+                options.url = url;
+            }
+        }
+        if (httpVersion && host.version !== httpVersion) {
+            if (options) {
+                host = { ...host };
+                options.host = host;
+            }
+            else {
+                HTTP_HOST[host.authority + host.credentials] = { ...host };
+            }
+            host.version = httpVersion;
+        }
+        method ||= 'GET';
+        const getting = method === 'GET';
+        if (getting && !host.localhost) {
+            if (this.useAcceptEncoding) {
+                (headers ||= {})['accept-encoding'] ||= 'gzip, deflate' + (HTTP_BROTLISUPPORT ? ', br' : '');
+            }
+        }
+        if (host.headers) {
+            headers = headers ? { ...host.headers, ...headers } : host.headers;
+        }
+        const pathname = url.pathname + url.search;
+        const checkEncoding = (res: IncomingMessage | ClientHttp2Stream, encoding = ''): Undef<Transform> => {
+            switch (encoding.trim().toLowerCase()) {
+                case 'gzip':
+                    return res.pipe(zlib.createGunzip());
+                case 'br':
+                    if (HTTP_BROTLISUPPORT) {
+                        return res.pipe(zlib.createBrotliDecompress());
+                    }
+
+                        res.destroy(new Error('Unable to decompress Brotli encoding'));
+
+                case 'deflate':
+                    return res.pipe(zlib.createInflate());
+            }
+        };
+        if (host.v2()) {
+            let signal: Undef<AbortSignal>;
+            if (options && this.supported(15, 4)) {
+                const ac = new AbortController();
+                signal = ac.signal;
+                options.outAbort = ac;
+            }
+            const request = (this._sessionHttp2[host.authority] ||= http2.connect(host.authority)).request({ ...headers, ':path': pathname, ':method': method }, signal && { signal } as PlainObject);
+            request.on('response', res => {
+                if (getting && (res[':status'] || 0) < HTTP_STATUS.MULTIPLE_CHOICES) {
+                    let compressStream: Undef<Transform>;
+                    if (this.useAcceptEncoding && (compressStream = checkEncoding(request, res['content-encoding']))) {
+                        if (localStream) {
+                            compressStream.pipe(localStream);
+                            compressStream.once('finish', () => {
+                                localStream!
+                                    .on('finish', function(this: Transform) { this.destroy(); })
+                                    .emit('finish');
+                            });
+                            localStream.on('error', err => request.emit('error', err));
+                        }
+                        else {
+                            const addListener = request.on.bind(request);
+                            request.on = function(this: ClientHttp2Stream, event: string, listener: (...args: any[]) => void) {
+                                switch (event) {
+                                    case 'data':
+                                    case 'close':
+                                    case 'error':
+                                        compressStream!.on(event, listener);
+                                        break;
+                                    case 'end':
+                                        compressStream!.on('finish', listener);
+                                        break;
+                                    default:
+                                        addListener(event, listener);
+                                        break;
+                                }
+                                return this;
+                            };
+                        }
+                    }
+                    else if (localStream && !request.destroyed) {
+                        request.pipe(localStream);
+                    }
+                }
+            });
+            request.end();
+            return request;
+        }
+        timeout ??= this.keepAliveTimeout;
+        const request = (host.secure ? https : http).request({
+            protocol: url.protocol,
+            hostname: url.hostname,
+            port: url.port || (host.secure ? '443' : '80'),
+            path: pathname,
+            method,
+            headers,
+            agent: timeout > 0 ? new (host.secure ? https.Agent : http.Agent)({ keepAlive: true, timeout }) : false
+        }, res => {
+            let outputStream: Undef<IncomingMessage | Transform>;
+            if (getting) {
+                outputStream = checkEncoding(res, res.headers['content-encoding']);
+                if (res.destroyed) {
+                    return;
+                }
+            }
+            if (outputStream ||= res) {
+                outputStream.on('data', chunk => request.emit('data', chunk));
+                outputStream.on('error', err => request.emit('error', err));
+                outputStream.on('close', () => request.emit('close'));
+                outputStream.once('end', () => request.emit('end'));
+                if (localStream) {
+                    stream.pipeline(outputStream, localStream, err => {
+                        if (err) {
+                            request.emit('error', err);
+                        }
+                    });
+                }
+            }
+        });
+        request.end();
+        return request;
+    }
+    fetchBuffer(uri: string, options?: FetchBufferOptions) {
+        return new Promise<Null<Buffer>>(resolve => {
+            try {
+                const server = this.getHttpHost(uri) as Required<HttpClientOptions>;
+                const httpVersion = options && options.httpVersion;
+                if (httpVersion) {
+                    server.httpVersion = httpVersion;
+                }
+                const client = this.getHttpClient(uri, server);
+                const host = server.host;
+                let buffer: Null<Buffer> = null;
+                if (host.v2()) {
+                    let retrying: Undef<boolean>,
+                        aborted: Undef<boolean>;
+                    const retryDownload = async (downgrade: boolean, err?: Error) => {
+                        if (err) {
+                            warnProtocol.call(this, host, err);
+                        }
+                        if (!retrying) {
+                            aborted = abortHttpRequest(server);
+                            retrying = true;
+                            buffer = null;
+                            if (downgrade) {
+                                downgradeHost(host);
+                                resolve(await this.fetchBuffer(uri));
+                            }
+                            else {
+                                resolve(await this.fetchBuffer(uri, { httpVersion: 1 }));
+                            }
+                        }
+                        (client as ClientHttp2Stream).close();
+                    };
+
+                    (client as ClientHttp2Stream)
+                        .on('response', (headers, flags) => {
+                            if (!retrying) {
+                                const statusCode = headers[':status']!;
+                                if (invalidRequest(statusCode)) {
+                                    resolve(null);
+                                }
+                                else if (downgradeVersion(statusCode)) {
+                                    retryDownload(true, fromNgFlags(http2.constants.NGHTTP2_PROTOCOL_ERROR, HTTP_STATUS.HTTP_VERSION_NOT_SUPPORTED));
+                                }
+                                else if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
+                                    if (HTTP2_UNSUPPORTED.includes(flags)) {
+                                        retryDownload(checkHostFail(host), fromNgFlags(flags, statusCode));
+                                    }
+                                    else {
+                                        retryDownload(false);
+                                    }
+                                }
+                                else if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
+                                    retryDownload(false, fromNgFlags(0, statusCode, headers.location));
+                                }
+                                else {
+                                    client.on('end', () => {
+                                        if (!retrying) {
+                                            if (buffer) {
+                                                host.success[0]++;
+                                            }
+                                            resolve(buffer);
+                                        }
+                                    });
+                                }
+                            }
+                        })
+                        .on('error', err => {
+                            if (!retrying && !aborted) {
+                                retryDownload(true, err);
+                            }
+                        });
+                }
+                else {
+                    (client as ClientRequest)
+                        .on('end', () => resolve(buffer))
+                        .on('error', err => downloadFail.call(this, uri, err));
+                }
+                client.on('data', data => {
+                    if (Buffer.isBuffer(data)) {
+                        buffer = buffer ? Buffer.concat([buffer, data]) : data;
+                    }
+                });
+            }
+            catch (err) {
+                this.writeFail(['Unable to fetch bufffer', uri], err);
+                resolve(null);
+            }
+        });
     }
     processAssets(emptyDir?: boolean) {
         const processing: ObjectMap<ExternalAsset[]> = {};
@@ -670,15 +1129,97 @@ class FileManager extends Module implements IFileManager {
         const completed: string[] = [];
         const emptied: string[] = [];
         const notFound: string[] = [];
-        const cacheExpires = this.cacheHttpRequestBuffer.expires;
-        const cacheRequest = cacheExpires > 0;
-        const cacheBufferLimit = cacheRequest ? this.cacheHttpRequestBuffer.limit : -1;
+        const { expires: bufferExpires, limit: bufferLimit } = this.cacheHttpRequestBuffer;
+        const isCacheable = (file: ExternalAsset) => bufferLimit > 0 && (!file.contentLength || file.contentLength <= bufferLimit);
+        const permissionFail = (file: ExternalAsset) => {
+            const uri = file.uri!;
+            this.writeFail(['Unable to read file', uri], new Error(`Insufficient permissions (${uri})`));
+            file.invalid = true;
+        };
+        const setHeaderData = (file: ExternalAsset, headers: IncomingHttpHeaders, lastModified?: boolean) => {
+            let length: Undef<NumString> = headers['content-length'];
+            if (length && !isNaN(length = parseInt(length))) {
+                file.contentLength = length;
+            }
+            let etag = headers.etag;
+            if (etag) {
+                file.etag = etag;
+            }
+            else if (lastModified && this.Watch) {
+                etag = headers['last-modified'];
+                file.etag = etag;
+            }
+            return etag;
+        };
+        const clearTempBuffer = (uri: string, tempUri?: string) => {
+            if (tempUri) {
+                try {
+                    fs.unlinkSync(tempUri);
+                    fs.rmdirSync(path.dirname(tempUri));
+                }
+                catch {
+                }
+            }
+            if (uri in HTTP_BUFFER) {
+                delete HTTP_BUFFER[uri];
+            }
+        };
+        const setTempBuffer = (file: ExternalAsset, uri: string, etag: string, buffer: Buffer, tempUri?: string) => {
+            const contentLength = file.contentLength || Buffer.byteLength(buffer);
+            if (contentLength <= bufferLimit) {
+                HTTP_BUFFER[uri] = [etag, buffer];
+                if (bufferExpires < Infinity) {
+                    setTimeout(() => clearTempBuffer(uri, tempUri), bufferExpires);
+                }
+            }
+            else {
+                clearTempBuffer(uri, tempUri);
+            }
+        };
+        const createTempDir = (url: URL) => {
+            if (this.cacheHttpRequest) {
+                const tempDir = this.getTempDir(false, url.hostname + (url.port ? '_' + url.port : ''));
+                try {
+                    fs.mkdirpSync(tempDir);
+                    return tempDir;
+                }
+                catch (err) {
+                    this.writeFail(['Unable to create directory', tempDir], err, this.logType.FILE);
+                }
+            }
+        };
         const checkQueue = (file: ExternalAsset, localUri: string, content?: boolean) => {
             const bundleIndex = file.bundleIndex!;
             if (bundleIndex >= 0) {
-                const bundle = appending[localUri] ||= [];
+                const items = appending[localUri] ||= [];
                 if (bundleIndex > 0) {
-                    bundle[bundleIndex - 1] = file;
+                    items[bundleIndex - 1] = file;
+                    if ((this.cacheHttpRequest || bufferLimit > 0) && !file.content) {
+                        const { uri, bundleId } = file;
+                        const parent = this.assets.find(item => item.bundleIndex === 0 && item.bundleId === bundleId);
+                        if (parent) {
+                            (parent.bundleQueue ||= []).push(
+                                new Promise<ExternalAsset>(resolve => {
+                                    (this.getHttpClient(uri!, { method: 'HEAD', httpVersion: 1 }) as ClientRequest)
+                                        .on('response', res => {
+                                            const statusCode = res.statusCode!;
+                                            if (statusCode >= 400) {
+                                                file.invalid = true;
+                                                downloadFail.call(this, uri!, fromStatusCode(statusCode));
+                                            }
+                                            else {
+                                                setHeaderData(file, res.headers);
+                                            }
+                                        })
+                                        .on('end', () => resolve(file))
+                                        .on('error', err => {
+                                            file.invalid = true;
+                                            downloadFail.call(this, uri!, err);
+                                        });
+                                })
+                            );
+                        }
+                    }
                     return true;
                 }
             }
@@ -696,170 +1237,311 @@ class FileManager extends Module implements IFileManager {
             }
             return false;
         };
-        const processQueue = (file: ExternalAsset, localUri: string, bundleMain?: ExternalAsset) => {
-            const bundleIndex = file.bundleIndex;
-            if (bundleIndex !== undefined && bundleIndex >= 0) {
-                let cloudStorage: Undef<CloudService[]>;
-                if (bundleIndex === 0) {
-                    const content = this.setAssetContent(file, localUri, this.getUTF8String(file, localUri));
-                    if (content) {
-                        file.sourceUTF8 = content;
-                        file.invalid = false;
-                        bundleMain = file;
-                    }
-                    else {
-                        file.bundleIndex = Infinity;
-                        file.invalid = true;
-                        cloudStorage = file.cloudStorage;
-                        delete file.sourceUTF8;
-                    }
+        const processQueue = async (file: ExternalAsset, localUri: string) => {
+            completed.push(localUri);
+            if (file.bundleIndex === 0) {
+                file.sourceUTF8 = this.setAssetContent(file, localUri, this.getUTF8String(file, localUri));
+                if (file.bundleQueue) {
+                    await Promise.all(file.bundleQueue);
                 }
                 const items = appending[localUri];
                 if (items) {
-                    let queue: Undef<ExternalAsset>;
-                    while (!queue && items.length) {
-                        queue = items.shift();
-                    }
-                    if (queue) {
-                        const { uri, content } = queue;
-                        const verifyBundle = (next: ExternalAsset, value: string) => {
-                            if (bundleMain) {
+                    const tasks: Promise<void>[] = [];
+                    const verifyBundle = (next: ExternalAsset, value: string | Null<Buffer>, etag?: string) => {
+                        if (!next.invalid) {
+                            if (value) {
+                                if (value instanceof Buffer) {
+                                    if (etag) {
+                                        setTempBuffer(next, next.uri!, encodeURIComponent(etag), value);
+                                    }
+                                    value = value.toString('utf8');
+                                }
                                 this.setAssetContent(next, localUri, value, next.bundleIndex, next.bundleReplace);
-                            }
-                            else if (value) {
-                                next.sourceUTF8 = this.setAssetContent(next, localUri, value);
-                                next.cloudStorage = cloudStorage;
-                                bundleMain = queue;
                             }
                             else {
                                 next.invalid = true;
                             }
-                        };
-                        if (content) {
-                            verifyBundle(queue, content);
-                            processQueue(queue, localUri, bundleMain);
                         }
-                        else if (uri) {
-                            request(uri, this.createRequestAgentOptions(uri), (err, res) => {
-                                if (err || res.statusCode >= 300) {
-                                    this.writeFail(['Unable to download file', uri], err || res.statusCode + ' ' + res.statusMessage);
-                                    notFound.push(uri);
-                                    queue!.invalid = true;
+                    };
+                    for (const queue of items) {
+                        if (!queue.invalid) {
+                            const { uri, content } = queue;
+                            if (content) {
+                                verifyBundle(queue, content);
+                            }
+                            else if (uri) {
+                                if (Module.isFileHTTP(uri)) {
+                                    tasks.push(new Promise<void>((resolve, reject) => {
+                                        try {
+                                            const options = this.getHttpHost(uri) as Required<HttpClientOptions>;
+                                            let etag = queue.etag,
+                                                baseDir: Undef<string>,
+                                                tempDir: Undef<string>,
+                                                etagDir: Undef<string>,
+                                                tempUri: Undef<string>;
+                                            if (etag) {
+                                                tempDir = createTempDir(options.url);
+                                                etagDir = encodeURIComponent(etag);
+                                                const cached = HTTP_BUFFER[uri];
+                                                if (cached) {
+                                                    if (etagDir === cached[0]) {
+                                                        verifyBundle(queue, cached[1].toString('utf8'));
+                                                        resolve();
+                                                        return;
+                                                    }
+                                                    clearTempBuffer(uri, tempDir && path.join(tempDir, cached[0], path.basename(localUri)));
+                                                }
+                                                if (tempDir) {
+                                                    tempUri = path.join(baseDir = path.join(tempDir, etagDir), path.basename(localUri));
+                                                    try {
+                                                        if (Module.hasSize(tempUri)) {
+                                                            verifyBundle(queue, fs.readFileSync(tempUri), etag);
+                                                            resolve();
+                                                            return;
+                                                        }
+                                                        else if (!fs.pathExistsSync(baseDir)) {
+                                                            fs.mkdirSync(baseDir);
+                                                        }
+                                                    }
+                                                    catch {
+                                                        tempUri = undefined;
+                                                    }
+                                                }
+                                            }
+                                            let buffer: Null<Buffer> = null,
+                                                localStream: Null<fs.WriteStream> = null;
+                                            const errorRequest = (err: Error) => {
+                                                if (!notFound.includes(uri)) {
+                                                    notFound.push(uri);
+                                                    downloadFail.call(this, uri, err);
+                                                }
+                                                closeStream();
+                                                queue.invalid = true;
+                                                resolve();
+                                            };
+                                            const closeStream = () => {
+                                                if (localStream) {
+                                                    localStream.destroy();
+                                                    clearTempBuffer(uri, tempUri);
+                                                    localStream = null;
+                                                }
+                                            };
+                                            const downloadUri = (httpVersion?: HttpVersionSupport) => {
+                                                if (tempUri) {
+                                                    localStream = fs.createWriteStream(tempUri);
+                                                    options.localStream = localStream;
+                                                }
+                                                if (httpVersion) {
+                                                    options.httpVersion = httpVersion;
+                                                }
+                                                const client = this.getHttpClient(uri, options);
+                                                const host = options.host;
+                                                let retrying: Undef<boolean>,
+                                                    aborted: Undef<boolean>;
+                                                const retryDownload = (downgrade: boolean, err?: Error) => {
+                                                    closeStream();
+                                                    if (err) {
+                                                        warnProtocol.call(this, host, err);
+                                                    }
+                                                    if (!retrying) {
+                                                        aborted = abortHttpRequest(options);
+                                                        retrying = true;
+                                                        buffer = null;
+                                                        if (downgrade) {
+                                                            downgradeHost(host);
+                                                            downloadUri();
+                                                        }
+                                                        else {
+                                                            downloadUri(1);
+                                                        }
+                                                    }
+                                                    (client as ClientHttp2Stream).close();
+                                                };
+                                                const checkResponse = (statusCode: number, headers: IncomingHttpHeaders) => {
+                                                    if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
+                                                        if (host.v2()) {
+                                                            retryDownload(false, fromNgFlags(0, statusCode, headers.location));
+                                                        }
+                                                        else {
+                                                            errorRequest(fromStatusCode(statusCode));
+                                                        }
+                                                    }
+                                                    else {
+                                                        etag = setHeaderData(queue, headers, true);
+                                                        client
+                                                            .on('data', data => {
+                                                                if (Buffer.isBuffer(data)) {
+                                                                    buffer = buffer ? Buffer.concat([buffer, data]) : data;
+                                                                }
+                                                            })
+                                                            .on('end', () => {
+                                                                if (!retrying && !aborted) {
+                                                                    if (host.v2() && buffer) {
+                                                                        host.success[0]++;
+                                                                    }
+                                                                    verifyBundle(queue, buffer, etag);
+                                                                    resolve();
+                                                                }
+                                                            });
+                                                    }
+                                                };
+                                                if (host.v2()) {
+                                                    (client as ClientHttp2Stream)
+                                                        .on('response', (headers, flags) => {
+                                                            if (!retrying) {
+                                                                const statusCode = headers[':status']!;
+                                                                if (invalidRequest(statusCode)) {
+                                                                    aborted = true;
+                                                                    resolve();
+                                                                }
+                                                                else if (downgradeVersion(statusCode)) {
+                                                                    retryDownload(true, fromNgFlags(http2.constants.NGHTTP2_PROTOCOL_ERROR, HTTP_STATUS.HTTP_VERSION_NOT_SUPPORTED));
+                                                                }
+                                                                else if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
+                                                                    if (HTTP2_UNSUPPORTED.includes(flags)) {
+                                                                        retryDownload(checkHostFail(host), fromNgFlags(flags, statusCode));
+                                                                    }
+                                                                    else {
+                                                                        retryDownload(false);
+                                                                    }
+                                                                }
+                                                                else {
+                                                                    checkResponse(statusCode, headers);
+                                                                }
+                                                            }
+                                                        })
+                                                        .on('error', err => {
+                                                            if (!retrying && !aborted) {
+                                                                retryDownload(true, err);
+                                                            }
+                                                        });
+                                                }
+                                                else {
+                                                    (client as ClientRequest)
+                                                        .on('response', res => checkResponse(res.statusCode!, res.headers))
+                                                        .on('error', err => errorRequest(err));
+                                                }
+                                            };
+                                            downloadUri();
+                                        }
+                                        catch (err) {
+                                            reject(err);
+                                        }
+                                    }));
+                                }
+                                else if (Module.isFileUNC(uri) && this.permission.hasUNCRead(uri) || path.isAbsolute(uri) && this.permission.hasDiskRead(uri)) {
+                                    tasks.push(new Promise<void>(resolve => {
+                                        fs.readFile(uri, 'utf8', (err, data) => {
+                                            if (!err) {
+                                                verifyBundle(queue, data);
+                                            }
+                                            else {
+                                                this.writeFail(['Unable to read file', uri], err, this.logType.FILE);
+                                                queue.invalid = true;
+                                            }
+                                            resolve();
+                                        });
+                                    }));
                                 }
                                 else {
-                                    queue!.etag = (res.headers.etag || res.headers['last-modified']) as string;
-                                    verifyBundle(queue!, res.body);
+                                    permissionFail(file);
                                 }
-                                processQueue(queue!, localUri, bundleMain);
-                            });
+                            }
                         }
-                        else {
-                            processQueue(queue, localUri, bundleMain);
-                        }
-                        return;
+                    }
+                    if (tasks.length) {
+                        await Module.allSettled(tasks, { rejected: ['Unable to download file', 'bundle: ' + path.basename(localUri)], errors: this.errors });
                     }
                 }
-                if (bundleMain || !file.invalid) {
-                    this.transformAsset({ file: bundleMain || file });
-                }
-                else {
-                    this.completeAsyncTask();
-                }
+                this.transformAsset({ file });
                 delete appending[localUri];
             }
             else {
                 const uri = file.uri!;
-                const copying = downloading[uri];
-                const ready = processing[localUri];
-                if (file.invalid) {
-                    if (copying && copying.length) {
-                        copying.forEach(item => item.invalid = true);
-                    }
-                    if (ready) {
-                        ready.forEach(item => item.invalid = true);
-                    }
-                }
-                else {
-                    completed.push(localUri);
-                    if (copying && copying.length) {
-                        const files: string[] = [];
-                        const uriMap = new Map<string, ExternalAsset[]>();
-                        for (const item of copying) {
-                            const copyUri = item.localUri!;
-                            const items = uriMap.get(copyUri) || [];
-                            if (items.length === 0) {
-                                const pathname = path.dirname(copyUri);
-                                try {
-                                    fs.mkdirpSync(pathname);
-                                }
-                                catch (err) {
-                                    this.writeFail(['Unable to create directory', pathname], err, this.logType.FILE);
-                                    item.invalid = true;
-                                    continue;
-                                }
-                                files.push(copyUri);
-                            }
-                            items.push(item);
-                            uriMap.set(copyUri, items);
-                        }
-                        for (const copyUri of files) {
+                const processed = processing[localUri];
+                const downloaded = downloading[uri];
+                if (downloaded && downloaded.length) {
+                    const files: string[] = [];
+                    const uriMap = new Map<string, ExternalAsset[]>();
+                    for (const item of downloaded) {
+                        const copyUri = item.localUri!;
+                        const items = uriMap.get(copyUri) || [];
+                        if (items.length === 0) {
+                            const pathname = path.dirname(copyUri);
                             try {
-                                fs.copyFileSync(localUri, copyUri);
-                                for (const queue of uriMap.get(copyUri)!) {
-                                    this.performAsyncTask();
-                                    this.transformAsset({ file: queue });
-                                }
+                                fs.mkdirpSync(pathname);
                             }
                             catch (err) {
-                                for (const queue of uriMap.get(copyUri)!) {
-                                    queue.invalid = true;
-                                }
-                                this.writeFail(['Unable to copy file', localUri], err, this.logType.FILE);
+                                this.writeFail(['Unable to create directory', pathname], err, this.logType.FILE);
+                                item.invalid = true;
+                                continue;
                             }
+                            files.push(copyUri);
                         }
+                        items.push(item);
+                        uriMap.set(copyUri, items);
                     }
-                    if (ready) {
-                        for (const item of ready) {
-                            if (item !== file) {
+                    for (const copyUri of files) {
+                        try {
+                            fs.copyFileSync(localUri, copyUri);
+                            for (const queue of uriMap.get(copyUri)!) {
                                 this.performAsyncTask();
+                                this.transformAsset({ file: queue });
                             }
-                            this.transformAsset({ file: item });
                         }
-                    }
-                    else {
-                        this.transformAsset({ file });
+                        catch (err) {
+                            for (const queue of uriMap.get(copyUri)!) {
+                                queue.invalid = true;
+                            }
+                            this.writeFail(['Unable to copy file', localUri], err, this.logType.FILE);
+                        }
                     }
                 }
-                delete downloading[uri];
-                delete processing[localUri];
-            }
-        };
-        const errorRequest = (file: ExternalAsset, uri: string, localUri: string, err: Error, stream?: fs.WriteStream) => {
-            file.invalid = true;
-            if (downloading[uri]) {
-                downloading[uri]!.forEach(item => item.invalid = true);
-                delete downloading[uri];
-            }
-            delete processing[localUri];
-            if (!notFound.includes(uri)) {
-                if (appending[localUri]) {
-                    processQueue(file, localUri);
+                if (processed) {
+                    for (const item of processed) {
+                        if (item !== file) {
+                            this.performAsyncTask();
+                        }
+                        this.transformAsset({ file: item });
+                    }
+                    delete processing[localUri];
                 }
                 else {
-                    this.completeAsyncTask();
+                    this.transformAsset({ file });
                 }
-                notFound.push(uri);
+                delete downloading[uri];
             }
-            if (stream) {
+        };
+        const errorRequest = (file: ExternalAsset, err: Error, outputStream?: Null<fs.WriteStream>) => {
+            const { uri, localUri } = file as Required<ExternalAsset>;
+            const clearQueue = (data: ObjectMap<ExternalAsset<unknown>[]>, attr: string) => {
+                if (data[attr]) {
+                    data[attr]!.forEach(item => item.invalid = true);
+                    delete data[attr];
+                }
+            };
+            clearQueue(processing, localUri);
+            clearQueue(appending, localUri);
+            clearQueue(downloading, uri);
+            file.invalid = true;
+            if (!notFound.includes(uri)) {
+                notFound.push(uri);
+                this.completeAsyncTask();
+            }
+            downloadFail.call(this, uri, err);
+            if (outputStream) {
                 try {
-                    stream.close();
-                    fs.unlink(localUri);
+                    outputStream.destroy();
+                    if (fs.existsSync(localUri)) {
+                        fs.unlinkSync(localUri);
+                    }
                 }
                 catch (err_1) {
-                    this.writeFail(['Unable to delete file', localUri], err_1, this.logType.FILE);
+                    if (!Module.isErrorCode(err_1, 'ENOENT')) {
+                        this.writeFail(['Unable to delete file', localUri], err_1, this.logType.FILE);
+                    }
                 }
             }
-            this.writeFail(['Unable to download file', uri], err);
         };
         for (const item of this.assets) {
             if (!item.filename) {
@@ -934,143 +1616,212 @@ class FileManager extends Module implements IFileManager {
                                 downloading[uri]!.push(item);
                             }
                             else if (createFolder()) {
-                                const { hostname, port } = new URL(uri);
-                                this.performAsyncTask();
-                                downloading[uri] = [];
-                                let tempDir = '';
-                                if (this.cacheHttpRequest) {
-                                    tempDir = this.getTempDir(false, hostname + (port ? '_' + port : ''));
-                                    try {
-                                        if (!fs.pathExistsSync(tempDir)) {
-                                            fs.mkdirpSync(tempDir);
+                                const options = this.getHttpHost(uri) as Required<HttpClientOptions>;
+                                const tempDir = createTempDir(options.url);
+                                const downloadUri = (etagDir?: string, httpVersion?: HttpVersionSupport) => {
+                                    let retrying: Undef<boolean>,
+                                        aborted: Undef<boolean>,
+                                        localStream: Null<fs.WriteStream> = fs.createWriteStream(localUri);
+                                    options.localStream = localStream;
+                                    if (httpVersion) {
+                                        options.httpVersion = httpVersion;
+                                    }
+                                    const client = this.getHttpClient(uri, options);
+                                    const host = options.host;
+                                    const retryDownload = (downgrade: boolean, err?: Error) => {
+                                        if (localStream) {
+                                            try {
+                                                localStream.destroy();
+                                                localStream = null;
+                                                fs.unlinkSync(localUri);
+                                            }
+                                            catch {
+                                            }
                                         }
-                                    }
-                                    catch (err) {
-                                        this.writeFail(['Unable to create directory', tempDir], err, this.logType.FILE);
-                                        tempDir = '';
-                                    }
-                                }
-                                const setCacheBuffer = (etag: string, tempUri: string, buffer: Buffer) => {
-                                    if (Buffer.byteLength(buffer) <= cacheBufferLimit) {
-                                        const key = uri + etag;
-                                        CACHE_HTTPBUFFER[key] = buffer;
-                                        if (cacheExpires < Infinity) {
-                                            setTimeout(
-                                                () => {
-                                                    try {
-                                                        fs.unlinkSync(tempUri);
-                                                    }
-                                                    catch (err) {
-                                                        this.writeFail(['Unable to delete file', tempUri], err, this.logType.FILE);
-                                                    }
-                                                    delete CACHE_HTTPBUFFER[key];
-                                                },
-                                                cacheExpires
-                                            );
+                                        if (err) {
+                                            warnProtocol.call(this, host, err);
                                         }
-                                    }
-                                };
-                                const downloadUri = (etag?: string) => {
-                                    const stream = fs.createWriteStream(localUri);
-                                    stream.on('finish', () => {
-                                        if (!notFound.includes(uri)) {
-                                            processQueue(item, localUri);
-                                            if (tempDir && etag) {
-                                                const tempUri = path.join(tempDir = path.join(tempDir, etag), path.basename(localUri));
-                                                try {
-                                                    if (!fs.pathExistsSync(tempDir)) {
-                                                        fs.mkdirSync(tempDir);
+                                        if (!retrying) {
+                                            aborted = abortHttpRequest(options);
+                                            retrying = true;
+                                            delete item.buffer;
+                                            if (downgrade) {
+                                                downgradeHost(host);
+                                                downloadUri(etagDir);
+                                            }
+                                            else {
+                                                downloadUri(etagDir, 1);
+                                            }
+                                        }
+                                        (client as ClientHttp2Stream).close();
+                                    };
+                                    const checkResponse = (statusCode: number, headers: IncomingHttpHeaders) => {
+                                        if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
+                                            if (host.v2()) {
+                                                retryDownload(false, fromNgFlags(0, statusCode, headers.location));
+                                            }
+                                            else {
+                                                errorRequest(item, fromStatusCode(statusCode), localStream);
+                                            }
+                                        }
+                                        else {
+                                            setHeaderData(item, headers, true);
+                                            if (item.willChange || isCacheable(item)) {
+                                                client.on('data', data => {
+                                                    if (Buffer.isBuffer(data)) {
+                                                        item.buffer = item.buffer ? Buffer.concat([item.buffer, data]) : data;
                                                     }
-                                                    fs.copyFile(localUri, tempUri);
-                                                    if (cacheRequest && item.buffer) {
-                                                        setCacheBuffer(etag, tempUri, item.buffer);
+                                                });
+                                            }
+                                        }
+                                    };
+                                    if (host.v2()) {
+                                        (client as ClientHttp2Stream)
+                                            .on('response', (headers, flags) => {
+                                                if (!retrying) {
+                                                    const statusCode = headers[':status']!;
+                                                    if (invalidRequest(statusCode)) {
+                                                        aborted = true;
+                                                        errorRequest(item, fromStatusCode(statusCode), localStream);
+                                                    }
+                                                    else if (downgradeVersion(statusCode)) {
+                                                        retryDownload(true, fromNgFlags(http2.constants.NGHTTP2_PROTOCOL_ERROR, HTTP_STATUS.HTTP_VERSION_NOT_SUPPORTED));
+                                                    }
+                                                    else if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
+                                                        if (HTTP2_UNSUPPORTED.includes(flags)) {
+                                                            retryDownload(checkHostFail(host), fromNgFlags(flags, statusCode));
+                                                        }
+                                                        else {
+                                                            retryDownload(false);
+                                                        }
+                                                    }
+                                                    else {
+                                                        checkResponse(statusCode, headers);
                                                     }
                                                 }
-                                                catch (err) {
-                                                    this.writeFail(['Unable to cache file', tempUri], err, this.logType.FILE);
+                                            })
+                                            .on('error', err => {
+                                                if (!retrying && !aborted) {
+                                                    retryDownload(true, err);
+                                                }
+                                            });
+                                    }
+                                    else {
+                                        (client as ClientRequest)
+                                            .on('response', res => checkResponse(res.statusCode!, res.headers))
+                                            .on('error', err => errorRequest(item, err, localStream));
+                                    }
+                                    localStream.on('finish', () => {
+                                        if (!retrying && !aborted && !notFound.includes(uri)) {
+                                            if (host.v2()) {
+                                                host.success[0]++;
+                                            }
+                                            processQueue(item, localUri);
+                                            if (etagDir) {
+                                                const buffer = item.buffer;
+                                                if (tempDir) {
+                                                    const baseDir = path.join(tempDir, etagDir);
+                                                    const tempUri = path.join(baseDir, path.basename(localUri));
+                                                    try {
+                                                        if (!fs.pathExistsSync(baseDir)) {
+                                                            fs.mkdirSync(baseDir);
+                                                        }
+                                                        if (buffer) {
+                                                            if (bufferLimit > 0) {
+                                                                setTempBuffer(item, uri, etagDir, buffer, tempUri);
+                                                            }
+                                                            fs.writeFile(tempUri, buffer);
+                                                        }
+                                                        else if (fs.statSync(localUri).size > 0) {
+                                                            fs.copyFile(localUri, tempUri);
+                                                        }
+                                                    }
+                                                    catch (err) {
+                                                        this.writeFail(['Unable to cache file', tempUri], err, this.logType.FILE);
+                                                    }
+                                                }
+                                                else if (bufferLimit > 0 && buffer) {
+                                                    setTempBuffer(item, uri, etagDir, buffer);
                                                 }
                                             }
                                         }
                                     });
-                                    const client = request(uri, this.createRequestAgentOptions(uri))
-                                        .on('response', res => {
-                                            if (this.Watch) {
-                                                item.etag = (res.headers.etag || res.headers['last-modified']) as string;
-                                            }
-                                            const statusCode = res.statusCode;
-                                            if (statusCode >= 300) {
-                                                errorRequest(item, uri, localUri, new Error(statusCode + ' ' + res.statusMessage), stream);
-                                            }
-                                        })
-                                        .on('error', err => errorRequest(item, uri, localUri, err, stream));
-                                    if (item.willChange) {
-                                        client.on('data', data => {
-                                            if (Buffer.isBuffer(data)) {
-                                                item.buffer = item.buffer ? Buffer.concat([item.buffer, data]) : data;
-                                            }
-                                        });
-                                    }
-                                    client.pipe(stream);
                                 };
-                                if (tempDir) {
-                                    request(uri, this.createRequestAgentOptions(uri, { method: 'HEAD' }))
-                                        .on('response', res => {
-                                            const statusCode = res.statusCode;
-                                            if (statusCode >= 300) {
-                                                errorRequest(item, uri, localUri, new Error(statusCode + ' ' + res.statusMessage));
-                                            }
-                                            else {
-                                                const etag = res.headers.etag;
-                                                let subDir: Undef<string>;
-                                                if (Module.isString(etag)) {
-                                                    if (this.Watch) {
-                                                        item.etag = etag;
+                                this.performAsyncTask();
+                                downloading[uri] = [];
+                                (this.getHttpClient(uri, { method: 'HEAD', httpVersion: 1 }) as ClientRequest)
+                                    .on('response', res => {
+                                        const statusCode = res.statusCode!;
+                                        if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
+                                            errorRequest(item, fromStatusCode(statusCode));
+                                        }
+                                        else {
+                                            const etag = setHeaderData(item, res.headers);
+                                            let etagDir: Undef<string>;
+                                            if (Module.isString(etag)) {
+                                                const cached = HTTP_BUFFER[uri];
+                                                let buffer: Null<Buffer> = null;
+                                                if (cached) {
+                                                    const etagCache = cached[0];
+                                                    if (etagDir === etagCache) {
+                                                        buffer = cached[1];
                                                     }
-                                                    const tempUri = path.join(tempDir, subDir = encodeURIComponent(etag), path.basename(localUri));
-                                                    const buffer = CACHE_HTTPBUFFER[uri + subDir];
-                                                    const readBuffer = () => {
-                                                        if (buffer) {
-                                                            item.buffer = buffer;
-                                                        }
-                                                        else if (cacheRequest) {
-                                                            fs.readFile(tempUri, (err, data) => {
-                                                                if (!err) {
-                                                                    setCacheBuffer(subDir!, tempUri, data);
-                                                                }
-                                                                else {
-                                                                    this.writeFail(['Unable to read file', tempUri], err, this.logType.FILE);
-                                                                }
-                                                            });
-                                                        }
-                                                    };
-                                                    try {
-                                                        if (fs.existsSync(tempUri)) {
-                                                            if (this.archiving || !Module.hasSameStat(tempUri, localUri)) {
-                                                                fs.copyFileSync(tempUri, localUri);
-                                                            }
-                                                            readBuffer();
-                                                            fileReceived();
-                                                            return;
-                                                        }
-                                                        else if (buffer) {
-                                                            item.buffer = buffer;
-                                                            fs.writeFileSync(localUri, buffer);
-                                                            fileReceived();
-                                                            return;
-                                                        }
-                                                    }
-                                                    catch (err) {
-                                                        this.writeFail(['Unable to copy file', localUri], err, this.logType.FILE);
+                                                    else {
+                                                        clearTempBuffer(uri, tempDir && path.join(tempDir, etagCache, path.basename(localUri)));
                                                     }
                                                 }
-                                                downloadUri(subDir);
+                                                const checkBuffer = () => {
+                                                    if (buffer) {
+                                                        if (item.willChange) {
+                                                            item.buffer = buffer;
+                                                        }
+                                                        fs.writeFileSync(localUri, buffer);
+                                                        fileReceived();
+                                                        return true;
+                                                    }
+                                                    return false;
+                                                };
+                                                try {
+                                                    if (tempDir) {
+                                                        const tempUri = path.join(tempDir, etagDir = encodeURIComponent(etag), path.basename(localUri));
+                                                        if (Module.hasSize(tempUri)) {
+                                                            if (!buffer && isCacheable(item)) {
+                                                                setTempBuffer(item, uri, etagDir, buffer = fs.readFileSync(tempUri), tempUri);
+                                                            }
+                                                            if (this.archiving || !Module.hasSameStat(tempUri, localUri)) {
+                                                                if (buffer) {
+                                                                    fs.writeFileSync(localUri, buffer);
+                                                                }
+                                                                else {
+                                                                    fs.copyFileSync(tempUri, localUri);
+                                                                }
+                                                            }
+                                                            if (buffer && !item.willChange) {
+                                                                item.buffer = buffer;
+                                                            }
+                                                            fileReceived();
+                                                            return;
+                                                        }
+                                                        else if (checkBuffer()) {
+                                                            try {
+                                                                fs.writeFileSync(tempUri, buffer!);
+                                                            }
+                                                            catch {
+                                                            }
+                                                            return;
+                                                        }
+                                                    }
+                                                    else if (checkBuffer()) {
+                                                        return;
+                                                    }
+                                                }
+                                                catch {
+                                                }
                                             }
-                                        })
-                                        .on('error', err => errorRequest(item, uri, localUri, err));
-                                }
-                                else {
-                                    downloadUri();
-                                }
+                                            downloadUri(etagDir);
+                                        }
+                                    })
+                                    .on('error', err => errorRequest(item, err));
                             }
                         }
                     }
@@ -1081,11 +1832,11 @@ class FileManager extends Module implements IFileManager {
                         }
                     }
                     else {
-                        item.invalid = true;
+                        permissionFail(item);
                     }
                 }
                 catch (err) {
-                    errorRequest(item, uri, localUri, err);
+                    errorRequest(item, err);
                 }
             }
         }
@@ -1102,7 +1853,7 @@ class FileManager extends Module implements IFileManager {
                         this.delete(value);
                     }
                     catch (err) {
-                        if (err.code !== 'ENOENT') {
+                        if (!Module.isErrorCode(err, 'ENOENT')) {
                             this.writeFail(['Unable to delete file', value], err, this.logType.FILE);
                         }
                         else {
@@ -1144,12 +1895,12 @@ class FileManager extends Module implements IFileManager {
                         if (this.has(file)) {
                             for (const image of item.compress) {
                                 if (withinSizeRange(file, image.condition)) {
-                                    tasks.push(new Promise(resolve => {
+                                    tasks.push(new Promise<void>(resolve => {
                                         const complete = (err?: Null<Error>) => {
                                             if (err) {
                                                 this.writeFail(['Unable to compress image', file], err);
                                             }
-                                            resolve(null);
+                                            resolve();
                                         };
                                         try {
                                             Compress.tryImage(file, image, (err?: Null<Error>, value?: Null<unknown>) => {
@@ -1185,7 +1936,7 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, 'Write modified files', this.errors);
+            await Module.allSettled(tasks, { rejected: 'Write modified files', errors: this.errors, type: this.logType.FILE });
             tasks = [];
         }
         removeFiles();
@@ -1209,7 +1960,7 @@ class FileManager extends Module implements IFileManager {
                 }
             }
             if (tasks.length) {
-                await Module.allSettled(tasks, 'Compress files', this.errors);
+                await Module.allSettled(tasks, { rejected: 'Compress files', errors: this.errors });
                 tasks = [];
             }
         }
@@ -1227,6 +1978,21 @@ class FileManager extends Module implements IFileManager {
             if (instance.assets.length) {
                 await constructor.cleanup.call(this, instance);
             }
+        }
+    }
+    get httpVersion() {
+        return this._httpVersion;
+    }
+    set httpVersion(value) {
+        switch (value) {
+            case 2:
+                if (this.supported(10, 10)) {
+                    this._httpVersion = 2;
+                    break;
+                }
+            default:
+                this._httpVersion = 1;
+                break;
         }
     }
     get cleared() {
