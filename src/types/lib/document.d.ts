@@ -1,5 +1,4 @@
 import type { IDocument, IFileManager } from './index';
-
 import type { ExternalAsset } from './asset';
 import type { ModuleWriteFailMethod } from './logger';
 
@@ -42,7 +41,7 @@ export interface TransformOptions<T = StandardMap, U = StandardMap> extends Omit
     sourceMap: SourceMapInput;
     writeFail: ModuleWriteFailMethod;
     supplementChunks?: ChunkData[];
-    outputSourceFiles?: string[];
+    outSourceFiles?: string[];
     createSourceMap: (value: string) => SourceMapInput;
 }
 
@@ -56,6 +55,7 @@ export interface SourceMapOptions {
     file?: string;
     sourceRoot?: string;
     sourceMappingURL?: string;
+    emptySources?: boolean;
 }
 
 export interface SourceMapInput extends TransformResult {

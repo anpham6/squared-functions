@@ -4,7 +4,6 @@ import type { DataSource, MongoDataSource, RequestData, TemplateMap, UriDataSour
 import type { IFileManager } from '../../types/lib';
 import type { FileData, OutputData } from '../../types/lib/asset';
 import type { CloudDatabase } from '../../types/lib/cloud';
-import type { SourceMapOutput } from '../../types/lib/document';
 import type { RequestBody as IRequestBody } from '../../types/lib/node';
 
 import type { CloudScopeOrigin } from '../../cloud';
@@ -16,7 +15,6 @@ import type * as jmespath from 'jmespath';
 
 import path = require('path');
 import fs = require('fs-extra');
-import request = require('request-promise-native');
 import yaml = require('js-yaml');
 import uuid = require('uuid');
 
@@ -468,7 +466,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     const result = await instance.transform('css', this.getUTF8String(file, localUri), format, { mimeType });
                     if (result) {
                         if (result.map) {
-                            const uri = Document.writeSourceMap(localUri!, result as SourceMapOutput);
+                            const uri = Document.writeSourceMap(localUri!, result, { emptySources: !!instance.productionRelease });
                             if (uri) {
                                 this.add(uri, file);
                             }
@@ -494,7 +492,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     const result = await instance.transform('js', source, format, { mimeType: type || mimeType, chunks: !!file.element, getSourceFiles: Document.createSourceFilesMethod.bind(this)(instance, file, leading) });
                     if (result) {
                         if (result.map) {
-                            const mapUri = Document.writeSourceMap(localUri!, result as SourceMapOutput);
+                            const mapUri = Document.writeSourceMap(localUri!, result, { emptySources: !!instance.productionRelease });
                             if (mapUri) {
                                 this.add(mapUri, file);
                             }
@@ -517,7 +515,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 const filename = chunk.filename || (getFormatUUID(instance.module, 'filename') + path.extname(localUri!));
                                 const chunkUri = path.join(localDir, filename);
                                 if (chunk.map) {
-                                    const mapUri = Document.writeSourceMap(chunkUri, chunk);
+                                    const mapUri = Document.writeSourceMap(chunkUri, chunk, { emptySources: !!instance.productionRelease });
                                     if (mapUri) {
                                         this.add(mapUri, file);
                                     }
@@ -623,7 +621,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 const result = await instance.transform('css', source, css.format, { mimeType: 'text/css' });
                 if (result) {
                     if (result.map) {
-                        const uri = Document.writeSourceMap(css.localUri!, result as SourceMapOutput);
+                        const uri = Document.writeSourceMap(css.localUri!, result, { emptySources: !!instance.productionRelease });
                         if (uri) {
                             this.add(uri, css);
                         }
@@ -666,7 +664,9 @@ class ChromeDocument extends Document implements IChromeDocument {
                             }
                         }
                         catch (err) {
-                            instance.writeFail(['Unable to delete file', sourceMappingURL], err, this.logType.FILE);
+                            if (!Document.isErrorCode(err, 'ENOENT')) {
+                                instance.writeFail(['Unable to delete file', sourceMappingURL], err, this.logType.FILE);
+                            }
                         }
                     }
                     domElement.tagName = inlineContent;
@@ -864,10 +864,14 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             content = cacheData[uri] as Undef<string>;
                                         }
                                         else {
-                                            content = await request(uri, this.createRequestAgentOptions(uri)).catch(err => {
-                                                instance.writeFail(['Unable to request URL data source', uri], err);
-                                                return null;
-                                            });
+                                            const buffer = await this.fetchBuffer(uri);
+                                            if (buffer) {
+                                                content = buffer.toString('utf8');
+                                            }
+                                            else {
+                                                content = '';
+                                                instance.writeFail('Unable to fetch URI', new Error(`data-source: ${uri} (Empty)`));
+                                            }
                                             cacheData[uri] = content;
                                         }
                                     }
@@ -934,7 +938,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                 }
                                             }
                                             catch (err) {
-                                                instance.writeFail([`Install required?`, 'npm i ' + lib], err);
+                                                instance.writeFail(['Install required?', 'npm i ' + lib], err);
                                             }
                                         }
                                         if (Array.isArray(data)) {
@@ -1280,7 +1284,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             }
                             resolve();
                         });
-                    }), 'Element text or attribute replacement', this.errors);
+                    }), { rejected: 'Element text or attribute replacement', errors: this.errors });
                 }
             }
             for (const item of elements) {
@@ -1313,11 +1317,9 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
             htmlFile.sourceUTF8 = source;
             const failCount = domBase.failCount;
+            this.writeTimeProcess('HTML', path.basename(localUri) + `: ${domBase.modifyCount} modified`, time, { failed: failCount > 0 });
             if (failCount) {
                 instance.writeFail([`DOM update had ${failCount} ${failCount === 1 ? 'error' : 'errors'}`, moduleName], new Error(`DOM update (${failCount} failed)`));
-            }
-            else {
-                this.writeTimeProcess('HTML', path.basename(localUri) + `: ${domBase.modifyCount} modified`, time);
             }
             if (domBase.hasErrors()) {
                 const errors = instance.errors;
@@ -1568,7 +1570,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
         if (tasks.length) {
-            await Document.allSettled(tasks, ['Cloud upload "text/css"', this.moduleName], host.errors);
+            await Document.allSettled(tasks, { rejected: ['Cloud upload "text/css"', this.moduleName], errors: host.errors });
         }
         if (htmlFile) {
             if (Object.keys(cloudMap).length) {
@@ -1595,7 +1597,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 if (htmlFile.compress) {
                     await host.compressFile(htmlFile);
                 }
-                await Document.allSettled(Cloud.uploadAsset.call(host, state, htmlFile, 'text/html', true), ['Upload "text/html" <cloud storage>', this.moduleName], host.errors);
+                await Document.allSettled(Cloud.uploadAsset.call(host, state, htmlFile, 'text/html', true), { rejected: ['Upload "text/html" <cloud storage>', this.moduleName], errors: host.errors });
             }
         }
     }

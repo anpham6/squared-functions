@@ -99,9 +99,10 @@ abstract class Document extends Module implements IDocument {
         }
         let file: Undef<string>,
             sourceRoot: Undef<string>,
-            sourceMappingURL: Undef<string>;
+            sourceMappingURL: Undef<string>,
+            emptySources: Undef<boolean>;
         if (options) {
-            ({ file, sourceRoot, sourceMappingURL } = options);
+            ({ file, sourceRoot, sourceMappingURL, emptySources } = options);
         }
         file ||= path.basename(localUri);
         if (!sourceMappingURL) {
@@ -122,6 +123,9 @@ abstract class Document extends Module implements IDocument {
         map.file = file;
         if (sourceRoot) {
             map.sourceRoot = sourceRoot;
+        }
+        if (emptySources) {
+            map.sources = [""];
         }
         if (!inlineMap) {
             if (!found) {
@@ -381,14 +385,16 @@ abstract class Document extends Module implements IDocument {
                         const output = { ...options, outputConfig, supplementChunks, createSourceMap, writeFail } as TransformOptions;
                         const time = Date.now();
                         const next = (result: Undef<string>) => {
+                            let failed: Undef<boolean>;
                             if (Module.isString(result)) {
                                 code = result;
                                 valid = true;
-                                this.writeTimeProcess(type, plugin + ': ' + process, time);
                             }
                             else {
-                                this.writeFail(['Transform returned empty result', plugin], errorMessage(plugin, process, 'Empty'));
+                                failed = true;
+                                this.writeFail(['Transform had empty result', plugin], errorMessage(plugin, process, 'Empty'));
                             }
+                            this.writeTimeProcess(failed ? 'CHECK' : type, plugin + ': ' + process, time, { failed });
                         };
                         this.formatMessage(this.logType.PROCESS, type, ['Transforming source...', plugin], process, { hintColor: 'cyan' });
                         try {
@@ -418,12 +424,12 @@ abstract class Document extends Module implements IDocument {
                                     output.baseConfig = baseConfig;
                                     next(await transformer!(context, code, output));
                                 }
-                                if (output.outputSourceFiles) {
+                                if (output.outSourceFiles) {
                                     if (!sourceFiles) {
-                                        sourceFiles = output.outputSourceFiles;
+                                        sourceFiles = output.outSourceFiles;
                                     }
                                     else {
-                                        output.outputSourceFiles.forEach(value => sourceFiles!.includes(value) && sourceFiles!.push(value));
+                                        output.outSourceFiles.forEach(value => sourceFiles!.includes(value) && sourceFiles!.push(value));
                                     }
                                 }
                             }

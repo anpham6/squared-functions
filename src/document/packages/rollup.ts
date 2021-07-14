@@ -116,8 +116,8 @@ export default async function transform(context: any, value: string, options: Tr
             }
         }
     }
-    if (bundle.watchFiles.length) {
-        options.outputSourceFiles = bundle.watchFiles;
+    if (!tempFile && bundle.watchFiles.length) {
+        options.outSourceFiles = bundle.watchFiles;
     }
     if (result) {
         if (mappings) {
