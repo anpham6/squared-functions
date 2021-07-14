@@ -2,9 +2,10 @@ import type { FileInfo, WatchInterval, WatchReload } from '../types/lib/squared'
 
 import type { IFileManager, IPermission, IWatch } from '../types/lib';
 import type { ExternalAsset } from '../types/lib/asset';
-import type { PostFinalizeCallback } from '../types/lib/filemanager';
+import type { HttpClientOptions, PostFinalizeCallback } from '../types/lib/filemanager';
 import type { FileWatch } from '../types/lib/watch';
 
+import type { ClientRequest } from 'http';
 import type { Server } from 'ws';
 
 import Module from '../module';
@@ -62,11 +63,19 @@ function getInterval(file: ExternalAsset) {
 
 function clearCache(items: ExternalAsset[]) {
     for (const item of items) {
+        if (item.originalName) {
+            item.filename = item.originalName;
+        }
         for (const attr in item) {
             switch (attr) {
+                case 'originalName':
                 case 'buffer':
                 case 'sourceUTF8':
+                case 'sourceFiles':
                 case 'transforms':
+                case 'etag':
+                case 'contentLength':
+                case 'watch':
                 case 'invalid':
                     delete item[attr];
                     break;
@@ -158,12 +167,12 @@ class Watch extends Module implements IWatch {
     start(assets: ExternalAsset[], permission?: IPermission) {
         const destMap: ObjectMap<ExternalAsset[]> = {};
         for (const item of assets) {
-            const { bundleId, uri, relativeUri } = item;
+            const { bundleId, uri, localUri } = item;
             if (bundleId) {
                 (destMap[bundleId] ||= []).push(item);
             }
-            else if (uri && relativeUri && !item.invalid) {
-                (destMap[relativeUri] ||= []).push(item);
+            else if (uri && localUri && !item.invalid) {
+                (destMap[localUri] ||= []).push(item);
             }
         }
         for (let dest in destMap) {
@@ -172,9 +181,12 @@ class Watch extends Module implements IWatch {
                 continue;
             }
             items = items.map(item => ({ ...item }));
-            let watchInterval: Undef<number>;
+            let watchInterval: Undef<number>,
+                bundleMain: Undef<ExternalAsset>;
             if (!isNaN(+dest)) {
-                dest = items[0].relativeUri!;
+                items.sort((a, b) => a.bundleIndex! - b.bundleIndex!);
+                bundleMain = items[0];
+                dest = bundleMain.localUri!;
                 const leading = items.find(item => getInterval(item) > 0);
                 if (leading) {
                     watchInterval = getInterval(leading);
@@ -185,10 +197,6 @@ class Watch extends Module implements IWatch {
                 const watch = item.watch;
                 if (Module.isObject<WatchInterval<ExternalAsset>>(watch) && watch.assets) {
                     watch.assets.forEach(other => related.add(other));
-                }
-                if (item.originalName) {
-                    item.filename = item.originalName;
-                    delete item.originalName;
                 }
             }
             assets = Array.from(related);
@@ -214,12 +222,12 @@ class Watch extends Module implements IWatch {
                         }
                         const reload = watch.reload;
                         if (Module.isObject<WatchReload>(reload) && (socketId = reload.socketId)) {
-                            let wss: Undef<Server>;
+                            let wss: Undef<Server>,
+                                initialize: Undef<boolean>;
                             ({ port, module: hot } = reload);
                             if (reload.secure) {
                                 port ||= this.securePort;
-                                wss = SECURE_MAP[port];
-                                if (!wss) {
+                                if (!(wss = SECURE_MAP[port])) {
                                     const sslKey = this._sslKey;
                                     const sslCert = this._sslCert;
                                     try {
@@ -228,6 +236,7 @@ class Watch extends Module implements IWatch {
                                             server.listen(port);
                                             wss = new ws.Server({ server });
                                             SECURE_MAP[port] = wss;
+                                            initialize = true;
                                         }
                                         else {
                                             this.writeFail('SSL/TSL key and cert not found', new Error(`Missing SSL/TSL credentials (${socketId})`));
@@ -241,9 +250,13 @@ class Watch extends Module implements IWatch {
                             }
                             else {
                                 port ||= this.port;
-                                wss = PORT_MAP[port] ||= new ws.Server({ port });
+                                if (!(wss = PORT_MAP[port])) {
+                                    wss = new ws.Server({ port });
+                                    PORT_MAP[port] = wss;
+                                    initialize = true;
+                                }
                             }
-                            if (wss) {
+                            if (wss && initialize) {
                                 wss.on('error', function(this: Server, err) {
                                     this.clients.forEach(client => client.send(JSON.stringify(err)));
                                 });
@@ -267,6 +280,7 @@ class Watch extends Module implements IWatch {
                             uri,
                             etag,
                             assets,
+                            bundleMain,
                             start,
                             id,
                             interval,
@@ -276,6 +290,17 @@ class Watch extends Module implements IWatch {
                             hot,
                             expires
                         } as FileWatch;
+                        const checkBundle = (watchMain: Undef<ExternalAsset>) => {
+                            if (bundleMain && watchMain) {
+                                if ((bundleMain.format || '') !== (watchMain.format || '') || JSON.stringify(bundleMain.commands || '') !== JSON.stringify(watchMain.commands || '')) {
+                                    return true;
+                                }
+                            }
+                            else if (bundleMain && !watchMain || !bundleMain && watchMain) {
+                                return true;
+                            }
+                            return false;
+                        };
                         if (Module.isFileHTTP(uri)) {
                             if (!etag) {
                                 invalid = ERROR.ETAG;
@@ -283,16 +308,22 @@ class Watch extends Module implements IWatch {
                             }
                             const previous = HTTP_MAP[uri]?.get(dest);
                             if (previous) {
-                                if (id && previous.data.id === id || expires > previous.data.expires || expires === previous.data.expires && interval < previous.timeout[1]) {
+                                const watchData = previous.data;
+                                if (id && watchData.id === id || expires > watchData.expires || checkBundle(watchData.bundleMain) || expires === watchData.expires && interval < previous.timeout[1]) {
                                     clearInterval(previous.timeout[0]!);
                                 }
                                 else {
                                     continue;
                                 }
                             }
-                            const options: request.CoreOptions = this.host ? this.host.createRequestAgentOptions(uri, { method: 'HEAD' }, expires ? expires - start : Infinity)! : { method: 'HEAD' };
+                            const host = this.host;
+                            const options = host ? host.getHttpHost(uri) as HttpClientOptions : null;
+                            if (options) {
+                                options.method = 'HEAD';
+                                options.httpVersion = 1;
+                            }
                             const timeout = setInterval(() => {
-                                request(uri, options)
+                                (options ? host!.getHttpClient(uri, options) as ClientRequest : request(uri, { method: 'HEAD' }))
                                     .on('response', res => {
                                         const map = HTTP_MAP[uri];
                                         if (map) {
@@ -300,7 +331,7 @@ class Watch extends Module implements IWatch {
                                                 const next = input.data;
                                                 const expired = next.expires;
                                                 if (!expired || Date.now() < expired) {
-                                                    const value = (res.headers.etag || res.headers['last-modified']) as string;
+                                                    const value = res.headers.etag || res.headers['last-modified'];
                                                     if (value && value !== next.etag) {
                                                         next.etag = value;
                                                         this.modified(next);
@@ -330,7 +361,8 @@ class Watch extends Module implements IWatch {
                         else if (permission && Watch.hasLocalAccess(permission, uri)) {
                             const previous = DISK_MAP[uri]?.get(dest);
                             if (previous) {
-                                if (id && previous.data.id === id || expires > previous.data.expires && previous.data.expires !== 0) {
+                                const watchData = previous.data;
+                                if (id && watchData.id === id || expires > watchData.expires && watchData.expires !== 0 || checkBundle(watchData.bundleMain)) {
                                     clearTimeout(previous.timeout[0]!);
                                 }
                                 else {

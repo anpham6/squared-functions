@@ -12,4 +12,5 @@ interface FileWatch {
     secure?: boolean;
     hot?: boolean;
     etag?: string;
+    bundleMain?: ExternalAsset;
 }
