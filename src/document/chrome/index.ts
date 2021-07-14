@@ -4,7 +4,6 @@ import type { DataSource, MongoDataSource, RequestData, TemplateMap, UriDataSour
 import type { IFileManager } from '../../types/lib';
 import type { FileData, OutputData } from '../../types/lib/asset';
 import type { CloudDatabase } from '../../types/lib/cloud';
-import type { SourceMapOutput } from '../../types/lib/document';
 import type { RequestBody as IRequestBody } from '../../types/lib/node';
 
 import type { CloudScopeOrigin } from '../../cloud';
@@ -468,7 +467,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     const result = await instance.transform('css', this.getUTF8String(file, localUri), format, { mimeType });
                     if (result) {
                         if (result.map) {
-                            const uri = Document.writeSourceMap(localUri!, result as SourceMapOutput);
+                            const uri = Document.writeSourceMap(localUri!, result, { emptySources: !!instance.productionRelease });
                             if (uri) {
                                 this.add(uri, file);
                             }
@@ -494,7 +493,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     const result = await instance.transform('js', source, format, { mimeType: type || mimeType, chunks: !!file.element, getSourceFiles: Document.createSourceFilesMethod.bind(this)(instance, file, leading) });
                     if (result) {
                         if (result.map) {
-                            const mapUri = Document.writeSourceMap(localUri!, result as SourceMapOutput);
+                            const mapUri = Document.writeSourceMap(localUri!, result, { emptySources: !!instance.productionRelease });
                             if (mapUri) {
                                 this.add(mapUri, file);
                             }
@@ -517,7 +516,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                 const filename = chunk.filename || (getFormatUUID(instance.module, 'filename') + path.extname(localUri!));
                                 const chunkUri = path.join(localDir, filename);
                                 if (chunk.map) {
-                                    const mapUri = Document.writeSourceMap(chunkUri, chunk);
+                                    const mapUri = Document.writeSourceMap(chunkUri, chunk, { emptySources: !!instance.productionRelease });
                                     if (mapUri) {
                                         this.add(mapUri, file);
                                     }
@@ -623,7 +622,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                 const result = await instance.transform('css', source, css.format, { mimeType: 'text/css' });
                 if (result) {
                     if (result.map) {
-                        const uri = Document.writeSourceMap(css.localUri!, result as SourceMapOutput);
+                        const uri = Document.writeSourceMap(css.localUri!, result, { emptySources: !!instance.productionRelease });
                         if (uri) {
                             this.add(uri, css);
                         }

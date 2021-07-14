@@ -99,9 +99,10 @@ abstract class Document extends Module implements IDocument {
         }
         let file: Undef<string>,
             sourceRoot: Undef<string>,
-            sourceMappingURL: Undef<string>;
+            sourceMappingURL: Undef<string>,
+            emptySources: Undef<boolean>;
         if (options) {
-            ({ file, sourceRoot, sourceMappingURL } = options);
+            ({ file, sourceRoot, sourceMappingURL, emptySources } = options);
         }
         file ||= path.basename(localUri);
         if (!sourceMappingURL) {
@@ -122,6 +123,9 @@ abstract class Document extends Module implements IDocument {
         map.file = file;
         if (sourceRoot) {
             map.sourceRoot = sourceRoot;
+        }
+        if (emptySources) {
+            map.sources = [""];
         }
         if (!inlineMap) {
             if (!found) {

@@ -56,6 +56,7 @@ export interface SourceMapOptions {
     file?: string;
     sourceRoot?: string;
     sourceMappingURL?: string;
+    emptySources?: boolean;
 }
 
 export interface SourceMapInput extends TransformResult {
