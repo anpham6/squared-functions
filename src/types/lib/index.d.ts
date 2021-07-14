@@ -273,6 +273,7 @@ declare namespace functions {
         clearHttpBuffer(percent?: number): void;
         formatSize(value: string): number;
         formatSize(value: number, options?: bytes.BytesOptions): string;
+        settingsHttpRetry(limit: Undef<NumString>, delay: Undef<NumString>): void;
         new(baseDirectory: string, body: RequestBody, postFinalize?: PostFinalizeCallback, archiving?: boolean): IFileManager;
     }
 

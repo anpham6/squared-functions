@@ -112,6 +112,8 @@ const HTTP2_UNSUPPORTED = [
 const HTTP_HOST: ObjectMap<HttpHostData> = {};
 const HTTP_BUFFER: ObjectMap<Null<[string, Buffer]>> = {};
 const HTTP_BROTLISUPPORT = Module.supported(11, 7) || Module.supported(10, 16, 0, true);
+let HTTP_RETRYLIMIT = 3;
+let HTTP_RETRYDELAY = 1000;
 
 function parseSizeRange(value: string) {
     const match = /\(\s*(\d+)\s*(?:,\s*(\d+|\*)\s*)?\)/.exec(value);
@@ -162,6 +164,23 @@ function warnProtocol(this: IModule, host: HttpHostData, err: Error) {
 
 function downloadFail(this: IModule, uri: string, err: Error) {
     this.writeFail(['Unable to download file', uri], err);
+}
+
+function retryRequest(value: number) {
+    switch (value) {
+        case HTTP_STATUS.REQUEST_TIMEOUT:
+        case HTTP_STATUS.TOO_MANY_REQUESTS:
+        case HTTP_STATUS.CONNECTION_CLOSED_WITHOUT_RESPONSE:
+        case HTTP_STATUS.CLIENT_CLOSED_REQUEST:
+        case HTTP_STATUS.INTERNAL_SERVER_ERROR:
+        case HTTP_STATUS.BAD_GATEWAY:
+        case HTTP_STATUS.SERVICE_UNAVAILABLE:
+        case HTTP_STATUS.GATEWAY_TIMEOUT:
+        case HTTP_STATUS.NETWORK_CONNECT_TIMEOUT_ERROR:
+            return true;
+        default:
+            return false;
+    }
 }
 
 const invalidRequest = (value: number) => value >= HTTP_STATUS.UNAUTHORIZED && value <= HTTP_STATUS.NOT_FOUND;
@@ -238,6 +257,15 @@ class FileManager extends Module implements IFileManager {
                     break;
                 }
             }
+        }
+    }
+
+    static settingsHttpRetry(limit: Undef<NumString>, delay: Undef<NumString>) {
+        if (limit && !isNaN(limit = +limit) && limit >= 0) {
+            HTTP_RETRYLIMIT = limit;
+        }
+        if (delay && !isNaN(delay = +delay) && delay >= 0) {
+            HTTP_RETRYDELAY = delay;
         }
     }
 
@@ -1043,78 +1071,96 @@ class FileManager extends Module implements IFileManager {
                 }
                 const client = this.getHttpClient(uri, server);
                 const host = server.host;
-                let buffer: Null<Buffer> = null;
-                if (host.v2()) {
-                    let retrying: Undef<boolean>,
-                        aborted: Undef<boolean>;
-                    const retryDownload = async (downgrade: boolean, err?: Error) => {
-                        if (err) {
-                            warnProtocol.call(this, host, err);
-                        }
-                        if (!retrying) {
-                            aborted = abortHttpRequest(server);
-                            retrying = true;
-                            buffer = null;
-                            if (downgrade) {
-                                downgradeHost(host);
-                                resolve(await this.fetchBuffer(uri));
+                let retries = 0;
+                const downloadUri = () => {
+                    let buffer: Null<Buffer> = null;
+                    if (host.v2()) {
+                        let retrying: Undef<boolean>,
+                            aborted: Undef<boolean>;
+                        const retryDownload = async (downgrade: boolean, err?: Error) => {
+                            if (err) {
+                                warnProtocol.call(this, host, err);
                             }
-                            else {
-                                resolve(await this.fetchBuffer(uri, { httpVersion: 1 }));
-                            }
-                        }
-                        (client as ClientHttp2Stream).close();
-                    };
-
-                    (client as ClientHttp2Stream)
-                        .on('response', (headers, flags) => {
                             if (!retrying) {
-                                const statusCode = headers[':status']!;
-                                if (invalidRequest(statusCode)) {
-                                    resolve(null);
-                                }
-                                else if (downgradeVersion(statusCode)) {
-                                    retryDownload(true, fromNgFlags(http2.constants.NGHTTP2_PROTOCOL_ERROR, HTTP_STATUS.HTTP_VERSION_NOT_SUPPORTED));
-                                }
-                                else if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
-                                    if (HTTP2_UNSUPPORTED.includes(flags)) {
-                                        retryDownload(checkHostFail(host), fromNgFlags(flags, statusCode));
-                                    }
-                                    else {
-                                        retryDownload(false);
-                                    }
-                                }
-                                else if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
-                                    retryDownload(false, fromNgFlags(0, statusCode, headers.location));
+                                aborted = abortHttpRequest(server);
+                                retrying = true;
+                                buffer = null;
+                                if (downgrade) {
+                                    downgradeHost(host);
+                                    resolve(await this.fetchBuffer(uri));
                                 }
                                 else {
-                                    client.on('end', () => {
-                                        if (!retrying) {
-                                            if (buffer) {
-                                                host.success[0]++;
-                                            }
-                                            resolve(buffer);
-                                        }
-                                    });
+                                    resolve(await this.fetchBuffer(uri, { httpVersion: 1 }));
                                 }
                             }
-                        })
-                        .on('error', err => {
-                            if (!retrying && !aborted) {
-                                retryDownload(true, err);
-                            }
-                        });
-                }
-                else {
-                    (client as ClientRequest)
-                        .on('end', () => resolve(buffer))
-                        .on('error', err => downloadFail.call(this, uri, err));
-                }
-                client.on('data', data => {
-                    if (Buffer.isBuffer(data)) {
-                        buffer = buffer ? Buffer.concat([buffer, data]) : data;
+                            (client as ClientHttp2Stream).close();
+                        };
+                        (client as ClientHttp2Stream)
+                            .on('response', (headers, flags) => {
+                                if (!retrying) {
+                                    const statusCode = headers[':status']!;
+                                    if (invalidRequest(statusCode)) {
+                                        resolve(null);
+                                    }
+                                    else if (retryRequest(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
+                                        setTimeout(() => downloadUri(), HTTP_RETRYDELAY);
+                                    }
+                                    else if (downgradeVersion(statusCode)) {
+                                        retryDownload(true, fromNgFlags(http2.constants.NGHTTP2_PROTOCOL_ERROR, HTTP_STATUS.HTTP_VERSION_NOT_SUPPORTED));
+                                    }
+                                    else if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
+                                        if (HTTP2_UNSUPPORTED.includes(flags)) {
+                                            retryDownload(checkHostFail(host), fromNgFlags(flags, statusCode));
+                                        }
+                                        else {
+                                            retryDownload(false);
+                                        }
+                                    }
+                                    else if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
+                                        ++retries;
+                                        retryDownload(false, fromNgFlags(0, statusCode, headers.location));
+                                    }
+                                    else {
+                                        client.on('end', () => {
+                                            if (!retrying) {
+                                                if (buffer) {
+                                                    host.success[0]++;
+                                                }
+                                                resolve(buffer);
+                                            }
+                                        });
+                                    }
+                                }
+                            })
+                            .on('error', err => {
+                                if (!retrying && !aborted) {
+                                    retryDownload(true, err);
+                                }
+                            });
                     }
-                });
+                    else {
+                        (client as ClientRequest)
+                            .on('response', res => {
+                                const statusCode = res.statusCode!;
+                                if (retryRequest(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
+                                    setTimeout(() => downloadUri(), HTTP_RETRYDELAY);
+                                }
+                                else if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
+                                    resolve(null);
+                                }
+                                else {
+                                    res.on('end', () => resolve(buffer));
+                                }
+                            })
+                            .on('error', err => downloadFail.call(this, uri, err));
+                    }
+                    client.on('data', data => {
+                        if (Buffer.isBuffer(data)) {
+                            buffer = buffer ? Buffer.concat([buffer, data]) : data;
+                        }
+                    });
+                };
+                downloadUri();
             }
             catch (err) {
                 this.writeFail(['Unable to fetch bufffer', uri], err);
@@ -1309,6 +1355,7 @@ class FileManager extends Module implements IFileManager {
                                                 }
                                             }
                                             let buffer: Null<Buffer> = null,
+                                                retries = 0,
                                                 localStream: Null<fs.WriteStream> = null;
                                             const errorRequest = (err: Error) => {
                                                 if (!notFound.includes(uri)) {
@@ -1360,7 +1407,11 @@ class FileManager extends Module implements IFileManager {
                                                 const checkResponse = (statusCode: number, headers: IncomingHttpHeaders) => {
                                                     if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
                                                         if (host.v2()) {
+                                                            ++retries;
                                                             retryDownload(false, fromNgFlags(0, statusCode, headers.location));
+                                                        }
+                                                        else if (retryRequest(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
+                                                            setTimeout(() => downloadUri(), HTTP_RETRYDELAY);
                                                         }
                                                         else {
                                                             errorRequest(fromStatusCode(statusCode));
@@ -1402,6 +1453,7 @@ class FileManager extends Module implements IFileManager {
                                                                         retryDownload(checkHostFail(host), fromNgFlags(flags, statusCode));
                                                                     }
                                                                     else {
+                                                                        ++retries;
                                                                         retryDownload(false);
                                                                     }
                                                                 }
@@ -1618,6 +1670,7 @@ class FileManager extends Module implements IFileManager {
                             else if (createFolder()) {
                                 const options = this.getHttpHost(uri) as Required<HttpClientOptions>;
                                 const tempDir = createTempDir(options.url);
+                                let retries = 0;
                                 const downloadUri = (etagDir?: string, httpVersion?: HttpVersionSupport) => {
                                     let retrying: Undef<boolean>,
                                         aborted: Undef<boolean>,
@@ -1658,7 +1711,11 @@ class FileManager extends Module implements IFileManager {
                                     const checkResponse = (statusCode: number, headers: IncomingHttpHeaders) => {
                                         if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
                                             if (host.v2()) {
+                                                ++retries;
                                                 retryDownload(false, fromNgFlags(0, statusCode, headers.location));
+                                            }
+                                            else if (retryRequest(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
+                                                setTimeout(() => downloadUri(), HTTP_RETRYDELAY);
                                             }
                                             else {
                                                 errorRequest(item, fromStatusCode(statusCode), localStream);
@@ -1692,6 +1749,7 @@ class FileManager extends Module implements IFileManager {
                                                             retryDownload(checkHostFail(host), fromNgFlags(flags, statusCode));
                                                         }
                                                         else {
+                                                            ++retries;
                                                             retryDownload(false);
                                                         }
                                                     }
