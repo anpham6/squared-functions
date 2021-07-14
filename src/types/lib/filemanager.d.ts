@@ -19,9 +19,9 @@ export interface HttpRequestBuffer {
 }
 
 export interface HttpHostData {
+    version: HttpVersionSupport;
     origin: string;
     credentials: string;
-    version: HttpVersionSupport;
     protocol: string;
     hostname: string;
     port: string;
@@ -30,6 +30,8 @@ export interface HttpHostData {
     headers: Null<OutgoingHttpHeaders>;
     success(version?: HttpVersionSupport): number;
     failed(version?: HttpVersionSupport): number;
+    error(): number;
+    clone(version?: HttpVersionSupport): HttpHostData;
     v2(): boolean;
 }
 

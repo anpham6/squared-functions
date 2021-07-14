@@ -567,26 +567,14 @@ abstract class Module implements IModule {
     }
 
     moduleName = 'unknown';
-    major = PROCESS_VERSION[0];
-    minor = PROCESS_VERSION[1];
-    patch = PROCESS_VERSION[2];
     tempDir = 'tmp';
+    readonly major = PROCESS_VERSION[0];
+    readonly minor = PROCESS_VERSION[1];
+    readonly patch = PROCESS_VERSION[2];
     readonly errors: string[] = [];
 
-    supported(major: number, minor = 0, patch = 0, lts?: boolean) {
-        if (this.major < major) {
-            return false;
-        }
-        else if (this.major === major) {
-            if (this.minor < minor) {
-                return false;
-            }
-            else if (this.minor === minor) {
-                return this.patch >= patch;
-            }
-            return true;
-        }
-        return lts ? false : true;
+    supported(major: number, minor?: number, patch?: number, lts?: boolean) {
+        return Module.supported(major, minor, patch, lts);
     }
     getTempDir(uuidDir?: boolean, filename = '') {
         return process.cwd() + path.sep + this.tempDir + path.sep + (uuidDir ? uuid.v4() + path.sep : '') + (filename[0] === '.' ? uuid.v4() : '') + filename;
