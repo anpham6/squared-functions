@@ -6,7 +6,7 @@ import type { AllSettledOptions, LoggerModule } from '../types/lib/module';
 import type { Settings } from '../types/lib/node';
 
 import path = require('path');
-import fs = require('fs');
+import fs = require('fs-extra');
 import uuid = require('uuid');
 import chalk = require('chalk');
 
@@ -515,6 +515,38 @@ abstract class Module implements IModule {
         catch {
         }
         return 0;
+    }
+
+    static mkdirSafe(value: string) {
+        try {
+            if (fs.existsSync(value)) {
+                return true;
+            }
+        }
+        catch {
+        }
+        let index = value.lastIndexOf(path.sep);
+        if (index === -1) {
+            index = value.lastIndexOf(path.sep === '/' ? '\\' : '/');
+        }
+        if (index !== -1) {
+            try {
+                if (fs.existsSync(value.substring(0, index))) {
+                    fs.mkdirSync(value);
+                    return true;
+                }
+            }
+            catch {
+            }
+        }
+        try {
+            fs.mkdirpSync(value);
+            return true;
+        }
+        catch (err) {
+            this.writeFail(['Unable to create directory', value], err, LOG_TYPE.FILE);
+        }
+        return false;
     }
 
     static allSettled<T>(values: readonly (T | PromiseLike<T>)[], options?: AllSettledOptions) {

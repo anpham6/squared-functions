@@ -1334,9 +1334,9 @@ class ChromeDocument extends Document implements IChromeDocument {
         const productionRelease = instance.productionRelease;
         if (Document.isString(productionRelease)) {
             try {
-                if (path.isAbsolute(productionRelease) && fs.pathExistsSync(productionRelease)) {
+                if (path.isAbsolute(productionRelease) && fs.existsSync(productionRelease)) {
                     const src = path.join(this.baseDirectory, instance.internalServerRoot);
-                    if (fs.pathExistsSync(src)) {
+                    if (fs.existsSync(src)) {
                         fs.moveSync(src, productionRelease, { overwrite: true });
                     }
                 }

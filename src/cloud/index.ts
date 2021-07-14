@@ -249,13 +249,13 @@ class Cloud extends Module implements ICloud {
                                     if (active && localUri && path.extname(localUri) === path.extname(downloadUri)) {
                                         downloadUri = localUri;
                                     }
-                                    fs.mkdirpSync(dirname);
-                                    valid = true;
+                                    if (Module.mkdirSafe(dirname)) {
+                                        valid = true;
+                                    }
                                 }
                             }
                             catch (err) {
                                 cloud.writeFail(['Unable to create directory', dirname], err, this.logType.FILE);
-                                continue;
                             }
                             if (valid) {
                                 const location = data.service + data.bucket + filename;
@@ -502,7 +502,7 @@ class Cloud extends Module implements ICloud {
         let result = path.join(__dirname, service),
             sep = path.sep;
         try {
-            if (!fs.pathExistsSync(result)) {
+            if (!fs.existsSync(result)) {
                 result = service;
                 sep = '/';
             }

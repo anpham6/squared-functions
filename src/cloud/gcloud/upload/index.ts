@@ -4,7 +4,7 @@ import type { UploadData } from '../../../types/lib/cloud';
 import type { UploadCallback } from '../../index';
 
 import path = require('path');
-import fs = require('fs-extra');
+import fs = require('fs');
 import uuid = require('uuid');
 
 import Module from '../../../module';
@@ -83,11 +83,7 @@ export default function upload(this: IModule, credential: GCloudStorageCredentia
             if (i === 0 || destUri !== srcUri) {
                 srcUri = this.getTempDir(true) + path.normalize(Key[i]);
                 const dirname = path.dirname(srcUri);
-                try {
-                    fs.mkdirpSync(dirname);
-                }
-                catch (err) {
-                    this.writeFail(['Unable to create directory', dirname], err, this.logType.FILE);
+                if (!Module.mkdirSafe(dirname)) {
                     success('');
                     return;
                 }

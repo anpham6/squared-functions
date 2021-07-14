@@ -3,8 +3,6 @@ import type { DownloadData } from '../../../types/lib/cloud';
 
 import type { DownloadCallback } from '../../index';
 
-import fs = require('fs-extra');
-
 import Module from '../../../module';
 
 import { GCloudStorageCredential, createStorageClient } from '../index';
@@ -17,10 +15,7 @@ export default function download(this: IModule, credential: GCloudStorageCredent
         if (Bucket && Key) {
             try {
                 let tempDir = this.getTempDir(true);
-                try {
-                    fs.mkdirpSync(tempDir);
-                }
-                catch {
+                if (!Module.mkdirSafe(tempDir)) {
                     tempDir = this.getTempDir();
                 }
                 const destination = tempDir + Key;

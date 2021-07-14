@@ -146,15 +146,14 @@ class Gulp extends Task {
         const { task, origDir, data } = gulp;
         const tempDir = this.getTempDir(true);
         const time = Date.now();
-        const writeError = (value: string, err?: Error, hint?: string) => {
+        const writeError = (value: string, err?: Null<Error>, hint?: string) => {
             if (err) {
                 this.writeFail([value, hint || this.moduleName + ': ' + task], err, this.logType.FILE);
             }
             this.writeTimeProcess('gulp', task, time, { failed: true });
         };
         this.formatMessage(this.logType.PROCESS, 'gulp', ['Executing task...', task], data.gulpfile);
-        try {
-            fs.mkdirpSync(tempDir);
+        if (Task.mkdirSafe(tempDir)) {
             Promise.all(data.items.map(uri => fs.copyFile(uri, path.join(tempDir, path.basename(uri)))))
                 .then(() => {
                     const output = PATH_GULPBIN ? child_process.execFile(PATH_GULPBIN, [task, '--gulpfile', `"${sanitizePath(data.gulpfile)}"`, '--cwd', `"${sanitizePath(tempDir)}"`], { cwd: process.cwd(), shell: true }) : child_process.exec(`gulp ${task} --gulpfile "${sanitizePath(data.gulpfile)}" --cwd "${sanitizePath(tempDir)}"`, { cwd: process.cwd() });
@@ -202,8 +201,8 @@ class Gulp extends Task {
                     writeError('Unable to copy files', err, tempDir);
                 });
         }
-        catch (err) {
-            writeError('Unable to create directory', err, tempDir);
+        else {
+            writeError('Unable to create directory', null, tempDir);
             callback();
         }
     }

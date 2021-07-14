@@ -16,7 +16,7 @@ export default async function transform(context: any, value: string, options: Tr
         inputFile: Undef<[string, string?][]>;
     const createDir = () => {
         const tempDir = path.join(process.cwd(), 'tmp', 'rollup');
-        if (!fs.pathExistsSync(tempDir)) {
+        if (!fs.existsSync(tempDir)) {
             fs.mkdirpSync(tempDir);
         }
         return tempDir;

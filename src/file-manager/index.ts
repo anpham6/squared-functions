@@ -1140,7 +1140,7 @@ class FileManager extends Module implements IFileManager {
                 const client = this.getHttpClient(uri, server);
                 const host = server.host;
                 let retries = 0;
-                const downloadUri = () => {
+                (function downloadUri(this: IFileManager) {
                     let buffer: Null<Buffer> = null;
                     const downloadEnd = () => {
                         if (buffer) {
@@ -1238,8 +1238,7 @@ class FileManager extends Module implements IFileManager {
                             buffer = buffer ? Buffer.concat([buffer, data]) : data;
                         }
                     });
-                };
-                downloadUri();
+                }).bind(this)();
             }
             catch (err) {
                 this.writeFail(['Unable to fetch bufffer', uri], err, this.logType.HTTP);
@@ -1304,12 +1303,8 @@ class FileManager extends Module implements IFileManager {
         const createTempDir = (url: URL) => {
             if (this.cacheHttpRequest) {
                 const tempDir = this.getTempDir(false, url.hostname + (url.port ? '_' + url.port : ''));
-                try {
-                    fs.mkdirpSync(tempDir);
+                if (Module.mkdirSafe(tempDir)) {
                     return tempDir;
-                }
-                catch (err) {
-                    this.writeFail(['Unable to create directory', tempDir], err, this.logType.FILE);
                 }
             }
         };
@@ -1441,7 +1436,7 @@ class FileManager extends Module implements IFileManager {
                                                             resolve();
                                                             return;
                                                         }
-                                                        else if (!fs.pathExistsSync(baseDir)) {
+                                                        else if (!fs.existsSync(baseDir)) {
                                                             fs.mkdirSync(baseDir);
                                                         }
                                                     }
@@ -1469,7 +1464,7 @@ class FileManager extends Module implements IFileManager {
                                                     localStream = null;
                                                 }
                                             };
-                                            const downloadUri = (httpVersion?: HttpVersionSupport) => {
+                                            (function downloadUri(this: IFileManager, httpVersion?: HttpVersionSupport) {
                                                 if (tempUri) {
                                                     localStream = fs.createWriteStream(tempUri);
                                                     options.localStream = localStream;
@@ -1492,10 +1487,10 @@ class FileManager extends Module implements IFileManager {
                                                         buffer = null;
                                                         if (downgrade) {
                                                             downgradeHost(host);
-                                                            downloadUri();
+                                                            downloadUri.call(this);
                                                         }
                                                         else {
-                                                            downloadUri(1);
+                                                            downloadUri.call(this, 1);
                                                         }
                                                     }
                                                     (client as ClientHttp2Stream).close();
@@ -1578,8 +1573,7 @@ class FileManager extends Module implements IFileManager {
                                                             }
                                                         });
                                                 }
-                                            };
-                                            downloadUri();
+                                            }).bind(this)();
                                         }
                                         catch (err) {
                                             reject(err);
@@ -1625,11 +1619,7 @@ class FileManager extends Module implements IFileManager {
                         const items = uriMap.get(copyUri) || [];
                         if (items.length === 0) {
                             const pathname = path.dirname(copyUri);
-                            try {
-                                fs.mkdirpSync(pathname);
-                            }
-                            catch (err) {
-                                this.writeFail(['Unable to create directory', pathname], err, this.logType.FILE);
+                            if (!Module.mkdirSafe(pathname)) {
                                 item.invalid = true;
                                 continue;
                             }
@@ -1727,12 +1717,10 @@ class FileManager extends Module implements IFileManager {
                             this.writeFail(['Unable to empty sub directory', pathname], err);
                         }
                     }
-                    try {
-                        fs.mkdirpSync(pathname);
+                    if (Module.mkdirSafe(pathname)) {
                         emptied.push(pathname);
                     }
-                    catch (err) {
-                        this.writeFail(['Unable to create directory', pathname], err, this.logType.FILE);
+                    else {
                         item.invalid = true;
                         return false;
                     }
@@ -1895,7 +1883,7 @@ class FileManager extends Module implements IFileManager {
                                                     const baseDir = path.join(tempDir, etagDir);
                                                     const tempUri = path.join(baseDir, path.basename(localUri));
                                                     try {
-                                                        if (!fs.pathExistsSync(baseDir)) {
+                                                        if (!fs.existsSync(baseDir)) {
                                                             fs.mkdirSync(baseDir);
                                                         }
                                                         if (buffer) {
