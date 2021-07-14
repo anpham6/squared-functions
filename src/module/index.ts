@@ -517,13 +517,13 @@ abstract class Module implements IModule {
         return 0;
     }
 
-    static mkdirSafe(value: string) {
-        try {
-            if (fs.existsSync(value)) {
-                return true;
+    static mkdirSafe(value: string, skipCheck?: boolean) {
+        if (!skipCheck) {
+            try {
+                return fs.lstatSync(value).isDirectory();
             }
-        }
-        catch {
+            catch {
+            }
         }
         let index = value.lastIndexOf(path.sep);
         if (index === -1) {

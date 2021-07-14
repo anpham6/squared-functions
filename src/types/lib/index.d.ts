@@ -320,7 +320,7 @@ declare namespace functions {
         resolvePath(value: string, href: string): string;
         joinPath(...values: unknown[]): string;
         getFileSize(value: PathLike): number;
-        mkdirSafe(value: string): boolean;
+        mkdirSafe(value: string, skipCheck?: boolean): boolean;
         loadSettings(value: Settings): void;
         allSettled<T>(values: readonly (T | PromiseLike<T>)[], options?: AllSettledOptions): Promise<PromiseSettledResult<T>[]>;
         new(): IModule;

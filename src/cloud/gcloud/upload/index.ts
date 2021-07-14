@@ -83,7 +83,7 @@ export default function upload(this: IModule, credential: GCloudStorageCredentia
             if (i === 0 || destUri !== srcUri) {
                 srcUri = this.getTempDir(true) + path.normalize(Key[i]);
                 const dirname = path.dirname(srcUri);
-                if (!Module.mkdirSafe(dirname)) {
+                if (!Module.mkdirSafe(dirname, true)) {
                     success('');
                     return;
                 }

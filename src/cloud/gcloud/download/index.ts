@@ -15,7 +15,7 @@ export default function download(this: IModule, credential: GCloudStorageCredent
         if (Bucket && Key) {
             try {
                 let tempDir = this.getTempDir(true);
-                if (!Module.mkdirSafe(tempDir)) {
+                if (!Module.mkdirSafe(tempDir, true)) {
                     tempDir = this.getTempDir();
                 }
                 const destination = tempDir + Key;

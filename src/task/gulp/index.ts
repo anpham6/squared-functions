@@ -153,7 +153,7 @@ class Gulp extends Task {
             this.writeTimeProcess('gulp', task, time, { failed: true });
         };
         this.formatMessage(this.logType.PROCESS, 'gulp', ['Executing task...', task], data.gulpfile);
-        if (Task.mkdirSafe(tempDir)) {
+        if (Task.mkdirSafe(tempDir, true)) {
             Promise.all(data.items.map(uri => fs.copyFile(uri, path.join(tempDir, path.basename(uri)))))
                 .then(() => {
                     const output = PATH_GULPBIN ? child_process.execFile(PATH_GULPBIN, [task, '--gulpfile', `"${sanitizePath(data.gulpfile)}"`, '--cwd', `"${sanitizePath(tempDir)}"`], { cwd: process.cwd(), shell: true }) : child_process.exec(`gulp ${task} --gulpfile "${sanitizePath(data.gulpfile)}" --cwd "${sanitizePath(tempDir)}"`, { cwd: process.cwd() });
