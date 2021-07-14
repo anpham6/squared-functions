@@ -130,7 +130,7 @@ class Cloud extends Module implements ICloud {
                                 }
                             }
                         }
-                        Module.allSettled(uploadTasks, ['Upload file <cloud storage>', file.localUri!], this.errors).then(async result => {
+                        Module.allSettled(uploadTasks, { rejected: ['Upload file <cloud storage>', file.localUri!], errors: this.errors }).then(async result => {
                             if (!uploadDocument) {
                                 for (const item of result) {
                                     if (item.status === 'fulfilled' && item.value) {
@@ -196,7 +196,7 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, ['Compress files', 'cloud storage'], this.errors);
+            await Module.allSettled(tasks, { rejected: ['Compress files', 'cloud storage'], errors: this.errors });
             tasks = [];
         }
         for (const service in bucketMap) {
@@ -205,14 +205,14 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, ['Empty bucket', 'cloud storage'], this.errors);
+            await Module.allSettled(tasks, { rejected: ['Empty bucket', 'cloud storage'], errors: this.errors });
             tasks = [];
         }
         for (const item of rawFiles) {
             tasks.push(...Cloud.uploadAsset.call(this, state, item));
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, ['Upload raw assets', 'cloud storage'], this.errors);
+            await Module.allSettled(tasks, { rejected: ['Upload raw assets', 'cloud storage'], errors: this.errors });
             tasks = [];
         }
         for (const { instance } of this.Document) {
@@ -228,7 +228,7 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, ['Delete temporary files', 'cloud storage'], this.errors);
+            await Module.allSettled(tasks, { rejected: ['Delete temporary files', 'cloud storage'], errors: this.errors, type: this.logType.FILE });
             tasks = [];
         }
         for (const item of this.assets) {
@@ -300,7 +300,7 @@ class Cloud extends Module implements ICloud {
             }
         }
         if (tasks.length) {
-            await Module.allSettled(tasks, ['Download objects', 'cloud storage'], this.errors);
+            await Module.allSettled(tasks, { rejected: ['Download objects', 'cloud storage'], errors: this.errors });
         }
     }
 

@@ -105,13 +105,14 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                     }
                     this.subProcesses.add(handler);
                     handler.write(output, (err: Null<Error>, result: string) => {
-                        let parent: Undef<ExternalAsset>;
+                        const filename = path.basename(result);
+                        let parent: Undef<ExternalAsset>,
+                            failed: Undef<boolean>;
                         if (!err && result) {
                             const file = data.file;
                             if (file.document) {
                                 this.writeImage(file.document, { ...data, command, output: result, baseDirectory: this.baseDirectory } as OutputData);
                             }
-                            this.writeTimeProcess(handler.moduleName, path.basename(result), time);
                             if (this.getLocalUri(data) !== result) {
                                 if (command.indexOf('%') !== -1) {
                                     if (this.filesToCompare.has(file)) {
@@ -132,13 +133,18 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                             }
                         }
                         else {
-                            handler.writeFail(['Unable to finalize image', result], err);
                             result = '';
+                            failed = true;
+                            handler.writeFail(['Unable to finalize image', result], err);
                         }
                         this.completeAsyncTask(null, result, parent);
+                        this.writeTimeProcess(MODULE_NAME, filename, time, { failed });
                     });
                 })
-                .catch(err => this.writeFail(['Unable to read image buffer', MODULE_NAME + path.basename(localUri)], err, this.logType.FILE));
+                .catch(err => {
+                    this.writeTimeProcess(MODULE_NAME, path.basename(localUri), time, { failed: true });
+                    this.writeFail(['Unable to read image buffer', MODULE_NAME + path.basename(localUri)], err, this.logType.FILE);
+                });
         };
         if (mimeType === 'image/webp') {
             try {
@@ -366,7 +372,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                                     }
                                 });
                             })
-                            .catch(err => this.writeFail(['Unable to rotate image', this.moduleName], err))
+                            .catch(err => this.writeFail(['Unable to rotate image', MODULE_NAME], err))
                     );
                 }
             }
@@ -414,7 +420,9 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                                     fs.unlinkSync(result);
                                 }
                                 catch (err_2) {
-                                    this.writeFail(['Unable to delete file', result], err_2, this.logType.FILE);
+                                    if (!Image.isErrorCode(err_2, 'ENOENT')) {
+                                        this.writeFail(['Unable to delete file', result], err_2, this.logType.FILE);
+                                    }
                                 }
                             }
                         }
@@ -451,15 +459,17 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                     this.writeFail(['Install WebP?', 'npm i cwebp-bin'], err);
                     callback(err, output);
                 }
-                else if (webp !== output) {
-                    fs.unlink(output, err_1 => {
-                        if (err_1) {
-                            this.writeFail(['Unable to delete file', output], err_1, this.logType.FILE);
-                        }
-                        callback(null, webp);
-                    });
-                }
                 else {
+                    if (webp !== output) {
+                        try {
+                            fs.unlinkSync(output);
+                        }
+                        catch (err_1) {
+                            if (!Image.isErrorCode(err_1, 'ENOENT')) {
+                                this.writeFail(['Unable to delete file', output], err_1, this.logType.FILE);
+                            }
+                        }
+                    }
                     callback(null, webp);
                 }
             });

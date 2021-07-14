@@ -26,6 +26,7 @@ export interface LogMessageOptions {
     hintBgColor?: typeof BackgroundColor;
     messageColor?: typeof ForegroundColor;
     messageBgColor?: typeof BackgroundColor;
+    failed?: boolean;
 }
 
 export interface LoggerFormat {
@@ -36,5 +37,5 @@ export interface LoggerFormat {
 }
 
 export type LogValue = string | [string, Optional<string>];
-export type ModuleWriteFailMethod = (value: string | [string, Optional<string>], message?: Null<Error>, type?: LOG_TYPE) => void;
-export type ModuleFormatMessageMethod = (type: LOG_TYPE, title: string, value: string | [string, Optional<string>], message?: unknown, options?: LogMessageOptions) => void;
+export type ModuleWriteFailMethod = (value: LogValue, message?: Null<Error>, type?: LOG_TYPE) => void;
+export type ModuleFormatMessageMethod = (type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options?: LogMessageOptions) => void;

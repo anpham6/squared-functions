@@ -1,5 +1,5 @@
 import type { CacheTimeout } from './cloud';
-import type { LoggerFormat } from './logger';
+import type { LOG_TYPE, LogValue, LoggerFormat } from './logger';
 
 export interface HandlerModule {
     handler?: string;
@@ -49,4 +49,10 @@ export interface LoggerModule {
     cloud?: boolean;
     time_elapsed?: boolean;
     time_process?: boolean;
+}
+
+export interface AllSettledOptions {
+    rejected?: LogValue;
+    errors?: string[];
+    type?: LOG_TYPE;
 }

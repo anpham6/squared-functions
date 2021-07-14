@@ -75,6 +75,7 @@ const Compress = new class extends Module implements ICompress {
                         }
                     })
                     .on('error', err => {
+                        this.writeTimeProcess(format, path.basename(output), time, { failed: true });
                         if (callback) {
                             callback(err);
                         }
@@ -105,16 +106,18 @@ const Compress = new class extends Module implements ICompress {
             }
         };
         const writeFile = (result: Buffer | Uint8Array) => {
+            let failed: Undef<boolean>;
             try {
                 fs.writeFileSync(uri, result);
-                this.writeTimeProcess(ext, path.basename(uri), time);
                 if (callback) {
                     callback(null, result);
                 }
             }
             catch (err) {
+                failed = true;
                 writeError(err);
             }
+            this.writeTimeProcess(ext, path.basename(uri), time, { failed });
         };
         const loadBuffer = () => {
             try {

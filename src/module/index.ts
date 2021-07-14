@@ -2,7 +2,7 @@
 
 import type { IModule } from '../types/lib';
 import type { LogMessageOptions, LogValue, LoggerFormat } from '../types/lib/logger';
-import type { LoggerModule } from '../types/lib/module';
+import type { AllSettledOptions, LoggerModule } from '../types/lib/module';
 import type { Settings } from '../types/lib/node';
 
 import path = require('path');
@@ -68,7 +68,7 @@ function applyFormatPadding(value: string, width: number, justify?: string, padd
                 }
                 break;
             case 'center':
-                value = value.padStart(value.length + Math.ceil(offset / 2));
+                value = value.padStart(value.length + Math.ceil((offset + paddingRight) / 2));
                 break;
         }
         return value.padEnd(width + paddingRight);
@@ -101,11 +101,40 @@ function getFormatJustify(format: Undef<LoggerFormat>, fallback?: Undef<string>)
     return fallback || 'left';
 }
 
+function isFailed(options?: LogMessageOptions) {
+    if (options) {
+        if (options.failed) {
+            if (!options.titleColor && !options.titleBgColor) {
+                options.titleColor = 'white';
+                options.titleBgColor = 'bgGray';
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
 const useColor = (options: Undef<LogMessageOptions>) => !(options && options.useColor === false || SETTINGS.color === false);
 
 abstract class Module implements IModule {
     static LOG_TYPE = LOG_TYPE;
     static LOG_STYLE_FAIL: LogMessageOptions = { titleColor: 'white', titleBgColor: 'bgRed' };
+
+    static supported(major: number, minor = 0, patch = 0, lts?: boolean) {
+        if (PROCESS_VERSION[0] < major) {
+            return false;
+        }
+        else if (PROCESS_VERSION[0] === major) {
+            if (PROCESS_VERSION[1] < minor) {
+                return false;
+            }
+            else if (PROCESS_VERSION[1] === minor) {
+                return PROCESS_VERSION[2] >= patch;
+            }
+            return true;
+        }
+        return lts ? false : true;
+    }
 
     static isObject<T = PlainObject>(value: unknown): value is T {
         return typeof value === 'object' && value !== null;
@@ -139,7 +168,7 @@ abstract class Module implements IModule {
 
     static formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
         const format = SETTINGS.format!;
-        let titleJustify = (type & LOG_TYPE.FAIL) === LOG_TYPE.FAIL ? 'center' : getFormatJustify(format.title, 'right');
+        let titleJustify = (type & LOG_TYPE.FAIL) === LOG_TYPE.FAIL || options.failed ? 'center' : getFormatJustify(format.title, 'right');
         if (type === 0) {
             if (SETTINGS.unknown === false) {
                 return;
@@ -191,7 +220,7 @@ abstract class Module implements IModule {
                 if (SETTINGS.time_process === false) {
                     return;
                 }
-                options.messageBgColor ||= 'bgCyan';
+                options.messageBgColor ||= options.failed ? 'bgGray' : 'bgCyan';
             }
         }
         const valueWidth = getFormatWidth(format.value, 71);
@@ -349,13 +378,31 @@ abstract class Module implements IModule {
         return false;
     }
 
-    static hasSameStat(src: string, dest: string) {
+    static hasSameStat(src: string, dest: string, keepEmpty?: boolean) {
         try {
             if (fs.existsSync(dest)) {
                 const statSrc = fs.statSync(src);
-                const statDest = fs.statSync(dest);
-                return statSrc.size === statDest.size && statSrc.mtimeMs === statDest.mtimeMs;
+                if (statSrc.size > 0) {
+                    const statDest = fs.statSync(dest);
+                    return statSrc.size === statDest.size && statSrc.mtimeMs === statDest.mtimeMs;
+                }
+                else if (!keepEmpty) {
+                    fs.unlinkSync(src);
+                }
             }
+        }
+        catch {
+        }
+        return false;
+    }
+
+    static hasSize(src: string) {
+        try {
+            const statSrc = fs.statSync(src);
+            if (statSrc.size > 0) {
+                return true;
+            }
+            fs.unlinkSync(src);
         }
         catch {
         }
@@ -376,6 +423,14 @@ abstract class Module implements IModule {
 
     static isUUID(value: string) {
         return /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/.test(value);
+    }
+
+    static isErrorCode(err: Error, ...code: string[]) {
+        if (err instanceof Error) {
+            const value = err['code'];
+            return typeof value === 'string' && code.includes(value);
+        }
+        return false;
     }
 
     static resolveUri(value: string) {
@@ -454,19 +509,32 @@ abstract class Module implements IModule {
         return 0;
     }
 
-    static allSettled<T>(values: readonly (T | PromiseLike<T>)[], rejected?: string | [string, string], errors?: string[]) {
+    static allSettled<T>(values: readonly (T | PromiseLike<T>)[], options?: AllSettledOptions) {
         const promise = Promise.allSettled ? Promise.allSettled(values) as Promise<PromiseSettledResult<T>[]> : allSettled(values);
-        if (rejected) {
-            promise.then(result => {
-                for (const item of result) {
-                    if (item.status === 'rejected' && item.reason) {
-                        this.writeFail(rejected, item.reason);
-                        if (errors) {
-                            errors.push(item.reason.toString());
+        if (options) {
+            const { rejected, errors, type } = options;
+            if (rejected || errors) {
+                promise.then(result => {
+                    const items: PromiseSettledResult<T>[] = [];
+                    for (const item of result) {
+                        if (item.status === 'rejected') {
+                            const reason = item.reason;
+                            if (reason) {
+                                if (rejected) {
+                                    this.writeFail(rejected, reason instanceof Error ? reason : new Error(reason), type);
+                                }
+                                if (errors) {
+                                    errors.push(reason.toString());
+                                }
+                            }
+                        }
+                        else {
+                            items.push(item);
                         }
                     }
-                }
-            });
+                    return items;
+                });
+            }
         }
         return promise;
     }
@@ -505,7 +573,7 @@ abstract class Module implements IModule {
     tempDir = 'tmp';
     readonly errors: string[] = [];
 
-    supported(major: number, minor: number, patch = 0) {
+    supported(major: number, minor = 0, patch = 0, lts?: boolean) {
         if (this.major < major) {
             return false;
         }
@@ -518,7 +586,7 @@ abstract class Module implements IModule {
             }
             return true;
         }
-        return true;
+        return lts ? false : true;
     }
     getTempDir(uuidDir?: boolean, filename = '') {
         return process.cwd() + path.sep + this.tempDir + path.sep + (uuidDir ? uuid.v4() + path.sep : '') + (filename[0] === '.' ? uuid.v4() : '') + filename;
@@ -529,11 +597,12 @@ abstract class Module implements IModule {
     }
     writeTimeProcess(title: string, value: string, time: number, options?: LogMessageOptions) {
         time = Date.now() - time;
-        const meter = '>'.repeat(Math.ceil(time / 250));
-        Module.formatMessage(LOG_TYPE.TIME_PROCESS, title, ['Completed -> ' + value, time / 1000 + 's'], meter, options);
+        const failed = isFailed(options);
+        const meter = (failed ? 'X' : '>').repeat(Math.ceil(time / 250));
+        Module.formatMessage(LOG_TYPE.TIME_PROCESS, title, [(failed ? 'Failed' : 'Completed') + ' -> ' + value, time / 1000 + 's'], meter, options);
     }
     writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions) {
-        Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, ['Completed', (Date.now() - time) / 1000 + 's'], value, options);
+        Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, [isFailed(options) ? 'Failed' : 'Completed', (Date.now() - time) / 1000 + 's'], value, options);
     }
     formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: Null<Error>, options?: LogMessageOptions) {
         type |= LOG_TYPE.FAIL;

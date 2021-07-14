@@ -19,14 +19,15 @@ interface GulpTask extends PlainObject {
     data: GulpData;
 }
 
-const PATH_GULPBIN = which.sync('gulp', { nothrow: true });
+const MODULE_NAME = 'gulp';
+const PATH_GULPBIN = which.sync(MODULE_NAME, { nothrow: true });
 
 const sanitizePath = (value: string) => value.replace(/\\/g, '\\\\');
 
 class Gulp extends Task {
     static async using(this: IFileManager, instance: Gulp, assets: ExternalAsset[], beforeStage = false) {
-        const gulp = instance.module.settings as Undef<StringMap>;
-        if (!gulp) {
+        const settings = instance.module.settings as Undef<StringMap>;
+        if (!settings) {
             return;
         }
         const taskMap = new Map<string, Map<string, GulpData>>();
@@ -36,8 +37,8 @@ class Gulp extends Task {
             const origDir = path.dirname(item.localUri!);
             const scheduled = new Set<string>();
             for (const { handler, task, preceding } of item.tasks!) {
-                if (instance.moduleName === handler && !!preceding === beforeStage) {
-                    let gulpfile = gulp[task];
+                if (MODULE_NAME === handler && !!preceding === beforeStage) {
+                    let gulpfile = settings[task];
                     if (gulpfile) {
                         if (!scheduled.has(task)) {
                             try {
@@ -60,7 +61,7 @@ class Gulp extends Task {
                         }
                     }
                     else {
-                        instance.writeFail(['Unable to locate task', instance.moduleName + ': ' + task], new Error(task + ' (Unknown)'));
+                        instance.writeFail(['Unable to locate task', MODULE_NAME + ': ' + task], new Error(task + ' (Unknown)'));
                     }
                 }
             }
@@ -135,64 +136,74 @@ class Gulp extends Task {
             }));
         }
         if (tasks.length) {
-            await Task.allSettled(tasks, ['Execute tasks', instance.moduleName], this.errors);
+            await Task.allSettled(tasks, { rejected: ['Execute tasks', MODULE_NAME], errors:  this.errors });
         }
     }
 
-    moduleName = 'gulp';
+    moduleName = MODULE_NAME;
 
     execute(manager: IFileManager, gulp: GulpTask, callback: (value?: unknown) => void) {
         const { task, origDir, data } = gulp;
         const tempDir = this.getTempDir(true);
+        const time = Date.now();
+        const writeError = (value: string, err?: Error, hint?: string) => {
+            if (err) {
+                this.writeFail([value, hint || this.moduleName + ': ' + task], err, this.logType.FILE);
+            }
+            this.writeTimeProcess('gulp', task, time, { failed: true });
+        };
+        this.formatMessage(this.logType.PROCESS, 'gulp', ['Executing task...', task], data.gulpfile);
         try {
             fs.mkdirpSync(tempDir);
-            const hint = this.moduleName + ': ' + task;
             Promise.all(data.items.map(uri => fs.copyFile(uri, path.join(tempDir, path.basename(uri)))))
                 .then(() => {
-                    this.formatMessage(this.logType.PROCESS, 'gulp', ['Executing task...', task], data.gulpfile);
-                    const time = Date.now();
                     const output = PATH_GULPBIN ? child_process.execFile(PATH_GULPBIN, [task, '--gulpfile', `"${sanitizePath(data.gulpfile)}"`, '--cwd', `"${sanitizePath(tempDir)}"`], { cwd: process.cwd(), shell: true }) : child_process.exec(`gulp ${task} --gulpfile "${sanitizePath(data.gulpfile)}" --cwd "${sanitizePath(tempDir)}"`, { cwd: process.cwd() });
-                    output.on('close', code => {
-                        if (!code) {
-                            Promise.all(data.items.map(uri => fs.unlink(uri).then(() => manager.delete(uri))))
-                                .then(() => {
-                                    fs.readdir(tempDir)
-                                        .then(value => {
-                                            Promise.all(
-                                                value.map(filename => {
-                                                    const uri = path.join(origDir, filename);
-                                                    return fs.move(path.join(tempDir, filename), uri, { overwrite: true }).then(() => manager.add(uri));
+                    output
+                        .on('close', code => {
+                            if (!code) {
+                                Task.allSettled(data.items.map(uri => fs.unlink(uri).then(() => manager.delete(uri))), { rejected: ['Unable to delete file', this.moduleName + ': ' + task], errors: this.errors, type: this.logType.FILE })
+                                    .then(() => {
+                                        fs.readdir(tempDir)
+                                            .then(value => {
+                                                Promise.all(
+                                                    value.map(filename => {
+                                                        const uri = path.join(origDir, filename);
+                                                        return fs.move(path.join(tempDir, filename), uri, { overwrite: true }).then(() => manager.add(uri));
+                                                    })
+                                                )
+                                                .then(() => {
+                                                    this.writeTimeProcess('gulp', task, time);
+                                                    callback();
                                                 })
-                                            )
-                                            .then(() => {
-                                                this.writeTimeProcess('gulp', task, time);
-                                                callback();
+                                                .catch(err => {
+                                                    writeError('Unable to replace files', err);
+                                                    callback();
+                                                });
                                             })
-                                            .catch(err_1 => {
-                                                this.writeFail(['Unable to replace files', hint], err_1, this.logType.FILE);
+                                            .catch(err => {
+                                                writeError('Unable to read directory', err);
                                                 callback();
                                             });
-                                        }
-                                    )
-                                    .catch(err_1 => {
-                                        this.writeFail(['Unable to read directory', hint], err_1);
-                                        callback();
                                     });
-                                })
-                                .catch(err_1 => {
-                                    this.writeFail(['Unable to delete files', hint], err_1, this.logType.FILE);
-                                    callback();
-                                });
-                        }
-                        else {
-                            callback();
-                        }
-                    });
-                    output.on('error', err => this.writeFail(['Unknown', hint], err));
+                            }
+                            else {
+                                writeError('');
+                                callback();
+                            }
+                        })
+                        .on('error', err => writeError('Unknown', err));
+                })
+                .catch(err => {
+                    try {
+                        fs.rmdirSync(tempDir);
+                    }
+                    catch {
+                    }
+                    writeError('Unable to copy files', err, tempDir);
                 });
         }
         catch (err) {
-            this.writeFail(['Unable to create directory', tempDir], err, this.logType.FILE);
+            writeError('Unable to create directory', err, tempDir);
             callback();
         }
     }
