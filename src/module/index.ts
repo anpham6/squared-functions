@@ -354,7 +354,7 @@ abstract class Module implements IModule {
             if (fs.existsSync(dest)) {
                 const statSrc = fs.statSync(src);
                 const statDest = fs.statSync(dest);
-                return statSrc.size === statDest.size && statSrc.mtimeMs === statDest.mtimeMs;
+                return statSrc.size === statDest.size && statSrc.mtimeMs === statDest.mtimeMs && statSrc.size > 0;
             }
         }
         catch {
@@ -466,6 +466,7 @@ abstract class Module implements IModule {
                         }
                     }
                 }
+                return result;
             });
         }
         return promise;

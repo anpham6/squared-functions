@@ -154,7 +154,7 @@ class Gulp extends Task {
                     const output = PATH_GULPBIN ? child_process.execFile(PATH_GULPBIN, [task, '--gulpfile', `"${sanitizePath(data.gulpfile)}"`, '--cwd', `"${sanitizePath(tempDir)}"`], { cwd: process.cwd(), shell: true }) : child_process.exec(`gulp ${task} --gulpfile "${sanitizePath(data.gulpfile)}" --cwd "${sanitizePath(tempDir)}"`, { cwd: process.cwd() });
                     output.on('close', code => {
                         if (!code) {
-                            Promise.all(data.items.map(uri => fs.unlink(uri).then(() => manager.delete(uri))))
+                            Task.allSettled(data.items.map(uri => fs.unlink(uri).then(() => manager.delete(uri))), ['Unable to delete file', hint], this.errors)
                                 .then(() => {
                                     fs.readdir(tempDir)
                                         .then(value => {
@@ -178,10 +178,6 @@ class Gulp extends Task {
                                         this.writeFail(['Unable to read directory', hint], err_1);
                                         callback();
                                     });
-                                })
-                                .catch(err_1 => {
-                                    this.writeFail(['Unable to delete files', hint], err_1, this.logType.FILE);
-                                    callback();
                                 });
                         }
                         else {

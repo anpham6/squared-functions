@@ -62,11 +62,18 @@ function getInterval(file: ExternalAsset) {
 
 function clearCache(items: ExternalAsset[]) {
     for (const item of items) {
+        if (item.originalName) {
+            item.filename = item.originalName;
+        }
         for (const attr in item) {
             switch (attr) {
+                case 'originalName':
                 case 'buffer':
                 case 'sourceUTF8':
+                case 'sourceFiles':
                 case 'transforms':
+                case 'etag':
+                case 'watch':
                 case 'invalid':
                     delete item[attr];
                     break;
@@ -158,12 +165,12 @@ class Watch extends Module implements IWatch {
     start(assets: ExternalAsset[], permission?: IPermission) {
         const destMap: ObjectMap<ExternalAsset[]> = {};
         for (const item of assets) {
-            const { bundleId, uri, relativeUri } = item;
+            const { bundleId, uri, localUri } = item;
             if (bundleId) {
                 (destMap[bundleId] ||= []).push(item);
             }
-            else if (uri && relativeUri && !item.invalid) {
-                (destMap[relativeUri] ||= []).push(item);
+            else if (uri && localUri && !item.invalid) {
+                (destMap[localUri] ||= []).push(item);
             }
         }
         for (let dest in destMap) {
@@ -174,7 +181,8 @@ class Watch extends Module implements IWatch {
             items = items.map(item => ({ ...item }));
             let watchInterval: Undef<number>;
             if (!isNaN(+dest)) {
-                dest = items[0].relativeUri!;
+                items.sort((a, b) => a.bundleIndex! - b.bundleIndex!);
+                dest = items[0].localUri!;
                 const leading = items.find(item => getInterval(item) > 0);
                 if (leading) {
                     watchInterval = getInterval(leading);
@@ -185,10 +193,6 @@ class Watch extends Module implements IWatch {
                 const watch = item.watch;
                 if (Module.isObject<WatchInterval<ExternalAsset>>(watch) && watch.assets) {
                     watch.assets.forEach(other => related.add(other));
-                }
-                if (item.originalName) {
-                    item.filename = item.originalName;
-                    delete item.originalName;
                 }
             }
             assets = Array.from(related);
@@ -214,12 +218,12 @@ class Watch extends Module implements IWatch {
                         }
                         const reload = watch.reload;
                         if (Module.isObject<WatchReload>(reload) && (socketId = reload.socketId)) {
-                            let wss: Undef<Server>;
+                            let wss: Undef<Server>,
+                                initialize: Undef<boolean>;
                             ({ port, module: hot } = reload);
                             if (reload.secure) {
                                 port ||= this.securePort;
-                                wss = SECURE_MAP[port];
-                                if (!wss) {
+                                if (!(wss = SECURE_MAP[port])) {
                                     const sslKey = this._sslKey;
                                     const sslCert = this._sslCert;
                                     try {
@@ -228,6 +232,7 @@ class Watch extends Module implements IWatch {
                                             server.listen(port);
                                             wss = new ws.Server({ server });
                                             SECURE_MAP[port] = wss;
+                                            initialize = true;
                                         }
                                         else {
                                             this.writeFail('SSL/TSL key and cert not found', new Error(`Missing SSL/TSL credentials (${socketId})`));
@@ -241,9 +246,13 @@ class Watch extends Module implements IWatch {
                             }
                             else {
                                 port ||= this.port;
-                                wss = PORT_MAP[port] ||= new ws.Server({ port });
+                                if (!(wss = PORT_MAP[port])) {
+                                    wss = new ws.Server({ port });
+                                    PORT_MAP[port] = wss;
+                                    initialize = true;
+                                }
                             }
-                            if (wss) {
+                            if (wss && initialize) {
                                 wss.on('error', function(this: Server, err) {
                                     this.clients.forEach(client => client.send(JSON.stringify(err)));
                                 });
