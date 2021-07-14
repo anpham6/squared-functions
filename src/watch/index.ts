@@ -309,7 +309,7 @@ class Watch extends Module implements IWatch {
                                                 const next = input.data;
                                                 const expired = next.expires;
                                                 if (!expired || Date.now() < expired) {
-                                                    const value = (res.headers.etag || res.headers['last-modified']) as string;
+                                                    const value = res.headers.etag || res.headers['last-modified'];
                                                     if (value && value !== next.etag) {
                                                         next.etag = value;
                                                         this.modified(next);
