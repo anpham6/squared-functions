@@ -19,15 +19,17 @@ export interface HttpRequestBuffer {
 }
 
 export interface HttpHostData {
-    authority: string;
+    origin: string;
     credentials: string;
-    version: number;
+    version: HttpVersionSupport;
     protocol: string;
+    hostname: string;
+    port: string;
     secure: boolean;
     localhost: boolean;
-    success: number[];
-    failed: number[];
-    headers?: OutgoingHttpHeaders;
+    headers: Null<OutgoingHttpHeaders>;
+    success(version?: HttpVersionSupport): number;
+    failed(version?: HttpVersionSupport): number;
     v2(): boolean;
 }
 
