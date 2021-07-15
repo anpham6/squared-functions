@@ -26,7 +26,7 @@ export interface HttpClientOptions extends HttpRequest {
 
 export interface FetchBufferOptions extends HttpVersionAction {}
 
-export type HttpOriginHeaders = ObjectMap<OutgoingHttpHeaders>;
+export type HttpBaseHeaders = ObjectMap<OutgoingHttpHeaders>;
 export type PerformAsyncTaskMethod = () => void;
 export type PostFinalizeCallback = (files: FileInfo[], errors: string[]) => void;
 export type CompleteAsyncTaskCallback<T = unknown, U = unknown> = (err?: Null<Error>, value?: T, parent?: U) => void;

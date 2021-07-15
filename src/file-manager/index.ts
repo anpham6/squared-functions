@@ -3,7 +3,7 @@ import type { DataSource, FileInfo } from '../types/lib/squared';
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
 import type { CloudDatabase } from '../types/lib/cloud';
-import type { FetchBufferOptions, HttpClientOptions, HttpOriginHeaders, HttpRequestBuffer, InstallData, PostFinalizeCallback } from '../types/lib/filemanager';
+import type { FetchBufferOptions, HttpClientOptions, HttpBaseHeaders, HttpRequestBuffer, InstallData, PostFinalizeCallback } from '../types/lib/filemanager';
 import type { HttpProxyData, HttpRequest, HttpVersionSupport, IHttpHost } from '../types/lib/http';
 import type { CloudModule, DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
@@ -114,7 +114,7 @@ const HTTP2_UNSUPPORTED = [
 ];
 
 const HTTP_HOST: ObjectMap<IHttpHost> = {};
-const HTTP_HOSTHEADERS: HttpOriginHeaders = {};
+const HTTP_BASEHEADERS: HttpBaseHeaders = {};
 const HTTP_BUFFER: ObjectMap<Null<[string, Buffer]>> = {};
 const HTTP_BROTLISUPPORT = Module.supported(11, 7) || Module.supported(10, 16, 0, true);
 let HTTP_RETRYLIMIT = 3;
@@ -201,6 +201,21 @@ function isRetryError(err: unknown) {
     return false;
 }
 
+function getBaseHeaders(uri: string) {
+    let result: Undef<[string, OutgoingHttpHeaders][]>;
+    for (const pathname in HTTP_BASEHEADERS) {
+        if (uri.startsWith(pathname)) {
+            (result ||= []).push([pathname, HTTP_BASEHEADERS[pathname]!]);
+        }
+    }
+    if (result) {
+        if (result.length > 1) {
+            result.sort((a, b) => b[0].length - a[0].length);
+        }
+        return result[0][1];
+    }
+}
+
 const invalidRequest = (value: number) => value >= HTTP_STATUS.UNAUTHORIZED && value <= HTTP_STATUS.NOT_FOUND || value === HTTP_STATUS.PROXY_AUTHENTICATION_REQUIRED || value === HTTP_STATUS.GONE;
 const downgradeVersion = (value: number) => value === HTTP_STATUS.MISDIRECTED_REQUEST || value === HTTP_STATUS.HTTP_VERSION_NOT_SUPPORTED;
 const fromNgFlags = (value: number, statusCode: number, location?: string) => location ? new Error(`Using HTTP 1.1 for URL redirect (${location})`) : fromStatusCode(statusCode, value ? 'NGHTTP2 Error ' + value : '');
@@ -233,7 +248,7 @@ class HttpHost implements IHttpHost {
         this.secure = url.protocol === 'https:';
         this.port = url.port || (this.secure ? '443' : '80');
         this.localhost = hostname === 'localhost' || hostname === '127.0.0.1';
-        this.headers = credentials ? { authorization: 'Basic ' + Buffer.from(credentials, 'base64'), ...HTTP_HOSTHEADERS[this.origin] } as OutgoingHttpHeaders : HTTP_HOSTHEADERS[this.origin];
+        this.headers = credentials ? { authorization: 'Basic ' + Buffer.from(credentials, 'base64') } as OutgoingHttpHeaders : undefined;
         this._url = url;
         this._version = this.secure || !this.localhost ? httpVersion : 1;
     }
@@ -345,8 +360,8 @@ class FileManager extends Module implements IFileManager {
         }
     }
 
-    static assignHttpHeaders(data: HttpOriginHeaders) {
-        Object.assign(HTTP_HOSTHEADERS, data);
+    static settingsHttpHeaders(data: HttpBaseHeaders) {
+        Object.assign(HTTP_BASEHEADERS, data);
     }
 
     static settingsHttpRetry(limit: Undef<NumString>, delay?: NumString) {
@@ -1052,6 +1067,7 @@ class FileManager extends Module implements IFileManager {
             }
         }
         const pathname = url.pathname + url.search;
+        const baseHeaders = getBaseHeaders(uri);
         const checkEncoding = (res: IncomingMessage | ClientHttp2Stream, encoding = ''): Undef<Transform> => {
             switch (encoding.trim().toLowerCase()) {
                 case 'gzip':
@@ -1074,7 +1090,7 @@ class FileManager extends Module implements IFileManager {
                 options.outAbort = ac;
             }
             const origin = host.origin;
-            const request = (this._sessionHttp2[origin] ||= http2.connect(origin)).request({ ...host.headers, ...headers, ':path': pathname, ':method': method }, signal && { signal } as PlainObject);
+            const request = (this._sessionHttp2[origin] ||= http2.connect(origin)).request({ ...baseHeaders, ...host.headers, ...headers, ':path': pathname, ':method': method }, signal && { signal } as PlainObject);
             if (getting) {
                 request.on('response', res => {
                     const statusCode = res[':status']!;
@@ -1143,8 +1159,8 @@ class FileManager extends Module implements IFileManager {
         else if (timeout > 0) {
             agent = new (host.secure ? https.Agent : http.Agent)({ keepAlive: true, timeout });
         }
-        if (host.headers) {
-            headers = headers ? { ...host.headers, ...headers } : host.headers;
+        if (baseHeaders || host.headers) {
+            headers = { ...baseHeaders, ...host.headers, ...headers };
         }
         const request = (host.secure ? https : http).request({
             protocol: host.protocol,
