@@ -27,6 +27,7 @@ export interface LogMessageOptions {
     hintBgColor?: typeof BackgroundColor;
     messageColor?: typeof ForegroundColor;
     messageBgColor?: typeof BackgroundColor;
+    type?: LOG_TYPE;
     failed?: boolean;
 }
 

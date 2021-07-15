@@ -1162,12 +1162,13 @@ class FileManager extends Module implements IFileManager {
                 }
                 const client = this.getHttpClient(uri, server);
                 const host = server.host;
+                const time = Date.now();
                 let retries = 0;
                 (function downloadUri(this: IFileManager) {
                     let buffer: Null<Buffer> = null;
                     const downloadEnd = () => {
                         if (buffer) {
-                            host.success();
+                            this.writeTimeProcess('HTTP' + host.version, server.url.pathname, time, { type: this.logType.HTTP });
                         }
                         resolve(buffer);
                     };
@@ -1433,6 +1434,7 @@ class FileManager extends Module implements IFileManager {
                                     tasks.push(new Promise<void>((resolve, reject) => {
                                         try {
                                             const options = this.createHttpRequest(uri) as Required<HttpClientOptions>;
+                                            const time = Date.now();
                                             let etag = queue.etag,
                                                 baseDir: Undef<string>,
                                                 tempDir: Undef<string>,
@@ -1526,6 +1528,7 @@ class FileManager extends Module implements IFileManager {
                                                                 }
                                                             })
                                                             .on('end', () => {
+                                                                this.writeTimeProcess('HTTP' + host.version, options.url.pathname + ` (${queue.bundleIndex!})`, time, { type: this.logType.HTTP });
                                                                 if (!aborted) {
                                                                     verifyBundle(queue, buffer, etag);
                                                                 }
@@ -1779,6 +1782,7 @@ class FileManager extends Module implements IFileManager {
                             else if (createFolder()) {
                                 const options = this.createHttpRequest(uri);
                                 const tempDir = createTempDir(options.url);
+                                const time = Date.now();
                                 let retries = 0;
                                 downloading[uri] = [];
                                 this.performAsyncTask();
@@ -1887,6 +1891,7 @@ class FileManager extends Module implements IFileManager {
                                     }
                                     localStream.on('finish', () => {
                                         if (!aborted && !notFound.includes(uri)) {
+                                            this.writeTimeProcess('HTTP' + host.version, this.removeCwd(localUri) + (item.bundleIndex === 0 ? ' (0)' : ''), time, { type: this.logType.HTTP });
                                             processQueue(item, localUri);
                                             if (etagDir) {
                                                 const buffer = item.buffer;

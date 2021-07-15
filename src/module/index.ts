@@ -170,6 +170,9 @@ abstract class Module implements IModule {
     static formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
         const format = SETTINGS.format!;
         let titleJustify = (type & LOG_TYPE.FAIL) === LOG_TYPE.FAIL || options.failed ? 'center' : getFormatJustify(format.title, 'right');
+        if (options.type) {
+            type |= options.type;
+        }
         if (type === 0) {
             if (SETTINGS.unknown === false) {
                 return;
