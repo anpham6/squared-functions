@@ -8,7 +8,8 @@ import type { ExternalAsset, FileData, FileOutput, OutputData } from './asset';
 import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload } from './cloud';
 import type { CompressTryFileMethod } from './compress';
 import type { ConfigOrTransformer, PluginConfig, SourceInput, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
-import type { CompleteAsyncTaskCallback, FetchBufferOptions, HttpClientOptions, HttpHostRequest, HttpRequestBuffer, HttpVersionSupport, InstallData, PerformAsyncTaskMethod, PostFinalizeCallback } from './filemanager';
+import type { CompleteAsyncTaskCallback, FetchBufferOptions, HttpClientOptions, HttpRequestBuffer, InstallData, PerformAsyncTaskMethod, PostFinalizeCallback } from './filemanager';
+import type { HttpProxyData, HttpRequest, HttpVersionSupport } from './http';
 import type { CropData, QualityData, ResizeData, RotateData } from './image';
 import type { LOG_TYPE, LogMessageOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
 import type { AllSettledOptions, CloudModule, DocumentModule, TaskModule } from './module';
@@ -195,6 +196,7 @@ declare namespace functions {
         delayed: number;
         cleared: boolean;
         httpVersion: HttpVersionSupport;
+        httpProxy: Null<HttpProxyData>;
         useAcceptEncoding: boolean;
         keepAliveTimeout: number;
         cacheHttpRequest: boolean;
@@ -228,7 +230,7 @@ declare namespace functions {
         install(name: "document", target: DocumentConstructor, module: DocumentModule): Undef<IDocument>;
         install(name: "image", data: Map<string, ImageConstructor>): void;
         install(name: "task", target: TaskConstructor, module: TaskModule): Undef<ITask>;
-        install(name: "watch", interval?: number, port?: number, securePort?: number): Undef<IWatch>;
+        install(name: "watch", interval?: NumString, port?: NumString, securePort?: NumString): Undef<IWatch>;
         install(name: string, ...params: unknown[]): any;
         add(value: unknown, parent?: ExternalAsset): void;
         delete(value: unknown, emptyDir?: boolean): void;
@@ -257,7 +259,7 @@ declare namespace functions {
         addCopy(data: FileData, saveAs?: string, replace?: boolean): Undef<string>;
         findMime(data: FileData, rename?: boolean): Promise<string>;
         transformAsset(data: FileData, parent?: ExternalAsset): Promise<void>;
-        getHttpHost(uri: string): Null<HttpHostRequest>;
+        getHttpHost(uri: string): Null<HttpRequest>;
         getHttpClient(uri: string, options?: HttpClientOptions): RedirectableRequest<ClientRequest, IncomingMessage> | ClientHttp2Stream;
         fetchBuffer(uri: string, options?: FetchBufferOptions): Promise<Null<Buffer>>;
         processAssets(emptyDir?: boolean): void;

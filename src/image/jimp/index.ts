@@ -160,7 +160,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                 });
             }
             catch (err) {
-                this.writeFail(['Install WebP?', 'npm i dwebp-bin'], err);
+                this.writeFail(['Install required?', 'npm i dwebp-bin'], err);
                 this.completeAsyncTask();
             }
         }
@@ -456,7 +456,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
             args.push('-o', webp);
             child_process.execFile(require('cwebp-bin'), args, { shell: true }, err => {
                 if (err) {
-                    this.writeFail(['Install WebP?', 'npm i cwebp-bin'], err);
+                    this.writeFail(['Install required?', 'npm i cwebp-bin'], err);
                     callback(err, output);
                 }
                 else {

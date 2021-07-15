@@ -3,11 +3,12 @@ import type { DataSource, FileInfo } from '../types/lib/squared';
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
 import type { CloudDatabase } from '../types/lib/cloud';
-import type { FetchBufferOptions, HttpClientOptions, HttpHostData, HttpHostRequest, HttpRequestBuffer, HttpVersionSupport, InstallData, PostFinalizeCallback } from '../types/lib/filemanager';
+import type { FetchBufferOptions, HttpClientOptions, HttpRequestBuffer, InstallData, PostFinalizeCallback } from '../types/lib/filemanager';
+import type { HttpProxyData, HttpRequest, HttpVersionSupport, IHttpHost } from '../types/lib/http';
 import type { CloudModule, DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
 
-import type { ClientRequest, IncomingHttpHeaders, IncomingMessage, OutgoingHttpHeaders } from 'http';
+import type { Agent, ClientRequest, IncomingHttpHeaders, IncomingMessage, OutgoingHttpHeaders } from 'http';
 import type { ClientHttp2Stream } from 'http2';
 import type { Transform } from 'stream';
 
@@ -112,7 +113,7 @@ const HTTP2_UNSUPPORTED = [
     http2.constants.NGHTTP2_HTTP_1_1_REQUIRED /* 13 */
 ];
 
-const HTTP_HOST: ObjectMap<HttpHostData> = {};
+const HTTP_HOST: ObjectMap<IHttpHost> = {};
 const HTTP_BUFFER: ObjectMap<Null<[string, Buffer]>> = {};
 const HTTP_BROTLISUPPORT = Module.supported(11, 7) || Module.supported(10, 16, 0, true);
 let HTTP_RETRYLIMIT = 3;
@@ -136,7 +137,7 @@ function withinSizeRange(uri: string, value: Undef<string>) {
     return true;
 }
 
-function downgradeHost(host: HttpHostData) {
+function downgradeHost(host: IHttpHost) {
     if (host.v2()) {
         host.failed();
         host.version = 1;
@@ -153,7 +154,7 @@ function abortHttpRequest(options: HttpClientOptions) {
     return false;
 }
 
-function warnProtocol(this: IModule, host: HttpHostData, err: Error) {
+function warnProtocol(this: IModule, host: IHttpHost, err: Error) {
     if (host.v2()) {
         this.formatMessage(this.logType.HTTP, 'HTTP' + host.version, ['Unsupported protocol', host.origin], err, { failed: true });
     }
@@ -202,8 +203,9 @@ const fromNgFlags = (value: number, statusCode: number, location?: string) => lo
 const fromStatusCode = (value: NumString, hint?: string) => new Error(value + ': ' + httpStatus.getReasonPhrase(value) + (hint ? ` (${hint})` : ''));
 const concatString = (values: Undef<string[]>) => Array.isArray(values) ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
+const asInt = (value: unknown) => typeof value === 'string' ? parseInt(value) : typeof value === 'number' ? Math.floor(value) : NaN;
 
-class HttpHost implements HttpHostData {
+class HttpHost implements IHttpHost {
     readonly origin: string;
     readonly protocol: string;
     readonly hostname: string;
@@ -351,6 +353,7 @@ class FileManager extends Module implements IFileManager {
     keepAliveTimeout = 0;
     cacheHttpRequest = false;
     cacheHttpRequestBuffer: HttpRequestBuffer = { expires: 0, limit: Infinity };
+    httpProxy: Null<HttpProxyData> = null;
     permission = new Permission();
     Document: InstallData<IDocument, DocumentConstructor>[] = [];
     Task: InstallData<ITask, TaskConstructor>[] = [];
@@ -431,11 +434,13 @@ class FileManager extends Module implements IFileManager {
                 }
                 break;
             case 'watch': {
-                const [port, securePort] = params;
+                const interval = asInt(target);
+                const port = asInt(params[0]);
+                const securePort = asInt(params[1]);
                 const instance = new Watch(
-                    typeof target === 'number' && target > 0 ? target : undefined,
-                    typeof port === 'number' && port > 0 ? port : undefined,
-                    typeof securePort === 'number' && securePort > 0 ? securePort : undefined
+                    !isNaN(interval) && interval > 0 ? interval : undefined,
+                    !isNaN(port) && port > 0 ? port : undefined,
+                    !isNaN(securePort) && securePort > 0 ? securePort : undefined
                 );
                 instance.host = this;
                 instance.whenModified = (assets: ExternalAsset[], postFinalize?: PostFinalizeCallback) => {
@@ -457,6 +462,7 @@ class FileManager extends Module implements IFileManager {
                     }
                     manager.permission = this.permission;
                     manager.httpVersion = this.httpVersion;
+                    manager.httpProxy = this.httpProxy;
                     manager.keepAliveTimeout = this.keepAliveTimeout;
                     manager.cacheHttpRequest = this.cacheHttpRequest;
                     manager.cacheHttpRequestBuffer = this.cacheHttpRequestBuffer;
@@ -969,14 +975,14 @@ class FileManager extends Module implements IFileManager {
             this.completeAsyncTask(null, localUri, parent);
         }
     }
-    getHttpHost(uri: string): HttpHostRequest {
+    getHttpHost(uri: string): HttpRequest {
         const url = new URL(uri);
         const credentials = url.username + (url.password ? ':' + url.password : '');
         const host = HTTP_HOST[url.origin + credentials] ||= new HttpHost(url, credentials, this.httpVersion);
         return { host, url };
     }
     getHttpClient(uri: string, options?: HttpClientOptions) {
-        let host: Undef<HttpHostData>,
+        let host: Undef<IHttpHost>,
             url: Undef<URL>,
             method: Undef<string>,
             httpVersion: Undef<HttpVersionSupport>,
@@ -1098,6 +1104,21 @@ class FileManager extends Module implements IFileManager {
             return request;
         }
         timeout ??= this.keepAliveTimeout;
+        const proxy = this.httpProxy;
+        let agent: Undef<Agent>;
+        if (proxy && (!proxy.include && !proxy.exclude || Array.isArray(proxy.include) && proxy.include.find(value => uri.startsWith(value)) || !proxy.include && Array.isArray(proxy.exclude) && !proxy.exclude.find(value => uri.startsWith(value)))) {
+            const lib = host.secure ? 'https-proxy-agent' : 'http-proxy-agent';
+            try {
+                const proxyHost = proxy.host;
+                agent = (require(lib) as FunctionType<Agent>)(timeout > 0 ? { protocol: proxyHost.protocol, hostname: proxyHost.hostname, port: proxyHost.port, keepAlive: true, timeout } : proxyHost.toString());
+            }
+            catch (err) {
+                this.writeFail(['Install required?', 'npm i ' + lib], err);
+            }
+        }
+        else if (timeout > 0) {
+            agent = new (host.secure ? https.Agent : http.Agent)({ keepAlive: true, timeout });
+        }
         const request = (host.secure ? https : http).request({
             protocol: host.protocol,
             hostname: host.hostname,
@@ -1105,7 +1126,7 @@ class FileManager extends Module implements IFileManager {
             path: pathname,
             method,
             headers,
-            agent: timeout > 0 ? new (host.secure ? https.Agent : http.Agent)({ keepAlive: true, timeout }) : false
+            agent
         }, res => {
             let outputStream: Undef<IncomingMessage | Transform>;
             if (getting) {

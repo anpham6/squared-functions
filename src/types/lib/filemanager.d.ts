@@ -1,5 +1,7 @@
 import type { FileInfo } from './squared';
 
+import type { HttpRequest, HttpVersionSupport } from './http';
+
 import type { WriteStream } from 'fs';
 import type { OutgoingHttpHeaders } from 'http';
 
@@ -18,38 +20,16 @@ export interface HttpRequestBuffer {
     limit: number;
 }
 
-export interface HttpHostData {
-    version: HttpVersionSupport;
-    origin: string;
-    credentials: string;
-    protocol: string;
-    hostname: string;
-    port: string;
-    secure: boolean;
-    localhost: boolean;
-    headers: Null<OutgoingHttpHeaders>;
-    success(version?: HttpVersionSupport): number;
-    failed(version?: HttpVersionSupport): number;
-    error(): number;
-    clone(version?: HttpVersionSupport): HttpHostData;
-    v2(): boolean;
-}
-
-export interface HttpHostRequest {
-    host: HttpHostData;
-    url: URL;
-}
-
-export interface FetchBufferOptions extends HttpVersionAction {}
-
-export interface HttpClientOptions extends HttpVersionAction, Partial<HttpHostRequest> {
+export interface HttpClientOptions extends HttpVersionAction, Partial<HttpRequest> {
     method?: string;
     headers?: OutgoingHttpHeaders;
     localStream?: WriteStream;
     timeout?: number;
     outAbort?: AbortController;
 }
-export type HttpVersionSupport = 1 | 2;
+
+export interface FetchBufferOptions extends HttpVersionAction {}
+
 export type PerformAsyncTaskMethod = () => void;
 export type PostFinalizeCallback = (files: FileInfo[], errors: string[]) => void;
 export type CompleteAsyncTaskCallback<T = unknown, U = unknown> = (err?: Null<Error>, value?: T, parent?: U) => void;
