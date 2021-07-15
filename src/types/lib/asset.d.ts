@@ -21,6 +21,7 @@ export interface FileOutput {
 }
 
 export interface ExternalAsset<T = CloudStorage> extends FileAsset, BundleAction, StorageAction<T> {
+    url?: URL;
     localUri?: string;
     relativeUri?: string;
     cloudUrl?: string;

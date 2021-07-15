@@ -634,9 +634,18 @@ class FileManager extends Module implements IFileManager {
     }
     setLocalUri(file: ExternalAsset) {
         const uri = file.uri;
-        if (uri && !(file.uri = Module.resolveUri(uri))) {
-            file.invalid = true;
-            this.writeFail(['Unable to parse file:// protocol', uri], new Error('Path not absolute'));
+        if (uri) {
+            if (Module.isFileHTTP(uri)) {
+                try {
+                    file.url = new URL(uri);
+                }
+                catch {
+                }
+            }
+            else if (!(file.uri = Module.resolveUri(uri))) {
+                file.invalid = true;
+                this.writeFail(['Unable to parse file:// protocol', uri], new Error('Path not absolute'));
+            }
         }
         const segments: string[] = [];
         if (file.moveTo) {
@@ -657,7 +666,7 @@ class FileManager extends Module implements IFileManager {
         const localUri = path.join(pathname, file.filename);
         file.localUri = localUri;
         file.relativeUri = this.getRelativeUri(file);
-        file.mimeType ||= mime.lookup(uri && uri.split('?')[0] || file.filename) || '';
+        file.mimeType ||= file.url && mime.lookup(file.url.pathname) || mime.lookup(file.filename) || '';
         return { pathname, localUri } as FileOutput;
     }
     getLocalUri(data: FileData) {
@@ -975,8 +984,10 @@ class FileManager extends Module implements IFileManager {
             this.completeAsyncTask(null, localUri, parent);
         }
     }
-    createHttpRequest(uri: string, httpVersion?: HttpVersionSupport): HttpRequest {
-        const url = new URL(uri);
+    createHttpRequest(url: string | URL, httpVersion?: HttpVersionSupport): HttpRequest {
+        if (typeof url === 'string') {
+            url = new URL(url);
+        }
         const credentials = url.username + (url.password ? ':' + url.password : '');
         const host = HTTP_HOST[url.origin + credentials] ||= new HttpHost(url, credentials, this.httpVersion);
         return { host, url, httpVersion };
@@ -993,7 +1004,7 @@ class FileManager extends Module implements IFileManager {
             ({ host, url, method, httpVersion, headers, localStream, timeout } = options);
         }
         if (!host) {
-            ({ host, url } = this.createHttpRequest(uri));
+            ({ host, url } = this.createHttpRequest(url || uri));
             if (options) {
                 options.host = host;
                 options.url = url;
@@ -1430,10 +1441,11 @@ class FileManager extends Module implements IFileManager {
                                 verifyBundle(queue, content);
                             }
                             else if (uri) {
-                                if (Module.isFileHTTP(uri)) {
+                                const url = queue.url;
+                                if (url) {
                                     tasks.push(new Promise<void>((resolve, reject) => {
                                         try {
-                                            const options = this.createHttpRequest(uri) as Required<HttpClientOptions>;
+                                            const options = this.createHttpRequest(url) as Required<HttpClientOptions>;
                                             const time = Date.now();
                                             let etag = queue.etag,
                                                 baseDir: Undef<string>,
@@ -1441,7 +1453,7 @@ class FileManager extends Module implements IFileManager {
                                                 etagDir: Undef<string>,
                                                 tempUri: Undef<string>;
                                             if (etag) {
-                                                tempDir = createTempDir(options.url);
+                                                tempDir = createTempDir(url);
                                                 etagDir = encodeURIComponent(etag);
                                                 const cached = HTTP_BUFFER[uri];
                                                 if (cached) {
@@ -1528,7 +1540,7 @@ class FileManager extends Module implements IFileManager {
                                                                 }
                                                             })
                                                             .on('end', () => {
-                                                                this.writeTimeProcess('HTTP' + host.version, options.url.pathname + ` (${queue.bundleIndex!})`, time, { type: this.logType.HTTP });
+                                                                this.writeTimeProcess('HTTP' + host.version, url.pathname + ` (${queue.bundleIndex!})`, time, { type: this.logType.HTTP });
                                                                 if (!aborted) {
                                                                     verifyBundle(queue, buffer, etag);
                                                                 }
@@ -1774,14 +1786,15 @@ class FileManager extends Module implements IFileManager {
                     continue;
                 }
                 try {
-                    if (Module.isFileHTTP(uri)) {
+                    const url = item.url;
+                    if (url) {
                         if (!checkQueue(item, localUri)) {
                             if (downloading[uri]) {
                                 downloading[uri]!.push(item);
                             }
                             else if (createFolder()) {
-                                const options = this.createHttpRequest(uri);
-                                const tempDir = createTempDir(options.url);
+                                const options = this.createHttpRequest(url);
+                                const tempDir = createTempDir(url);
                                 const time = Date.now();
                                 let retries = 0;
                                 downloading[uri] = [];
