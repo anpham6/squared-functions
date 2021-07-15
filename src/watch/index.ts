@@ -317,7 +317,7 @@ class Watch extends Module implements IWatch {
                                 }
                             }
                             const host = this.host;
-                            const options = host ? host.getHttpHost(uri) as HttpClientOptions : null;
+                            const options = host ? host.createHttpRequest(uri) as HttpClientOptions : null;
                             if (options) {
                                 options.method = 'HEAD';
                                 options.httpVersion = 1;

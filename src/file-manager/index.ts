@@ -975,13 +975,13 @@ class FileManager extends Module implements IFileManager {
             this.completeAsyncTask(null, localUri, parent);
         }
     }
-    getHttpHost(uri: string): HttpRequest {
+    createHttpRequest(uri: string, httpVersion?: HttpVersionSupport): HttpRequest {
         const url = new URL(uri);
         const credentials = url.username + (url.password ? ':' + url.password : '');
         const host = HTTP_HOST[url.origin + credentials] ||= new HttpHost(url, credentials, this.httpVersion);
-        return { host, url };
+        return { host, url, httpVersion };
     }
-    getHttpClient(uri: string, options?: HttpClientOptions) {
+    getHttpClient(uri: string, options?: Partial<HttpClientOptions>) {
         let host: Undef<IHttpHost>,
             url: Undef<URL>,
             method: Undef<string>,
@@ -993,7 +993,7 @@ class FileManager extends Module implements IFileManager {
             ({ host, url, method, httpVersion, headers, localStream, timeout } = options);
         }
         if (!host) {
-            ({ host, url } = this.getHttpHost(uri));
+            ({ host, url } = this.createHttpRequest(uri));
             if (options) {
                 options.host = host;
                 options.url = url;
@@ -1155,7 +1155,7 @@ class FileManager extends Module implements IFileManager {
     fetchBuffer(uri: string, options?: FetchBufferOptions) {
         return new Promise<Null<Buffer>>(resolve => {
             try {
-                const server = this.getHttpHost(uri) as Required<HttpClientOptions>;
+                const server = this.createHttpRequest(uri);
                 const httpVersion = options && options.httpVersion;
                 if (httpVersion) {
                     server.httpVersion = httpVersion;
@@ -1431,7 +1431,7 @@ class FileManager extends Module implements IFileManager {
                                 if (Module.isFileHTTP(uri)) {
                                     tasks.push(new Promise<void>((resolve, reject) => {
                                         try {
-                                            const options = this.getHttpHost(uri) as Required<HttpClientOptions>;
+                                            const options = this.createHttpRequest(uri) as Required<HttpClientOptions>;
                                             let etag = queue.etag,
                                                 baseDir: Undef<string>,
                                                 tempDir: Undef<string>,
@@ -1779,7 +1779,7 @@ class FileManager extends Module implements IFileManager {
                                 downloading[uri]!.push(item);
                             }
                             else if (createFolder()) {
-                                const options = this.getHttpHost(uri) as Required<HttpClientOptions>;
+                                const options = this.createHttpRequest(uri);
                                 const tempDir = createTempDir(options.url);
                                 let retries = 0;
                                 downloading[uri] = [];
@@ -1788,10 +1788,8 @@ class FileManager extends Module implements IFileManager {
                                     let retrying: Undef<boolean>,
                                         aborted: Undef<boolean>,
                                         localStream: Null<fs.WriteStream> = fs.createWriteStream(localUri);
-                                    options.localStream = localStream;
-                                    if (httpVersion) {
-                                        options.httpVersion = httpVersion;
-                                    }
+                                    (options as HttpClientOptions).localStream = localStream;
+                                    options.httpVersion = httpVersion;
                                     const client = this.getHttpClient(uri, options);
                                     const host = options.host;
                                     const retryDownload = (downgrade: boolean, err?: Error) => {

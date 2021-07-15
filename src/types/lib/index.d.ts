@@ -259,8 +259,8 @@ declare namespace functions {
         addCopy(data: FileData, saveAs?: string, replace?: boolean): Undef<string>;
         findMime(data: FileData, rename?: boolean): Promise<string>;
         transformAsset(data: FileData, parent?: ExternalAsset): Promise<void>;
-        getHttpHost(uri: string): Null<HttpRequest>;
-        getHttpClient(uri: string, options?: HttpClientOptions): RedirectableRequest<ClientRequest, IncomingMessage> | ClientHttp2Stream;
+        createHttpRequest(uri: string, httpVersion?: HttpVersionSupport): HttpRequest;
+        getHttpClient(uri: string, options?: Partial<HttpClientOptions>): RedirectableRequest<ClientRequest, IncomingMessage> | ClientHttp2Stream;
         fetchBuffer(uri: string, options?: FetchBufferOptions): Promise<Null<Buffer>>;
         processAssets(emptyDir?: boolean): void;
         finalize(): Promise<void>;

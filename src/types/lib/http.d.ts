@@ -1,5 +1,9 @@
 import type { OutgoingHttpHeaders } from 'http';
 
+export interface HttpVersionAction {
+    httpVersion?: HttpVersionSupport;
+}
+
 export interface IHttpHost {
     version: HttpVersionSupport;
     origin: string;
@@ -23,7 +27,7 @@ export interface HttpProxyData {
     include?: string[];
 }
 
-export interface HttpRequest {
+export interface HttpRequest extends HttpVersionAction {
     host: IHttpHost;
     url: URL;
 }

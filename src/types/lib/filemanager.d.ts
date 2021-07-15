@@ -1,13 +1,9 @@
 import type { FileInfo } from './squared';
 
-import type { HttpRequest, HttpVersionSupport } from './http';
+import type { HttpRequest, HttpVersionAction } from './http';
 
 import type { WriteStream } from 'fs';
 import type { OutgoingHttpHeaders } from 'http';
-
-interface HttpVersionAction {
-    httpVersion?: HttpVersionSupport;
-}
 
 export interface InstallData<T, U> {
     instance: T;
@@ -20,7 +16,7 @@ export interface HttpRequestBuffer {
     limit: number;
 }
 
-export interface HttpClientOptions extends HttpVersionAction, Partial<HttpRequest> {
+export interface HttpClientOptions extends HttpRequest {
     method?: string;
     headers?: OutgoingHttpHeaders;
     localStream?: WriteStream;
