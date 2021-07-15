@@ -13,7 +13,8 @@ export interface IHttpHost {
     port: string;
     secure: boolean;
     localhost: boolean;
-    headers: Null<OutgoingHttpHeaders>;
+    headers: Undef<OutgoingHttpHeaders>;
+    setHeaders(headers: OutgoingHttpHeaders): void;
     success(version?: HttpVersionSupport): number;
     failed(version?: HttpVersionSupport): number;
     error(): number;

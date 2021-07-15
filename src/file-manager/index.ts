@@ -3,7 +3,7 @@ import type { DataSource, FileInfo } from '../types/lib/squared';
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
 import type { CloudDatabase } from '../types/lib/cloud';
-import type { FetchBufferOptions, HttpClientOptions, HttpRequestBuffer, InstallData, PostFinalizeCallback } from '../types/lib/filemanager';
+import type { FetchBufferOptions, HttpClientOptions, HttpOriginHeaders, HttpRequestBuffer, InstallData, PostFinalizeCallback } from '../types/lib/filemanager';
 import type { HttpProxyData, HttpRequest, HttpVersionSupport, IHttpHost } from '../types/lib/http';
 import type { CloudModule, DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
@@ -114,6 +114,7 @@ const HTTP2_UNSUPPORTED = [
 ];
 
 const HTTP_HOST: ObjectMap<IHttpHost> = {};
+const HTTP_HOSTHEADERS: HttpOriginHeaders = {};
 const HTTP_BUFFER: ObjectMap<Null<[string, Buffer]>> = {};
 const HTTP_BROTLISUPPORT = Module.supported(11, 7) || Module.supported(10, 16, 0, true);
 let HTTP_RETRYLIMIT = 3;
@@ -206,13 +207,13 @@ const isFunction = <T>(value: unknown): value is T => typeof value === 'function
 const asInt = (value: unknown) => typeof value === 'string' ? parseInt(value) : typeof value === 'number' ? Math.floor(value) : NaN;
 
 class HttpHost implements IHttpHost {
+    headers: Undef<OutgoingHttpHeaders>;
     readonly origin: string;
     readonly protocol: string;
     readonly hostname: string;
     readonly port: string;
     readonly secure: boolean;
     readonly localhost: boolean;
-    readonly headers: Null<OutgoingHttpHeaders>;
 
     private _url: URL;
     private _version: HttpVersionSupport;
@@ -229,9 +230,12 @@ class HttpHost implements IHttpHost {
         this.secure = url.protocol === 'https:';
         this.port = url.port || (this.secure ? '443' : '80');
         this.localhost = hostname === 'localhost' || hostname === '127.0.0.1';
-        this.headers = credentials ? { authorization: 'Basic ' + Buffer.from(credentials, 'base64') } as OutgoingHttpHeaders : null;
+        this.headers = credentials ? { authorization: 'Basic ' + Buffer.from(credentials, 'base64'), ...HTTP_HOSTHEADERS[this.origin] } as OutgoingHttpHeaders : HTTP_HOSTHEADERS[this.origin];
         this._url = url;
         this._version = this.secure || !this.localhost ? httpVersion : 1;
+    }
+    setHeaders(headers: OutgoingHttpHeaders) {
+        this.headers = this.headers ? { ...headers, ...this.headers } : headers;
     }
     success(version?: HttpVersionSupport) {
         if (version) {
@@ -336,6 +340,10 @@ class FileManager extends Module implements IFileManager {
                 }
             }
         }
+    }
+
+    static assignHttpHeaders(data: HttpOriginHeaders) {
+        Object.assign(HTTP_HOSTHEADERS, data);
     }
 
     static settingsHttpRetry(limit: Undef<NumString>, delay?: NumString) {
@@ -1040,9 +1048,6 @@ class FileManager extends Module implements IFileManager {
                 (headers ||= {})['accept-encoding'] ||= 'gzip, deflate' + (HTTP_BROTLISUPPORT ? ', br' : '');
             }
         }
-        if (host.headers) {
-            headers = headers ? { ...host.headers, ...headers } : host.headers;
-        }
         const pathname = url.pathname + url.search;
         const checkEncoding = (res: IncomingMessage | ClientHttp2Stream, encoding = ''): Undef<Transform> => {
             switch (encoding.trim().toLowerCase()) {
@@ -1066,7 +1071,7 @@ class FileManager extends Module implements IFileManager {
                 options.outAbort = ac;
             }
             const origin = host.origin;
-            const request = (this._sessionHttp2[origin] ||= http2.connect(origin)).request({ ...headers, ':path': pathname, ':method': method }, signal && { signal } as PlainObject);
+            const request = (this._sessionHttp2[origin] ||= http2.connect(origin)).request({ ...host.headers, ...headers, ':path': pathname, ':method': method }, signal && { signal } as PlainObject);
             if (getting) {
                 request.on('response', res => {
                     const statusCode = res[':status']!;
@@ -1135,6 +1140,9 @@ class FileManager extends Module implements IFileManager {
         else if (timeout > 0) {
             agent = new (host.secure ? https.Agent : http.Agent)({ keepAlive: true, timeout });
         }
+        if (host.headers) {
+            headers = headers ? { ...host.headers, ...headers } : host.headers;
+        }
         const request = (host.secure ? https : http).request({
             protocol: host.protocol,
             hostname: host.hostname,
@@ -1195,7 +1203,9 @@ class FileManager extends Module implements IFileManager {
                                 warnProtocol.call(this, host, err);
                             }
                             if (!aborted) {
-                                abortHttpRequest(server);
+                                if (!abortHttpRequest(server)) {
+                                    client.destroy();
+                                }
                                 aborted = true;
                                 buffer = null;
                                 if (downgrade) {
@@ -1206,7 +1216,6 @@ class FileManager extends Module implements IFileManager {
                                     resolve(await this.fetchBuffer(uri, { httpVersion: 1 }));
                                 }
                             }
-                            (client as ClientHttp2Stream).close();
                         };
                         (client as ClientHttp2Stream)
                             .on('response', (headers, flags) => {
@@ -1522,7 +1531,9 @@ class FileManager extends Module implements IFileManager {
                                                         warnProtocol.call(this, host, err);
                                                     }
                                                     if (!aborted) {
-                                                        abortHttpRequest(options);
+                                                        if (!abortHttpRequest(options)) {
+                                                            client.destroy();
+                                                        }
                                                         aborted = true;
                                                         buffer = null;
                                                         if (downgrade) {
@@ -1533,23 +1544,22 @@ class FileManager extends Module implements IFileManager {
                                                             downloadUri.call(this, 1);
                                                         }
                                                     }
-                                                    (client as ClientHttp2Stream).close();
                                                 };
                                                 const checkResponse = (statusCode: number, headers: IncomingHttpHeaders, flags: number) => {
                                                     if (statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
                                                         etag = setHeaderData(queue, headers, true);
                                                         client
                                                             .on('data', data => {
-                                                                if (Buffer.isBuffer(data)) {
+                                                                if (!aborted && Buffer.isBuffer(data)) {
                                                                     buffer = buffer ? Buffer.concat([buffer, data]) : data;
                                                                 }
                                                             })
                                                             .on('end', () => {
-                                                                this.writeTimeProcess('HTTP' + host.version, url.pathname + ` (${queue.bundleIndex!})`, time, { type: this.logType.HTTP, meterIncrement: 100 });
                                                                 if (!aborted) {
+                                                                    this.writeTimeProcess('HTTP' + host.version, url.pathname + ` (${queue.bundleIndex!})`, time, { type: this.logType.HTTP, meterIncrement: 100 });
                                                                     verifyBundle(queue, buffer, etag);
+                                                                    resolve();
                                                                 }
-                                                                resolve();
                                                             });
                                                         host.success();
                                                     }
@@ -1825,7 +1835,9 @@ class FileManager extends Module implements IFileManager {
                                             warnProtocol.call(this, host, err);
                                         }
                                         if (!aborted) {
-                                            abortHttpRequest(options);
+                                            if (!abortHttpRequest(options)) {
+                                                client.destroy();
+                                            }
                                             aborted = true;
                                             delete item.buffer;
                                             if (downgrade) {
@@ -1836,14 +1848,13 @@ class FileManager extends Module implements IFileManager {
                                                 downloadUri(etagDir, 1);
                                             }
                                         }
-                                        (client as ClientHttp2Stream).close();
                                     };
                                     const checkResponse = (statusCode: number, headers: IncomingHttpHeaders, flags: number) => {
                                         if (statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
                                             setHeaderData(item, headers, true);
                                             if (item.willChange || isCacheable(item)) {
                                                 client.on('data', data => {
-                                                    if (Buffer.isBuffer(data)) {
+                                                    if (!aborted && Buffer.isBuffer(data)) {
                                                         item.buffer = item.buffer ? Buffer.concat([item.buffer, data]) : data;
                                                     }
                                                 });
@@ -1854,22 +1865,22 @@ class FileManager extends Module implements IFileManager {
                                             setTimeout(downloadUri, HTTP_RETRYDELAY);
                                         }
                                         else if (host.v2()) {
-                                                if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
-                                                    if (HTTP2_UNSUPPORTED.includes(flags)) {
-                                                        retryDownload(true, fromNgFlags(flags, statusCode));
-                                                    }
-                                                    else {
-                                                        ++retries;
-                                                        retryDownload(false);
-                                                    }
+                                            if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
+                                                if (HTTP2_UNSUPPORTED.includes(flags)) {
+                                                    retryDownload(true, fromNgFlags(flags, statusCode));
                                                 }
                                                 else {
-                                                    retryDownload(false, fromNgFlags(0, statusCode, headers.location));
+                                                    ++retries;
+                                                    retryDownload(false);
                                                 }
                                             }
                                             else {
-                                                errorRequest(item, fromStatusCode(statusCode), localStream);
+                                                retryDownload(false, fromNgFlags(0, statusCode, headers.location));
                                             }
+                                        }
+                                        else {
+                                            errorRequest(item, fromStatusCode(statusCode), localStream);
+                                        }
                                     };
                                     if (host.v2()) {
                                         (client as ClientHttp2Stream)
@@ -1877,7 +1888,6 @@ class FileManager extends Module implements IFileManager {
                                                 if (!aborted) {
                                                     const statusCode = headers[':status']!;
                                                     if (invalidRequest(statusCode)) {
-                                                        aborted = true;
                                                         errorRequest(item, fromStatusCode(statusCode), localStream);
                                                     }
                                                     else if (downgradeVersion(statusCode)) {
