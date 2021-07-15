@@ -11,7 +11,7 @@ import type { ConfigOrTransformer, PluginConfig, SourceInput, SourceMapInput, So
 import type { CompleteAsyncTaskCallback, FetchBufferOptions, HttpClientOptions, HttpRequestBuffer, InstallData, PerformAsyncTaskMethod, PostFinalizeCallback } from './filemanager';
 import type { HttpProxyData, HttpRequest, HttpVersionSupport } from './http';
 import type { CropData, QualityData, ResizeData, RotateData } from './image';
-import type { LOG_TYPE, LogMessageOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
+import type { LOG_TYPE, LogMessageOptions, LogTimeProcessOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
 import type { AllSettledOptions, CloudModule, DocumentModule, TaskModule } from './module';
 import type { RequestBody, Settings } from './node';
 import type { FileWatch } from './watch';
@@ -292,7 +292,7 @@ declare namespace functions {
         formatMessage: ModuleFormatMessageMethod;
         formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: Null<Error>): void;
         writeFail: ModuleWriteFailMethod;
-        writeTimeProcess(title: string, value: string, time: number, options?: LogMessageOptions): void;
+        writeTimeProcess(title: string, value: string, time: number, options?: LogTimeProcessOptions): void;
         writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions): void;
     }
 

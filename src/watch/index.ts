@@ -323,7 +323,7 @@ class Watch extends Module implements IWatch {
                                 options.httpVersion = 1;
                             }
                             const timeout = setInterval(() => {
-                                (options ? host!.getHttpClient(uri, options) as ClientRequest : request(uri, { method: 'HEAD' }))
+                                (host && options ? host.getHttpClient(uri, options) as ClientRequest : request(uri, { method: 'HEAD' }))
                                     .on('response', res => {
                                         const map = HTTP_MAP[uri];
                                         if (map) {

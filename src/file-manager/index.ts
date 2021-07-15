@@ -1184,7 +1184,7 @@ class FileManager extends Module implements IFileManager {
                     let buffer: Null<Buffer> = null;
                     const downloadEnd = () => {
                         if (buffer) {
-                            this.writeTimeProcess('HTTP' + host.version, server.url.pathname, time, { type: this.logType.HTTP });
+                            this.writeTimeProcess('HTTP' + host.version, server.url.pathname, time, { type: this.logType.HTTP, meterIncrement: 100 });
                         }
                         resolve(buffer);
                     };
@@ -1545,7 +1545,7 @@ class FileManager extends Module implements IFileManager {
                                                                 }
                                                             })
                                                             .on('end', () => {
-                                                                this.writeTimeProcess('HTTP' + host.version, url.pathname + ` (${queue.bundleIndex!})`, time, { type: this.logType.HTTP });
+                                                                this.writeTimeProcess('HTTP' + host.version, url.pathname + ` (${queue.bundleIndex!})`, time, { type: this.logType.HTTP, meterIncrement: 100 });
                                                                 if (!aborted) {
                                                                     verifyBundle(queue, buffer, etag);
                                                                 }
@@ -1909,7 +1909,7 @@ class FileManager extends Module implements IFileManager {
                                     }
                                     localStream.on('finish', () => {
                                         if (!aborted && !notFound.includes(uri)) {
-                                            this.writeTimeProcess('HTTP' + host.version, this.removeCwd(localUri) + (item.bundleIndex === 0 ? ' (0)' : ''), time, { type: this.logType.HTTP });
+                                            this.writeTimeProcess('HTTP' + host.version, this.removeCwd(localUri) + (item.bundleIndex === 0 ? ' (0)' : ''), time, { type: this.logType.HTTP, meterIncrement: 100 });
                                             processQueue(item, localUri);
                                             if (etagDir) {
                                                 const buffer = item.buffer;

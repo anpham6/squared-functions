@@ -1,7 +1,7 @@
 /* eslint no-console: "off" */
 
 import type { IModule } from '../types/lib';
-import type { LogMessageOptions, LogValue, LoggerFormat } from '../types/lib/logger';
+import type { LogMessageOptions, LogTimeProcessOptions, LogValue, LoggerFormat } from '../types/lib/logger';
 import type { AllSettledOptions, LoggerModule } from '../types/lib/module';
 import type { Settings } from '../types/lib/node';
 
@@ -9,6 +9,12 @@ import path = require('path');
 import fs = require('fs-extra');
 import uuid = require('uuid');
 import chalk = require('chalk');
+
+const enum LOG_WIDTH { // eslint-disable-line no-shadow
+    TITLE = 6,
+    VALUE = 71,
+    HINT = 32
+}
 
 export enum LOG_TYPE { // eslint-disable-line no-shadow
     UNKNOWN = 0,
@@ -28,15 +34,15 @@ export enum LOG_TYPE { // eslint-disable-line no-shadow
 const SETTINGS: LoggerModule = {
     format: {
         title: {
-            width: 6,
+            width: LOG_WIDTH.TITLE,
             justify: 'right'
         },
         value: {
-            width: 71,
+            width: LOG_WIDTH.VALUE,
             justify: 'left'
         },
         hint: {
-            width: 32
+            width: LOG_WIDTH.HINT
         },
         message: {}
     }
@@ -115,8 +121,6 @@ function isFailed(options?: LogMessageOptions) {
     return false;
 }
 
-const useColor = (options: Undef<LogMessageOptions>) => !(options && options.useColor === false || SETTINGS.color === false);
-
 abstract class Module implements IModule {
     static LOG_TYPE = LOG_TYPE;
     static LOG_STYLE_FAIL: LogMessageOptions = { titleColor: 'white', titleBgColor: 'bgRed' };
@@ -169,7 +173,10 @@ abstract class Module implements IModule {
 
     static formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
         const format = SETTINGS.format!;
-        let titleJustify = (type & LOG_TYPE.FAIL) === LOG_TYPE.FAIL || options.failed ? 'center' : getFormatJustify(format.title, 'right');
+        const truncateString = (segment: string, length: number) => segment.length > length ? '...' + segment.substring(segment.length - length + 3) : segment;
+        const useColor = () => !(options && options.useColor === false || SETTINGS.color === false);
+        let valueWidth = getFormatWidth(format.value, LOG_WIDTH.VALUE),
+            titleJustify = (type & LOG_TYPE.FAIL) === LOG_TYPE.FAIL || options.failed ? 'center' : getFormatJustify(format.title, 'right');
         if (options.type) {
             type |= options.type;
         }
@@ -234,12 +241,10 @@ abstract class Module implements IModule {
                 options.titleBgColor ||= options.failed ? 'bgGray' : 'bgGreen';
             }
         }
-        const valueWidth = getFormatWidth(format.value, 71);
         if (Array.isArray(value)) {
             const hint = value[1];
             if (this.isString(hint)) {
-                const hintWidth = getFormatWidth(format.hint, 32);
-                const getHint = () => hint.length > hintWidth ? '...' + hint.substring(hint.length - hintWidth + 3) : hint;
+                const hintWidth = getFormatWidth(format.hint, LOG_WIDTH.HINT);
                 const formatHint = (content: string) => {
                     let { hintColor, hintBgColor } = options;
                     if (!hintColor && !hintBgColor) {
@@ -259,23 +264,24 @@ abstract class Module implements IModule {
                     }
                     return content;
                 };
-                value = applyFormatPadding(value[0], valueWidth - Math.min(hint.length, hintWidth) - 2, getFormatJustify(format.value)) + (useColor(options) ? chalk.blackBright('[') + formatHint(getHint()) + chalk.blackBright(']') : `[${getHint()}]`);
+                valueWidth -= Math.min(hint.length, hintWidth) + 2;
+                value = applyFormatPadding(truncateString(value[0], valueWidth - 1), valueWidth, getFormatJustify(format.value)) + (useColor() ? chalk.blackBright('[') + formatHint(truncateString(hint, hintWidth)) + chalk.blackBright(']') : `[${truncateString(hint, hintWidth)}]`);
             }
             else {
-                value = applyFormatPadding(value[0], valueWidth, getFormatJustify(format.value));
+                value = applyFormatPadding(truncateString(value[0], valueWidth - 1), valueWidth, getFormatJustify(format.value));
             }
         }
         else {
-            value = applyFormatPadding(value, valueWidth, getFormatJustify(format.value));
+            value = applyFormatPadding(truncateString(value, valueWidth - 1), valueWidth, getFormatJustify(format.value));
         }
-        title = applyFormatPadding(title.toUpperCase(), getFormatWidth(format.title, 7), titleJustify, 1);
+        title = applyFormatPadding(title.toUpperCase(), getFormatWidth(format.title, LOG_WIDTH.TITLE + 1), titleJustify, 1);
         let output: Undef<string>,
             error: Undef<boolean>;
         if (message instanceof Error) {
             message = SETTINGS.stack_trace && message.stack || message.message;
             error = true;
         }
-        if (useColor(options)) {
+        if (useColor()) {
             let { titleColor, titleBgColor, valueColor, valueBgColor, messageColor, messageBgColor } = options;
             if (!titleColor && !titleBgColor) {
                 ({ color: titleColor, bgColor: titleBgColor } = format.title!);
@@ -626,10 +632,10 @@ abstract class Module implements IModule {
         type |= LOG_TYPE.FAIL;
         this.formatFail(type, 'FAIL!', value, message);
     }
-    writeTimeProcess(title: string, value: string, time: number, options?: LogMessageOptions) {
+    writeTimeProcess(title: string, value: string, time: number, options?: LogTimeProcessOptions) {
         time = Date.now() - time;
         const failed = isFailed(options);
-        const meter = (failed ? 'X' : '>').repeat(Math.ceil(time / 250));
+        const meter = (failed ? 'X' : '>').repeat(Math.ceil(time / (options && options.meterIncrement || 250)));
         Module.formatMessage(LOG_TYPE.TIME_PROCESS, title, [(failed ? 'Failed' : 'Completed') + ' -> ' + value, time / 1000 + 's'], meter, options);
     }
     writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions) {

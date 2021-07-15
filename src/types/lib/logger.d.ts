@@ -31,6 +31,10 @@ export interface LogMessageOptions {
     failed?: boolean;
 }
 
+export interface LogTimeProcessOptions extends LogMessageOptions {
+    meterIncrement?: number;
+}
+
 export interface LoggerFormat {
     width?: number;
     color?: typeof ForegroundColor;
