@@ -1067,50 +1067,55 @@ class FileManager extends Module implements IFileManager {
             }
             const origin = host.origin;
             const request = (this._sessionHttp2[origin] ||= http2.connect(origin)).request({ ...headers, ':path': pathname, ':method': method }, signal && { signal } as PlainObject);
-            request.on('response', res => {
-                if (getting && (res[':status'] || 0) < HTTP_STATUS.MULTIPLE_CHOICES) {
-                    let compressStream: Undef<Transform>;
-                    if (this.useAcceptEncoding && (compressStream = checkEncoding(request, res['content-encoding']))) {
-                        if (localStream) {
-                            compressStream.pipe(localStream);
-                            compressStream.once('finish', () => {
-                                localStream!
-                                    .on('finish', function(this: Transform) { this.destroy(); })
-                                    .emit('finish');
-                            });
+            if (getting) {
+                request.on('response', res => {
+                    const statusCode = res[':status']!;
+                    if (statusCode >= HTTP_STATUS.OK && statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
+                        let compressStream: Undef<Transform>;
+                        if (this.useAcceptEncoding && (compressStream = checkEncoding(request, res['content-encoding']))) {
+                            if (localStream) {
+                                localStream.on('error', err => request.emit('error', err));
+                                compressStream.on('error', err => request.emit('error', err));
+                                compressStream.once('finish', () => {
+                                    localStream!
+                                        .on('finish', function(this: Transform) { this.destroy(); })
+                                        .emit('finish');
+                                });
+                                compressStream.pipe(localStream);
+                            }
+                            else {
+                                const addListener = request.on.bind(request);
+                                request.on = function(this: ClientHttp2Stream, event: string, listener: (...args: any[]) => void) {
+                                    switch (event) {
+                                        case 'data':
+                                        case 'close':
+                                        case 'error':
+                                            compressStream!.on(event, listener);
+                                            break;
+                                        case 'end':
+                                            compressStream!.on('finish', listener);
+                                            break;
+                                        default:
+                                            addListener(event, listener);
+                                            break;
+                                    }
+                                    return this;
+                                };
+                            }
+                        }
+                        else if (localStream && !request.destroyed) {
+                            request.pipe(localStream);
                             localStream.on('error', err => request.emit('error', err));
                         }
+                        if (!this._connectHttp2[origin]) {
+                            this._connectHttp2[origin] = 1;
+                        }
                         else {
-                            const addListener = request.on.bind(request);
-                            request.on = function(this: ClientHttp2Stream, event: string, listener: (...args: any[]) => void) {
-                                switch (event) {
-                                    case 'data':
-                                    case 'close':
-                                    case 'error':
-                                        compressStream!.on(event, listener);
-                                        break;
-                                    case 'end':
-                                        compressStream!.on('finish', listener);
-                                        break;
-                                    default:
-                                        addListener(event, listener);
-                                        break;
-                                }
-                                return this;
-                            };
+                            ++this._connectHttp2[origin]!;
                         }
                     }
-                    else if (localStream && !request.destroyed) {
-                        request.pipe(localStream);
-                    }
-                    if (!this._connectHttp2[origin]) {
-                        this._connectHttp2[origin] = 1;
-                    }
-                    else {
-                        ++this._connectHttp2[origin]!;
-                    }
-                }
-            });
+                });
+            }
             request.end();
             return request;
         }
