@@ -3,7 +3,7 @@ import type { DataSource, FileInfo } from '../types/lib/squared';
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
 import type { CloudDatabase } from '../types/lib/cloud';
-import type { FetchBufferOptions, HttpClientOptions, HttpBaseHeaders, HttpRequestBuffer, InstallData, PostFinalizeCallback } from '../types/lib/filemanager';
+import type { FetchBufferOptions, HttpBaseHeaders, HttpClientOptions, HttpRequestBuffer, InstallData, PostFinalizeCallback } from '../types/lib/filemanager';
 import type { HttpProxyData, HttpRequest, HttpVersionSupport, IHttpHost } from '../types/lib/http';
 import type { CloudModule, DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
@@ -405,6 +405,7 @@ class FileManager extends Module implements IFileManager {
     private _cleared = false;
     private _httpVersion: HttpVersionSupport = 1;
     private _sessionHttp2: ObjectMap<http2.ClientHttp2Session> = {};
+    private _connectHttp1: ObjectMap<number> = {};
     private _connectHttp2: ObjectMap<number> = {};
 
     constructor(
@@ -639,10 +640,6 @@ class FileManager extends Module implements IFileManager {
                 for (const host in sessionHttp2) {
                     sessionHttp2[host]!.close();
                 }
-                const connectHttp2 = this._connectHttp2;
-                for (const host in connectHttp2) {
-                    this.formatMessage(this.logType.HTTP, 'HTTP2', [host, 'downloads: ' + connectHttp2[host]!]);
-                }
                 this.assets.forEach(item => {
                     if (item.buffer) {
                         delete item.buffer;
@@ -651,6 +648,25 @@ class FileManager extends Module implements IFileManager {
                         delete item.sourceUTF8;
                     }
                 });
+                if (Module.hasLogType(this.logType.HTTP)) {
+                    const output: [string, string, number][] = [];
+                    let count = 0;
+                    const displayConnect = (data: ObjectMap<number>, version: number) => {
+                        const title = 'HTTP' + version;
+                        for (const host in data) {
+                            const value = data[host]!;
+                            output.push([title, host, data[host]!]);
+                            if (value > count) {
+                                count = value;
+                            }
+                        }
+                    };
+                    displayConnect(this._connectHttp2, 2);
+                    displayConnect(this._connectHttp1, 1);
+                    output.sort((a, b) => b[2] - a[2]);
+                    count = count.toString().length;
+                    output.forEach(item => this.formatMessage(this.logType.HTTP, item[0], [item[1], 'downloads: ' + item[2].toString().padStart(count)]));
+                }
             });
         }
     }
@@ -1066,6 +1082,7 @@ class FileManager extends Module implements IFileManager {
                 (headers ||= {})['accept-encoding'] ||= 'gzip, deflate' + (HTTP_BROTLISUPPORT ? ', br' : '');
             }
         }
+        const origin = host.origin;
         const pathname = url.pathname + url.search;
         const baseHeaders = getBaseHeaders(uri);
         const checkEncoding = (res: IncomingMessage | ClientHttp2Stream, encoding = ''): Undef<Transform> => {
@@ -1089,7 +1106,6 @@ class FileManager extends Module implements IFileManager {
                 signal = ac.signal;
                 options.outAbort = ac;
             }
-            const origin = host.origin;
             const request = (this._sessionHttp2[origin] ||= http2.connect(origin)).request({ ...baseHeaders, ...host.headers, ...headers, ':path': pathname, ':method': method }, signal && { signal } as PlainObject);
             if (getting) {
                 request.on('response', res => {
@@ -1177,6 +1193,15 @@ class FileManager extends Module implements IFileManager {
                 if (res.destroyed) {
                     return;
                 }
+                const statusCode = res.statusCode!;
+                if (statusCode >= HTTP_STATUS.OK && statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
+                    if (!this._connectHttp1[origin]) {
+                        this._connectHttp1[origin] = 1;
+                    }
+                    else {
+                        ++this._connectHttp1[origin]!;
+                    }
+                }
             }
             if (outputStream ||= res) {
                 outputStream.on('data', chunk => request.emit('data', chunk));
@@ -1255,7 +1280,7 @@ class FileManager extends Module implements IFileManager {
                                         retryDownload(true, fromNgFlags(http2.constants.NGHTTP2_PROTOCOL_ERROR, HTTP_STATUS.HTTP_VERSION_NOT_SUPPORTED));
                                     }
                                     else if (isRetryStatus(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
-                                        setTimeout(downloadUri, HTTP_RETRYDELAY);
+                                        setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
                                     }
                                     else if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
                                         if (HTTP2_UNSUPPORTED.includes(flags)) {
@@ -1286,7 +1311,7 @@ class FileManager extends Module implements IFileManager {
                                     host.success();
                                 }
                                 else if (isRetryStatus(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
-                                    setTimeout(downloadUri, HTTP_RETRYDELAY);
+                                    setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
                                 }
                                 else {
                                     resolve(null);
@@ -1294,7 +1319,7 @@ class FileManager extends Module implements IFileManager {
                             })
                             .on('error', err => {
                                 if (isRetryError(err) && ++retries <= HTTP_RETRYLIMIT) {
-                                    setTimeout(downloadUri, HTTP_RETRYDELAY);
+                                    setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
                                 }
                                 else {
                                     failDownload.call(this, uri, err);
@@ -1405,7 +1430,7 @@ class FileManager extends Module implements IFileManager {
                                                     client.on('end', () => resolve(file));
                                                 }
                                                 else if (isRetryStatus(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
-                                                    setTimeout(checkHeaders, HTTP_RETRYDELAY);
+                                                    setTimeout(checkHeaders.bind(this), HTTP_RETRYDELAY);
                                                 }
                                                 else {
                                                     errorRequest(fromStatusCode(statusCode));
@@ -1413,7 +1438,7 @@ class FileManager extends Module implements IFileManager {
                                             })
                                             .on('error', err => {
                                                 if (isRetryError(err) && ++retries <= HTTP_RETRYLIMIT) {
-                                                    setTimeout(checkHeaders, HTTP_RETRYDELAY);
+                                                    setTimeout(checkHeaders.bind(this), HTTP_RETRYDELAY);
                                                 }
                                                 else {
                                                     errorRequest(err);
@@ -1586,7 +1611,7 @@ class FileManager extends Module implements IFileManager {
                                                         resolve();
                                                     }
                                                     else if (isRetryStatus(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
-                                                        setTimeout(downloadUri, HTTP_RETRYDELAY);
+                                                        setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
                                                     }
                                                     else if (host.v2()) {
                                                         if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
@@ -1630,7 +1655,7 @@ class FileManager extends Module implements IFileManager {
                                                         .on('response', res => checkResponse(res.statusCode!, res.headers, 0))
                                                         .on('error', err => {
                                                             if (isRetryError(err) && ++retries <= HTTP_RETRYLIMIT) {
-                                                                setTimeout(downloadUri, HTTP_RETRYDELAY);
+                                                                setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
                                                             }
                                                             else {
                                                                 errorRequest(err);
@@ -1881,7 +1906,7 @@ class FileManager extends Module implements IFileManager {
                                             host.success();
                                         }
                                         else if (isRetryStatus(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
-                                            setTimeout(downloadUri, HTTP_RETRYDELAY);
+                                            setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
                                         }
                                         else if (host.v2()) {
                                             if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
@@ -1928,7 +1953,7 @@ class FileManager extends Module implements IFileManager {
                                             .on('response', res => checkResponse(res.statusCode!, res.headers, 0))
                                             .on('error', err => {
                                                 if (isRetryError(err) && ++retries <= HTTP_RETRYLIMIT) {
-                                                    setTimeout(downloadUri, HTTP_RETRYDELAY);
+                                                    setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
                                                 }
                                                 else {
                                                     errorRequest(item, err, localStream);
@@ -1976,7 +2001,7 @@ class FileManager extends Module implements IFileManager {
                                             const statusCode = res.statusCode!;
                                             if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
                                                 if (isRetryStatus(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
-                                                    setTimeout(checkHeaders, HTTP_RETRYDELAY);
+                                                    setTimeout(checkHeaders.bind(this), HTTP_RETRYDELAY);
                                                 }
                                                 else {
                                                     errorRequest(item, fromStatusCode(statusCode));
@@ -1986,6 +2011,7 @@ class FileManager extends Module implements IFileManager {
                                                 const etag = setHeaderData(item, res.headers);
                                                 let etagDir: Undef<string>;
                                                 if (Module.isString(etag)) {
+                                                    etagDir = encodeURIComponent(etag);
                                                     const cached = HTTP_BUFFER[uri];
                                                     let buffer: Null<Buffer> = null;
                                                     if (cached) {
@@ -2010,7 +2036,7 @@ class FileManager extends Module implements IFileManager {
                                                     };
                                                     try {
                                                         if (tempDir) {
-                                                            const tempUri = path.join(tempDir, etagDir = encodeURIComponent(etag), path.basename(localUri));
+                                                            const tempUri = path.join(tempDir, etagDir, path.basename(localUri));
                                                             if (Module.hasSize(tempUri)) {
                                                                 if (!buffer && isCacheable(item)) {
                                                                     setTempBuffer(item, uri, etagDir, buffer = fs.readFileSync(tempUri), tempUri);
@@ -2023,7 +2049,7 @@ class FileManager extends Module implements IFileManager {
                                                                         fs.copyFileSync(tempUri, localUri);
                                                                     }
                                                                 }
-                                                                if (buffer && !item.willChange) {
+                                                                if (buffer && item.willChange) {
                                                                     item.buffer = buffer;
                                                                 }
                                                                 fileReceived();
@@ -2050,7 +2076,7 @@ class FileManager extends Module implements IFileManager {
                                         })
                                         .on('error', err => {
                                             if (isRetryError(err) && ++retries <= HTTP_RETRYLIMIT) {
-                                                setTimeout(checkHeaders, HTTP_RETRYDELAY);
+                                                setTimeout(checkHeaders.bind(this), HTTP_RETRYDELAY);
                                             }
                                             else {
                                                 errorRequest(item, err);

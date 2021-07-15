@@ -171,75 +171,70 @@ abstract class Module implements IModule {
         return this.isString(value) ? value.replace(/[-|\\{}()[\]^$+*?.]/g, capture => capture === '-' ? '\\x2d' : '\\' + capture) : '';
     }
 
+    static hasLogType(value: LOG_TYPE) {
+        if (value === 0) {
+            if (SETTINGS.unknown === false) {
+                return false;
+            }
+        }
+        else if (
+            (value & LOG_TYPE.SYSTEM) && SETTINGS.system === false ||
+            (value & LOG_TYPE.NODE) && SETTINGS.node === false ||
+            (value & LOG_TYPE.PROCESS) && SETTINGS.process === false ||
+            (value & LOG_TYPE.COMPRESS) && SETTINGS.compress === false ||
+            (value & LOG_TYPE.WATCH) && SETTINGS.watch === false ||
+            (value & LOG_TYPE.FILE) && SETTINGS.file === false ||
+            (value & LOG_TYPE.CLOUD) && SETTINGS.cloud === false ||
+            (value & LOG_TYPE.TIME_ELAPSED) && SETTINGS.time_elapsed === false ||
+            (value & LOG_TYPE.TIME_PROCESS) && SETTINGS.time_process === false ||
+            (value & LOG_TYPE.HTTP) && SETTINGS.http === false)
+        {
+            return false;
+        }
+        return true;
+    }
+
     static formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
+        if (options.type) {
+            type |= options.type;
+        }
+        if (!this.hasLogType(type)) {
+            return;
+        }
         const format = SETTINGS.format!;
         const truncateString = (segment: string, length: number) => segment.length > length ? '...' + segment.substring(segment.length - length + 3) : segment;
         const useColor = () => !(options && options.useColor === false || SETTINGS.color === false);
         let valueWidth = getFormatWidth(format.value, LOG_WIDTH.VALUE),
             titleJustify = (type & LOG_TYPE.FAIL) === LOG_TYPE.FAIL || options.failed ? 'center' : getFormatJustify(format.title, 'right');
-        if (options.type) {
-            type |= options.type;
-        }
-        if (type === 0) {
-            if (SETTINGS.unknown === false) {
-                return;
-            }
-        }
-        else if ((type & LOG_TYPE.FILE) && SETTINGS.file === false|| (type & LOG_TYPE.CLOUD) && SETTINGS.cloud === false || (type & LOG_TYPE.COMPRESS) && SETTINGS.compress === false) {
-            return;
-        }
-        else {
-            if (type & LOG_TYPE.SYSTEM) {
-                if (SETTINGS.system === false) {
-                    return;
-                }
-                if (options.titleBgColor) {
-                    titleJustify = 'center';
-                }
-            }
-            if (type & LOG_TYPE.NODE) {
-                if (SETTINGS.node === false) {
-                    return;
-                }
-                options.titleColor ||= 'black';
-                options.titleBgColor ||= 'bgWhite';
-                options.hintColor ||= 'yellow';
+        if (type & LOG_TYPE.SYSTEM) {
+            if (options.titleBgColor) {
                 titleJustify = 'center';
             }
-            if (type & LOG_TYPE.PROCESS) {
-                if (SETTINGS.process === false) {
-                    return;
-                }
-                options.titleColor ||= 'magenta';
-            }
-            if (type & LOG_TYPE.WATCH) {
-                if (SETTINGS.watch === false) {
-                    return;
-                }
+        }
+        if (type & LOG_TYPE.NODE) {
+            options.titleColor ||= 'black';
+            options.titleBgColor ||= 'bgWhite';
+            options.hintColor ||= 'yellow';
+            titleJustify = 'center';
+        }
+        if (type & LOG_TYPE.PROCESS) {
+            options.titleColor ||= 'magenta';
+        }
+        if (type & LOG_TYPE.WATCH) {
+            titleJustify = 'center';
+        }
+        if (type & LOG_TYPE.TIME_ELAPSED) {
+            if (options.titleBgColor) {
                 titleJustify = 'center';
             }
-            if (type & LOG_TYPE.TIME_ELAPSED) {
-                if (SETTINGS.time_elapsed === false) {
-                    return;
-                }
-                if (options.titleBgColor) {
-                    titleJustify = 'center';
-                }
-                options.hintColor ||= 'yellow';
-            }
-            if (type & LOG_TYPE.TIME_PROCESS) {
-                if (SETTINGS.time_process === false) {
-                    return;
-                }
-                options.messageBgColor ||= options.failed ? 'bgGray' : 'bgCyan';
-            }
-            if (type & LOG_TYPE.HTTP) {
-                if (SETTINGS.http === false) {
-                    return;
-                }
-                options.titleColor ||= 'white';
-                options.titleBgColor ||= options.failed ? 'bgGray' : 'bgGreen';
-            }
+            options.hintColor ||= 'yellow';
+        }
+        if (type & LOG_TYPE.TIME_PROCESS) {
+            options.messageBgColor ||= options.failed ? 'bgGray' : 'bgCyan';
+        }
+        if (type & LOG_TYPE.HTTP) {
+            options.titleColor ||= 'white';
+            options.titleBgColor ||= options.failed ? 'bgGray' : 'bgGreen';
         }
         if (Array.isArray(value)) {
             const hint = value[1];

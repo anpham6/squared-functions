@@ -8,7 +8,7 @@ import type { ExternalAsset, FileData, FileOutput, OutputData } from './asset';
 import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload } from './cloud';
 import type { CompressTryFileMethod } from './compress';
 import type { ConfigOrTransformer, PluginConfig, SourceInput, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
-import type { CompleteAsyncTaskCallback, FetchBufferOptions, HttpClientOptions, HttpBaseHeaders, HttpRequestBuffer, InstallData, PerformAsyncTaskMethod, PostFinalizeCallback } from './filemanager';
+import type { CompleteAsyncTaskCallback, FetchBufferOptions, HttpBaseHeaders, HttpClientOptions, HttpRequestBuffer, InstallData, PerformAsyncTaskMethod, PostFinalizeCallback } from './filemanager';
 import type { HttpProxyData, HttpRequest, HttpVersionSupport } from './http';
 import type { CropData, QualityData, ResizeData, RotateData } from './image';
 import type { LOG_TYPE, LogMessageOptions, LogTimeProcessOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
@@ -314,6 +314,7 @@ declare namespace functions {
         hasSameOrigin(value: string, other: string): boolean;
         hasSameStat(src: string, dest: string, keepEmpty?: boolean): boolean;
         hasSize(src: string): boolean;
+        hasLogType(value: LOG_TYPE): boolean;
         isFileHTTP(value: string): boolean;
         isFileUNC(value: string): boolean;
         isPathUNC(value: string): boolean;
