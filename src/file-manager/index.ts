@@ -1122,7 +1122,7 @@ class FileManager extends Module implements IFileManager {
         timeout ??= this.keepAliveTimeout;
         const proxy = this.httpProxy;
         let agent: Undef<Agent>;
-        if (proxy && (!proxy.include && !proxy.exclude || Array.isArray(proxy.include) && proxy.include.find(value => uri.startsWith(value)) || !proxy.include && Array.isArray(proxy.exclude) && !proxy.exclude.find(value => uri.startsWith(value)))) {
+        if (proxy && (!proxy.include && !proxy.exclude && !host.localhost || Array.isArray(proxy.include) && proxy.include.find(value => uri.startsWith(value)) || !proxy.include && Array.isArray(proxy.exclude) && !proxy.exclude.find(value => uri.startsWith(value)))) {
             const lib = host.secure ? 'https-proxy-agent' : 'http-proxy-agent';
             try {
                 const proxyHost = proxy.host;
