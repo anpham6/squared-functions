@@ -289,18 +289,18 @@ class FileManager extends Module implements IFileManager {
     static resetHttpHost(version = 0) {
         switch (version) {
             case 0:
-                for (const authority in HTTP_HOST) {
-                    delete HTTP_HOST[authority];
+                for (const origin in HTTP_HOST) {
+                    delete HTTP_HOST[origin];
                 }
                 break;
             case 1:
-                for (const authority in HTTP_HOST) {
-                    HTTP_HOST[authority]!.version = 1;
+                for (const origin in HTTP_HOST) {
+                    HTTP_HOST[origin]!.version = 1;
                 }
                 break;
             case 2: {
-                for (const authority in HTTP_HOST) {
-                    const host = HTTP_HOST[authority]!;
+                for (const origin in HTTP_HOST) {
+                    const host = HTTP_HOST[origin]!;
                     const failed = host.failed(2);
                     if (failed === 0 || failed < HTTP2.MAX_FAILED && host.success(2) > 0) {
                         host.version = version;
@@ -338,12 +338,12 @@ class FileManager extends Module implements IFileManager {
         }
     }
 
-    static settingsHttpRetry(limit: Undef<NumString>, delay: Undef<NumString>) {
+    static settingsHttpRetry(limit: Undef<NumString>, delay?: NumString) {
         if (limit && !isNaN(limit = +limit) && limit >= 0) {
             HTTP_RETRYLIMIT = limit;
         }
-        if (delay && !isNaN(delay = +delay) && delay >= 0) {
-            HTTP_RETRYDELAY = delay;
+        if (delay && !isNaN(delay = +delay)) {
+            HTTP_RETRYDELAY = Math.max(delay, 0);
         }
     }
 
@@ -1172,15 +1172,14 @@ class FileManager extends Module implements IFileManager {
                         resolve(buffer);
                     };
                     if (host.v2()) {
-                        let retrying: Undef<boolean>,
-                            aborted: Undef<boolean>;
+                        let aborted: Undef<boolean>;
                         const retryDownload = async (downgrade: boolean, err?: Error) => {
                             if (err) {
                                 warnProtocol.call(this, host, err);
                             }
-                            if (!retrying) {
-                                aborted = abortHttpRequest(server);
-                                retrying = true;
+                            if (!aborted) {
+                                abortHttpRequest(server);
+                                aborted = true;
                                 buffer = null;
                                 if (downgrade) {
                                     downgradeHost(host);
@@ -1194,14 +1193,15 @@ class FileManager extends Module implements IFileManager {
                         };
                         (client as ClientHttp2Stream)
                             .on('response', (headers, flags) => {
-                                if (!retrying) {
+                                if (!aborted) {
                                     const statusCode = headers[':status']!;
                                     if (statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
                                         client.on('end', () => {
-                                            if (!retrying) {
+                                            if (!aborted) {
                                                 downloadEnd();
                                             }
                                         });
+                                        host.success();
                                     }
                                     else if (invalidRequest(statusCode)) {
                                         resolve(null);
@@ -1227,7 +1227,7 @@ class FileManager extends Module implements IFileManager {
                                 }
                             })
                             .on('error', err => {
-                                if (!retrying && !aborted) {
+                                if (!aborted) {
                                     retryDownload(host.error() >= HTTP2.MAX_ERROR || isHttpError(err), err);
                                 }
                             });
@@ -1238,6 +1238,7 @@ class FileManager extends Module implements IFileManager {
                                 const statusCode = res.statusCode!;
                                 if (statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
                                     res.on('end', downloadEnd);
+                                    host.success();
                                 }
                                 else if (retryRequest(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
                                     setTimeout(downloadUri, HTTP_RETRYDELAY);
@@ -1247,13 +1248,13 @@ class FileManager extends Module implements IFileManager {
                                 }
                             })
                             .on('error', err => {
-                                host.failed();
                                 if (!isHttpError(err) && ++retries <= HTTP_RETRYLIMIT) {
                                     setTimeout(downloadUri, HTTP_RETRYDELAY);
                                 }
                                 else {
                                     failDownload.call(this, uri, err);
                                 }
+                                host.failed();
                             });
                     }
                     client.on('data', data => {
@@ -1495,16 +1496,15 @@ class FileManager extends Module implements IFileManager {
                                                 }
                                                 const client = this.getHttpClient(uri, options);
                                                 const host = options.host;
-                                                let retrying: Undef<boolean>,
-                                                    aborted: Undef<boolean>;
+                                                let aborted: Undef<boolean>;
                                                 const retryDownload = (downgrade: boolean, err?: Error) => {
                                                     closeStream();
                                                     if (err) {
                                                         warnProtocol.call(this, host, err);
                                                     }
-                                                    if (!retrying) {
-                                                        aborted = abortHttpRequest(options);
-                                                        retrying = true;
+                                                    if (!aborted) {
+                                                        abortHttpRequest(options);
+                                                        aborted = true;
                                                         buffer = null;
                                                         if (downgrade) {
                                                             downgradeHost(host);
@@ -1526,14 +1526,12 @@ class FileManager extends Module implements IFileManager {
                                                                 }
                                                             })
                                                             .on('end', () => {
-                                                                if (!retrying && !aborted) {
-                                                                    if (host.v2() && buffer) {
-                                                                        host.success();
-                                                                    }
+                                                                if (!aborted) {
                                                                     verifyBundle(queue, buffer, etag);
-                                                                    resolve();
                                                                 }
+                                                                resolve();
                                                             });
+                                                        host.success();
                                                     }
                                                     else if (invalidRequest(statusCode)) {
                                                         resolve();
@@ -1562,7 +1560,7 @@ class FileManager extends Module implements IFileManager {
                                                 if (host.v2()) {
                                                     (client as ClientHttp2Stream)
                                                         .on('response', (headers, flags) => {
-                                                            if (!retrying) {
+                                                            if (!aborted) {
                                                                 const statusCode = headers[':status']!;
                                                                 if (downgradeVersion(statusCode)) {
                                                                     retryDownload(true, fromNgFlags(http2.constants.NGHTTP2_PROTOCOL_ERROR, HTTP_STATUS.HTTP_VERSION_NOT_SUPPORTED));
@@ -1573,7 +1571,7 @@ class FileManager extends Module implements IFileManager {
                                                             }
                                                         })
                                                         .on('error', err => {
-                                                            if (!retrying && !aborted) {
+                                                            if (!aborted) {
                                                                 retryDownload(host.error() >= HTTP2.MAX_ERROR || isHttpError(err), err);
                                                             }
                                                         });
@@ -1582,13 +1580,13 @@ class FileManager extends Module implements IFileManager {
                                                     (client as ClientRequest)
                                                         .on('response', res => checkResponse(res.statusCode!, res.headers, 0))
                                                         .on('error', err => {
-                                                            host.failed();
                                                             if (!isHttpError(err) && ++retries <= HTTP_RETRYLIMIT) {
                                                                 setTimeout(downloadUri, HTTP_RETRYDELAY);
                                                             }
                                                             else {
                                                                 errorRequest(err);
                                                             }
+                                                            host.failed();
                                                         });
                                                 }
                                             }).bind(this)();
@@ -1785,8 +1783,7 @@ class FileManager extends Module implements IFileManager {
                                 downloading[uri] = [];
                                 this.performAsyncTask();
                                 const downloadUri = (etagDir?: string, httpVersion?: HttpVersionSupport) => {
-                                    let retrying: Undef<boolean>,
-                                        aborted: Undef<boolean>,
+                                    let aborted: Undef<boolean>,
                                         localStream: Null<fs.WriteStream> = fs.createWriteStream(localUri);
                                     (options as HttpClientOptions).localStream = localStream;
                                     options.httpVersion = httpVersion;
@@ -1805,9 +1802,9 @@ class FileManager extends Module implements IFileManager {
                                         if (err) {
                                             warnProtocol.call(this, host, err);
                                         }
-                                        if (!retrying) {
-                                            aborted = abortHttpRequest(options);
-                                            retrying = true;
+                                        if (!aborted) {
+                                            abortHttpRequest(options);
+                                            aborted = true;
                                             delete item.buffer;
                                             if (downgrade) {
                                                 downgradeHost(host);
@@ -1820,11 +1817,21 @@ class FileManager extends Module implements IFileManager {
                                         (client as ClientHttp2Stream).close();
                                     };
                                     const checkResponse = (statusCode: number, headers: IncomingHttpHeaders, flags: number) => {
-                                        if (retryRequest(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
+                                        if (statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
+                                            setHeaderData(item, headers, true);
+                                            if (item.willChange || isCacheable(item)) {
+                                                client.on('data', data => {
+                                                    if (Buffer.isBuffer(data)) {
+                                                        item.buffer = item.buffer ? Buffer.concat([item.buffer, data]) : data;
+                                                    }
+                                                });
+                                            }
+                                            host.success();
+                                        }
+                                        else if (retryRequest(statusCode) && ++retries <= HTTP_RETRYLIMIT) {
                                             setTimeout(downloadUri, HTTP_RETRYDELAY);
                                         }
-                                        else if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
-                                            if (host.v2()) {
+                                        else if (host.v2()) {
                                                 if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
                                                     if (HTTP2_UNSUPPORTED.includes(flags)) {
                                                         retryDownload(true, fromNgFlags(flags, statusCode));
@@ -1841,22 +1848,11 @@ class FileManager extends Module implements IFileManager {
                                             else {
                                                 errorRequest(item, fromStatusCode(statusCode), localStream);
                                             }
-                                        }
-                                        else {
-                                            setHeaderData(item, headers, true);
-                                            if (item.willChange || isCacheable(item)) {
-                                                client.on('data', data => {
-                                                    if (Buffer.isBuffer(data)) {
-                                                        item.buffer = item.buffer ? Buffer.concat([item.buffer, data]) : data;
-                                                    }
-                                                });
-                                            }
-                                        }
                                     };
                                     if (host.v2()) {
                                         (client as ClientHttp2Stream)
                                             .on('response', (headers, flags) => {
-                                                if (!retrying) {
+                                                if (!aborted) {
                                                     const statusCode = headers[':status']!;
                                                     if (invalidRequest(statusCode)) {
                                                         aborted = true;
@@ -1871,7 +1867,7 @@ class FileManager extends Module implements IFileManager {
                                                 }
                                             })
                                             .on('error', err => {
-                                                if (!retrying && !aborted) {
+                                                if (!aborted) {
                                                     retryDownload(host.error() >= HTTP2.MAX_ERROR || isHttpError(err), err);
                                                 }
                                             });
@@ -1880,18 +1876,17 @@ class FileManager extends Module implements IFileManager {
                                         (client as ClientRequest)
                                             .on('response', res => checkResponse(res.statusCode!, res.headers, 0))
                                             .on('error', err => {
-                                                host.failed();
                                                 if (!isHttpError(err) && ++retries <= HTTP_RETRYLIMIT) {
                                                     setTimeout(downloadUri, HTTP_RETRYDELAY);
                                                 }
                                                 else {
                                                     errorRequest(item, err, localStream);
                                                 }
+                                                host.failed();
                                             });
                                     }
                                     localStream.on('finish', () => {
-                                        if (!retrying && !aborted && !notFound.includes(uri)) {
-                                            host.success();
+                                        if (!aborted && !notFound.includes(uri)) {
                                             processQueue(item, localUri);
                                             if (etagDir) {
                                                 const buffer = item.buffer;
