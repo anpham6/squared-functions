@@ -1154,6 +1154,7 @@ class FileManager extends Module implements IFileManager {
                                 localStream.on('error', err => request.emit('error', err));
                                 compressStream.on('error', err => request.emit('error', err));
                                 compressStream.once('finish', () => {
+                                    request.emit('end');
                                     localStream!
                                         .on('finish', function(this: Transform) { this.destroy(); })
                                         .emit('finish');
@@ -1242,9 +1243,9 @@ class FileManager extends Module implements IFileManager {
             }
             if (outputStream ||= res) {
                 outputStream.on('data', chunk => request.emit('data', chunk));
-                outputStream.on('error', err => request.emit('error', err));
                 outputStream.on('close', () => request.emit('close'));
-                outputStream.once('end', () => request.emit('end'));
+                outputStream.on('error', err => request.emit('error', err));
+                outputStream.once(outputStream !== res ? 'finish' : 'end', () => request.emit('end'));
                 if (localStream) {
                     stream.pipeline(outputStream, localStream, err => {
                         if (err) {
