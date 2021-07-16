@@ -371,6 +371,20 @@ class FileManager extends Module implements IFileManager {
         }
     }
 
+    static cleanupStream(writeStream: fs.WriteStream, localUri?: string) {
+        try {
+            writeStream.destroy();
+            if (localUri && fs.existsSync(localUri)) {
+                fs.unlinkSync(localUri);
+            }
+        }
+        catch (err) {
+            if (!Module.isErrorCode(err, 'ENOENT')) {
+                this.writeFail([ERR_MESSAGE.DELETE_FILE, localUri], err, this.LOG_TYPE.FILE);
+            }
+        }
+    }
+
     moduleName = 'filemanager';
     delayed = 0;
     useAcceptEncoding = false;
@@ -1544,16 +1558,12 @@ class FileManager extends Module implements IFileManager {
                                                     notFound.push(uri);
                                                     this.writeFail([ERR_MESSAGE.DOWNLOAD_FILE, uri], err);
                                                 }
-                                                closeStream();
-                                                queue.invalid = true;
-                                                resolve();
-                                            };
-                                            const closeStream = () => {
                                                 if (localStream) {
-                                                    localStream.destroy();
-                                                    clearTempBuffer(uri, tempUri);
+                                                    FileManager.cleanupStream(localStream, tempUri);
                                                     localStream = null;
                                                 }
+                                                queue.invalid = true;
+                                                resolve();
                                             };
                                             (function downloadUri(this: IFileManager, httpVersion?: HttpVersionSupport) {
                                                 if (tempUri) {
@@ -1567,7 +1577,10 @@ class FileManager extends Module implements IFileManager {
                                                 const host = options.host;
                                                 let aborted: Undef<boolean>;
                                                 const retryDownload = (downgrade: boolean, err?: Error) => {
-                                                    closeStream();
+                                                    if (localStream) {
+                                                        FileManager.cleanupStream(localStream, tempUri);
+                                                        localStream = null;
+                                                    }
                                                     if (err) {
                                                         warnProtocol.call(this, host, err);
                                                     }
@@ -1746,7 +1759,7 @@ class FileManager extends Module implements IFileManager {
                 delete downloading[uri];
             }
         };
-        const errorRequest = (file: ExternalAsset, err: Error, outputStream?: Null<fs.WriteStream>) => {
+        const errorRequest = (file: ExternalAsset, err: Error, localStream?: Null<fs.WriteStream>) => {
             const { uri, localUri } = file as Required<ExternalAsset>;
             const clearQueue = (data: ObjectMap<ExternalAsset<unknown>[]>, attr: string) => {
                 if (data[attr]) {
@@ -1763,18 +1776,8 @@ class FileManager extends Module implements IFileManager {
                 this.completeAsyncTask();
             }
             this.writeFail([ERR_MESSAGE.DOWNLOAD_FILE, uri], err);
-            if (outputStream) {
-                try {
-                    outputStream.destroy();
-                    if (fs.existsSync(localUri)) {
-                        fs.unlinkSync(localUri);
-                    }
-                }
-                catch (err_1) {
-                    if (!Module.isErrorCode(err_1, 'ENOENT')) {
-                        this.writeFail([ERR_MESSAGE.DELETE_FILE, localUri], err_1, this.logType.FILE);
-                    }
-                }
+            if (localStream) {
+                FileManager.cleanupStream(localStream, localUri);
             }
         };
         for (const item of this.assets) {
@@ -1864,13 +1867,8 @@ class FileManager extends Module implements IFileManager {
                                     const host = options.host;
                                     const retryDownload = (downgrade: boolean, err?: Error) => {
                                         if (localStream) {
-                                            try {
-                                                localStream.destroy();
-                                                localStream = null;
-                                                fs.unlinkSync(localUri);
-                                            }
-                                            catch {
-                                            }
+                                            FileManager.cleanupStream(localStream, localUri);
+                                            localStream = null;
                                         }
                                         if (err) {
                                             warnProtocol.call(this, host, err);

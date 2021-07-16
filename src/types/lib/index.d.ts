@@ -270,6 +270,7 @@ declare namespace functions {
         moduleCompress(): ICompress;
         createPermission(): IPermission;
         resolveMime(data: Buffer | string): Promise<Undef<FileTypeResult>>;
+        cleanupStream(writeStream: WriteStream, localUri?: string): void;
         resetHttpHost(version?: number): void;
         getHttpBufferSize(): number;
         clearHttpBuffer(percent?: number): void;
