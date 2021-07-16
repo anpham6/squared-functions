@@ -1,5 +1,3 @@
-/// <reference path="type.d.ts" />
-
 import type { ControllerSettingsDirectoryUI as IControllerSettingsDirectoryUI } from './squared';
 
 export interface ManifestData extends PlainObject {

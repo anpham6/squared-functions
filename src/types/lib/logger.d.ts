@@ -65,5 +65,5 @@ export interface LoggerFormat {
 }
 
 export type LogValue = string | [string, Optional<string>];
-export type ModuleWriteFailMethod = (value: LogValue, message?: Null<Error>, type?: LOG_TYPE) => void;
+export type ModuleWriteFailMethod = (value: LogValue, message?: unknown, type?: LOG_TYPE) => void;
 export type ModuleFormatMessageMethod = (type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options?: LogMessageOptions) => void;

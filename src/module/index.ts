@@ -321,7 +321,7 @@ abstract class Module implements IModule {
         console[(type & LOG_TYPE.FAIL) && (type & LOG_TYPE.FILE) ? 'error' : 'log'](output);
     }
 
-    static writeFail(value: LogValue, message?: Null<Error>, type?: LOG_TYPE) {
+    static writeFail(value: LogValue, message?: unknown, type?: LOG_TYPE) {
         this.formatMessage(type || LOG_TYPE.SYSTEM, 'FAIL!', value, message, { ...Module.LOG_STYLE_FAIL });
     }
 
@@ -625,7 +625,7 @@ abstract class Module implements IModule {
     getTempDir(uuidDir?: boolean, filename = '') {
         return process.cwd() + path.sep + this.tempDir + path.sep + (uuidDir ? uuid.v4() + path.sep : '') + (filename[0] === '.' ? uuid.v4() : '') + filename;
     }
-    writeFail(value: LogValue, message?: Null<Error>, type: LOG_TYPE = LOG_TYPE.SYSTEM) {
+    writeFail(value: LogValue, message?: unknown, type: LOG_TYPE = LOG_TYPE.SYSTEM) {
         type |= LOG_TYPE.FAIL;
         this.formatFail(type, 'FAIL!', value, message);
     }
@@ -638,7 +638,7 @@ abstract class Module implements IModule {
     writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions) {
         Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, [isFailed(options) ? 'Failed' : 'Completed', (Date.now() - time) / 1000 + 's'], value, options);
     }
-    formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: Null<Error>, options?: LogMessageOptions) {
+    formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options?: LogMessageOptions) {
         type |= LOG_TYPE.FAIL;
         Module.formatMessage(type, title, value, message, applyFailStyle(options));
         if (message) {

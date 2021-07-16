@@ -1,4 +1,6 @@
 /// <reference path="type.d.ts" />
+/// <reference path="object.d.ts" />
+/// <reference path="internal.d.ts" />
 
 /* eslint no-shadow: "off" */
 
@@ -293,7 +295,7 @@ declare namespace functions {
         supported: ModuleSupportedMethod;
         getTempDir(uuidDir?: boolean, filename?: string): string;
         formatMessage: ModuleFormatMessageMethod;
-        formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: Null<Error>): void;
+        formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: unknown): void;
         writeFail: ModuleWriteFailMethod;
         writeTimeProcess(title: string, value: string, time: number, options?: LogTimeProcessOptions): void;
         writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions): void;
