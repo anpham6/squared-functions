@@ -12,6 +12,8 @@ import type { Agent, ClientRequest, IncomingHttpHeaders, IncomingMessage, Outgoi
 import type { ClientHttp2Stream } from 'http2';
 import type { Transform } from 'stream';
 
+import { ERR_MESSAGE } from '../types/lib/logger';
+
 import path = require('path');
 import fs = require('fs-extra');
 import http2 = require('http2');
@@ -159,10 +161,6 @@ function warnProtocol(this: IModule, host: IHttpHost, err: Error) {
     if (host.v2()) {
         this.formatMessage(this.logType.HTTP, 'HTTP' + host.version, ['Unsupported protocol', host.origin], err, { failed: true });
     }
-}
-
-function failDownload(this: IModule, uri: string, err: Error) {
-    this.writeFail(['Unable to download file', uri], err, this.logType.HTTP);
 }
 
 function isRetryStatus(value: number) {
@@ -561,7 +559,7 @@ class FileManager extends Module implements IFileManager {
                     fs.renameSync(replaceWith, localUri);
                 }
                 catch (err) {
-                    this.writeFail(['Unable to rename file', replaceWith], err, this.logType.FILE);
+                    this.writeFail([ERR_MESSAGE.RENAME_FILE, replaceWith], err, this.logType.FILE);
                 }
             }
             else {
@@ -590,7 +588,7 @@ class FileManager extends Module implements IFileManager {
             this.performFinalize();
         }
         if (err) {
-            this.writeFail(['Unknown', localUri], err, this.logType.FILE);
+            this.writeFail([ERR_MESSAGE.UNKNOWN, localUri], err, this.logType.FILE);
         }
     }
     performFinalize() {
@@ -736,7 +734,7 @@ class FileManager extends Module implements IFileManager {
                     file.sourceUTF8 = fs.readFileSync(localUri, 'utf8');
                 }
                 catch (err) {
-                    this.writeFail(['Unable to read file', localUri], err, this.logType.FILE);
+                    this.writeFail([ERR_MESSAGE.READ_FILE, localUri], err, this.logType.FILE);
                 }
             }
         }
@@ -806,7 +804,7 @@ class FileManager extends Module implements IFileManager {
                 return file.buffer = buffer;
             }
             catch (err) {
-                this.writeFail(['Unable to write file', file.localUri!], err, this.logType.FILE);
+                this.writeFail([ERR_MESSAGE.WRITE_FILE, file.localUri!], err, this.logType.FILE);
             }
         }
         return null;
@@ -847,7 +845,7 @@ class FileManager extends Module implements IFileManager {
                     fs.copyFileSync(localUri, output);
                 }
                 catch (err) {
-                    this.writeFail(['Unable to copy file', localUri], err, this.logType.FILE);
+                    this.writeFail([ERR_MESSAGE.COPY_FILE, localUri], err, this.logType.FILE);
                     return;
                 }
             }
@@ -874,7 +872,7 @@ class FileManager extends Module implements IFileManager {
             }
         }
         catch (err) {
-            this.writeFail(['Unable to read buffer', localUri], err);
+            this.writeFail([ERR_MESSAGE.READ_BUFFER, localUri], err);
         }
         if (rename) {
             if (!ext) {
@@ -888,7 +886,7 @@ class FileManager extends Module implements IFileManager {
                         this.replace(data.file, output, mimeType);
                     }
                     catch (err) {
-                        this.writeFail(['Unable to rename file', output], err, this.logType.FILE);
+                        this.writeFail([ERR_MESSAGE.RENAME_FILE, output], err, this.logType.FILE);
                     }
                 }
                 else {
@@ -930,7 +928,7 @@ class FileManager extends Module implements IFileManager {
                             new Promise<void>(resolve => {
                                 const complete = (err?: Null<Error>) => {
                                     if (err) {
-                                        this.writeFail(['Unable to compress file', localUri], err);
+                                        this.writeFail([ERR_MESSAGE.COMPRESS_FILE, localUri], err);
                                     }
                                     resolve();
                                 };
@@ -943,7 +941,7 @@ class FileManager extends Module implements IFileManager {
                                                 }
                                                 catch (err_1) {
                                                     if (!Module.isErrorCode(err_1, 'ENOENT')) {
-                                                        this.writeFail(['Unable to delete file', result], err_1, this.logType.FILE);
+                                                        this.writeFail([ERR_MESSAGE.DELETE_FILE, result], err_1, this.logType.FILE);
                                                     }
                                                 }
                                             }
@@ -962,7 +960,7 @@ class FileManager extends Module implements IFileManager {
                     }
                 }
                 catch (err) {
-                    this.writeFail(['Unable to read file', output], err, this.logType.FILE);
+                    this.writeFail([ERR_MESSAGE.READ_FILE, output], err, this.logType.FILE);
                 }
             }
             if (tasks.length) {
@@ -1017,7 +1015,7 @@ class FileManager extends Module implements IFileManager {
             }
             catch (err) {
                 if (!Module.isErrorCode(err, 'ENOENT')) {
-                    this.writeFail(['Unable to delete file', localUri], err, this.logType.FILE);
+                    this.writeFail([ERR_MESSAGE.DELETE_FILE, localUri], err, this.logType.FILE);
                 }
             }
             this.completeAsyncTask();
@@ -1169,7 +1167,7 @@ class FileManager extends Module implements IFileManager {
                 agent = (require(lib) as FunctionType<Agent>)(timeout > 0 ? { protocol: proxyHost.protocol, hostname: proxyHost.hostname, port: proxyHost.port, keepAlive: true, timeout } : proxyHost.toString());
             }
             catch (err) {
-                this.writeFail(['Install required?', 'npm i ' + lib], err);
+                this.writeFail([ERR_MESSAGE.INSTALL, 'npm i ' + lib], err);
             }
         }
         else if (timeout > 0) {
@@ -1224,9 +1222,8 @@ class FileManager extends Module implements IFileManager {
         return new Promise<Null<Buffer>>(resolve => {
             try {
                 const server = this.createHttpRequest(uri);
-                const httpVersion = options && options.httpVersion;
-                if (httpVersion) {
-                    server.httpVersion = httpVersion;
+                if (options) {
+                    Object.assign(server, options);
                 }
                 const client = this.getHttpClient(uri, server);
                 const host = server.host;
@@ -1322,7 +1319,7 @@ class FileManager extends Module implements IFileManager {
                                     setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
                                 }
                                 else {
-                                    failDownload.call(this, uri, err);
+                                    this.writeFail([ERR_MESSAGE.DOWNLOAD_FILE, uri], err);
                                 }
                                 host.failed();
                             });
@@ -1335,7 +1332,7 @@ class FileManager extends Module implements IFileManager {
                 }).bind(this)();
             }
             catch (err) {
-                this.writeFail(['Unable to fetch bufffer', uri], err, this.logType.HTTP);
+                this.writeFail([ERR_MESSAGE.READ_BUFFER, uri], err, this.logType.HTTP);
                 resolve(null);
             }
         });
@@ -1351,7 +1348,7 @@ class FileManager extends Module implements IFileManager {
         const isCacheable = (file: ExternalAsset) => bufferLimit > 0 && (!file.contentLength || file.contentLength <= bufferLimit);
         const permissionFail = (file: ExternalAsset) => {
             const uri = file.uri!;
-            this.writeFail(['Unable to read file', uri], new Error(`Insufficient permissions (${uri})`));
+            this.writeFail([ERR_MESSAGE.READ_FILE, uri], new Error(`Insufficient permissions (${uri})`));
             file.invalid = true;
         };
         const setHeaderData = (file: ExternalAsset, headers: IncomingHttpHeaders, lastModified?: boolean) => {
@@ -1418,7 +1415,7 @@ class FileManager extends Module implements IFileManager {
                                     (function checkHeaders(this: IFileManager) {
                                         const errorRequest = (err: Error) => {
                                             file.invalid = true;
-                                            failDownload.call(this, uri!, err);
+                                            this.writeFail([ERR_MESSAGE.DOWNLOAD_FILE, uri], err);
                                             resolve(file);
                                         };
                                         const client = this.getHttpClient(uri!, { method: 'HEAD', httpVersion: 1 }) as ClientRequest;
@@ -1545,7 +1542,7 @@ class FileManager extends Module implements IFileManager {
                                             const errorRequest = (err: Error) => {
                                                 if (!notFound.includes(uri)) {
                                                     notFound.push(uri);
-                                                    failDownload.call(this, uri, err);
+                                                    this.writeFail([ERR_MESSAGE.DOWNLOAD_FILE, uri], err);
                                                 }
                                                 closeStream();
                                                 queue.invalid = true;
@@ -1677,7 +1674,7 @@ class FileManager extends Module implements IFileManager {
                                                 verifyBundle(queue, data);
                                             }
                                             else {
-                                                this.writeFail(['Unable to read file', uri], err, this.logType.FILE);
+                                                this.writeFail([ERR_MESSAGE.READ_FILE, uri], err, this.logType.FILE);
                                                 queue.invalid = true;
                                             }
                                             resolve();
@@ -1691,7 +1688,7 @@ class FileManager extends Module implements IFileManager {
                         }
                     }
                     if (tasks.length) {
-                        await Module.allSettled(tasks, { rejected: ['Unable to download file', 'bundle: ' + path.basename(localUri)], errors: this.errors, type: this.logType.HTTP });
+                        await Module.allSettled(tasks, { rejected: [ERR_MESSAGE.DOWNLOAD_FILE, 'bundle: ' + path.basename(localUri)], errors: this.errors, type: this.logType.HTTP });
                     }
                 }
                 this.transformAsset({ file });
@@ -1730,7 +1727,7 @@ class FileManager extends Module implements IFileManager {
                             for (const queue of uriMap.get(copyUri)!) {
                                 queue.invalid = true;
                             }
-                            this.writeFail(['Unable to copy file', localUri], err, this.logType.FILE);
+                            this.writeFail([ERR_MESSAGE.COPY_FILE, localUri], err, this.logType.FILE);
                         }
                     }
                 }
@@ -1765,7 +1762,7 @@ class FileManager extends Module implements IFileManager {
                 notFound.push(uri);
                 this.completeAsyncTask();
             }
-            failDownload.call(this, uri, err);
+            this.writeFail([ERR_MESSAGE.DOWNLOAD_FILE, uri], err);
             if (outputStream) {
                 try {
                     outputStream.destroy();
@@ -1775,7 +1772,7 @@ class FileManager extends Module implements IFileManager {
                 }
                 catch (err_1) {
                     if (!Module.isErrorCode(err_1, 'ENOENT')) {
-                        this.writeFail(['Unable to delete file', localUri], err_1, this.logType.FILE);
+                        this.writeFail([ERR_MESSAGE.DELETE_FILE, localUri], err_1, this.logType.FILE);
                     }
                 }
             }
@@ -1804,7 +1801,7 @@ class FileManager extends Module implements IFileManager {
                             fs.emptyDirSync(pathname);
                         }
                         catch (err) {
-                            this.writeFail(['Unable to empty sub directory', pathname], err);
+                            this.writeFail([ERR_MESSAGE.DELETE_DIRECTORY, pathname], err);
                         }
                     }
                     if (Module.mkdirSafe(pathname)) {
@@ -1985,7 +1982,7 @@ class FileManager extends Module implements IFileManager {
                                                         }
                                                     }
                                                     catch (err) {
-                                                        this.writeFail(['Unable to cache file', tempUri], err, this.logType.FILE);
+                                                        this.writeFail([ERR_MESSAGE.WRITE_FILE, tempUri], err, this.logType.FILE);
                                                     }
                                                 }
                                                 else if (bufferLimit > 0 && buffer) {
@@ -2115,7 +2112,7 @@ class FileManager extends Module implements IFileManager {
                     }
                     catch (err) {
                         if (!Module.isErrorCode(err, 'ENOENT')) {
-                            this.writeFail(['Unable to delete file', value], err, this.logType.FILE);
+                            this.writeFail([ERR_MESSAGE.DELETE_FILE, value], err, this.logType.FILE);
                         }
                         else {
                             this.delete(value);
@@ -2159,7 +2156,7 @@ class FileManager extends Module implements IFileManager {
                                     tasks.push(new Promise<void>(resolve => {
                                         const complete = (err?: Null<Error>) => {
                                             if (err) {
-                                                this.writeFail(['Unable to compress image', file], err);
+                                                this.writeFail([ERR_MESSAGE.COMPRESS_FILE, file], err);
                                             }
                                             resolve();
                                         };

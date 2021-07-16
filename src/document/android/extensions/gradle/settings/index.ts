@@ -1,6 +1,7 @@
 import type { IFileManager } from '../../../../../types/lib';
-
 import type { IAndroidDocument } from '../../../document';
+
+import { ERR_MESSAGE } from '../../../../../types/lib/logger';
 
 import path = require('path');
 import fs = require('fs');
@@ -23,7 +24,7 @@ export default function finalize(this: IFileManager, instance: IAndroidDocument,
         content = fs.readFileSync(existing ? template : instance.resolveTemplateDir(kotlin ? 'kotlin' : 'java', filename) || path.join(documentDir, instance.moduleName, 'template', kotlin ? 'kotlin' : 'java', filename), 'utf8');
     }
     catch (err) {
-        this.writeFail(['Unable to read file', template], err, this.logType.FILE);
+        this.writeFail([ERR_MESSAGE.READ_FILE, template], err, this.logType.FILE);
     }
     if (content) {
         const mainParentDir = instance.mainParentDir;
@@ -65,7 +66,7 @@ export default function finalize(this: IFileManager, instance: IAndroidDocument,
                 }
             }
             catch (err) {
-                this.writeFail(['Unable to write file', template], err, this.logType.FILE);
+                this.writeFail([ERR_MESSAGE.WRITE_FILE, template], err, this.logType.FILE);
             }
         }
     }

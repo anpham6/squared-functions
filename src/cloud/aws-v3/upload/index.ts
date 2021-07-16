@@ -5,6 +5,9 @@ import type { UploadCallback } from '../../index';
 
 import type * as s3 from '@aws-sdk/client-s3';
 
+import { ERR_MESSAGE } from '../../../types/lib/logger';
+import { ERR_CLOUD } from '../../index';
+
 import path = require('path');
 import uuid = require('uuid');
 
@@ -31,7 +34,7 @@ export default function upload(this: IModule, config: AWSStorageConfig, service 
         const localUri = data.localUri;
         const errorResponse = (err: any) => {
             BUCKET_MAP.delete(bucketKey);
-            this.formatFail(this.logType.CLOUD, service, ['Upload failed', typeof err === 'object' && err.Code === 'PermanentRedirect' && err.Endpoint ? err.Endpoint : path.basename(localUri)], err);
+            this.formatFail(this.logType.CLOUD, service, [ERR_CLOUD.UPLOAD_FAIL, typeof err === 'object' && err.Code === 'PermanentRedirect' && err.Endpoint ? err.Endpoint : path.basename(localUri)], err);
             success('');
             return false;
         };
@@ -83,7 +86,7 @@ export default function upload(this: IModule, config: AWSStorageConfig, service 
                     }
                 }
                 catch (err) {
-                    this.formatFail(this.logType.CLOUD, service, ['Unable to rename file', localUri], err);
+                    this.formatFail(this.logType.CLOUD, service, [ERR_MESSAGE.RENAME_FILE, localUri], err);
                     success('');
                     return;
                 }

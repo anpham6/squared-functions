@@ -4,6 +4,8 @@ import type { CloudDatabase } from '../../types/lib/cloud';
 import type * as storage from '@azure/storage-blob';
 import type * as db from '@azure/cosmos';
 
+import { ERR_AZURE, ERR_CLOUD } from '../index';
+
 export interface AzureStorageCredential {
     accountName?: string;
     accountKey?: string;
@@ -42,7 +44,7 @@ export function createStorageClient(this: IModule, credential: AzureStorageCrede
         return new BlobServiceClient(`https://${credential.accountName!}.blob.core.windows.net`, sharedKeyCredential);
     }
     catch (err) {
-        this.writeFail(['Install Azure Storage Blob?', 'npm i @azure/storage-blob']);
+        this.writeFail([ERR_AZURE.INSTALL_STORAGEBLOB, 'npm i @azure/storage-blob']);
         throw err;
     }
 }
@@ -53,7 +55,7 @@ export function createDatabaseClient(this: IModule, credential: AzureDatabaseCre
         return new CosmosClient(credential);
     }
     catch (err) {
-        this.writeFail(['Install Azure Cosmos DB?', 'npm i @azure/cosmos']);
+        this.writeFail([ERR_AZURE.INSTALL_COSMOSDB, 'npm i @azure/cosmos']);
         throw err;
     }
 }
@@ -74,7 +76,7 @@ export async function createBucket(this: IModule, credential: AzureStorageCreden
     }
     catch (err) {
         if (err.code !== 'ContainerAlreadyExists') {
-            this.formatFail(this.logType.CLOUD, service, ['Unable to create container', bucket], err);
+            this.formatFail(this.logType.CLOUD, service, [ERR_AZURE.CREATE_CONTAINER, bucket], err);
             return false;
         }
     }
@@ -91,7 +93,7 @@ export async function deleteObjects(this: IModule, credential: AzureStorageCrede
             tasks.push(
                 containerClient.deleteBlob(blob.name, { versionId: blob.versionId })
                     .catch(err => {
-                        this.formatMessage(this.logType.CLOUD, service, ['Unable to delete blob', bucket], err, { titleColor: 'yellow' });
+                        this.formatMessage(this.logType.CLOUD, service, [ERR_AZURE.DELETE_BLOB, bucket], err, { titleColor: 'yellow' });
                         --fileCount;
                         return err;
                     })
@@ -101,7 +103,7 @@ export async function deleteObjects(this: IModule, credential: AzureStorageCrede
         return Promise.all(tasks).then(() => this.formatMessage(this.logType.CLOUD, service, ['Container emptied', fileCount + ' files'], bucket, { titleColor: 'blue' }));
     }
     catch (err) {
-        this.formatMessage(this.logType.CLOUD, service, ['Unable to empty container', bucket], err, { titleColor: 'yellow' });
+        this.formatMessage(this.logType.CLOUD, service, [ERR_AZURE.DELETE_CONTAINER, bucket], err, { titleColor: 'yellow' });
     }
 }
 
@@ -150,7 +152,7 @@ export async function executeQuery(this: ICloud, credential: AzureDatabaseCreden
         }
     }
     catch (err) {
-        this.writeFail(['Unable to execute DB query', data.service], err);
+        this.writeFail([ERR_CLOUD.CREATE_BUCKET, data.service], err);
     }
     return [];
 }

@@ -6,6 +6,8 @@ import type { ChunkData, ConfigOrTransformer, PluginConfig, SourceInput, SourceM
 import type { DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
 
+import { ERR_MESSAGE } from '../types/lib/logger';
+
 import path = require('path');
 import fs = require('fs');
 
@@ -136,7 +138,7 @@ abstract class Document extends Module implements IDocument {
                 fs.writeFileSync(uri, JSON.stringify(map), 'utf8');
             }
             catch (err) {
-                this.writeFail(['Unable to write file', uri], err, this.LOG_TYPE.FILE);
+                this.writeFail([ERR_MESSAGE.WRITE_FILE, uri], err, this.LOG_TYPE.FILE);
                 return '';
             }
         }
@@ -212,7 +214,7 @@ abstract class Document extends Module implements IDocument {
                         }
                     }
                     catch (err) {
-                        instance.writeFail(['Unable to check file', localFile!], err, this.logType.FILE);
+                        instance.writeFail([ERR_MESSAGE.READ_FILE, localFile!], err, this.logType.FILE);
                         sourceFile = undefined;
                         break;
                     }
@@ -301,7 +303,7 @@ abstract class Document extends Module implements IDocument {
                         }
                     }
                     catch (err) {
-                        this.writeFail(['Unable to read file', uri], err, this.logType.FILE);
+                        this.writeFail([ERR_MESSAGE.READ_FILE, uri], err, this.logType.FILE);
                     }
                 }
                 else if (path.isAbsolute(value)) {
@@ -325,7 +327,7 @@ abstract class Document extends Module implements IDocument {
                     return result;
                 }
                 catch (err) {
-                    this.writeFail('Could not load config', err);
+                    this.writeFail(ERR_MESSAGE.LOAD_CONFIG, err);
                 }
                 break;
         }
@@ -335,7 +337,7 @@ abstract class Document extends Module implements IDocument {
         if (Module.isString(viewEngine)) {
             const view = (this.module.settings?.view_engine as Undef<StandardMap>)?.[viewEngine] as Undef<ViewEngine>;
             if (!view) {
-                this.writeFail(['Setting not found', viewEngine], errorMessage('view engine', viewEngine, 'Unknown'));
+                this.writeFail(['Setting not found', viewEngine], errorMessage('view engine', viewEngine, ERR_MESSAGE.UNKNOWN));
                 return null;
             }
             viewEngine = view;
@@ -379,7 +381,7 @@ abstract class Document extends Module implements IDocument {
                 const [plugin, baseConfig, outputConfig = {}] = this.findConfig(data, process = process.trim(), type);
                 if (plugin) {
                     if (!baseConfig) {
-                        this.writeFail('Unable to load configuration', errorMessage(plugin, process, 'Invalid config'));
+                        this.writeFail(ERR_MESSAGE.LOAD_CONFIG, errorMessage(plugin, process, 'Invalid config'));
                     }
                     else {
                         const output = { ...options, outputConfig, supplementChunks, createSourceMap, writeFail } as TransformOptions;
@@ -417,7 +419,7 @@ abstract class Document extends Module implements IDocument {
                                             context = this;
                                         }
                                         else {
-                                            this.writeFail(['Transformer not compatible', plugin], errorMessage(plugin, process, 'Invalid function'));
+                                            this.writeFail(['Incompatible transformer function', plugin], errorMessage(plugin, process, 'Invalid function'));
                                             continue;
                                         }
                                     }
@@ -438,7 +440,7 @@ abstract class Document extends Module implements IDocument {
                             }
                         }
                         catch (err) {
-                            this.writeFail([`Install required? <${this.moduleName}>`, 'npm i ' + plugin], err);
+                            this.writeFail([ERR_MESSAGE.INSTALL + ` <${this.moduleName}>`, 'npm i ' + plugin], err);
                         }
                     }
                 }

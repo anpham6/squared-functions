@@ -1,5 +1,7 @@
 import type { ModuleWriteFailMethod } from '../types/lib/logger';
 
+import { ERR_MESSAGE } from '../types/lib/logger';
+
 export function loadPlugins<T = unknown>(name: string, plugins: unknown[], writeFail?: ModuleWriteFailMethod) {
     const result: T[] = [];
     for (const plugin of plugins.map(item => typeof item === 'string' ? [item] : Array.isArray(item) && typeof item[0] === 'string' ? item : null) as Null<[string, Undef<PlainObject>]>[]) {
@@ -9,7 +11,7 @@ export function loadPlugins<T = unknown>(name: string, plugins: unknown[], write
             }
             catch (err) {
                 if (writeFail) {
-                    writeFail([`Install required? <${name}>`, 'npm i ' + plugin[0]], err);
+                    writeFail([ERR_MESSAGE.INSTALL + ` <${name}>`, 'npm i ' + plugin[0]], err);
                 }
             }
         }

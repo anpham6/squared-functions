@@ -3,6 +3,9 @@ import type { DownloadData } from '../../../types/lib/cloud';
 
 import type { DownloadCallback } from '../../index';
 
+import { ERR_MESSAGE } from '../../../types/lib/logger';
+import { ERR_CLOUD } from '../../index';
+
 import Module from '../../../module';
 
 import { GCloudStorageCredential, createStorageClient } from '../index';
@@ -32,18 +35,18 @@ export default function download(this: IModule, credential: GCloudStorageCredent
                                     this.formatMessage(this.logType.CLOUD, service, 'Delete success', location, { titleColor: 'grey' });
                                 }
                                 else {
-                                    this.formatFail(this.logType.CLOUD, service, ['Delete failed', location], err);
+                                    this.formatFail(this.logType.CLOUD, service, [ERR_CLOUD.DELETE_FAIL, location], err);
                                 }
                             });
                         }
                     })
                     .catch((err: Error) => {
-                        this.formatFail(this.logType.CLOUD, service, ['Download failed', location], err);
+                        this.formatFail(this.logType.CLOUD, service, [ERR_CLOUD.DOWNLOAD_FAIL, location], err);
                         success('');
                     });
             }
             catch (err) {
-                this.formatFail(this.logType.CLOUD, service, 'Unknown', err);
+                this.formatFail(this.logType.CLOUD, service, ERR_MESSAGE.UNKNOWN, err);
                 success('');
             }
         }

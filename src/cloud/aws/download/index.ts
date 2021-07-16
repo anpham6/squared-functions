@@ -5,6 +5,9 @@ import type { DownloadCallback } from '../../index';
 
 import type * as aws from 'aws-sdk';
 
+import { ERR_MESSAGE } from '../../../types/lib/logger';
+import { ERR_CLOUD } from '../../index';
+
 import Module from '../../../module';
 
 import { AWSStorageCredential, createStorageClient } from '../index';
@@ -28,19 +31,19 @@ export default function download(this: IModule, credential: AWSStorageCredential
                                     this.formatMessage(this.logType.CLOUD, service, 'Delete success', location, { titleColor: 'grey' });
                                 }
                                 else {
-                                    this.formatFail(this.logType.CLOUD, service, ['Delete failed', location], err_1);
+                                    this.formatFail(this.logType.CLOUD, service, [ERR_CLOUD.DELETE_FAIL, location], err_1);
                                 }
                             });
                         }
                     }
                     else {
-                        this.formatFail(this.logType.CLOUD, service, ['Download failed', location], err);
+                        this.formatFail(this.logType.CLOUD, service, [ERR_CLOUD.DOWNLOAD_FAIL, location], err);
                         success(null);
                     }
                 });
             }
             catch (err) {
-                this.formatFail(this.logType.CLOUD, service, 'Unknown', err);
+                this.formatFail(this.logType.CLOUD, service, ERR_MESSAGE.UNKNOWN, err);
                 success(null);
             }
         }

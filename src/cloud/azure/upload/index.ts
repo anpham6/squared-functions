@@ -3,6 +3,9 @@ import type { UploadData } from '../../../types/lib/cloud';
 
 import type { UploadCallback } from '../../index';
 
+import { ERR_MESSAGE } from '../../../types/lib/logger';
+import { ERR_CLOUD } from '../../index';
+
 import path = require('path');
 import uuid = require('uuid');
 
@@ -72,7 +75,7 @@ export default function upload(this: IModule, credential: AzureStorageCredential
                 }
             }
             catch (err) {
-                this.formatFail(this.logType.CLOUD, service, ['Unable to rename file', localUri], err);
+                this.formatFail(this.logType.CLOUD, service, [ERR_MESSAGE.RENAME_FILE, localUri], err);
                 success('');
                 return;
             }
@@ -97,7 +100,7 @@ export default function upload(this: IModule, credential: AzureStorageCredential
                 })
                 .catch(err => {
                     if (i === 0) {
-                        this.formatFail(this.logType.CLOUD, service, ['Upload failed', Key[i]], err);
+                        this.formatFail(this.logType.CLOUD, service, [ERR_CLOUD.UPLOAD_FAIL, Key[i]], err);
                         success('');
                     }
                 });

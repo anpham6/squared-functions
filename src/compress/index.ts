@@ -4,6 +4,8 @@ import type { ICompress } from '../types/lib';
 import type { CompressTryFileMethod } from '../types/lib/compress';
 import type { CompleteAsyncTaskCallback } from '../types/lib/filemanager';
 
+import { ERR_MESSAGE } from '../types/lib/logger';
+
 import path = require('path');
 import fs = require('fs');
 import zlib = require('zlib');
@@ -102,7 +104,7 @@ const Compress = new class extends Module implements ICompress {
                 callback(err);
             }
             else if (err) {
-                this.writeFail(['Unable to compress image', uri], err, this.logType.FILE);
+                this.writeFail([ERR_MESSAGE.COMPRESS_FILE, uri], err, this.logType.FILE);
             }
         };
         const writeFile = (result: Buffer | Uint8Array) => {

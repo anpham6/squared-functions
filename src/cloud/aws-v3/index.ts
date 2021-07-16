@@ -8,6 +8,7 @@ import type * as dynamodb from '@aws-sdk/client-dynamodb';
 import type * as documentdb from '@aws-sdk/lib-dynamodb';
 import type * as credential from '@aws-sdk/credential-provider-ini';
 
+import { ERR_AWS, ERR_CLOUD } from '../index';
 import { getPublicReadPolicy } from '../aws/index';
 
 interface AWSBaseConfig {
@@ -30,7 +31,7 @@ function setPublicRead(this: IModule, S3: typeof s3, client: s3.S3Client, Bucket
             this.formatMessage(this.logType.CLOUD, service, 'Grant public-read', Bucket, { titleColor: 'blue' });
         })
         .catch(err => {
-            this.formatMessage(this.logType.CLOUD, service, ['Unable to grant public-read', err.Endpoint || Bucket], err, { titleColor: 'yellow' });
+            this.formatMessage(this.logType.CLOUD, service, [ERR_CLOUD.GRANT_PUBLICREAD, err.Endpoint || Bucket], err, { titleColor: 'yellow' });
         });
 }
 
@@ -81,7 +82,7 @@ export function createBucket(this: IModule, config: AWSStorageConfig, Bucket: st
                         })
                         .catch(err => {
                             if (err.message !== 'BucketAlreadyExists' && err.message !== 'BucketAlreadyOwnedByYou') {
-                                this.formatFail(this.logType.CLOUD, service, ['Unable to create bucket', Bucket], err);
+                                this.formatFail(this.logType.CLOUD, service, [ERR_CLOUD.CREATE_BUCKET, Bucket], err);
                                 return false;
                             }
                             if (publicRead) {
@@ -92,12 +93,12 @@ export function createBucket(this: IModule, config: AWSStorageConfig, Bucket: st
                 });
         }
         catch (err) {
-            this.formatMessage(this.logType.CLOUD, service, ['Unable to create bucket', Bucket], err, { titleColor: 'yellow' });
+            this.formatMessage(this.logType.CLOUD, service, [ERR_CLOUD.CREATE_BUCKET, Bucket], err, { titleColor: 'yellow' });
         }
         return Promise.resolve(false);
     }
     catch (err) {
-        this.writeFail([`Install AWS SDK S3 v3?`, 'npm i ' + sdk]);
+        this.writeFail([ERR_AWS.INSTALL_AWS3, 'npm i ' + sdk]);
         throw err;
     }
 }
@@ -118,11 +119,11 @@ export async function deleteObjects(this: IModule, config: AWSStorageConfig, Buc
             }
         }
         catch (err) {
-            this.formatMessage(this.logType.CLOUD, service, ['Unable to empty bucket', Bucket], err, { titleColor: 'yellow' });
+            this.formatMessage(this.logType.CLOUD, service, [ERR_CLOUD.DELETE_BUCKET, Bucket], err, { titleColor: 'yellow' });
         }
     }
     catch (err) {
-        this.writeFail([`Install AWS SDK S3 v3?`, 'npm i ' + sdk]);
+        this.writeFail([ERR_AWS.INSTALL_AWS3, 'npm i ' + sdk]);
         throw err;
     }
 }
@@ -171,16 +172,16 @@ export async function executeQuery(this: ICloud, config: AWSDatabaseConfig, data
                 }
             }
             catch (err) {
-                this.writeFail(['Unable to execute DB query', data.service], err);
+                this.writeFail([ERR_CLOUD.QUERY_DB, data.service], err);
             }
         }
         catch (err) {
-            this.writeFail(['Install AWS SDK DynamoDB v3?', 'npm i @aws-sdk/lib-dynamodb']);
+            this.writeFail([ERR_AWS.INSTALL_DYNAMODB, 'npm i @aws-sdk/lib-dynamodb']);
             throw err;
         }
     }
     catch (err) {
-        this.writeFail(['Install AWS SDK DynamoDB v3?', 'npm i @aws-sdk/client-dynamodb']);
+        this.writeFail([ERR_AWS.INSTALL_DYNAMODB, 'npm i @aws-sdk/client-dynamodb']);
         throw err;
     }
     return [];

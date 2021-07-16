@@ -8,6 +8,8 @@ import type { FileWatch } from '../types/lib/watch';
 import type { ClientRequest } from 'http';
 import type { Server } from 'ws';
 
+import { ERR_MESSAGE } from '../types/lib/logger';
+
 import Module from '../module';
 
 import path = require('path');
@@ -351,7 +353,7 @@ class Watch extends Module implements IWatch {
                                         }
                                     })
                                     .on('error', err => {
-                                        this.writeFail(['Unable to watch', uri], err);
+                                        this.writeFail([ERR_MESSAGE.WATCH_FILE, uri], err);
                                         delete HTTP_MAP[uri];
                                         clearInterval(timeout);
                                     });
@@ -397,7 +399,7 @@ class Watch extends Module implements IWatch {
                                     }
                                 }
                                 catch (err) {
-                                    this.writeFail(['Unable to stat file', uri], err);
+                                    this.writeFail([ERR_MESSAGE.READ_FILE, uri], err);
                                 }
                             });
                             if (expires) {
@@ -414,7 +416,7 @@ class Watch extends Module implements IWatch {
                         }
                     }
                     if (invalid) {
-                        this.formatFail(this.logType.WATCH, 'WATCH', ['Unable to watch file', file], new Error((invalid === ERROR.LOCAL_ACCESS ? 'No read permission' : 'ETag unavailable') + ` (${file})`));
+                        this.formatFail(this.logType.WATCH, 'WATCH', [ERR_MESSAGE.WATCH_FILE, file], new Error((invalid === ERROR.LOCAL_ACCESS ? 'No read permission' : 'ETag unavailable') + ` (${file})`));
                     }
                     else {
                         this.formatMessage(this.logType.WATCH, 'WATCH', ['Start', interval + 'ms ' + (expires ? formatDate(expires) : 'never')], file, { titleColor: 'blue' });
@@ -437,7 +439,7 @@ class Watch extends Module implements IWatch {
             }
         }
         catch (err) {
-            this.writeFail(['Unable to resolve file', value], err, this.logType.FILE);
+            this.writeFail([ERR_MESSAGE.RESOLVE_FILE, value], err, this.logType.FILE);
         }
     }
     setSSLCert(value: string) {
@@ -447,7 +449,7 @@ class Watch extends Module implements IWatch {
             }
         }
         catch (err) {
-            this.writeFail(['Unable to resolve file', value], err, this.logType.FILE);
+            this.writeFail([ERR_MESSAGE.RESOLVE_FILE, value], err, this.logType.FILE);
         }
     }
 }

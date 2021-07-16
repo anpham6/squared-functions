@@ -5,6 +5,8 @@ import type { ConfigurationOptions } from 'ibm-cos-sdk/lib/config';
 import type { Configuration, ServerScope } from '@cloudant/cloudant';
 import type { MangoQuery } from 'nano';
 
+import { ERR_CLOUD } from '../index';
+
 import { createBucket as createBucket_s3, deleteObjects as deleteObjects_s3 } from '../aws';
 
 export interface IBMStorageCredential extends ConfigurationOptions {
@@ -38,7 +40,7 @@ export function createDatabaseClient(this: IModule, credential: IBMDatabaseCrede
         return new Cloudant(credential) as ServerScope;
     }
     catch (err) {
-        this.writeFail(['Install IBM Cloudant?', 'npm i @cloudant/cloudant']);
+        this.writeFail([ERR_CLOUD.INSTALL_CLOUDANT, 'npm i @cloudant/cloudant']);
         throw err;
     }
 }
@@ -83,7 +85,7 @@ export async function executeQuery(this: ICloud, credential: IBMDatabaseCredenti
         }
     }
     catch (err) {
-        this.writeFail(['Unable to execute DB query', data.service], err);
+        this.writeFail([ERR_CLOUD.QUERY_DB, data.service], err);
     }
     return [];
 }

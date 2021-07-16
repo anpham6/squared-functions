@@ -5,6 +5,8 @@ import type { LogMessageOptions, LogTimeProcessOptions, LogValue, LoggerFormat }
 import type { AllSettledOptions, LoggerModule } from '../types/lib/module';
 import type { Settings } from '../types/lib/node';
 
+import { ERR_MESSAGE } from '../types/lib/logger';
+
 import path = require('path');
 import fs = require('fs-extra');
 import uuid = require('uuid');
@@ -348,7 +350,7 @@ abstract class Module implements IModule {
                 value = fs.readFileSync(uri, 'utf8').trim();
             }
             catch (err) {
-                this.writeFail(['Unable to read file', uri], err, LOG_TYPE.FILE);
+                this.writeFail([ERR_MESSAGE.READ_FILE, uri], err, LOG_TYPE.FILE);
                 return;
             }
         }
@@ -548,7 +550,7 @@ abstract class Module implements IModule {
             return true;
         }
         catch (err) {
-            this.writeFail(['Unable to create directory', value], err, LOG_TYPE.FILE);
+            this.writeFail([ERR_MESSAGE.CREATE_DIRECTORY, value], err, LOG_TYPE.FILE);
         }
         return false;
     }

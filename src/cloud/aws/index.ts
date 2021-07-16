@@ -3,6 +3,8 @@ import type { CloudDatabase } from '../../types/lib/cloud';
 import type { ConfigurationOptions } from 'aws-sdk/lib/core';
 import type { ServiceConfigurationOptions } from 'aws-sdk/lib/service';
 
+import { ERR_AWS, ERR_CLOUD } from '../index';
+
 import type * as aws from 'aws-sdk';
 import type * as awsS3 from 'aws-sdk/clients/s3';
 
@@ -30,7 +32,7 @@ function setPublicRead(this: IModule, s3: aws.S3, Bucket: string, service = 'aws
             this.formatMessage(this.logType.CLOUD, service, 'Grant public-read', Bucket, { titleColor: 'blue' });
         }
         else {
-            this.formatMessage(this.logType.CLOUD, service, ['Unable to grant public-read', Bucket], err, { titleColor: 'yellow' });
+            this.formatMessage(this.logType.CLOUD, service, [ERR_CLOUD.GRANT_PUBLICREAD, Bucket], err, { titleColor: 'yellow' });
         }
     };
     switch (service) {
@@ -108,7 +110,7 @@ export function createDatabaseClient(this: IModule, credential: AWSDatabaseCrede
         return new AWS.DynamoDB.DocumentClient(options);
     }
     catch (err) {
-        this.writeFail(['Install AWS SDK?', 'npm i aws-sdk']);
+        this.writeFail([ERR_AWS.INSTALL_AWS, 'npm i aws-sdk']);
         throw err;
     }
 }
@@ -138,7 +140,7 @@ export async function createBucket(this: IModule, credential: ConfigurationOptio
                 })
                 .catch(err => {
                     if (err.code !== 'BucketAlreadyExists' && err.code !== 'BucketAlreadyOwnedByYou') {
-                        this.formatFail(this.logType.CLOUD, service, ['Unable to create bucket', Bucket], err);
+                        this.formatFail(this.logType.CLOUD, service, [ERR_CLOUD.CREATE_BUCKET, Bucket], err);
                         return false;
                     }
                     return true;
@@ -160,7 +162,7 @@ export async function deleteObjects(this: IModule, credential: AWSStorageCredent
         }
     }
     catch (err) {
-        this.formatMessage(this.logType.CLOUD, service, ['Unable to empty bucket', Bucket], err, { titleColor: 'yellow' });
+        this.formatMessage(this.logType.CLOUD, service, [ERR_CLOUD.DELETE_BUCKET, Bucket], err, { titleColor: 'yellow' });
     }
 }
 
@@ -201,7 +203,7 @@ export async function executeQuery(this: ICloud, credential: AWSDatabaseCredenti
         }
     }
     catch (err) {
-        this.writeFail(['Unable to execute DB query', data.service], err);
+        this.writeFail([ERR_CLOUD.QUERY_DB, data.service], err);
     }
     return [];
 }

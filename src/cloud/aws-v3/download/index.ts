@@ -7,6 +7,8 @@ import type { DownloadCallback } from '../../index';
 
 import type * as s3 from '@aws-sdk/client-s3';
 
+import { ERR_CLOUD } from '../../../cloud';
+
 import Module from '../../../module';
 
 import { AWSStorageConfig } from '../index';
@@ -33,7 +35,7 @@ export default function download(this: IModule, config: AWSStorageConfig, servic
             const input: s3.GetObjectRequest = { Bucket, Key, VersionId: Download.versionId };
             const complete = (err: Null<Error>, buffer: Null<Buffer> = null) => {
                 if (err || !buffer) {
-                    this.formatFail(this.logType.CLOUD, service, ['Download failed', location], err);
+                    this.formatFail(this.logType.CLOUD, service, [ERR_CLOUD.DOWNLOAD_FAIL, location], err);
                 }
                 success(buffer);
             };
@@ -46,7 +48,7 @@ export default function download(this: IModule, config: AWSStorageConfig, servic
                         if (Download.deleteObject) {
                             client.send(new AWS.DeleteObjectCommand(input))
                                 .then(() => this.formatMessage(this.logType.CLOUD, service, 'Delete success', location, { titleColor: 'grey' }))
-                                .catch(err => this.formatFail(this.logType.CLOUD, service, ['Delete failed', location], err));
+                                .catch(err => this.formatFail(this.logType.CLOUD, service, [ERR_CLOUD.DELETE_FAIL, location], err));
                         }
                     })
                     .catch(err => complete(err));

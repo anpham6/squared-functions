@@ -3,12 +3,46 @@ import type { ExternalAsset } from '../types/lib/asset';
 import type { CacheTimeout, CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageAction, CloudStorageDownload, CloudStorageUpload, DownloadData, UploadData } from '../types/lib/cloud';
 import type { CloudModule } from '../types/lib/module';
 
+import { ERR_MESSAGE } from '../types/lib/logger';
+
 import path = require('path');
 import fs = require('fs-extra');
 import mime = require('mime-types');
 import uuid = require('uuid');
 
 import Module from '../module';
+
+export const enum ERR_CLOUD { // eslint-disable-line no-shadow
+    INSTALL_GCS = 'Install Google Cloud Storage?',
+    INSTALL_CLOUDANT = 'Install IBM Cloudant?',
+    INSTALL_ORACLEDB = 'Install Oracle DB?',
+    CREATE_BUCKET = 'Unable to create bucket',
+    DELETE_BUCKET = 'Unable to empty bucket',
+    GRANT_PUBLICREAD = 'Unable to grant public-read',
+    QUERY_DB = 'Unable to execute DB query',
+    PROVIDER_NOTFOUND = 'Cloud provider not found',
+    CREATE_BUCKET_SUPPORT = 'Create bucket not supported',
+    DELETE_OBJECTS_SUPPORT = 'Delete objects not supported',
+    UPLOAD_SUPPORT = 'Upload function not supported',
+    DOWNLOAD_SUPPORT = 'Download function not supported',
+    UPLOAD_FAIL = 'Upload failed',
+    DOWNLOAD_FAIL = 'Download failed',
+    DELETE_FAIL = 'Delete failed'
+}
+
+export const enum ERR_AWS { // eslint-disable-line no-shadow
+    INSTALL_AWS = 'Install AWS SDK?',
+    INSTALL_AWS3 = 'Install AWS SDK S3 v3?',
+    INSTALL_DYNAMODB = 'Install AWS SDK DynamoDB v3?'
+}
+
+export const enum ERR_AZURE { // eslint-disable-line no-shadow
+    INSTALL_STORAGEBLOB = 'Install Azure Storage Blob?',
+    INSTALL_COSMOSDB = 'Install Azure Cosmos DB?',
+    CREATE_CONTAINER = 'Unable to create container',
+    DELETE_CONTAINER = 'Unable to empty container',
+    DELETE_BLOB = 'Unable to delete blob'
+}
 
 export interface CloudScopeOrigin extends Required<IScopeOrigin<IFileManager, ICloud>> {
     bucketGroup: string;
@@ -78,7 +112,7 @@ class Cloud extends Module implements ICloud {
                     uploadHandler = instance.getUploadHandler(storage.service, instance.getCredential(storage));
                 }
                 catch (err) {
-                    instance.writeFail(['Upload function not supported', storage.service], err);
+                    instance.writeFail([ERR_CLOUD.UPLOAD_SUPPORT, storage.service], err);
                     continue;
                 }
                 const { admin, bucket } = storage;
@@ -94,7 +128,7 @@ class Cloud extends Module implements ICloud {
                                             fileGroup.push([storage.service === 'gcloud' ? group[i] : fs.readFileSync(group[i]), path.extname(group[i])]);
                                         }
                                         catch (err) {
-                                            instance.writeFail(['Unable to read file', group[i]], err, this.logType.FILE);
+                                            instance.writeFail([ERR_MESSAGE.READ_FILE, group[i]], err, this.logType.FILE);
                                         }
                                     }
                                 }
@@ -120,7 +154,7 @@ class Cloud extends Module implements ICloud {
                                             uploadHandler({ buffer, admin, upload, localUri, fileGroup, bucket, bucketGroup, filename, mimeType }, success);
                                         }
                                         catch (err) {
-                                            instance.writeFail(['Unable to read file', localUri], err, this.logType.FILE);
+                                            instance.writeFail([ERR_MESSAGE.READ_FILE, localUri], err, this.logType.FILE);
                                             success('');
                                         }
                                     })
@@ -201,7 +235,7 @@ class Cloud extends Module implements ICloud {
         }
         for (const service in bucketMap) {
             for (const [bucket, credential] of bucketMap[service]!) {
-                tasks.push(cloud.deleteObjects(service, credential, bucket).catch(err => cloud.writeFail(['Cloud provider not found', service], err)));
+                tasks.push(cloud.deleteObjects(service, credential, bucket).catch(err => cloud.writeFail([ERR_CLOUD.PROVIDER_NOTFOUND, service], err)));
             }
         }
         if (tasks.length) {
@@ -255,7 +289,7 @@ class Cloud extends Module implements ICloud {
                                 }
                             }
                             catch (err) {
-                                cloud.writeFail(['Unable to create directory', dirname], err, this.logType.FILE);
+                                cloud.writeFail([ERR_MESSAGE.CREATE_DIRECTORY, dirname], err, this.logType.FILE);
                             }
                             if (valid) {
                                 const location = data.service + data.bucket + filename;
@@ -283,14 +317,14 @@ class Cloud extends Module implements ICloud {
                                                     }
                                                 }
                                                 catch (err) {
-                                                    cloud.writeFail(['Unable to write file', destUri], err, this.logType.FILE);
+                                                    cloud.writeFail([ERR_MESSAGE.WRITE_FILE, destUri], err, this.logType.FILE);
                                                 }
                                             }
                                         }, bucketGroup));
                                         downloadMap[location] = download;
                                     }
                                     catch (err) {
-                                        cloud.writeFail(['Download function not supported', data.service], err);
+                                        cloud.writeFail([ERR_CLOUD.DOWNLOAD_SUPPORT, data.service], err);
                                     }
                                 }
                             }
@@ -391,7 +425,7 @@ class Cloud extends Module implements ICloud {
         if (createHandler) {
             return createHandler.call(this, credential, bucket, publicRead);
         }
-        this.writeFail(['Create bucket not supported', service], new Error(service + `: ${bucket} (Create not supported)`));
+        this.writeFail([ERR_CLOUD.CREATE_BUCKET_SUPPORT, service], new Error(service + `: ${bucket} (Create not supported)`));
         return Promise.resolve(false);
     }
     deleteObjects(service: string, credential: PlainObject, bucket: string): Promise<void> {
@@ -399,7 +433,7 @@ class Cloud extends Module implements ICloud {
         if (deleteHandler) {
             return deleteHandler.call(this, credential, bucket, service);
         }
-        this.writeFail(['Delete objects not supported', service], new Error(service + `: ${bucket} (Delete not supported)`));
+        this.writeFail([ERR_CLOUD.DELETE_OBJECTS_SUPPORT, service], new Error(service + `: ${bucket} (Delete not supported)`));
         return Promise.resolve();
     }
     downloadObject(service: string, credential: PlainObject, bucket: string, download: CloudStorageDownload, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string) {
@@ -488,7 +522,7 @@ class Cloud extends Module implements ICloud {
             }
         }
         catch (err) {
-            this.writeFail(['Cloud provider not found', data.service], err);
+            this.writeFail([ERR_CLOUD.PROVIDER_NOTFOUND, data.service], err);
         }
         return false;
     }

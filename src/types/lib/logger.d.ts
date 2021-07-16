@@ -2,6 +2,28 @@
 
 import type { BackgroundColor, ForegroundColor } from 'chalk';
 
+export const enum ERR_MESSAGE {
+    UNKNOWN = 'Unknown',
+    INSTALL = 'Install required?',
+    READ_FILE = 'Unable to read file',
+    WRITE_FILE = 'Unable to write file',
+    COPY_FILE = 'Unable to copy file',
+    DELETE_FILE = 'Unable to delete file',
+    RENAME_FILE = 'Unable to rename file',
+    MOVE_FILE = 'Unable to move file',
+    CONVERT_FILE = 'Unable to convert file',
+    DOWNLOAD_FILE = 'Unable to download file',
+    RESOLVE_FILE = 'Unable to resolve file',
+    REPLACE_FILE = 'Unable to replace file',
+    COMPRESS_FILE = 'Unable to compress file',
+    WATCH_FILE = 'Unable to watch file',
+    CREATE_DIRECTORY = 'Unable to create directory',
+    READ_DIRECTORY = 'Unable to read directory',
+    DELETE_DIRECTORY = 'Unable to delete directory',
+    LOAD_CONFIG = 'Unable to load configuration',
+    READ_BUFFER = 'Unable to read buffer'
+}
+
 export enum LOG_TYPE {
     UNKNOWN = 0,
     SYSTEM = 1,

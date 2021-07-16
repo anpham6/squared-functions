@@ -11,6 +11,8 @@ import type * as gcf from '@google-cloud/firestore';
 import type * as gcd from '@google-cloud/datastore';
 import type * as gcb from '@google-cloud/bigquery';
 
+import { ERR_CLOUD } from '../index';
+
 import path = require('path');
 
 type DatastoreKey = entity.KeyOptions | PathType[] | string;
@@ -54,7 +56,7 @@ export function createStorageClient(this: IModule, credential: GCloudStorageCred
         return new Storage(credential) as gcs.Storage;
     }
     catch (err) {
-        this.writeFail(['Install Google Cloud Storage?', 'npm i @google-cloud/storage']);
+        this.writeFail([ERR_CLOUD.INSTALL_GCS, 'npm i @google-cloud/storage']);
         throw err;
     }
 }
@@ -97,7 +99,7 @@ export async function createBucket(this: IModule, credential: GCloudStorageCrede
     }
     catch (err) {
         if (err.code !== 409) {
-            this.formatFail(this.logType.CLOUD, service, ['Unable to create bucket', bucket], err);
+            this.formatFail(this.logType.CLOUD, service, [ERR_CLOUD.CREATE_BUCKET, bucket], err);
             return false;
         }
     }
@@ -112,7 +114,7 @@ export async function deleteObjects(this: IModule, credential: GCloudStorageCred
             .then(() => this.formatMessage(this.logType.CLOUD, service, 'Bucket emptied', bucket, { titleColor: 'blue' }));
     }
     catch (err) {
-        this.formatMessage(this.logType.CLOUD, service, ['Unable to empty bucket', bucket], err, { titleColor: 'yellow' });
+        this.formatMessage(this.logType.CLOUD, service, [ERR_CLOUD.DELETE_BUCKET, bucket], err, { titleColor: 'yellow' });
     }
 }
 
@@ -188,7 +190,7 @@ export async function executeQuery(this: ICloud, credential: GCloudDatabaseCrede
         }
     }
     catch (err) {
-        this.writeFail(['Unable to execute DB query', data.service], err);
+        this.writeFail([ERR_CLOUD.DELETE_BUCKET, data.service], err);
     }
     return [];
 }
@@ -200,7 +202,7 @@ export function setPublicRead(this: IModule, acl: Acl, filename: string, request
         })
         .catch(err => {
             if (requested) {
-                this.formatMessage(this.logType.CLOUD, 'gcloud', ['Unable to grant public-read', filename], err, { titleColor: 'yellow' });
+                this.formatMessage(this.logType.CLOUD, 'gcloud', [ERR_CLOUD.GRANT_PUBLICREAD, filename], err, { titleColor: 'yellow' });
             }
         });
 }

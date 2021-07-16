@@ -16,15 +16,16 @@ export interface HttpRequestBuffer {
     limit: number;
 }
 
-export interface HttpClientOptions extends HttpRequest {
+export interface HttpClientOptions extends FetchBufferOptions, HttpRequest {
     method?: string;
-    headers?: OutgoingHttpHeaders;
     localStream?: WriteStream;
-    timeout?: number;
     outAbort?: AbortController;
 }
 
-export interface FetchBufferOptions extends HttpVersionAction {}
+export interface FetchBufferOptions extends HttpVersionAction {
+    headers?: OutgoingHttpHeaders;
+    timeout?: number;
+}
 
 export type HttpBaseHeaders = ObjectMap<OutgoingHttpHeaders>;
 export type PerformAsyncTaskMethod = () => void;

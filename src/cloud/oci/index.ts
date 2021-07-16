@@ -4,6 +4,8 @@ import type { CloudDatabase } from '../../types/lib/cloud';
 import type { ConfigurationOptions } from 'aws-sdk/lib/core';
 import type { Connection, ConnectionAttributes } from 'oracledb';
 
+import { ERR_CLOUD } from '../index';
+
 import { createBucket as createBucket_s3, deleteObjects as deleteObjects_s3 } from '../aws';
 
 const OUT_FORMAT_OBJECT = 4002;
@@ -39,7 +41,7 @@ export async function createDatabaseClient(this: IModule, credential: OCIDatabas
         return await oracledb.getConnection(credential) as Connection;
     }
     catch (err) {
-        this.writeFail(['Install Oracle DB?', 'npm i oracledb']);
+        this.writeFail([ERR_CLOUD.INSTALL_ORACLEDB, 'npm i oracledb']);
         throw err;
     }
 }
@@ -103,7 +105,7 @@ export async function executeQuery(this: ICloud, credential: OCIDatabaseCredenti
         }
     }
     catch (err) {
-        this.writeFail(['Unable to execute DB query', data.service], err);
+        this.writeFail([ERR_CLOUD.QUERY_DB, data.service], err);
     }
     return [];
 }

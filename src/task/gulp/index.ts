@@ -1,6 +1,8 @@
 import type { IFileManager } from '../../types/lib';
 import type { ExternalAsset } from '../../types/lib/asset';
 
+import { ERR_MESSAGE } from '../../types/lib/logger';
+
 import path = require('path');
 import fs = require('fs-extra');
 import child_process = require('child_process');
@@ -56,7 +58,7 @@ class Gulp extends Task {
                                 }
                             }
                             catch (err) {
-                                instance.writeFail(['Unable to resolve file', gulpfile], err);
+                                instance.writeFail([ERR_MESSAGE.RESOLVE_FILE, gulpfile], err);
                             }
                         }
                     }
@@ -160,7 +162,7 @@ class Gulp extends Task {
                     output
                         .on('close', code => {
                             if (!code) {
-                                Task.allSettled(data.items.map(uri => fs.unlink(uri).then(() => manager.delete(uri))), { rejected: ['Unable to delete file', this.moduleName + ': ' + task], errors: this.errors, type: this.logType.FILE })
+                                Task.allSettled(data.items.map(uri => fs.unlink(uri).then(() => manager.delete(uri))), { rejected: [ERR_MESSAGE.DELETE_FILE, this.moduleName + ': ' + task], errors: this.errors, type: this.logType.FILE })
                                     .then(() => {
                                         fs.readdir(tempDir)
                                             .then(value => {
@@ -175,12 +177,12 @@ class Gulp extends Task {
                                                     callback();
                                                 })
                                                 .catch(err => {
-                                                    writeError('Unable to replace files', err);
+                                                    writeError(ERR_MESSAGE.REPLACE_FILE, err);
                                                     callback();
                                                 });
                                             })
                                             .catch(err => {
-                                                writeError('Unable to read directory', err);
+                                                writeError(ERR_MESSAGE.READ_DIRECTORY, err);
                                                 callback();
                                             });
                                     });
@@ -190,7 +192,7 @@ class Gulp extends Task {
                                 callback();
                             }
                         })
-                        .on('error', err => writeError('Unknown', err));
+                        .on('error', err => writeError(ERR_MESSAGE.UNKNOWN, err));
                 })
                 .catch(err => {
                     try {
@@ -198,11 +200,11 @@ class Gulp extends Task {
                     }
                     catch {
                     }
-                    writeError('Unable to copy files', err, tempDir);
+                    writeError(ERR_MESSAGE.COPY_FILE, err, tempDir);
                 });
         }
         else {
-            writeError('Unable to create directory', null, tempDir);
+            writeError(ERR_MESSAGE.CREATE_DIRECTORY, null, tempDir);
             callback();
         }
     }

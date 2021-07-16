@@ -3,6 +3,8 @@ import type { ExternalAsset, FileData, OutputData } from '../../types/lib/asset'
 
 import type { IJimpImageHandler } from './image';
 
+import { ERR_MESSAGE } from '../../types/lib/logger';
+
 import path = require('path');
 import fs = require('fs');
 import child_process = require('child_process');
@@ -143,7 +145,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                 })
                 .catch(err => {
                     this.writeTimeProcess(MODULE_NAME, path.basename(localUri), time, { failed: true });
-                    this.writeFail(['Unable to read image buffer', MODULE_NAME + path.basename(localUri)], err, this.logType.FILE);
+                    this.writeFail([ERR_MESSAGE.READ_BUFFER, MODULE_NAME + path.basename(localUri)], err, this.logType.FILE);
                 });
         };
         if (mimeType === 'image/webp') {
@@ -154,13 +156,13 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                         transformBuffer(tempFile);
                     }
                     else {
-                        this.writeFail(['Unable to convert image buffer', localUri], err);
+                        this.writeFail([ERR_MESSAGE.CONVERT_FILE, localUri], err);
                         this.completeAsyncTask();
                     }
                 });
             }
             catch (err) {
-                this.writeFail(['Install required?', 'npm i dwebp-bin'], err);
+                this.writeFail([ERR_MESSAGE.INSTALL, 'npm i dwebp-bin'], err);
                 this.completeAsyncTask();
             }
         }
@@ -414,14 +416,14 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                                 }
                                 catch (err_2) {
                                     resolve(null);
-                                    this.writeFail(['Unable to read file', result], err_2, this.logType.FILE);
+                                    this.writeFail([ERR_MESSAGE.READ_FILE, result], err_2, this.logType.FILE);
                                 }
                                 try {
                                     fs.unlinkSync(result);
                                 }
                                 catch (err_2) {
                                     if (!Image.isErrorCode(err_2, 'ENOENT')) {
-                                        this.writeFail(['Unable to delete file', result], err_2, this.logType.FILE);
+                                        this.writeFail([ERR_MESSAGE.DELETE_FILE, result], err_2, this.logType.FILE);
                                     }
                                 }
                             }
@@ -456,7 +458,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
             args.push('-o', webp);
             child_process.execFile(require('cwebp-bin'), args, { shell: true }, err => {
                 if (err) {
-                    this.writeFail(['Install required?', 'npm i cwebp-bin'], err);
+                    this.writeFail([ERR_MESSAGE.INSTALL, 'npm i cwebp-bin'], err);
                     callback(err, output);
                 }
                 else {
@@ -466,7 +468,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                         }
                         catch (err_1) {
                             if (!Image.isErrorCode(err_1, 'ENOENT')) {
-                                this.writeFail(['Unable to delete file', output], err_1, this.logType.FILE);
+                                this.writeFail([ERR_MESSAGE.DELETE_FILE, output], err_1, this.logType.FILE);
                             }
                         }
                     }
