@@ -871,10 +871,6 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             if (buffer) {
                                                 content = buffer.toString('utf8');
                                             }
-                                            else {
-                                                content = '';
-                                                instance.writeFail('Unable to fetch URI', new Error(`data-source: ${uri} (Empty)`));
-                                            }
                                             cacheData[uri] = content;
                                         }
                                     }
@@ -1287,7 +1283,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                             }
                             resolve();
                         });
-                    }), { rejected: 'Element text or attribute replacement', errors: this.errors });
+                    }), { rejected: 'Element text or attribute replacement', errors: instance.errors });
                 }
             }
             for (const item of elements) {
