@@ -38,9 +38,11 @@ import Permission from './permission';
 
 const { http, https } = followRedirects;
 
-const enum HTTP2 { // eslint-disable-line no-shadow
+const enum HTTP { // eslint-disable-line no-shadow
     MAX_FAILED = 5,
-    MAX_ERROR = 10
+    MAX_ERROR = 10,
+    CHUNK_SIZE = 4 * 1024,
+    CHUNK_SIZE_LOCAL = 64 * 1024
 }
 
 export const enum HTTP_STATUS { // eslint-disable-line no-shadow
@@ -347,7 +349,7 @@ class FileManager extends Module implements IFileManager {
                 for (const origin in HTTP_HOST) {
                     const host = HTTP_HOST[origin]!;
                     const failed = host.failed(2);
-                    if (failed === 0 || failed < HTTP2.MAX_FAILED && host.success(2) > 0) {
+                    if (failed === 0 || failed < HTTP.MAX_FAILED && host.success(2) > 0) {
                         host.version = version;
                     }
                 }
@@ -1126,18 +1128,18 @@ class FileManager extends Module implements IFileManager {
         const origin = host.origin;
         const pathname = url.pathname + url.search;
         const baseHeaders = getBaseHeaders(uri);
-        const checkEncoding = (res: IncomingMessage | ClientHttp2Stream, contentEncoding = ''): Undef<Transform> => {
+        const checkEncoding = (res: IncomingMessage | ClientHttp2Stream, contentEncoding = '', chunkSize?: number): Undef<Transform> => {
             switch (contentEncoding.trim().toLowerCase()) {
                 case 'gzip':
-                    return res.pipe(zlib.createGunzip());
+                    return res.pipe(zlib.createGunzip({ chunkSize }));
                 case 'br':
                     if (HTTP_BROTLISUPPORT) {
-                        return res.pipe(zlib.createBrotliDecompress());
+                        return res.pipe(zlib.createBrotliDecompress({ chunkSize }));
                     }
                     res.destroy(new Error('Unable to decompress Brotli encoding'));
                     break;
                 case 'deflate':
-                    return res.pipe(zlib.createInflate());
+                    return res.pipe(zlib.createInflate({ chunkSize }));
             }
         };
         if (v2) {
@@ -1153,7 +1155,7 @@ class FileManager extends Module implements IFileManager {
                     const statusCode = res[':status']!;
                     if (statusCode >= HTTP_STATUS.OK && statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
                         let compressStream: Undef<Transform>;
-                        if (this.useAcceptEncoding && (compressStream = checkEncoding(request, res['content-encoding']))) {
+                        if (this.useAcceptEncoding && (compressStream = checkEncoding(request, res['content-encoding'], localStream && localStream.writableHighWaterMark))) {
                             if (localStream) {
                                 localStream.on('error', err => request.emit('error', err));
                                 compressStream.on('error', err => request.emit('error', err));
@@ -1231,7 +1233,7 @@ class FileManager extends Module implements IFileManager {
         }, res => {
             let outputStream: Undef<IncomingMessage | Transform>;
             if (getting) {
-                outputStream = checkEncoding(res, res.headers['content-encoding']);
+                outputStream = checkEncoding(res, res.headers['content-encoding'], localStream && localStream.writableHighWaterMark);
                 if (res.destroyed) {
                     return;
                 }
@@ -1339,7 +1341,7 @@ class FileManager extends Module implements IFileManager {
                             })
                             .on('error', err => {
                                 if (!aborted) {
-                                    retryDownload(host.error() >= HTTP2.MAX_ERROR || !isRetryError(err), err);
+                                    retryDownload(host.error() >= HTTP.MAX_ERROR || !isRetryError(err), err);
                                 }
                             });
                     }
@@ -1596,7 +1598,7 @@ class FileManager extends Module implements IFileManager {
                                             };
                                             (function downloadUri(this: IFileManager, httpVersion?: HttpVersionSupport) {
                                                 if (tempUri) {
-                                                    localStream = fs.createWriteStream(tempUri);
+                                                    localStream = fs.createWriteStream(tempUri, { highWaterMark: !options.host.localhost ? HTTP.CHUNK_SIZE : HTTP.CHUNK_SIZE_LOCAL });
                                                     options.localStream = localStream;
                                                 }
                                                 if (httpVersion) {
@@ -1685,7 +1687,7 @@ class FileManager extends Module implements IFileManager {
                                                         })
                                                         .on('error', err => {
                                                             if (!aborted) {
-                                                                retryDownload(host.error() >= HTTP2.MAX_ERROR || !isRetryError(err), err);
+                                                                retryDownload(host.error() >= HTTP.MAX_ERROR || !isRetryError(err), err);
                                                             }
                                                         });
                                                 }
@@ -1889,7 +1891,7 @@ class FileManager extends Module implements IFileManager {
                                 this.performAsyncTask();
                                 const downloadUri = (etagDir?: string, httpVersion?: HttpVersionSupport) => {
                                     let aborted: Undef<boolean>,
-                                        localStream: Null<WriteStream> = fs.createWriteStream(localUri);
+                                        localStream: Null<WriteStream> = fs.createWriteStream(localUri, { highWaterMark: !options.host.localhost ? HTTP.CHUNK_SIZE : HTTP.CHUNK_SIZE_LOCAL });
                                     (options as HttpClientOptions).localStream = localStream;
                                     if (httpVersion) {
                                         options.httpVersion = httpVersion;
@@ -1970,7 +1972,7 @@ class FileManager extends Module implements IFileManager {
                                             })
                                             .on('error', err => {
                                                 if (!aborted) {
-                                                    retryDownload(host.error() >= HTTP2.MAX_ERROR || !isRetryError(err), err);
+                                                    retryDownload(host.error() >= HTTP.MAX_ERROR || !isRetryError(err), err);
                                                 }
                                             });
                                     }
