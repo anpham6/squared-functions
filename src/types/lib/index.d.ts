@@ -299,6 +299,7 @@ declare namespace functions {
         writeFail: ModuleWriteFailMethod;
         writeTimeProcess(title: string, value: string, time: number, options?: LogTimeProcessOptions): void;
         writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions): void;
+        flushLog(): void;
     }
 
     interface ModuleConstructor {

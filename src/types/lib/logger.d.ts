@@ -40,6 +40,9 @@ export enum LOG_TYPE {
 }
 
 export interface LogMessageOptions {
+    type?: LOG_TYPE;
+    queue?: boolean;
+    failed?: boolean;
     useColor?: boolean;
     titleColor?: typeof ForegroundColor;
     titleBgColor?: typeof BackgroundColor;
@@ -49,8 +52,6 @@ export interface LogMessageOptions {
     hintBgColor?: typeof BackgroundColor;
     messageColor?: typeof ForegroundColor;
     messageBgColor?: typeof BackgroundColor;
-    type?: LOG_TYPE;
-    failed?: boolean;
 }
 
 export interface LogTimeProcessOptions extends LogMessageOptions {

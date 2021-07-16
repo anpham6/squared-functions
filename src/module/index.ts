@@ -12,6 +12,8 @@ import fs = require('fs-extra');
 import uuid = require('uuid');
 import chalk = require('chalk');
 
+type FormatMessageArgs = [number, string, LogValue, unknown, LogMessageOptions?];
+
 const enum LOG_WIDTH { // eslint-disable-line no-shadow
     TITLE = 6,
     VALUE = 71,
@@ -619,6 +621,8 @@ abstract class Module implements IModule {
     readonly patch = PROCESS_VERSION[2];
     readonly errors: string[] = [];
 
+    private _logQueued: FormatMessageArgs[] = [];
+
     supported(major: number, minor?: number, patch?: number, lts?: boolean) {
         return Module.supported(major, minor, patch, lts);
     }
@@ -633,10 +637,22 @@ abstract class Module implements IModule {
         time = Date.now() - time;
         const failed = isFailed(options);
         const meter = (failed ? 'X' : '>').repeat(Math.ceil(time / (options && options.meterIncrement || 250)));
-        Module.formatMessage(LOG_TYPE.TIME_PROCESS, title, [(failed ? 'Failed' : 'Completed') + ' -> ' + value, time / 1000 + 's'], meter, options);
+        const args: FormatMessageArgs = [LOG_TYPE.TIME_PROCESS, title, [(failed ? 'Failed' : 'Completed') + ' -> ' + value, time / 1000 + 's'], meter, options];
+        if (options && options.queue) {
+            this._logQueued.push(args);
+        }
+        else {
+            Module.formatMessage(...args);
+        }
     }
     writeTimeElapsed(title: string, value: string, time: number, options?: LogMessageOptions) {
-        Module.formatMessage(LOG_TYPE.TIME_ELAPSED, title, [isFailed(options) ? 'Failed' : 'Completed', (Date.now() - time) / 1000 + 's'], value, options);
+        const args: FormatMessageArgs = [LOG_TYPE.TIME_ELAPSED, title, [isFailed(options) ? 'Failed' : 'Completed', (Date.now() - time) / 1000 + 's'], value, options];
+        if (options && options.queue) {
+            this._logQueued.push(args);
+        }
+        else {
+            Module.formatMessage(...args);
+        }
     }
     formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options?: LogMessageOptions) {
         type |= LOG_TYPE.FAIL;
@@ -646,7 +662,23 @@ abstract class Module implements IModule {
         }
     }
     formatMessage(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options?: LogMessageOptions) {
-        Module.formatMessage(type, title, value, message, options);
+        const args: FormatMessageArgs = [type, title, value, message, options];
+        if (options && options.queue) {
+            this._logQueued.push(args);
+        }
+        else {
+            Module.formatMessage(...args);
+        }
+    }
+    flushLog() {
+        const logQueued = this._logQueued;
+        if (logQueued.length) {
+            logQueued.sort((a, b) => b[0] - a[0]);
+            for (const args of logQueued) {
+                Module.formatMessage(...args);
+            }
+            logQueued.length = 0;
+        }
     }
     get logType() {
         return LOG_TYPE;

@@ -644,9 +644,10 @@ class FileManager extends Module implements IFileManager {
                     }
                     return a < b ? -1 : 1;
                 });
-                if (this.postFinalize) {
-                    const errors: string[] = [];
-                    const addErrors = (instance: IModule) => {
+                const errors: string[] = [];
+                const postFinalize = this.postFinalize;
+                const addErrors = (instance: IModule) => {
+                    if (postFinalize) {
                         const items = instance.errors;
                         const length = items.length;
                         if (length) {
@@ -656,35 +657,10 @@ class FileManager extends Module implements IFileManager {
                             }
                             items.length = 0;
                         }
-                    };
-                    addErrors(this);
-                    for (const { instance } of this.Document) {
-                        addErrors(instance);
                     }
-                    for (const { instance } of this.Task) {
-                        addErrors(instance);
-                    }
-                    if (this.Cloud) {
-                        addErrors(this.Cloud);
-                    }
-                    if (this.Watch) {
-                        addErrors(this.Watch);
-                    }
-                    this.subProcesses.forEach(instance => addErrors(instance));
-                    this.postFinalize(files.map(name => ({ name, size: bytes(Module.getFileSize(path.join(this.baseDirectory, name))) } as FileInfo)), errors);
-                }
-                const sessionHttp2 = this._sessionHttp2;
-                for (const host in sessionHttp2) {
-                    sessionHttp2[host]!.close();
-                }
-                this.assets.forEach(item => {
-                    if (item.buffer) {
-                        delete item.buffer;
-                    }
-                    if (item.sourceUTF8) {
-                        delete item.sourceUTF8;
-                    }
-                });
+                    instance.flushLog();
+                };
+                addErrors(this);
                 if (Module.hasLogType(this.logType.HTTP)) {
                     const output: [string, string, number][] = [];
                     let count = 0;
@@ -704,6 +680,34 @@ class FileManager extends Module implements IFileManager {
                     count = count.toString().length;
                     output.forEach(item => this.formatMessage(this.logType.HTTP, item[0], [item[1], 'downloads: ' + item[2].toString().padStart(count)]));
                 }
+                for (const { instance } of this.Document) {
+                    addErrors(instance);
+                }
+                for (const { instance } of this.Task) {
+                    addErrors(instance);
+                }
+                if (this.Cloud) {
+                    addErrors(this.Cloud);
+                }
+                if (this.Watch) {
+                    addErrors(this.Watch);
+                }
+                this.subProcesses.forEach(instance => addErrors(instance));
+                if (postFinalize) {
+                    postFinalize(files.map(name => ({ name, size: bytes(Module.getFileSize(path.join(this.baseDirectory, name))) } as FileInfo)), errors);
+                }
+                const sessionHttp2 = this._sessionHttp2;
+                for (const host in sessionHttp2) {
+                    sessionHttp2[host]!.close();
+                }
+                this.assets.forEach(item => {
+                    if (item.buffer) {
+                        delete item.buffer;
+                    }
+                    if (item.sourceUTF8) {
+                        delete item.sourceUTF8;
+                    }
+                });
             });
         }
     }
@@ -1273,7 +1277,7 @@ class FileManager extends Module implements IFileManager {
                     let buffer: Null<Buffer> = null;
                     const downloadEnd = () => {
                         if (buffer) {
-                            this.writeTimeProcess('HTTP' + host.version, server.url.pathname, time, { type: this.logType.HTTP, meterIncrement: 100 });
+                            this.writeTimeProcess('HTTP' + host.version, server.url.pathname, time, { type: this.logType.HTTP, meterIncrement: 100, queue: true });
                         }
                         resolve(buffer);
                     };
@@ -1635,7 +1639,7 @@ class FileManager extends Module implements IFileManager {
                                                             })
                                                             .on('end', () => {
                                                                 if (!aborted) {
-                                                                    this.writeTimeProcess('HTTP' + host.version, url.pathname + ` (${queue.bundleIndex!})`, time, { type: this.logType.HTTP, meterIncrement: 100 });
+                                                                    this.writeTimeProcess('HTTP' + host.version, url.pathname + ` (${queue.bundleIndex!})`, time, { type: this.logType.HTTP, meterIncrement: 100, queue: true });
                                                                     verifyBundle(queue, buffer, etag);
                                                                     resolve();
                                                                 }
@@ -1985,7 +1989,7 @@ class FileManager extends Module implements IFileManager {
                                     }
                                     localStream.on('finish', () => {
                                         if (!aborted && !notFound.includes(uri)) {
-                                            this.writeTimeProcess('HTTP' + host.version, this.removeCwd(localUri) + (item.bundleIndex === 0 ? ' (0)' : ''), time, { type: this.logType.HTTP, meterIncrement: 100 });
+                                            this.writeTimeProcess('HTTP' + host.version, this.removeCwd(localUri) + (item.bundleIndex === 0 ? ' (0)' : ''), time, { type: this.logType.HTTP, meterIncrement: 100, queue: true });
                                             processQueue(item, localUri);
                                             if (etagDir) {
                                                 const buffer = item.buffer;
