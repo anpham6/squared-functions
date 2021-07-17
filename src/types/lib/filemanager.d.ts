@@ -18,13 +18,21 @@ export interface HttpRequestBuffer {
 
 export interface HttpClientOptions extends FetchBufferOptions, HttpRequest {
     method?: string;
-    localStream?: WriteStream;
-    outAbort?: AbortController;
+    pipeTo?: WriteStream;
 }
 
 export interface FetchBufferOptions extends HttpVersionAction {
     headers?: OutgoingHttpHeaders;
-    timeout?: number;
+    keepAliveTimeout?: number;
+    connected?: NodeJS.Timeout;
+    outAbort?: AbortController;
+}
+
+export interface HttpRequestSettings {
+    headers?: HttpBaseHeaders;
+    connectTimeout?: NumString;
+    retryLimit?: NumString;
+    retryDelay?: NumString;
 }
 
 export type HttpBaseHeaders = ObjectMap<OutgoingHttpHeaders>;
