@@ -19,6 +19,7 @@ import type { RequestBody, Settings } from './node';
 import type { FileWatch } from './watch';
 
 import type { PathLike, WriteStream } from 'fs';
+import type { Readable } from 'stream';
 import type { FileTypeResult } from 'file-type';
 
 import type * as bytes from 'bytes';
@@ -40,10 +41,11 @@ declare namespace functions {
         compressors: ObjectMap<CompressTryFileMethod>;
         chunkSize?: number;
         register(format: string, callback: CompressTryFileMethod): void;
-        createWriteStreamAsGzip(uri: string, output: string, options?: CompressLevel): WriteStream;
-        createWriteStreamAsBrotli(uri: string, output: string, options?: CompressLevel): WriteStream;
+        getReadable(file: string | Buffer): Readable;
+        createWriteStreamAsGzip(file: string | Buffer, output: string, options?: CompressLevel): WriteStream;
+        createWriteStreamAsBrotli(file: string | Buffer, output: string, options?: CompressLevel): WriteStream;
         tryFile: CompressTryFileMethod;
-        tryImage(uri: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<Buffer | Uint8Array>, buffer?: Buffer): void;
+        tryImage(uri: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<Buffer | Uint8Array>): void;
     }
 
     interface IImage extends IModule, IHost {
@@ -147,7 +149,7 @@ declare namespace functions {
         finalize(this: IFileManager, instance: IDocument): Promise<void>;
         cleanup(this: IFileManager, instance: IDocument): Promise<void>;
         createSourceMap(code: string): SourceMapInput;
-        writeSourceMap(localUri: string, sourceMap: SourceMapOutput, options?: SourceMapOptions, emptySources?: boolean): Undef<string>;
+        writeSourceMap(uri: string, sourceMap: SourceMapOutput, options?: SourceMapOptions, emptySources?: boolean): Undef<string>;
         removeSourceMappingURL(value: string): [string, string?];
         createSourceFilesMethod(this: IFileManager, instance: IDocument, file: ExternalAsset, source?: string): SourceInput;
         sanitizeAssets?(assets: ExternalAsset[], exclusions?: ExternalAsset[]): void;
@@ -249,8 +251,8 @@ declare namespace functions {
         getLocalUri(data: FileData): string;
         getMimeType(data: FileData): Undef<string>;
         getRelativeUri(file: ExternalAsset, filename?: string): string;
-        getUTF8String(file: ExternalAsset, localUri?: string): string;
-        setAssetContent(file: ExternalAsset, localUri: string, content: string, index?: number, replacePattern?: string): string;
+        getUTF8String(file: ExternalAsset, uri?: string): string;
+        setAssetContent(file: ExternalAsset, uri: string, content: string, index?: number, replacePattern?: string): string;
         getAssetContent(file: ExternalAsset, source?: string): Undef<string>;
         writeBuffer(file: ExternalAsset): Null<Buffer>;
         writeImage(document: StringOfArray, data: OutputData): boolean;
@@ -270,7 +272,7 @@ declare namespace functions {
         createPermission(): IPermission;
         resolveMime(data: Buffer | string): Promise<Undef<FileTypeResult>>;
         fromHttpStatusCode(value: NumString): string;
-        cleanupStream(writeStream: WriteStream, localUri?: string): void;
+        cleanupStream(writeStream: WriteStream, uri?: string): void;
         resetHttpHost(version?: number): void;
         getHttpBufferSize(): number;
         clearHttpBuffer(percent?: number): void;

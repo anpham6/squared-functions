@@ -421,18 +421,18 @@ class FileManager extends Module implements IFileManager {
         }
     }
 
-    static cleanupStream(writeStream: WriteStream, localUri?: string) {
+    static cleanupStream(writeStream: WriteStream, uri?: string) {
         try {
             if (!writeStream.destroyed) {
                 writeStream.destroy();
             }
-            if (localUri && fs.existsSync(localUri)) {
-                fs.unlinkSync(localUri);
+            if (uri && fs.existsSync(uri)) {
+                fs.unlinkSync(uri);
             }
         }
         catch (err) {
             if (!Module.isErrorCode(err, 'ENOENT')) {
-                this.writeFail([ERR_MESSAGE.DELETE_FILE, localUri], err, this.LOG_TYPE.FILE);
+                this.writeFail([ERR_MESSAGE.DELETE_FILE, uri], err, this.LOG_TYPE.FILE);
             }
         }
     }
@@ -645,16 +645,16 @@ class FileManager extends Module implements IFileManager {
     removeAsyncTask() {
         --this.delayed;
     }
-    completeAsyncTask(err?: Null<Error>, localUri = '', parent?: ExternalAsset) {
+    completeAsyncTask(err?: Null<Error>, uri?: string, parent?: ExternalAsset) {
         if (this.delayed !== Infinity) {
-            if (!err && localUri) {
-                this.add(localUri, parent);
+            if (!err && uri) {
+                this.add(uri, parent);
             }
             this.removeAsyncTask();
             this.performFinalize();
         }
         if (err) {
-            this.writeFail([ERR_MESSAGE.UNKNOWN, localUri], err, this.logType.FILE);
+            this.writeFail([ERR_MESSAGE.UNKNOWN, uri], err, this.logType.FILE);
         }
     }
     performFinalize() {
@@ -794,23 +794,23 @@ class FileManager extends Module implements IFileManager {
     getDataSourceItems(instance: IModule) {
         return this.dataSourceItems.filter(item => this.hasDocument(instance, item.document));
     }
-    getUTF8String(file: ExternalAsset, localUri?: string) {
+    getUTF8String(file: ExternalAsset, uri?: string) {
         if (!file.sourceUTF8) {
             if (file.buffer) {
                 file.sourceUTF8 = file.buffer.toString('utf8');
             }
-            if (localUri ||= file.localUri) {
+            if (uri ||= file.localUri) {
                 try {
-                    file.sourceUTF8 = fs.readFileSync(localUri, 'utf8');
+                    file.sourceUTF8 = fs.readFileSync(uri, 'utf8');
                 }
                 catch (err) {
-                    this.writeFail([ERR_MESSAGE.READ_FILE, localUri], err, this.logType.FILE);
+                    this.writeFail([ERR_MESSAGE.READ_FILE, uri], err, this.logType.FILE);
                 }
             }
         }
         return file.sourceUTF8 || '';
     }
-    setAssetContent(file: ExternalAsset, localUri: string, content: string, index = 0, replacePattern?: string) {
+    setAssetContent(file: ExternalAsset, uri: string, content: string, index = 0, replacePattern?: string) {
         const trailing = concatString(file.trailingContent);
         if (trailing) {
             content += trailing;
@@ -818,13 +818,13 @@ class FileManager extends Module implements IFileManager {
         if (index === 0) {
             return content;
         }
-        let appending = this.contentToAppend.get(localUri),
-            replacing = this.contentToReplace.get(localUri);
+        let appending = this.contentToAppend.get(uri),
+            replacing = this.contentToReplace.get(uri);
         if (!appending) {
-            this.contentToAppend.set(localUri, appending = []);
+            this.contentToAppend.set(uri, appending = []);
         }
         if (!replacing) {
-            this.contentToReplace.set(localUri, replacing = []);
+            this.contentToReplace.set(uri, replacing = []);
         }
         if (file.document) {
             for (const { instance } of this.Document) {
@@ -1003,7 +1003,7 @@ class FileManager extends Module implements IFileManager {
                                     resolve();
                                 };
                                 try {
-                                    Compress.tryFile(localUri, output, data, (err?: Null<Error>, result?: string) => {
+                                    Compress.tryFile(file.buffer || localUri, output, data, (err?: Null<Error>, result?: string) => {
                                         if (result) {
                                             if (data.condition?.includes('%') && Module.getFileSize(result) >= Module.getFileSize(localUri)) {
                                                 try {
@@ -1312,7 +1312,6 @@ class FileManager extends Module implements IFileManager {
             try {
                 let server = this.createHttpRequest(uri);
                 if (options) {
-                    options.aborted = false;
                     options.outBuffer = null;
                     server = Object.assign(options, server);
                 }
@@ -1321,8 +1320,9 @@ class FileManager extends Module implements IFileManager {
                 (function downloadUri(this: IFileManager) {
                     const client = this.getHttpClient(uri, server);
                     const host = server.host;
+                    let aborted: Undef<boolean>;
                     const downloadEnd = () => {
-                        if (!result.aborted) {
+                        if (!aborted) {
                             if (result.outBuffer) {
                                 this.writeTimeProcess('HTTP' + host.version, server.url.toString(), time, { type: this.logType.HTTP, meterIncrement: 100, queue: true });
                             }
@@ -1330,7 +1330,6 @@ class FileManager extends Module implements IFileManager {
                         }
                     };
                     const downloadAbort = (err: unknown, statusCode = HTTP_STATUS.BAD_REQUEST) => {
-                        result.aborted = true;
                         result.outError = err || formatStatusCode(statusCode);
                         resolve(result.outBuffer = null);
                     };
@@ -1339,13 +1338,11 @@ class FileManager extends Module implements IFileManager {
                             if (err) {
                                 warnProtocol.call(this, host, err);
                             }
-                            if (!result.aborted) {
+                            if (!aborted) {
                                 if (!abortHttpRequest(client, server)) {
                                     client.destroy();
                                 }
-                                result.aborted = true;
-                                result.outBuffer = null;
-                                result.httpVersion = 1
+                                result.httpVersion = 1;
                                 if (downgrade) {
                                     downgradeHost(host);
                                 }
@@ -1384,7 +1381,7 @@ class FileManager extends Module implements IFileManager {
                                 }
                             })
                             .on('error', err => {
-                                if (!result.aborted) {
+                                if (!aborted) {
                                     if (isConnectionTimeout(err)) {
                                         ++server.retries;
                                     }
@@ -1661,7 +1658,7 @@ class FileManager extends Module implements IFileManager {
                                                                 buffer = buffer ? Buffer.concat([buffer, data]) : data;
                                                             })
                                                             .on('end', () => {
-                                                                if (!options.aborted) {
+                                                                if (!aborted) {
                                                                     this.writeTimeProcess('HTTP' + host.version, url.toString() + ` (${queue.bundleIndex!})`, time, { type: this.logType.HTTP, meterIncrement: 100, queue: true });
                                                                     verifyBundle(queue, localUri, buffer, etag);
                                                                     resolve();
@@ -2173,7 +2170,6 @@ class FileManager extends Module implements IFileManager {
         this.cleared = true;
     }
     async finalize() {
-        let tasks: Promise<unknown>[] = [];
         const removeFiles = () => {
             const filesToRemove = this.filesToRemove;
             if (filesToRemove.size) {
@@ -2215,6 +2211,7 @@ class FileManager extends Module implements IFileManager {
         }
         removeFiles();
         if (this.Compress) {
+            const tasks: Promise<unknown>[] = [];
             for (const item of this.assets) {
                 if (item.compress && item.mimeType?.startsWith('image/') && !item.invalid) {
                     const files = [item.localUri!];
@@ -2225,6 +2222,9 @@ class FileManager extends Module implements IFileManager {
                         if (this.has(file)) {
                             for (const image of item.compress) {
                                 if (withinSizeRange(file, image.condition)) {
+                                    if (files.length === 1 && item.buffer) {
+                                        image.buffer = item.buffer;
+                                    }
                                     tasks.push(new Promise<void>(resolve => {
                                         const complete = (err?: Null<Error>) => {
                                             if (err) {
@@ -2238,7 +2238,7 @@ class FileManager extends Module implements IFileManager {
                                                     item.buffer = value instanceof Buffer ? value : undefined;
                                                 }
                                                 complete(err);
-                                            }, files.length === 1 ? item.buffer : undefined);
+                                            });
                                         }
                                         catch (err) {
                                             complete(err);
@@ -2252,7 +2252,6 @@ class FileManager extends Module implements IFileManager {
             }
             if (tasks.length) {
                 await Module.allSettled(tasks);
-                tasks = [];
             }
         }
         for (const { instance, constructor } of this.Document) {
@@ -2262,12 +2261,13 @@ class FileManager extends Module implements IFileManager {
         }
         for (const item of this.assets) {
             if (item.sourceUTF8 && !item.invalid) {
-                tasks.push(fs.writeFile(item.localUri!, item.sourceUTF8, 'utf8'));
+                try {
+                    fs.writeFileSync(item.localUri!, item.sourceUTF8, 'utf8');
+                }
+                catch (err) {
+                    this.writeFail([ERR_MESSAGE.WRITE_FILE, item.localUri!], err);
+                }
             }
-        }
-        if (tasks.length) {
-            await Module.allSettled(tasks, { rejected: 'Write modified files', errors: this.errors, type: this.logType.FILE });
-            tasks = [];
         }
         removeFiles();
         if (this.taskAssets.length) {
@@ -2284,6 +2284,7 @@ class FileManager extends Module implements IFileManager {
         }
         removeFiles();
         if (this.Compress) {
+            const tasks: Promise<unknown>[] = [];
             for (const item of this.assets) {
                 if (item.compress && !item.invalid) {
                     tasks.push(this.compressFile(item, false));
@@ -2291,7 +2292,6 @@ class FileManager extends Module implements IFileManager {
             }
             if (tasks.length) {
                 await Module.allSettled(tasks, { rejected: 'Compress files', errors: this.errors });
-                tasks = [];
             }
         }
         if (this.Watch) {

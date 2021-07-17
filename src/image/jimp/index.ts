@@ -49,8 +49,8 @@ const METHOD_ALIAS: StringMap = {
 const MIME_INPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, jimp.MIME_GIF, jimp.MIME_TIFF, 'image/webp']);
 const MIME_OUTPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, 'image/webp']);
 
-function performCommand(localUri: string | Buffer, command: string, outputType: string, finalAs?: string, host?: IFileManager, data?: FileData) {
-    return jimp.read(localUri as string)
+function performCommand(uri: string | Buffer, command: string, outputType: string, finalAs?: string, host?: IFileManager, data?: FileData) {
+    return jimp.read(uri as string)
         .then(async img => {
             const handler = new Jimp(img);
             handler.setCommand(command, finalAs);

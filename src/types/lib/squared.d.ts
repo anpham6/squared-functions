@@ -125,6 +125,7 @@ export interface CompressFormat extends CompressLevel {
     format: string;
     condition?: string;
     plugin?: string;
+    buffer?: Buffer;
     options?: PlainObject;
 }
 

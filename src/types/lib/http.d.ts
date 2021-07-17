@@ -35,7 +35,6 @@ export interface HttpRequest {
     method?: string;
     headers?: OutgoingHttpHeaders;
     pipeTo?: WriteStream;
-    aborted?: boolean;
     outAbort?: AbortController;
     outBuffer?: Null<Buffer>;
     outError?: unknown;

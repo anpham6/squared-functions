@@ -8,10 +8,21 @@ import { ERR_MESSAGE } from '../types/lib/logger';
 
 import path = require('path');
 import fs = require('fs');
+import stream = require('stream');
 import zlib = require('zlib');
 import tinify = require('tinify');
 
 import Module from '../module';
+
+class BufferStream extends stream.Readable {
+    constructor(public buffer: Null<Buffer>) {
+        super();
+    }
+    _read() {
+        this.push(this.buffer);
+        this.buffer = null;
+    }
+}
 
 const Compress = new class extends Module implements ICompress {
     moduleName = 'compress';
@@ -32,44 +43,50 @@ const Compress = new class extends Module implements ICompress {
         const result = this.level[path.extname(output).substring(1).toLowerCase()]!;
         return !isNaN(result) ? result : fallback;
     }
-    createWriteStreamAsGzip(uri: string, output: string, options?: CompressLevel) {
+    getReadable(file: string | Buffer) {
+        if (file instanceof Buffer) {
+            return this.supported(12, 3) || this.supported(10, 17, 0, true) ? stream.Readable.from(file) : new BufferStream(file);
+        }
+        return fs.createReadStream(file);
+    }
+    createWriteStreamAsGzip(file: string | Buffer, output: string, options?: CompressLevel) {
         let level: Undef<number>,
             chunkSize: Undef<number>;
         if (options) {
             ({ level, chunkSize } = options);
         }
-        return fs.createReadStream(uri)
+        return this.getReadable(file)
             .pipe(zlib.createGzip({ level: level ?? this.getLevel(output, zlib.constants.Z_DEFAULT_LEVEL), chunkSize: chunkSize ?? this.chunkSize }))
             .pipe(fs.createWriteStream(output));
     }
-    createWriteStreamAsBrotli(uri: string, output: string, options?: CompressLevel) {
+    createWriteStreamAsBrotli(file: string | Buffer, output: string, options?: CompressLevel) {
         let level: Undef<number>,
             chunkSize: Undef<number>,
             mimeType: Undef<string>;
         if (options) {
             ({ level, chunkSize, mimeType } = options);
         }
-        return fs.createReadStream(uri)
+        return this.getReadable(file)
             .pipe(
                 zlib.createBrotliCompress({
                     params: {
                         [zlib.constants.BROTLI_PARAM_MODE]: mimeType?.includes('text/') ? zlib.constants.BROTLI_MODE_TEXT : zlib.constants.BROTLI_MODE_GENERIC,
                         [zlib.constants.BROTLI_PARAM_QUALITY]: level ?? this.getLevel(output, zlib.constants.BROTLI_DEFAULT_QUALITY) as number,
-                        [zlib.constants.BROTLI_PARAM_SIZE_HINT]: Module.getFileSize(uri)
+                        [zlib.constants.BROTLI_PARAM_SIZE_HINT]: Module.getFileSize(file)
                     },
                     chunkSize: chunkSize ?? this.chunkSize
                 })
             )
             .pipe(fs.createWriteStream(output));
     }
-    tryFile(uri: string, output: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<string>) {
+    tryFile(file: string | Buffer, output: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<string>) {
         const format = data.format;
         switch (format) {
             case 'gz':
             case 'br': {
                 this.formatMessage(this.logType.COMPRESS, format, 'Compressing file...', output, { titleColor: 'magenta' });
                 const time = Date.now();
-                this[format === 'gz' ? 'createWriteStreamAsGzip' : 'createWriteStreamAsBrotli'](uri, output, data)
+                this[format === 'gz' ? 'createWriteStreamAsGzip' : 'createWriteStreamAsBrotli'](file, output, data)
                     .on('finish', () => {
                         this.writeTimeProcess(format, path.basename(output), time);
                         if (callback) {
@@ -87,18 +104,18 @@ const Compress = new class extends Module implements ICompress {
             default: {
                 const compressor = this.compressors[format]?.bind(this);
                 if (typeof compressor === 'function') {
-                    compressor.call(this, uri, output, data, callback);
+                    compressor.call(this, file, output, data, callback);
                 }
                 else if (callback) {
-                    callback(new Error(`file: Not a registered format (${format})`));
+                    callback(new Error(`Unsupported format (${format})`));
                 }
                 break;
             }
         }
     }
-    tryImage(uri: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<Buffer | Uint8Array>, buffer?: Buffer) {
+    tryImage(uri: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<Buffer | Uint8Array>) {
+        const { plugin, buffer } = data;
         const ext = path.extname(uri).substring(1);
-        const time = Date.now();
         const writeError = (err?: Null<Error>) => {
             if (callback) {
                 callback(err);
@@ -136,7 +153,7 @@ const Compress = new class extends Module implements ICompress {
                 writeError(err);
             }
         };
-        const writeFormatError = (plugin: string) => writeError(new Error(`image: Unsupported format (${plugin}: ${path.basename(uri)})`));
+        const writeUnsupported = (name: string) => writeError(new Error(`Unsupported format (${name}: ${path.basename(uri)})`));
         let apiKey: Undef<string>;
         if ((data.plugin ||= 'tinify') === 'tinify') {
             if (data.options) {
@@ -147,15 +164,16 @@ const Compress = new class extends Module implements ICompress {
                     if (callback) {
                         callback();
                     }
-                    writeFormatError('tinify');
+                    writeUnsupported('tinify');
                     return;
                 }
             }
             if (!apiKey) {
-                throw new Error('image: API key not found (tinify)');
+                throw new Error('API key not found (tinify)');
             }
         }
-        this.formatMessage(this.logType.COMPRESS, ext, ['Compressing image...', data.plugin], uri, { titleColor: 'magenta' });
+        const time = Date.now();
+        this.formatMessage(this.logType.COMPRESS, ext, ['Compressing image...', plugin], uri, { titleColor: 'magenta' });
         if (apiKey) {
             if (tinify['_key'] !== apiKey) {
                 tinify.key = apiKey;
@@ -173,20 +191,20 @@ const Compress = new class extends Module implements ICompress {
                 loadBuffer();
             }
         }
-        else if (data.plugin) {
+        else if (plugin) {
             const checkResult = (output: Buffer, previous: Buffer) => {
                 if (output !== previous) {
                     writeFile(output);
                 }
                 else {
-                    writeFormatError(data.plugin!);
+                    writeUnsupported(plugin);
                 }
             };
-            const plugin = require(data.plugin);
+            const create = require(plugin) as FunctionType<FunctionType<Promise<Buffer>>>;
             if (buffer) {
                 (async () => {
                     try {
-                        checkResult(await plugin(data.options)(buffer), buffer);
+                        checkResult(await create(data.options)(buffer), buffer);
                     }
                     catch (err) {
                         writeError(err);
@@ -197,7 +215,7 @@ const Compress = new class extends Module implements ICompress {
                 fs.readFile(uri, async (err, result) => {
                     if (!err) {
                         try {
-                            checkResult(await plugin(data.options)(result), result);
+                            checkResult(await create(data.options)(result), result);
                         }
                         catch (err_1) {
                             writeError(err_1);
@@ -210,7 +228,7 @@ const Compress = new class extends Module implements ICompress {
             }
         }
         else {
-            throw new Error('image: Missing plugin');
+            throw new Error('Missing plugin (image)');
         }
     }
 }();

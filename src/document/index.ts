@@ -94,7 +94,7 @@ abstract class Document extends Module implements IDocument {
         return createSourceMap(code);
     }
 
-    static writeSourceMap(localUri: string, sourceMap: SourceMapOutput, options?: SourceMapOptions) {
+    static writeSourceMap(uri: string, sourceMap: SourceMapOutput, options?: SourceMapOptions) {
         const map = sourceMap.map;
         if (!map) {
             return;
@@ -106,14 +106,14 @@ abstract class Document extends Module implements IDocument {
         if (options) {
             ({ file, sourceRoot, sourceMappingURL, emptySources } = options);
         }
-        file ||= path.basename(localUri);
+        file ||= path.basename(uri);
         if (!sourceMappingURL) {
             sourceMappingURL = sourceMap.sourceMappingURL || file;
         }
         if (!sourceMappingURL.endsWith('.map')) {
             sourceMappingURL += '.map';
         }
-        let uri = '',
+        let result = '',
             code = sourceMap.code,
             found: Undef<boolean>,
             inlineMap: Undef<boolean>;
@@ -134,18 +134,18 @@ abstract class Document extends Module implements IDocument {
                 code += getSourceMappingURL(sourceMappingURL);
             }
             try {
-                uri = path.join(path.dirname(localUri), sourceMappingURL);
-                fs.writeFileSync(uri, JSON.stringify(map), 'utf8');
+                result = path.join(path.dirname(uri), sourceMappingURL);
+                fs.writeFileSync(result, JSON.stringify(map), 'utf8');
             }
             catch (err) {
-                this.writeFail([ERR_MESSAGE.WRITE_FILE, uri], err, this.LOG_TYPE.FILE);
+                this.writeFail([ERR_MESSAGE.WRITE_FILE, result], err, this.LOG_TYPE.FILE);
                 return '';
             }
         }
-        if (uri) {
+        if (result) {
             sourceMap.code = code;
         }
-        return uri;
+        return result;
     }
 
     static removeSourceMappingURL(value: string): [string, string?] {

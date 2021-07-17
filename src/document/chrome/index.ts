@@ -874,7 +874,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             if (buffer) {
                                                 content = buffer.toString('utf8');
                                             }
-                                            else if (options.aborted) {
+                                            else {
                                                 outError = options.outError;
                                             }
                                             cacheData[uri] = content;

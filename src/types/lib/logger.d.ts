@@ -16,6 +16,7 @@ export const enum ERR_MESSAGE {
     RESOLVE_FILE = 'Unable to resolve file',
     REPLACE_FILE = 'Unable to replace file',
     COMPRESS_FILE = 'Unable to compress file',
+    COMPRESS_BUFFER = 'Unable to compress buffer',
     WATCH_FILE = 'Unable to watch file',
     CREATE_DIRECTORY = 'Unable to create directory',
     READ_DIRECTORY = 'Unable to read directory',
