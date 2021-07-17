@@ -4,6 +4,7 @@ import type { DataSource, MongoDataSource, RequestData, TemplateMap, UriDataSour
 import type { IFileManager } from '../../types/lib';
 import type { FileData, OutputData } from '../../types/lib/asset';
 import type { CloudDatabase } from '../../types/lib/cloud';
+import type { HttpRequest } from '../../types/lib/http';
 import type { RequestBody as IRequestBody } from '../../types/lib/node';
 
 import type { CloudScopeOrigin } from '../../cloud';
@@ -731,7 +732,8 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     }
                                 }
                             };
-                            let result: PlainObject[] = [];
+                            let result: PlainObject[] = [],
+                                outError: unknown;
                             switch (item.source) {
                                 case 'cloud':
                                     if (cloud) {
@@ -867,9 +869,13 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             content = cacheData[uri] as Undef<string>;
                                         }
                                         else {
-                                            const buffer = await this.fetchBuffer(uri);
+                                            const options: Partial<HttpRequest> = {};
+                                            const buffer = await this.fetchBuffer(uri, options);
                                             if (buffer) {
                                                 content = buffer.toString('utf8');
+                                            }
+                                            else if (options.aborted) {
+                                                outError = options.outError;
                                             }
                                             cacheData[uri] = content;
                                         }
@@ -1264,17 +1270,17 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             else if (query) {
                                                 queryString = typeof query !== 'string' ? JSON.stringify(query) : query;
                                             }
-                                            (cloud || instance).formatFail(this.logType.CLOUD, service, [ERR_CLOUD.QUERY_DB, table ? 'table: ' + table : ''], new Error(service + `: ${queryString} (Empty)`));
+                                            (cloud || instance).formatFail(this.logType.CLOUD, service, [ERR_CLOUD.QUERY_DB, table ? 'table: ' + table : ''], outError || new Error(service + `: ${queryString} (Empty)`));
                                             break;
                                         }
                                         case 'mongodb': {
                                             const { uri, name, table } = item as MongoDataSource;
-                                            instance.formatFail(this.logType.PROCESS, name || 'MONGO', [ERR_CLOUD.QUERY_DB, table ? 'table: ' + table : ''], new Error(`mongodb: ${uri!} (Empty)`));
+                                            instance.formatFail(this.logType.PROCESS, name || 'MONGO', [ERR_CLOUD.QUERY_DB, table ? 'table: ' + table : ''], outError || new Error(`mongodb: ${uri!} (Empty)`));
                                             break;
                                         }
                                         case 'uri': {
                                             const { uri, format = path.extname(uri).substring(1) } = item as UriDataSource;
-                                            instance.formatFail(this.logType.PROCESS, format, ['URI data source had no results', uri], new Error(uri + ' (Empty)'));
+                                            instance.formatFail(this.logType.PROCESS, format, ['URI data source was empty', uri], outError || new Error(uri + ' (Empty)'));
                                             break;
                                         }
                                     }

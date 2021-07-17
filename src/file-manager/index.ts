@@ -1329,6 +1329,11 @@ class FileManager extends Module implements IFileManager {
                             resolve(result.outBuffer!);
                         }
                     };
+                    const downloadAbort = (err: unknown, statusCode = HTTP_STATUS.BAD_REQUEST) => {
+                        result.aborted = true;
+                        result.outError = err || formatStatusCode(statusCode);
+                        resolve(result.outBuffer = null);
+                    };
                     if (host.v2()) {
                         const retryDownload = async (downgrade: boolean, err?: Error) => {
                             if (err) {
@@ -1356,7 +1361,7 @@ class FileManager extends Module implements IFileManager {
                                         host.success();
                                     }
                                     else if (invalidRequest(statusCode)) {
-                                        resolve(result.outBuffer = null);
+                                        downloadAbort(null, statusCode);
                                     }
                                     else if (downgradeVersion(statusCode)) {
                                         retryDownload(true, formatNgFlags(http2.constants.NGHTTP2_PROTOCOL_ERROR, statusCode));
@@ -1399,7 +1404,7 @@ class FileManager extends Module implements IFileManager {
                                     setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
                                 }
                                 else {
-                                    resolve(result.outBuffer = null);
+                                    downloadAbort(null, statusCode);
                                 }
                             })
                             .on('error', err => {
@@ -1417,9 +1422,7 @@ class FileManager extends Module implements IFileManager {
                                     if (!retry) {
                                         host.failed();
                                     }
-                                    this.writeFail([ERR_MESSAGE.DOWNLOAD_FILE, uri], err);
-                                    result.aborted = true;
-                                    resolve(result.outBuffer = null);
+                                    downloadAbort(err);
                                 }
                             });
                     }

@@ -38,6 +38,7 @@ export interface HttpRequest {
     aborted?: boolean;
     outAbort?: AbortController;
     outBuffer?: Null<Buffer>;
+    outError?: unknown;
 }
 
 export type HttpRequestClient = ClientRequest | ClientHttp2Stream;
