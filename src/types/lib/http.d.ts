@@ -1,4 +1,5 @@
-import type { OutgoingHttpHeaders } from 'http';
+import type { ClientRequest, OutgoingHttpHeaders } from 'http';
+import type { ClientHttp2Stream } from 'http2';
 
 export interface HttpVersionAction {
     httpVersion?: HttpVersionSupport;
@@ -33,4 +34,5 @@ export interface HttpRequest extends HttpVersionAction {
     url: URL;
 }
 
+export type HttpRequestClient = ClientRequest | ClientHttp2Stream;
 export type HttpVersionSupport = 1 | 2;

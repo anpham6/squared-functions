@@ -4,7 +4,7 @@ import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, I
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
 import type { CloudDatabase } from '../types/lib/cloud';
 import type { FetchBufferOptions, HttpBaseHeaders, HttpClientOptions, HttpRequestBuffer, HttpRequestSettings, InstallData, PostFinalizeCallback } from '../types/lib/filemanager';
-import type { HttpProxyData, HttpRequest, HttpVersionSupport, IHttpHost } from '../types/lib/http';
+import type { HttpProxyData, HttpRequest, HttpRequestClient, HttpVersionSupport, IHttpHost } from '../types/lib/http';
 import type { CloudModule, DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
 
@@ -223,7 +223,7 @@ function warnConnectTimeout(this: IModule, request: HttpRequest) {
     this.formatMessage(this.logType.HTTP, 'HTTP' + request.host.version, ['Connection timeout (retrying)', request.host.origin], request.url.toString());
 }
 
-const isAborted = (host: IHttpHost, client: ClientRequest | ClientHttp2Stream) => client.destroyed || host.v2() && (client as ClientHttp2Stream).aborted;
+const isAborted = (host: IHttpHost, client: HttpRequestClient) => client.destroyed || host.v2() && (client as ClientHttp2Stream).aborted;
 const invalidRequest = (value: number) => value >= HTTP_STATUS.UNAUTHORIZED && value <= HTTP_STATUS.NOT_FOUND || value === HTTP_STATUS.PROXY_AUTHENTICATION_REQUIRED || value === HTTP_STATUS.GONE;
 const downgradeVersion = (value: number) => value === HTTP_STATUS.MISDIRECTED_REQUEST || value === HTTP_STATUS.HTTP_VERSION_NOT_SUPPORTED;
 const formatStatusCode = (value: NumString, hint?: string) => new Error(value + ': ' + FileManager.fromHttpStatusCode(value) + (hint ? ` (${hint})` : ''));
@@ -1135,10 +1135,7 @@ class FileManager extends Module implements IFileManager {
                 (headers ||= {})['accept-encoding'] ||= 'gzip, deflate' + (HTTP_BROTLISUPPORT ? ', br' : '');
             }
         }
-        const origin = host.origin;
-        const pathname = url.pathname + url.search;
-        let baseHeaders = getBaseHeaders(uri);
-        const checkEncoding = (res: IncomingMessage | ClientHttp2Stream, contentEncoding = '', chunkSize?: number): Undef<Transform> => {
+        const checkEncoding = (res: IncomingMessage | ClientHttp2Stream, contentEncoding = '', chunkSize?: number): Optional<Transform> => {
             switch (contentEncoding.trim().toLowerCase()) {
                 case 'gzip':
                     return res.pipe(zlib.createGunzip({ chunkSize }));
@@ -1146,12 +1143,16 @@ class FileManager extends Module implements IFileManager {
                     if (HTTP_BROTLISUPPORT) {
                         return res.pipe(zlib.createBrotliDecompress({ chunkSize }));
                     }
-                    res.destroy(new Error('Unable to decompress Brotli encoding'));
-                    break;
+                    request.emit('error', new Error('Unable to decompress Brotli encoding'));
+                    return null;
                 case 'deflate':
                     return res.pipe(zlib.createInflate({ chunkSize }));
             }
         };
+        const origin = host.origin;
+        const pathname = url.pathname + url.search;
+        let request: HttpRequestClient,
+            baseHeaders = getBaseHeaders(uri);
         if (v2) {
             let signal: Undef<AbortSignal>;
             if (options && this.supported(15, 4)) {
@@ -1159,7 +1160,7 @@ class FileManager extends Module implements IFileManager {
                 signal = ac.signal;
                 options.outAbort = ac;
             }
-            const request = (this._sessionHttp2[origin] ||= http2.connect(origin)).request({ ...baseHeaders, ...host.headers, ...headers, ':path': pathname, ':method': method }, signal && { signal } as PlainObject);
+            request = (this._sessionHttp2[origin] ||= http2.connect(origin)).request({ ...baseHeaders, ...host.headers, ...headers, ':path': pathname, ':method': method }, signal && { signal } as PlainObject);
             if (getting) {
                 request.on('response', res => {
                     if (connected) {
@@ -1167,8 +1168,8 @@ class FileManager extends Module implements IFileManager {
                     }
                     const statusCode = res[':status']!;
                     if (statusCode >= HTTP_STATUS.OK && statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
-                        let compressStream: Undef<Transform>;
-                        if (this.useAcceptEncoding && (compressStream = checkEncoding(request, res['content-encoding'], pipeTo && pipeTo.writableHighWaterMark))) {
+                        let compressStream: Optional<Transform>;
+                        if (this.useAcceptEncoding && (compressStream = checkEncoding(request as ClientHttp2Stream, res['content-encoding'], pipeTo && pipeTo.writableHighWaterMark))) {
                             if (pipeTo) {
                                 pipeTo.on('error', err => request.emit('error', err));
                                 compressStream.on('error', err => request.emit('error', err));
@@ -1202,7 +1203,7 @@ class FileManager extends Module implements IFileManager {
                                 };
                             }
                         }
-                        else if (pipeTo && !request.destroyed) {
+                        else if (pipeTo && compressStream !== null) {
                             request.pipe(pipeTo);
                             pipeTo.on('error', err => request.emit('error', err));
                         }
@@ -1215,87 +1216,84 @@ class FileManager extends Module implements IFileManager {
                     }
                 });
             }
-            if (connected) {
-                request.on('error', () => clearTimeout(connected!));
-            }
-            request.end();
-            return request;
         }
-        keepAliveTimeout ??= this.keepAliveTimeout;
-        const proxy = this.httpProxy;
-        let agent: Undef<Agent>;
-        if (proxy && (!proxy.include && !proxy.exclude && !host.localhost || Array.isArray(proxy.include) && proxy.include.find(value => uri.startsWith(value)) || !proxy.include && Array.isArray(proxy.exclude) && !proxy.exclude.find(value => uri.startsWith(value)))) {
-            const lib = host.secure ? 'https-proxy-agent' : 'http-proxy-agent';
-            try {
-                const proxyHost = proxy.host;
-                const proxyUrl = proxyHost.toString();
-                agent = (require(lib) as FunctionType<Agent>)(keepAliveTimeout > 0 ? { protocol: proxyHost.protocol, hostname: proxyHost.hostname, port: proxyHost.port, keepAlive: true, timeout: keepAliveTimeout } : proxyUrl);
-                const proxyHeaders = getBaseHeaders(proxyUrl);
-                if (proxyHeaders) {
-                    baseHeaders = { ...baseHeaders, ...proxyHeaders };
-                }
-            }
-            catch (err) {
-                this.writeFail([ERR_MESSAGE.INSTALL, 'npm i ' + lib], err);
-            }
-        }
-        else if (keepAliveTimeout > 0) {
-            agent = new (host.secure ? https.Agent : http.Agent)({ keepAlive: true, timeout: keepAliveTimeout });
-        }
-        if (baseHeaders || host.headers) {
-            headers = { ...baseHeaders, ...host.headers, ...headers };
-        }
-        const request = (host.secure ? https : http).request({
-            protocol: host.protocol,
-            hostname: host.hostname,
-            port: host.port,
-            path: pathname,
-            method,
-            headers,
-            agent
-        }, res => {
-            if (connected) {
-                clearTimeout(connected);
-            }
-            let outputStream: Undef<IncomingMessage | Transform>;
-            if (getting) {
-                outputStream = checkEncoding(res, res.headers['content-encoding'], pipeTo && pipeTo.writableHighWaterMark);
-                if (res.destroyed) {
-                    return;
-                }
-                const statusCode = res.statusCode!;
-                if (statusCode >= HTTP_STATUS.OK && statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
-                    if (!this._connectHttp1[origin]) {
-                        this._connectHttp1[origin] = 1;
-                    }
-                    else {
-                        ++this._connectHttp1[origin]!;
+        else {
+            keepAliveTimeout ??= this.keepAliveTimeout;
+            const proxy = this.httpProxy;
+            let agent: Undef<Agent>;
+            if (proxy && (!proxy.include && !proxy.exclude && !host.localhost || Array.isArray(proxy.include) && proxy.include.find(value => uri.startsWith(value)) || !proxy.include && Array.isArray(proxy.exclude) && !proxy.exclude.find(value => uri.startsWith(value)))) {
+                const lib = host.secure ? 'https-proxy-agent' : 'http-proxy-agent';
+                try {
+                    const proxyHost = proxy.host;
+                    const proxyUrl = proxyHost.toString();
+                    agent = (require(lib) as FunctionType<Agent>)(keepAliveTimeout > 0 ? { protocol: proxyHost.protocol, hostname: proxyHost.hostname, port: proxyHost.port, keepAlive: true, timeout: keepAliveTimeout } : proxyUrl);
+                    const proxyHeaders = getBaseHeaders(proxyUrl);
+                    if (proxyHeaders) {
+                        baseHeaders = { ...baseHeaders, ...proxyHeaders };
                     }
                 }
+                catch (err) {
+                    this.writeFail([ERR_MESSAGE.INSTALL, 'npm i ' + lib], err);
+                }
             }
-            if (outputStream ||= res) {
-                outputStream.on('data', chunk => request.emit('data', chunk));
-                outputStream.on('close', () => request.emit('close'));
-                outputStream.on('error', err => request.emit('error', err));
-                outputStream.once(outputStream !== res ? 'finish' : 'end', () => {
-                    if (!request.destroyed) {
-                        request.emit('end');
+            else if (keepAliveTimeout > 0) {
+                agent = new (host.secure ? https.Agent : http.Agent)({ keepAlive: true, timeout: keepAliveTimeout });
+            }
+            if (baseHeaders || host.headers) {
+                headers = { ...baseHeaders, ...host.headers, ...headers };
+            }
+            request = (host.secure ? https : http).request({
+                protocol: host.protocol,
+                hostname: host.hostname,
+                port: host.port,
+                path: pathname,
+                method,
+                headers,
+                agent
+            }, res => {
+                if (connected) {
+                    clearTimeout(connected);
+                }
+                let outputStream: Optional<IncomingMessage | Transform>;
+                if (getting) {
+                    outputStream = checkEncoding(res, res.headers['content-encoding'], pipeTo && pipeTo.writableHighWaterMark);
+                    const statusCode = res.statusCode!;
+                    if (statusCode >= HTTP_STATUS.OK && statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
+                        if (!this._connectHttp1[origin]) {
+                            this._connectHttp1[origin] = 1;
+                        }
+                        else {
+                            ++this._connectHttp1[origin]!;
+                        }
                     }
-                });
-                if (pipeTo) {
-                    stream.pipeline(outputStream, pipeTo, err => {
-                        if (err) {
-                            request.emit('error', err);
+                    if (outputStream === null) {
+                        return;
+                    }
+                }
+                if (outputStream ||= res) {
+                    outputStream.on('data', chunk => request.emit('data', chunk));
+                    outputStream.on('close', () => request.emit('close'));
+                    outputStream.on('error', err => request.emit('error', err));
+                    outputStream.once(outputStream !== res ? 'finish' : 'end', () => {
+                        if (!request.destroyed) {
+                            request.emit('end');
                         }
                     });
+                    if (pipeTo) {
+                        stream.pipeline(outputStream, pipeTo, err => {
+                            if (err) {
+                                request.emit('error', err);
+                            }
+                        });
+                    }
                 }
-            }
-        });
+            }) as ClientRequest;
+        }
         if (connected) {
             request.on('error', () => clearTimeout(connected!));
         }
         request.end();
-        return request as ClientRequest;
+        return request;
     }
     fetchBuffer(uri: string, options?: FetchBufferOptions) {
         return new Promise<Null<Buffer>>(resolve => {
@@ -1404,13 +1402,17 @@ class FileManager extends Module implements IFileManager {
                                 }
                             })
                             .on('error', err => {
-                                if (isRetryError(err) && ++retries <= HTTP_RETRYLIMIT) {
+                                const retry = isRetryError(err);
+                                if (retry && ++retries <= HTTP_RETRYLIMIT) {
                                     setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
                                 }
                                 else {
+                                    if (!retry) {
+                                        host.failed();
+                                    }
                                     this.writeFail([ERR_MESSAGE.DOWNLOAD_FILE, uri], err);
+                                    resolve(null);
                                 }
-                                host.failed();
                             });
                     }
                     client.on('data', data => {
@@ -1728,13 +1730,16 @@ class FileManager extends Module implements IFileManager {
                                                     (client as ClientRequest)
                                                         .on('response', res => checkResponse(res.statusCode!, res.headers, 0))
                                                         .on('error', err => {
-                                                            if (isRetryError(err) && ++retries <= HTTP_RETRYLIMIT) {
+                                                            const retry = isRetryError(err);
+                                                            if (retry && ++retries <= HTTP_RETRYLIMIT) {
                                                                 setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
                                                             }
                                                             else {
+                                                                if (!retry) {
+                                                                    host.failed();
+                                                                }
                                                                 errorRequest(err);
                                                             }
-                                                            host.failed();
                                                         });
                                                 }
                                             }).bind(this)();
@@ -2024,13 +2029,16 @@ class FileManager extends Module implements IFileManager {
                                         (client as ClientRequest)
                                             .on('response', res => checkResponse(res.statusCode!, res.headers, 0))
                                             .on('error', err => {
-                                                if (isRetryError(err) && ++retries <= HTTP_RETRYLIMIT) {
+                                                const retry = isRetryError(err);
+                                                if (retry && ++retries <= HTTP_RETRYLIMIT) {
                                                     setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
                                                 }
                                                 else {
+                                                    if (!retry) {
+                                                        host.failed();
+                                                    }
                                                     errorRequest(item, err, pipeTo);
                                                 }
-                                                host.failed();
                                             });
                                     }
                                     pipeTo.on('finish', () => {
@@ -2157,10 +2165,14 @@ class FileManager extends Module implements IFileManager {
                                             }
                                         })
                                         .on('error', err => {
-                                            if (isRetryError(err) && ++retries <= HTTP_RETRYLIMIT) {
+                                            const retry = isRetryError(err);
+                                            if (!retry && ++retries <= HTTP_RETRYLIMIT) {
                                                 setTimeout(checkHeaders.bind(this), HTTP_RETRYDELAY);
                                             }
                                             else {
+                                                if (!retry) {
+                                                    options.host.failed();
+                                                }
                                                 errorRequest(item, err);
                                             }
                                         });

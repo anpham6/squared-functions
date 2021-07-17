@@ -10,8 +10,8 @@ import type { ExternalAsset, FileData, FileOutput, OutputData } from './asset';
 import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload } from './cloud';
 import type { CompressTryFileMethod } from './compress';
 import type { ConfigOrTransformer, PluginConfig, SourceInput, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
-import type { CompleteAsyncTaskCallback, FetchBufferOptions, HttpBaseHeaders, HttpClientOptions, HttpRequestBuffer, HttpRequestSettings, InstallData, PerformAsyncTaskMethod, PostFinalizeCallback } from './filemanager';
-import type { HttpProxyData, HttpRequest, HttpVersionSupport } from './http';
+import type { CompleteAsyncTaskCallback, FetchBufferOptions, HttpClientOptions, HttpRequestBuffer, HttpRequestSettings, InstallData, PerformAsyncTaskMethod, PostFinalizeCallback } from './filemanager';
+import type { HttpProxyData, HttpRequest, HttpRequestClient, HttpVersionSupport } from './http';
 import type { CropData, QualityData, ResizeData, RotateData } from './image';
 import type { LOG_TYPE, LogMessageOptions, LogTimeProcessOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
 import type { AllSettledOptions, CloudModule, DocumentModule, TaskModule } from './module';
@@ -19,8 +19,6 @@ import type { RequestBody, Settings } from './node';
 import type { FileWatch } from './watch';
 
 import type { PathLike, WriteStream } from 'fs';
-import type { ClientRequest } from 'http';
-import type { ClientHttp2Stream } from 'http2';
 import type { FileTypeResult } from 'file-type';
 
 import type * as bytes from 'bytes';
@@ -261,7 +259,7 @@ declare namespace functions {
         findMime(data: FileData, rename?: boolean): Promise<string>;
         transformAsset(data: FileData, parent?: ExternalAsset): Promise<void>;
         createHttpRequest(url: string | URL, httpVersion?: HttpVersionSupport): HttpRequest;
-        getHttpClient(uri: string, options?: Partial<HttpClientOptions>): ClientRequest | ClientHttp2Stream;
+        getHttpClient(uri: string, options?: Partial<HttpClientOptions>): HttpRequestClient;
         fetchBuffer(uri: string, options?: FetchBufferOptions): Promise<Null<Buffer>>;
         processAssets(emptyDir?: boolean): void;
         finalize(): Promise<void>;
