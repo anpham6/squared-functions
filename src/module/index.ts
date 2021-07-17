@@ -637,7 +637,7 @@ abstract class Module implements IModule {
         time = Date.now() - time;
         const failed = isFailed(options);
         const meter = (failed ? 'X' : '>').repeat(Math.ceil(time / (options && options.meterIncrement || 250)));
-        const args: FormatMessageArgs = [LOG_TYPE.TIME_PROCESS, title, [(failed ? 'Failed' : 'Completed') + ' -> ' + value, time / 1000 + 's'], meter, options];
+        const args: FormatMessageArgs = [LOG_TYPE.TIME_PROCESS, title, [(options && (options.type || 0) & LOG_TYPE.HTTP ? '' : (failed ? 'Failed' : 'Completed') + ' -> ') + value, time / 1000 + 's'], meter, options];
         if (options && options.queue) {
             this._logQueued.push(args);
         }

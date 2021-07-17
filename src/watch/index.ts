@@ -2,7 +2,7 @@ import type { FileInfo, WatchInterval, WatchReload } from '../types/lib/squared'
 
 import type { IFileManager, IPermission, IWatch } from '../types/lib';
 import type { ExternalAsset } from '../types/lib/asset';
-import type { HttpClientOptions, PostFinalizeCallback } from '../types/lib/filemanager';
+import type { PostFinalizeCallback } from '../types/lib/filemanager';
 import type { FileWatch } from '../types/lib/watch';
 
 import type { ClientRequest } from 'http';
@@ -17,6 +17,8 @@ import fs = require('fs');
 import https = require('https');
 import ws = require('ws');
 import request = require('request');
+
+import { isConnectionTimeout } from '../file-manager';
 
 type FileWatchMap = ObjectMap<Map<string, { data: FileWatch; timeout: [Null<NodeJS.Timeout>, number] }>>;
 
@@ -34,9 +36,10 @@ const enum TIME { // eslint-disable-line no-shadow
     S = 1000
 }
 
-const enum ERROR { // eslint-disable-line no-shadow
+const enum ERR { // eslint-disable-line no-shadow
     ETAG = 1,
-    LOCAL_ACCESS = 2
+    LOCAL_ACCESS = 2,
+    MAX_CONNECTION = 5
 }
 
 const REGEXP_EXPIRES = /^(?:\s*([\d.]+)\s*w)?(?:\s*([\d.]+)\s*d)?(?:\s*([\d.]+)\s*h)?(?:\s*([\d.]+)\s*m)?(?:\s*([\d.]+)\s*s)?(?:\s*(\d+)\s*ms)?\s*$/;
@@ -282,6 +285,7 @@ class Watch extends Module implements IWatch {
                             uri,
                             etag,
                             assets,
+                            retries: 0,
                             bundleMain,
                             start,
                             id,
@@ -305,7 +309,7 @@ class Watch extends Module implements IWatch {
                         };
                         if (Module.isFileHTTP(uri)) {
                             if (!etag) {
-                                invalid = ERROR.ETAG;
+                                invalid = ERR.ETAG;
                                 continue;
                             }
                             const previous = HTTP_MAP[uri]?.get(dest);
@@ -319,13 +323,15 @@ class Watch extends Module implements IWatch {
                                 }
                             }
                             const host = this.host;
-                            const options = host ? host.createHttpRequest(uri) as HttpClientOptions : null;
-                            if (options) {
-                                options.method = 'HEAD';
-                                options.httpVersion = 1;
-                            }
-                            const timeout = setInterval(() => {
-                                (host && options ? host.getHttpClient(uri, options) as ClientRequest : request(uri, { method: 'HEAD' }))
+                            const url = host && new URL(uri);
+                            const timer = setInterval(() => {
+                                const timeout = Math.max(interval * 5, 5000);
+                                const options = url && host!.createHttpRequest(url, 1);
+                                if (options) {
+                                    options.method = 'HEAD';
+                                    options.timeout = timeout;
+                                }
+                                (options ? host!.getHttpClient(uri, options) as ClientRequest : request(uri, { method: 'HEAD', timeout }))
                                     .on('response', res => {
                                         const map = HTTP_MAP[uri];
                                         if (map) {
@@ -343,22 +349,25 @@ class Watch extends Module implements IWatch {
                                                     map.delete(target);
                                                     if (map.size === 0) {
                                                         watchExpired(HTTP_MAP, next);
-                                                        clearInterval(timeout);
+                                                        clearInterval(timer);
                                                     }
                                                 }
                                             }
                                         }
                                         else {
-                                            clearInterval(timeout);
+                                            clearInterval(timer);
                                         }
                                     })
                                     .on('error', err => {
+                                        if (isConnectionTimeout(err) && ++data.retries <= ERR.MAX_CONNECTION) {
+                                            return;
+                                        }
                                         this.writeFail([ERR_MESSAGE.WATCH_FILE, uri], err);
                                         delete HTTP_MAP[uri];
-                                        clearInterval(timeout);
+                                        clearInterval(timer);
                                     });
                             }, interval);
-                            (HTTP_MAP[uri] ||= new Map()).set(dest, { data, timeout: [timeout, interval] });
+                            (HTTP_MAP[uri] ||= new Map()).set(dest, { data, timeout: [timer, interval] });
                         }
                         else if (permission && Watch.hasLocalAccess(permission, uri)) {
                             const previous = DISK_MAP[uri]?.get(dest);
@@ -411,12 +420,12 @@ class Watch extends Module implements IWatch {
                             (DISK_MAP[uri] ||= new Map()).set(dest, { data, timeout: [timeout, Infinity] });
                         }
                         else {
-                            invalid = ERROR.LOCAL_ACCESS;
+                            invalid = ERR.LOCAL_ACCESS;
                             continue;
                         }
                     }
                     if (invalid) {
-                        this.formatFail(this.logType.WATCH, 'WATCH', [ERR_MESSAGE.WATCH_FILE, file], new Error((invalid === ERROR.LOCAL_ACCESS ? 'No read permission' : 'ETag unavailable') + ` (${file})`));
+                        this.formatFail(this.logType.WATCH, 'WATCH', [ERR_MESSAGE.WATCH_FILE, file], new Error((invalid === ERR.LOCAL_ACCESS ? 'No read permission' : 'ETag unavailable') + ` (${file})`));
                     }
                     else {
                         this.formatMessage(this.logType.WATCH, 'WATCH', ['Start', interval + 'ms ' + (expires ? formatDate(expires) : 'never')], file, { titleColor: 'blue' });

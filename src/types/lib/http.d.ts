@@ -1,9 +1,6 @@
+import type { WriteStream } from 'fs';
 import type { ClientRequest, OutgoingHttpHeaders } from 'http';
 import type { ClientHttp2Stream } from 'http2';
-
-export interface HttpVersionAction {
-    httpVersion?: HttpVersionSupport;
-}
 
 export interface IHttpHost {
     version: HttpVersionSupport;
@@ -29,9 +26,18 @@ export interface HttpProxyData {
     include?: string[];
 }
 
-export interface HttpRequest extends HttpVersionAction {
+export interface HttpRequest {
     host: IHttpHost;
     url: URL;
+    retries: number;
+    httpVersion: HttpVersionSupport;
+    timeout?: number;
+    method?: string;
+    headers?: OutgoingHttpHeaders;
+    pipeTo?: WriteStream;
+    aborted?: boolean;
+    outAbort?: AbortController;
+    outBuffer?: Null<Buffer>;
 }
 
 export type HttpRequestClient = ClientRequest | ClientHttp2Stream;

@@ -1,8 +1,5 @@
 import type { FileInfo } from './squared';
 
-import type { HttpRequest, HttpVersionAction } from './http';
-
-import type { WriteStream } from 'fs';
 import type { OutgoingHttpHeaders } from 'http';
 
 export interface InstallData<T, U> {
@@ -14,18 +11,6 @@ export interface InstallData<T, U> {
 export interface HttpRequestBuffer {
     expires: number;
     limit: number;
-}
-
-export interface HttpClientOptions extends FetchBufferOptions, HttpRequest {
-    method?: string;
-    pipeTo?: WriteStream;
-}
-
-export interface FetchBufferOptions extends HttpVersionAction {
-    headers?: OutgoingHttpHeaders;
-    keepAliveTimeout?: number;
-    connected?: NodeJS.Timeout;
-    outAbort?: AbortController;
 }
 
 export interface HttpRequestSettings {
