@@ -59,7 +59,7 @@ function allSettled<T>(values: readonly (T | PromiseLike<T>)[]) {
     return Promise.all(values.map((promise: Promise<T>) => promise.then(value => ({ status: 'fulfilled', value })).catch(reason => ({ status: 'rejected', reason })) as Promise<PromiseSettledResult<T>>));
 }
 
-function applyFailStyle(options: LogMessageOptions = {}) {
+function applyFailStyle(options: LogMessageOptions) {
     for (const attr in Module.LOG_STYLE_FAIL) {
         if (!(attr in options)) {
             options[attr] = Module.LOG_STYLE_FAIL[attr];
@@ -654,9 +654,15 @@ abstract class Module implements IModule {
             Module.formatMessage(...args);
         }
     }
-    formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options?: LogMessageOptions) {
+    formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: unknown, options: LogMessageOptions = {}) {
         type |= LOG_TYPE.FAIL;
-        Module.formatMessage(type, title, value, message, applyFailStyle(options));
+        const args: FormatMessageArgs = [type, title, value, message, applyFailStyle(options)];
+        if (options && options.queue !== false) {
+            this._logQueued.push(args);
+        }
+        else {
+            Module.formatMessage(...args);
+        }
         if (message) {
             this.errors.push(message instanceof Error ? SETTINGS.stack_trace && message.stack || message.message : (message as string).toString());
         }

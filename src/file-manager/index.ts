@@ -1177,21 +1177,22 @@ class FileManager extends Module implements IFileManager {
                         let compressStream: Optional<Transform>;
                         if (this.useAcceptEncoding && (compressStream = checkEncoding(request as ClientHttp2Stream, res['content-encoding'], pipeTo && pipeTo.writableHighWaterMark))) {
                             if (pipeTo) {
-                                pipeTo.on('error', err => request.emit('error', err));
-                                compressStream.on('error', err => request.emit('error', err));
-                                compressStream.once('finish', () => {
-                                    if (!request.destroyed) {
-                                        request.emit('end');
-                                        pipeTo!
-                                            .on('finish', function(this: Transform) {
-                                                if (!this.destroyed) {
-                                                    this.destroy();
-                                                }
-                                            })
-                                            .emit('finish');
-                                    }
-                                });
-                                compressStream.pipe(pipeTo);
+                                compressStream
+                                    .on('error', err => request.emit('error', err))
+                                    .once('finish', () => {
+                                        if (!request.destroyed) {
+                                            request.emit('end');
+                                            pipeTo!
+                                                .on('finish', function(this: Transform) {
+                                                    if (!this.destroyed) {
+                                                        this.destroy();
+                                                    }
+                                                })
+                                                .emit('finish');
+                                        }
+                                    })
+                                    .pipe(pipeTo)
+                                    .on('error', err => request.emit('error', err));
                             }
                             else {
                                 const addListener = request.on.bind(request);
@@ -1214,8 +1215,9 @@ class FileManager extends Module implements IFileManager {
                             }
                         }
                         else if (pipeTo && compressStream !== null) {
-                            request.pipe(pipeTo);
-                            pipeTo.on('error', err => request.emit('error', err));
+                            request
+                                .pipe(pipeTo)
+                                .on('error', err => request.emit('error', err));
                         }
                         if (!this._connectHttp2[origin]) {
                             this._connectHttp2[origin] = 1;
@@ -1277,14 +1279,15 @@ class FileManager extends Module implements IFileManager {
                     }
                 }
                 if (outputStream ||= res) {
-                    outputStream.on('data', chunk => request.emit('data', chunk));
-                    outputStream.on('close', () => request.emit('close'));
-                    outputStream.on('error', err => request.emit('error', err));
-                    outputStream.once(outputStream !== res ? 'finish' : 'end', () => {
-                        if (!request.destroyed) {
-                            request.emit('end');
-                        }
-                    });
+                    outputStream
+                        .on('data', chunk => request.emit('data', chunk))
+                        .on('close', () => request.emit('close'))
+                        .once(outputStream !== res ? 'finish' : 'end', () => {
+                            if (!request.destroyed) {
+                                request.emit('end');
+                            }
+                        })
+                        .on('error', err => request.emit('error', err));
                     if (pipeTo) {
                         stream.pipeline(outputStream, pipeTo, err => {
                             if (err) {
