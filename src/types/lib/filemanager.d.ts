@@ -20,6 +20,12 @@ export interface HttpRequestSettings {
     retryDelay?: NumString;
 }
 
+export interface AssetContentOptions {
+    uri: string;
+    index: number;
+    replacePattern?: string;
+}
+
 export type HttpBaseHeaders = ObjectMap<OutgoingHttpHeaders>;
 export type PerformAsyncTaskMethod = () => void;
 export type PostFinalizeCallback = (files: FileInfo[], errors: string[]) => void;

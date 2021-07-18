@@ -3,7 +3,7 @@ import type { DataSource, FileInfo } from '../types/lib/squared';
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
 import type { CloudDatabase } from '../types/lib/cloud';
-import type { HttpBaseHeaders, HttpRequestBuffer, HttpRequestSettings, InstallData, PostFinalizeCallback } from '../types/lib/filemanager';
+import type { AssetContentOptions, HttpBaseHeaders, HttpRequestBuffer, HttpRequestSettings, InstallData, PostFinalizeCallback } from '../types/lib/filemanager';
 import type { HttpProxyData, HttpRequest, HttpRequestClient, HttpVersionSupport, IHttpHost } from '../types/lib/http';
 import type { CloudModule, DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
@@ -812,61 +812,64 @@ class FileManager extends Module implements IFileManager {
         }
         return file.sourceUTF8 || '';
     }
-    setAssetContent(file: ExternalAsset, uri: string, content: string, index = 0, replacePattern?: string) {
+    setAssetContent(file: ExternalAsset, content: string, options?: AssetContentOptions) {
         const trailing = concatString(file.trailingContent);
         if (trailing) {
             content += trailing;
         }
-        if (index === 0) {
-            return content;
-        }
-        let appending = this.contentToAppend.get(uri),
-            replacing = this.contentToReplace.get(uri);
-        if (!appending) {
-            this.contentToAppend.set(uri, appending = []);
-        }
-        if (!replacing) {
-            this.contentToReplace.set(uri, replacing = []);
-        }
-        if (file.document) {
-            for (const { instance } of this.Document) {
-                if (instance.resolveUri && this.hasDocument(instance, file.document)) {
-                    content = instance.resolveUri(file, content);
+        if (options) {
+            const { uri, index, replacePattern } = options;
+            if (index > 0) {
+                let appending = this.contentToAppend.get(uri),
+                    replacing = this.contentToReplace.get(uri);
+                if (!appending) {
+                    this.contentToAppend.set(uri, appending = []);
                 }
+                if (!replacing) {
+                    this.contentToReplace.set(uri, replacing = []);
+                }
+                if (file.document) {
+                    for (const { instance } of this.Document) {
+                        if (instance.resolveUri && this.hasDocument(instance, file.document)) {
+                            content = instance.resolveUri(file, content);
+                        }
+                    }
+                }
+                appending[index - 1] = content;
+                if (replacePattern) {
+                    replacing[index - 1] = replacePattern;
+                }
+                file.invalid = true;
+                return '';
             }
         }
-        appending[index - 1] = content;
-        if (replacePattern) {
-            replacing[index - 1] = replacePattern;
-        }
-        file.invalid = true;
-        return '';
+        return content;
     }
-    getAssetContent(file: ExternalAsset, source?: string) {
+    getAssetContent(file: ExternalAsset, content = '') {
         const appending = this.contentToAppend.get(file.localUri!);
         if (appending) {
-            if (source) {
+            if (content) {
                 const replacing = this.contentToReplace.get(file.localUri!);
                 if (replacing && replacing.length) {
                     for (let i = 0; i < replacing.length; ++i) {
-                        const content = appending[i];
-                        if (Module.isString(content)) {
+                        const value = appending[i];
+                        if (Module.isString(value)) {
                             if (replacing[i]) {
-                                const match = new RegExp(replacing[i], 'i').exec(source);
+                                const match = new RegExp(replacing[i], 'i').exec(content);
                                 if (match) {
-                                    source = source.substring(0, match.index) + content + '\n' + source.substring(match.index + match[0].length);
+                                    content = content.substring(0, match.index) + value + '\n' + content.substring(match.index + match[0].length);
                                     continue;
                                 }
                             }
-                            source += content;
+                            content += value;
                         }
                     }
-                    return source;
+                    return content;
                 }
             }
-            return (source || '') + appending.reduce((a, b) => b ? a + '\n' + b : a, '');
+            return content + appending.reduce((a, b) => b ? a + '\n' + b : a, '');
         }
-        return source;
+        return content;
     }
     writeBuffer(file: ExternalAsset) {
         const buffer = file.sourceUTF8 ? Buffer.from(file.sourceUTF8, 'utf8') : file.buffer;
@@ -1538,7 +1541,7 @@ class FileManager extends Module implements IFileManager {
             }
             return false;
         };
-        const verifyBundle = (file: ExternalAsset, localUri: string, value: Null<string | Buffer>, etag?: string) => {
+        const verifyBundle = (file: ExternalAsset, uri: string, value: Null<string | Buffer>, etag?: string) => {
             if (!file.invalid) {
                 if (value) {
                     if (value instanceof Buffer) {
@@ -1547,7 +1550,7 @@ class FileManager extends Module implements IFileManager {
                         }
                         value = value.toString('utf8');
                     }
-                    this.setAssetContent(file, localUri, value, file.bundleIndex, file.bundleReplace);
+                    this.setAssetContent(file, value, { uri, index: file.bundleIndex!, replacePattern: file.bundleReplace });
                 }
                 else {
                     file.invalid = true;
@@ -1557,7 +1560,7 @@ class FileManager extends Module implements IFileManager {
         const processQueue = async (file: ExternalAsset, localUri: string) => {
             completed.push(localUri);
             if (file.bundleIndex === 0) {
-                file.sourceUTF8 = this.setAssetContent(file, localUri, this.getUTF8String(file, localUri));
+                file.sourceUTF8 = this.setAssetContent(file, this.getUTF8String(file, localUri));
                 if (file.bundleQueue) {
                     await Promise.all(file.bundleQueue);
                 }
