@@ -481,9 +481,9 @@ class FileManager extends Module implements IFileManager {
         readonly archiving = false)
     {
         super();
-        this.assets = this.body.assets;
-        this.formatMessage(this.logType.NODE, 'START', [new Date().toLocaleString(), this.assets.length + ' assets'], this.baseDirectory, { titleBgColor: 'bgYellow', titleColor: 'black' });
-        for (const item of this.assets) {
+        const assets = this.body.assets;
+        this.formatMessage(this.logType.NODE, 'START', [new Date().toLocaleString(), assets.length + ' assets'], this.baseDirectory, { titleBgColor: 'bgYellow', titleColor: 'black' });
+        for (const item of assets) {
             if (item.document) {
                 this.documentAssets.push(item);
             }
@@ -497,6 +497,7 @@ class FileManager extends Module implements IFileManager {
         if (postFinalize) {
             this.postFinalize = postFinalize.bind(this);
         }
+        this.assets = assets;
     }
 
     install(name: string, ...params: unknown[]): any {
@@ -1506,7 +1507,7 @@ class FileManager extends Module implements IFileManager {
                 const items = appending[localUri] ||= [];
                 if (bundleIndex > 0) {
                     items[bundleIndex - 1] = file;
-                    if ((this.cacheHttpRequest || bufferLimit > 0) && !file.content) {
+                    if (!file.content && (this.cacheHttpRequest || bufferLimit > 0)) {
                         const { uri, bundleId } = file;
                         const parent = this.assets.find(item => item.bundleIndex === 0 && item.bundleId === bundleId);
                         if (parent) {
@@ -1562,9 +1563,10 @@ class FileManager extends Module implements IFileManager {
             if (file.bundleIndex === 0) {
                 file.sourceUTF8 = this.setAssetContent(file, this.getUTF8String(file, localUri));
                 if (file.bundleQueue) {
-                    await Promise.all(file.bundleQueue);
+                    await Module.allSettled(file.bundleQueue);
                 }
                 const items = appending[localUri];
+                let success = true;
                 if (items) {
                     const tasks: Promise<void>[] = [];
                     for (const queue of items) {
@@ -1767,10 +1769,31 @@ class FileManager extends Module implements IFileManager {
                         }
                     }
                     if (tasks.length) {
-                        await Module.allSettled(tasks, { rejected: [ERR_MESSAGE.DOWNLOAD_FILE, 'bundle: ' + path.basename(localUri)], errors: this.errors, type: this.logType.HTTP });
+                        success = await Promise.all(tasks)
+                            .then(() => true)
+                            .catch(err => {
+                                this.writeFail([ERR_MESSAGE.DOWNLOAD_FILE, 'bundle: ' + path.basename(localUri)], err);
+                                return false;
+                            });
                     }
                 }
-                this.transformAsset({ file });
+                if (success) {
+                    this.transformAsset({ file });
+                }
+                else {
+                    try {
+                        fs.unlinkSync(localUri);
+                    }
+                    catch (err) {
+                        if (!Module.isErrorCode(err, 'ENOENT')) {
+                            this.writeFail([ERR_MESSAGE.DELETE_FILE, localUri], err, this.logType.FILE);
+                        }
+                    }
+                    file.invalid = true;
+                    delete file.buffer;
+                    delete file.sourceUTF8;
+                    this.completeAsyncTask();
+                }
                 delete appending[localUri];
             }
             else {
