@@ -862,17 +862,17 @@ class ChromeDocument extends Document implements IChromeDocument {
                                     break;
                                 }
                                 case 'uri': {
-                                    const { uri, query, format = path.extname(uri).substring(1) } = item as UriDataSource;
+                                    const { uri, query, encoding = 'utf8', format = path.extname(uri).substring(1) } = item as UriDataSource;
                                     let content: Optional<string>;
                                     if (Document.isFileHTTP(uri)) {
                                         if (uri in cacheData) {
                                             content = cacheData[uri] as Undef<string>;
                                         }
                                         else {
-                                            const options: Partial<HttpRequest> = {};
+                                            const options: Partial<HttpRequest> = { encoding };
                                             const buffer = await this.fetchBuffer(uri, options);
                                             if (buffer) {
-                                                content = buffer.toString('utf8');
+                                                content = Buffer.isBuffer(buffer) ? buffer.toString(encoding) : buffer;
                                             }
                                             else {
                                                 outError = options.outError;
@@ -888,7 +888,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         else {
                                             try {
                                                 if (fs.existsSync(pathname) && (Document.isFileUNC(pathname) ? this.permission.hasUNCRead(pathname) : this.permission.hasDiskRead(pathname))) {
-                                                    content = fs.readFileSync(pathname, 'utf8');
+                                                    content = fs.readFileSync(pathname, encoding);
                                                     cacheData[pathname] = content;
                                                 }
                                                 else {
@@ -1557,7 +1557,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     }
                 }
                 try {
-                    fs.writeFileSync(item.localUri!, source, 'utf8');
+                    fs.writeFileSync(item.localUri!, source, item.encoding ||= 'utf8');
                     item.sourceUTF8 = source;
                 }
                 catch (err) {
@@ -1591,7 +1591,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     source = source.replace(this._cloudEndpoint, '');
                 }
                 try {
-                    fs.writeFileSync(htmlFile.localUri!, source, 'utf8');
+                    fs.writeFileSync(htmlFile.localUri!, source, htmlFile.encoding ||= 'utf8');
                     htmlFile.sourceUTF8 = source;
                 }
                 catch (err) {

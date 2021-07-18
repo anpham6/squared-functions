@@ -1,4 +1,4 @@
-import type { DataSource, FileInfo } from '../types/lib/squared';
+import type { DataSource, FileInfo, TextEncoding } from '../types/lib/squared';
 
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileData, FileOutput, OutputData } from '../types/lib/asset';
@@ -123,7 +123,7 @@ const HTTP2_UNSUPPORTED = [
 
 const HTTP_HOST: ObjectMap<IHttpHost> = {};
 const HTTP_BASEHEADERS: HttpBaseHeaders = {};
-const HTTP_BUFFER: ObjectMap<Null<[string, Buffer]>> = {};
+const HTTP_BUFFER: ObjectMap<Null<[string, string | Buffer]>> = {};
 const HTTP_BROTLISUPPORT = Module.supported(11, 7) || Module.supported(10, 16, 0, true);
 let HTTP_CONNECTTIMEOUT = 10 * 1000;
 let HTTP_RETRYLIMIT = 3;
@@ -493,6 +493,15 @@ class FileManager extends Module implements IFileManager {
             if (item.tasks) {
                 this.taskAssets.push(item);
             }
+            const encoding = item.encoding;
+            if (encoding && encoding !== 'utf8') {
+                if (encoding.startsWith('utf16')) {
+                    item.encoding = 'utf16le';
+                }
+                else if (encoding !== 'latin1') {
+                    item.encoding = 'utf8';
+                }
+            }
         }
         if (Array.isArray(this.body.dataSource)) {
             this.dataSourceItems.push(...this.body.dataSource);
@@ -802,12 +811,13 @@ class FileManager extends Module implements IFileManager {
     }
     getUTF8String(file: ExternalAsset, uri?: string) {
         if (!file.sourceUTF8) {
+            file.encoding ||= 'utf8';
             if (file.buffer) {
-                file.sourceUTF8 = file.buffer.toString('utf8');
+                file.sourceUTF8 = file.buffer.toString(file.encoding);
             }
             if (uri ||= file.localUri) {
                 try {
-                    file.sourceUTF8 = fs.readFileSync(uri, 'utf8');
+                    file.sourceUTF8 = fs.readFileSync(uri, file.encoding);
                 }
                 catch (err) {
                     this.writeFail([ERR_MESSAGE.READ_FILE, uri], err, this.logType.FILE);
@@ -876,7 +886,7 @@ class FileManager extends Module implements IFileManager {
         return content;
     }
     writeBuffer(file: ExternalAsset) {
-        const buffer = file.sourceUTF8 ? Buffer.from(file.sourceUTF8, 'utf8') : file.buffer;
+        const buffer = file.sourceUTF8 ? Buffer.from(file.sourceUTF8, file.encoding ||= 'utf8') : file.buffer;
         if (buffer) {
             try {
                 fs.writeFileSync(file.localUri!, buffer);
@@ -1108,10 +1118,11 @@ class FileManager extends Module implements IFileManager {
             method: Undef<string>,
             httpVersion: Undef<HttpVersionSupport>,
             headers: Undef<OutgoingHttpHeaders>,
+            encoding: Undef<TextEncoding>,
             pipeTo: Undef<WriteStream>,
             timeout: Undef<number>;
         if (options) {
-            ({ host, url, method, httpVersion, headers, pipeTo, timeout } = options);
+            ({ host, url, method, httpVersion, headers, encoding, pipeTo, timeout } = options);
         }
         if (uri instanceof URL) {
             url = uri;
@@ -1237,6 +1248,9 @@ class FileManager extends Module implements IFileManager {
                         }
                     }
                 });
+                if (encoding) {
+                    request.setEncoding(encoding);
+                }
             }
         }
         else {
@@ -1274,6 +1288,9 @@ class FileManager extends Module implements IFileManager {
             }, res => {
                 let outputStream: Optional<IncomingMessage | Transform>;
                 if (getting) {
+                    if (encoding) {
+                        res.setEncoding(encoding);
+                    }
                     outputStream = checkEncoding(res, res.headers['content-encoding'], pipeTo && pipeTo.writableHighWaterMark);
                     const statusCode = res.statusCode!;
                     if (statusCode >= HTTP_STATUS.OK && statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
@@ -1315,7 +1332,7 @@ class FileManager extends Module implements IFileManager {
         return request;
     }
     fetchBuffer(uri: StringOfURL, options?: Partial<HttpRequest>) {
-        return new Promise<Null<Buffer>>(resolve => {
+        return new Promise<Null<string | Buffer>>(resolve => {
             try {
                 const time = Date.now();
                 let server = this.createHttpRequest(uri);
@@ -1330,18 +1347,18 @@ class FileManager extends Module implements IFileManager {
                     const client = this.getHttpClient(uri, server);
                     const host = server.host;
                     let aborted: Undef<boolean>;
-                    result.outBuffer = null;
+                    delete result.outResult;
                     const downloadEnd = () => {
                         if (!aborted) {
-                            if (result.outBuffer) {
+                            if (result.outResult) {
                                 this.writeTimeProcess('HTTP' + host.version, server.url.toString(), time, { type: this.logType.HTTP, meterIncrement: 100, queue: true });
                             }
-                            resolve(result.outBuffer!);
+                            resolve(result.outResult!);
                         }
                     };
                     const downloadAbort = (err: unknown, statusCode = HTTP_STATUS.BAD_REQUEST) => {
                         result.outError = err || formatStatusCode(statusCode);
-                        resolve(result.outBuffer = null);
+                        resolve(result.outResult = null);
                     };
                     if (host.v2()) {
                         const retryDownload = (downgrade: boolean, err?: Error) => {
@@ -1433,7 +1450,15 @@ class FileManager extends Module implements IFileManager {
                             });
                     }
                     client.on('data', data => {
-                        result.outBuffer = result.outBuffer ? Buffer.concat([result.outBuffer, data]) : data;
+                        if (!result.outResult) {
+                            result.outResult = data;
+                        }
+                        else if (typeof data === 'string') {
+                            result.outResult += data;
+                        }
+                        else {
+                            result.outResult = Buffer.concat([result.outResult, data]);
+                        }
                     });
                 }).bind(this)();
             }
@@ -1485,7 +1510,7 @@ class FileManager extends Module implements IFileManager {
                 delete HTTP_BUFFER[uri];
             }
         };
-        const setTempBuffer = (uri: string, etag: string, buffer: Buffer, contentLength = Buffer.byteLength(buffer), tempUri?: string) => {
+        const setTempBuffer = (uri: string, etag: string, buffer: string | Buffer, contentLength = Buffer.byteLength(buffer), tempUri?: string) => {
             if (contentLength <= bufferLimit) {
                 HTTP_BUFFER[uri] = [etag, buffer];
                 if (bufferExpires < Infinity) {
@@ -1545,14 +1570,14 @@ class FileManager extends Module implements IFileManager {
             }
             return false;
         };
-        const verifyBundle = (file: ExternalAsset, uri: string, value: Null<string | Buffer>, etag?: string) => {
+        const verifyBundle = (file: ExternalAsset, uri: string, value: Undef<string | Buffer>, etag?: string) => {
             if (!file.invalid) {
                 if (value) {
                     if (value instanceof Buffer) {
-                        if (etag) {
-                            setTempBuffer(file.uri!, encodeURIComponent(etag), value, file.contentLength);
-                        }
-                        value = value.toString('utf8');
+                        value = value.toString(file.encoding ||= 'utf8');
+                    }
+                    if (etag) {
+                        setTempBuffer(file.uri!, encodeURIComponent(etag), value, file.contentLength);
                     }
                     this.setAssetContent(file, value, { uri, index: file.bundleIndex!, replacePattern: file.bundleReplace });
                 }
@@ -1579,6 +1604,7 @@ class FileManager extends Module implements IFileManager {
                                 verifyBundle(queue, localUri, content);
                             }
                             else if (uri) {
+                                const encoding = queue.encoding ||= 'utf8';
                                 const url = queue.url;
                                 if (url) {
                                     tasks.push(new Promise<void>((resolve, reject) => {
@@ -1595,7 +1621,7 @@ class FileManager extends Module implements IFileManager {
                                                 const cached = HTTP_BUFFER[uri];
                                                 if (cached) {
                                                     if (etagDir === cached[0]) {
-                                                        verifyBundle(queue, localUri, cached[1].toString('utf8'));
+                                                        verifyBundle(queue, localUri, Buffer.isBuffer(cached[1]) ? cached[1].toString(encoding) : cached[1]);
                                                         resolve();
                                                         return;
                                                     }
@@ -1605,7 +1631,7 @@ class FileManager extends Module implements IFileManager {
                                                     tempUri = path.join(baseDir = path.join(tempDir, etagDir), path.basename(localUri));
                                                     try {
                                                         if (Module.hasSize(tempUri)) {
-                                                            verifyBundle(queue, localUri, fs.readFileSync(tempUri), etag);
+                                                            verifyBundle(queue, localUri, fs.readFileSync(tempUri, { encoding }), etag);
                                                             resolve();
                                                             return;
                                                         }
@@ -1631,7 +1657,7 @@ class FileManager extends Module implements IFileManager {
                                                 resolve();
                                             };
                                             (function downloadUri(this: IFileManager, httpVersion?: HttpVersionSupport) {
-                                                let buffer: Null<Buffer> = null,
+                                                let buffer: Undef<string | Buffer>,
                                                     aborted: Undef<boolean>;
                                                 if (tempUri) {
                                                     if (options.pipeTo) {
@@ -1642,6 +1668,7 @@ class FileManager extends Module implements IFileManager {
                                                 if (httpVersion) {
                                                     options.httpVersion = httpVersion;
                                                 }
+                                                options.encoding = encoding;
                                                 const client = this.getHttpClient(uri, options);
                                                 const host = options.host;
                                                 const retryDownload = (downgrade: boolean, err?: Error) => {
@@ -1653,7 +1680,7 @@ class FileManager extends Module implements IFileManager {
                                                             client.destroy();
                                                         }
                                                         aborted = true;
-                                                        buffer = null;
+                                                        buffer = undefined;
                                                         if (downgrade) {
                                                             downgradeHost(host);
                                                         }
@@ -1665,7 +1692,15 @@ class FileManager extends Module implements IFileManager {
                                                         etag = setHeaderData(queue, headers, true);
                                                         client
                                                             .on('data', data => {
-                                                                buffer = buffer ? Buffer.concat([buffer, data]) : data;
+                                                                if (!buffer) {
+                                                                    buffer = data;
+                                                                }
+                                                                else if (typeof data === 'string') {
+                                                                    buffer += data;
+                                                                }
+                                                                else {
+                                                                    buffer = Buffer.concat([buffer, data]);
+                                                                }
                                                             })
                                                             .on('end', () => {
                                                                 if (!aborted) {
@@ -1753,7 +1788,7 @@ class FileManager extends Module implements IFileManager {
                                 }
                                 else if (Module.isFileUNC(uri) && this.permission.hasUNCRead(uri) || path.isAbsolute(uri) && this.permission.hasDiskRead(uri)) {
                                     tasks.push(new Promise<void>(resolve => {
-                                        fs.readFile(uri, 'utf8', (err, data) => {
+                                        fs.readFile(uri, encoding, (err, data) => {
                                             if (!err) {
                                                 verifyBundle(queue, localUri, data);
                                             }
@@ -1913,7 +1948,7 @@ class FileManager extends Module implements IFileManager {
                 if (!checkQueue(item, localUri, true) && createFolder()) {
                     item.sourceUTF8 = item.content;
                     this.performAsyncTask();
-                    fs.writeFile(localUri, item.content, 'utf8', err => fileReceived(err));
+                    fs.writeFile(localUri, item.content, item.encoding ||= 'utf8', err => fileReceived(err));
                 }
             }
             else if (item.base64) {
@@ -1981,7 +2016,17 @@ class FileManager extends Module implements IFileManager {
                                             setHeaderData(item, headers, true);
                                             if (item.willChange || isCacheable(item)) {
                                                 client.on('data', data => {
-                                                    item.buffer = item.buffer ? Buffer.concat([item.buffer, data]) : data;
+                                                    if (typeof data === 'string') {
+                                                        if (item.sourceUTF8) {
+                                                            item.sourceUTF8 += data;
+                                                        }
+                                                        else {
+                                                            item.sourceUTF8 = data;
+                                                        }
+                                                    }
+                                                    else {
+                                                        item.buffer = item.buffer ? Buffer.concat([item.buffer, data]) : data;
+                                                    }
                                                 });
                                             }
                                             host.success();
@@ -2059,7 +2104,7 @@ class FileManager extends Module implements IFileManager {
                                             this.writeTimeProcess('HTTP' + host.version, url.toString() + (item.bundleIndex === 0 ? ' (0)' : ''), time, { type: this.logType.HTTP, meterIncrement: 100, queue: true });
                                             processQueue(item, localUri);
                                             if (etagDir) {
-                                                const buffer = item.buffer;
+                                                const buffer = item.sourceUTF8 || item.buffer;
                                                 if (tempDir) {
                                                     const baseDir = path.join(tempDir, etagDir);
                                                     const tempUri = path.join(baseDir, path.basename(localUri));
@@ -2106,7 +2151,7 @@ class FileManager extends Module implements IFileManager {
                                                 if (Module.isString(etag)) {
                                                     etagDir = encodeURIComponent(etag);
                                                     const cached = HTTP_BUFFER[uri];
-                                                    let buffer: Null<Buffer> = null;
+                                                    let buffer: Undef<string | Buffer>;
                                                     if (cached) {
                                                         const etagCache = cached[0];
                                                         if (etagDir === etagCache) {
@@ -2116,11 +2161,17 @@ class FileManager extends Module implements IFileManager {
                                                             clearTempBuffer(uri, tempDir && path.join(tempDir, etagCache, path.basename(localUri)));
                                                         }
                                                     }
+                                                    const setBuffer = () => {
+                                                        if (typeof buffer === 'string') {
+                                                            item.sourceUTF8 = buffer;
+                                                        }
+                                                        else if (buffer) {
+                                                            item.buffer = buffer;
+                                                        }
+                                                    };
                                                     const checkBuffer = () => {
                                                         if (buffer) {
-                                                            if (item.willChange) {
-                                                                item.buffer = buffer;
-                                                            }
+                                                            setBuffer();
                                                             fs.writeFileSync(localUri, buffer);
                                                             fileReceived();
                                                             return true;
@@ -2132,7 +2183,7 @@ class FileManager extends Module implements IFileManager {
                                                             const tempUri = path.join(tempDir, etagDir, path.basename(localUri));
                                                             if (Module.hasSize(tempUri)) {
                                                                 if (!buffer && isCacheable(item)) {
-                                                                    setTempBuffer(uri, etagDir, buffer = fs.readFileSync(tempUri), item.contentLength, tempUri);
+                                                                    setTempBuffer(uri, etagDir, buffer = fs.readFileSync(tempUri, { encoding: item.encoding }) as Buffer, item.contentLength, tempUri);
                                                                 }
                                                                 if (this.archiving || !Module.hasSameStat(tempUri, localUri)) {
                                                                     if (buffer) {
@@ -2142,8 +2193,8 @@ class FileManager extends Module implements IFileManager {
                                                                         fs.copyFileSync(tempUri, localUri);
                                                                     }
                                                                 }
-                                                                if (buffer && item.willChange) {
-                                                                    item.buffer = buffer;
+                                                                if (item.willChange) {
+                                                                    setBuffer();
                                                                 }
                                                                 fileReceived();
                                                                 return;
@@ -2285,7 +2336,7 @@ class FileManager extends Module implements IFileManager {
         for (const item of this.assets) {
             if (item.sourceUTF8 && !item.invalid) {
                 try {
-                    fs.writeFileSync(item.localUri!, item.sourceUTF8, 'utf8');
+                    fs.writeFileSync(item.localUri!, item.sourceUTF8, item.encoding ||= 'utf8');
                 }
                 catch (err) {
                     this.writeFail([ERR_MESSAGE.WRITE_FILE, item.localUri!], err);

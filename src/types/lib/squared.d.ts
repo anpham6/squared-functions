@@ -104,6 +104,7 @@ export interface LocationUri {
 export interface FileAsset extends TextAsset, OutputAction {
     format?: string;
     base64?: string;
+    encoding?: TextEncoding;
 }
 
 export interface ViewEngine {
@@ -185,5 +186,6 @@ export interface ControllerSettingsDirectoryUI {
     audio: string;
 }
 
+export type TextEncoding = "utf8" | "utf16le" | "latin1";
 export type AttributeMap = ObjectMap<Optional<string>>;
 export type WatchValue = boolean | WatchInterval;

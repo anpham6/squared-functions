@@ -1,3 +1,5 @@
+import type { TextEncoding } from './squared';
+
 import type { WriteStream } from 'fs';
 import type { ClientRequest, OutgoingHttpHeaders } from 'http';
 import type { ClientHttp2Stream } from 'http2';
@@ -32,10 +34,11 @@ export interface HttpRequest {
     retries: number;
     httpVersion: HttpVersionSupport;
     method?: string;
+    encoding?: TextEncoding;
     headers?: OutgoingHttpHeaders;
     timeout?: number;
     pipeTo?: WriteStream;
-    outBuffer?: Null<Buffer>;
+    outResult?: Null<string | Buffer>;
     outError?: unknown;
     outAbort?: AbortController;
 }

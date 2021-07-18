@@ -262,7 +262,7 @@ declare namespace functions {
         transformAsset(data: FileData, parent?: ExternalAsset): Promise<void>;
         createHttpRequest(url: StringOfURL, httpVersion?: HttpVersionSupport): HttpRequest;
         getHttpClient(uri: StringOfURL, options?: Partial<HttpRequest>): HttpRequestClient;
-        fetchBuffer(uri: StringOfURL, options?: Partial<HttpRequest>): Promise<Null<Buffer>>;
+        fetchBuffer(uri: StringOfURL, options?: Partial<HttpRequest>): Promise<Null<string | Buffer>>;
         processAssets(emptyDir?: boolean): void;
         finalize(): Promise<void>;
     }

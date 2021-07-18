@@ -1,4 +1,4 @@
-import type { AttributeMap, ElementAction, DataSource as IDataSource, ViewEngine } from './squared';
+import type { AttributeMap, ElementAction, DataSource as IDataSource, TextEncoding, ViewEngine } from './squared';
 
 import type { FilterQuery, MongoClientOptions } from 'mongodb';
 
@@ -9,6 +9,7 @@ export interface ChromeAsset extends ElementAction {
     exclude?: boolean;
     inlineContent?: string;
     attributes?: AttributeMap;
+    localAddress?: boolean;
 }
 
 export interface TemplateMap {
@@ -56,6 +57,7 @@ export interface DBDataSource<T = string | PlainObject | unknown[], U = PlainObj
 export interface UriDataSource extends DataSource {
     source: "uri";
     uri: string;
+    encoding?: TextEncoding;
     format?: string;
     query?: string;
 }
