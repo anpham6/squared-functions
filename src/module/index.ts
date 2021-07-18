@@ -443,7 +443,7 @@ abstract class Module implements IModule {
 
     static isErrorCode(err: Error, ...code: string[]) {
         if (err instanceof Error) {
-            const value = err['code'];
+            const value = (err as SystemError).code;
             return typeof value === 'string' && code.includes(value);
         }
         return false;

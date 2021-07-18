@@ -31,13 +31,13 @@ export interface HttpRequest {
     url: URL;
     retries: number;
     httpVersion: HttpVersionSupport;
-    timeout?: number;
     method?: string;
     headers?: OutgoingHttpHeaders;
+    timeout?: number;
     pipeTo?: WriteStream;
-    outAbort?: AbortController;
     outBuffer?: Null<Buffer>;
     outError?: unknown;
+    outAbort?: AbortController;
 }
 
 export type HttpRequestClient = ClientRequest | ClientHttp2Stream;

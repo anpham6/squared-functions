@@ -14,6 +14,15 @@ import tinify = require('tinify');
 
 import Module from '../module';
 
+function writeError(this: Module, file: string, err?: Null<Error>, callback?: CompleteAsyncTaskCallback) {
+    if (callback) {
+        callback(err);
+    }
+    else if (err) {
+        this.writeFail([ERR_MESSAGE.COMPRESS_FILE, file], err, this.logType.FILE);
+    }
+}
+
 class BufferStream extends stream.Readable {
     constructor(public buffer: Null<Buffer>) {
         super();
@@ -95,16 +104,19 @@ const Compress = new class extends Module implements ICompress {
                     })
                     .on('error', err => {
                         this.writeTimeProcess(format, path.basename(output), time, { failed: true });
-                        if (callback) {
-                            callback(err);
-                        }
+                        writeError.call(this, output, err, callback);
                     });
                 break;
             }
             default: {
                 const compressor = this.compressors[format]?.bind(this);
                 if (typeof compressor === 'function') {
-                    compressor.call(this, file, output, data, callback);
+                    try {
+                        compressor.call(this, file, output, data, callback);
+                    }
+                    catch (err) {
+                        writeError.call(this, output, err, callback);
+                    }
                 }
                 else if (callback) {
                     callback(new Error(`Unsupported format (${format})`));
@@ -116,14 +128,6 @@ const Compress = new class extends Module implements ICompress {
     tryImage(uri: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<Buffer | Uint8Array>) {
         const { plugin, buffer } = data;
         const ext = path.extname(uri).substring(1);
-        const writeError = (err?: Null<Error>) => {
-            if (callback) {
-                callback(err);
-            }
-            else if (err) {
-                this.writeFail([ERR_MESSAGE.COMPRESS_FILE, uri], err, this.logType.FILE);
-            }
-        };
         const writeFile = (result: Buffer | Uint8Array) => {
             let failed: Undef<boolean>;
             try {
@@ -134,7 +138,7 @@ const Compress = new class extends Module implements ICompress {
             }
             catch (err) {
                 failed = true;
-                writeError(err);
+                writeError.call(this, uri, err, callback);
             }
             this.writeTimeProcess(ext, path.basename(uri), time, { failed });
         };
@@ -145,15 +149,15 @@ const Compress = new class extends Module implements ICompress {
                         writeFile(result);
                     }
                     else {
-                        writeError(err);
+                        writeError.call(this, uri, err, callback);
                     }
                 });
             }
             catch (err) {
-                writeError(err);
+                writeError.call(this, uri, err, callback);
             }
         };
-        const writeUnsupported = (name: string) => writeError(new Error(`Unsupported format (${name}: ${path.basename(uri)})`));
+        const writeUnsupported = (name: string) => writeError.call(this, uri, new Error(`Unsupported format (${name}: ${path.basename(uri)})`), callback);
         let apiKey: Undef<string>;
         if ((data.plugin ||= 'tinify') === 'tinify') {
             if (data.options) {
@@ -169,7 +173,7 @@ const Compress = new class extends Module implements ICompress {
                 }
             }
             if (!apiKey) {
-                throw new Error('API key not found (tinify)');
+                writeError.call(this, uri, new Error('API key not found (tinify)'), callback);
             }
         }
         const time = Date.now();
@@ -183,7 +187,7 @@ const Compress = new class extends Module implements ICompress {
                     }
                     else {
                         delete tinify['_key'];
-                        writeError(err);
+                        writeError.call(this, uri, err, callback);
                     }
                 });
             }
@@ -207,7 +211,7 @@ const Compress = new class extends Module implements ICompress {
                         checkResult(await create(data.options)(buffer), buffer);
                     }
                     catch (err) {
-                        writeError(err);
+                        writeError.call(this, uri, err, callback);
                     }
                 })();
             }
@@ -218,17 +222,17 @@ const Compress = new class extends Module implements ICompress {
                             checkResult(await create(data.options)(result), result);
                         }
                         catch (err_1) {
-                            writeError(err_1);
+                            writeError.call(this, uri, err_1, callback);
                         }
                     }
                     else {
-                        writeError(err);
+                        writeError.call(this, uri, err, callback);
                     }
                 });
             }
         }
         else {
-            throw new Error('Missing plugin (image)');
+            writeError.call(this, uri, new Error('Missing plugin (image)'), callback);
         }
     }
 }();

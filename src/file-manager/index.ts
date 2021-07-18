@@ -11,7 +11,7 @@ import type { RequestBody } from '../types/lib/node';
 import type { WriteStream } from 'fs';
 import type { Agent, ClientRequest, IncomingHttpHeaders, IncomingMessage, OutgoingHttpHeaders } from 'http';
 import type { ClientHttp2Stream } from 'http2';
-import type { Transform } from 'stream';
+import type { Transform, Writable } from 'stream';
 
 import { ERR_MESSAGE } from '../types/lib/logger';
 
@@ -157,7 +157,9 @@ function abortHttpRequest(client: HttpRequestClient, options: HttpRequest) {
     }
     const ac = options.outAbort;
     if (ac) {
-        ac.abort();
+        if (!client.aborted) {
+            ac.abort();
+        }
         delete options.outAbort;
         return true;
     }
@@ -410,21 +412,21 @@ class FileManager extends Module implements IFileManager {
         if (headers) {
             Object.assign(HTTP_BASEHEADERS, headers);
         }
-        if (!isNaN(connectTimeout = +connectTimeout!) && connectTimeout > 0) {
+        if (!isNaN(connectTimeout = asInt(connectTimeout)) && connectTimeout > 0) {
             HTTP_CONNECTTIMEOUT = connectTimeout * 1000;
         }
-        if (!isNaN(retryLimit = +retryLimit!) && retryLimit >= 0) {
+        if (!isNaN(retryLimit = asInt(retryLimit)) && retryLimit >= 0) {
             HTTP_RETRYLIMIT = retryLimit;
         }
-        if (!isNaN(retryDelay = +retryDelay!)) {
+        if (!isNaN(retryDelay = asInt(retryDelay))) {
             HTTP_RETRYDELAY = Math.max(retryDelay, 0);
         }
     }
 
-    static cleanupStream(writeStream: WriteStream, uri?: string) {
+    static cleanupStream(writable: Writable, uri?: string) {
         try {
-            if (!writeStream.destroyed) {
-                writeStream.destroy();
+            if (!writable.destroyed) {
+                writable.destroy();
             }
             if (uri && fs.existsSync(uri)) {
                 fs.unlinkSync(uri);
@@ -996,35 +998,27 @@ class FileManager extends Module implements IFileManager {
                     if (overwrite || !fs.existsSync(output) || fs.statSync(output).mtimeMs < this.startTime) {
                         tasks.push(
                             new Promise<void>(resolve => {
-                                const complete = (err?: Null<Error>) => {
+                                Compress.tryFile(file.buffer || localUri, output, data, (err?: Null<Error>, result?: string) => {
+                                    if (result) {
+                                        if (data.condition?.includes('%') && Module.getFileSize(result) >= Module.getFileSize(localUri)) {
+                                            try {
+                                                fs.unlinkSync(result);
+                                            }
+                                            catch (err_1) {
+                                                if (!Module.isErrorCode(err_1, 'ENOENT')) {
+                                                    this.writeFail([ERR_MESSAGE.DELETE_FILE, result], err_1, this.logType.FILE);
+                                                }
+                                            }
+                                        }
+                                        else {
+                                            this.add(result, file);
+                                        }
+                                    }
                                     if (err) {
                                         this.writeFail([ERR_MESSAGE.COMPRESS_FILE, localUri], err);
                                     }
                                     resolve();
-                                };
-                                try {
-                                    Compress.tryFile(file.buffer || localUri, output, data, (err?: Null<Error>, result?: string) => {
-                                        if (result) {
-                                            if (data.condition?.includes('%') && Module.getFileSize(result) >= Module.getFileSize(localUri)) {
-                                                try {
-                                                    fs.unlinkSync(result);
-                                                }
-                                                catch (err_1) {
-                                                    if (!Module.isErrorCode(err_1, 'ENOENT')) {
-                                                        this.writeFail([ERR_MESSAGE.DELETE_FILE, result], err_1, this.logType.FILE);
-                                                    }
-                                                }
-                                            }
-                                            else {
-                                                this.add(result, file);
-                                            }
-                                        }
-                                        complete(err);
-                                    });
-                                }
-                                catch (err) {
-                                    complete(err);
-                                }
+                                });
                             })
                         );
                     }
@@ -2226,23 +2220,15 @@ class FileManager extends Module implements IFileManager {
                                         image.buffer = item.buffer;
                                     }
                                     tasks.push(new Promise<void>(resolve => {
-                                        const complete = (err?: Null<Error>) => {
+                                        Compress.tryImage(file, image, (err?: Null<Error>, value?: Null<unknown>) => {
+                                            if (file === item.localUri) {
+                                                item.buffer = value instanceof Buffer ? value : undefined;
+                                            }
                                             if (err) {
                                                 this.writeFail([ERR_MESSAGE.COMPRESS_FILE, file], err);
                                             }
                                             resolve();
-                                        };
-                                        try {
-                                            Compress.tryImage(file, image, (err?: Null<Error>, value?: Null<unknown>) => {
-                                                if (file === item.localUri) {
-                                                    item.buffer = value instanceof Buffer ? value : undefined;
-                                                }
-                                                complete(err);
-                                            });
-                                        }
-                                        catch (err) {
-                                            complete(err);
-                                        }
+                                        });
                                     }));
                                 }
                             }

@@ -19,7 +19,7 @@ import type { RequestBody, Settings } from './node';
 import type { FileWatch } from './watch';
 
 import type { PathLike, WriteStream } from 'fs';
-import type { Readable } from 'stream';
+import type { Readable, Writable } from 'stream';
 import type { FileTypeResult } from 'file-type';
 
 import type * as bytes from 'bytes';
@@ -272,7 +272,7 @@ declare namespace functions {
         createPermission(): IPermission;
         resolveMime(data: Buffer | string): Promise<Undef<FileTypeResult>>;
         fromHttpStatusCode(value: NumString): string;
-        cleanupStream(writeStream: WriteStream, uri?: string): void;
+        cleanupStream(writable: Writable, uri?: string): void;
         resetHttpHost(version?: number): void;
         getHttpBufferSize(): number;
         clearHttpBuffer(percent?: number): void;
