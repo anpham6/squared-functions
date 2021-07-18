@@ -324,7 +324,7 @@ class FileManager extends Module implements IFileManager {
         return new Permission();
     }
 
-    static resolveMime(data: Buffer | string) {
+    static resolveMime(data: BufferOfURI) {
         return data instanceof Buffer ? filetype.fromBuffer(data) : filetype.fromFile(data);
     }
 
@@ -1088,7 +1088,7 @@ class FileManager extends Module implements IFileManager {
             this.completeAsyncTask(null, localUri, parent);
         }
     }
-    createHttpRequest(url: string | URL, httpVersion?: HttpVersionSupport): HttpRequest {
+    createHttpRequest(url: StringOfURL, httpVersion?: HttpVersionSupport): HttpRequest {
         if (typeof url === 'string') {
             url = new URL(url);
         }
@@ -1096,7 +1096,7 @@ class FileManager extends Module implements IFileManager {
         const host = HTTP_HOST[url.origin + credentials] ||= new HttpHost(url, credentials, this.httpVersion);
         return { host, url, httpVersion: httpVersion || host.version, retries: 0 };
     }
-    getHttpClient(uri: string, options?: Partial<HttpRequest>) {
+    getHttpClient(uri: StringOfURL, options?: Partial<HttpRequest>) {
         let host: Undef<IHttpHost>,
             url: Undef<URL>,
             method: Undef<string>,
@@ -1106,6 +1106,10 @@ class FileManager extends Module implements IFileManager {
             timeout: Undef<number>;
         if (options) {
             ({ host, url, method, httpVersion, headers, pipeTo, timeout } = options);
+        }
+        if (uri instanceof URL) {
+            url = uri;
+            uri = url.toString();
         }
         if (!host) {
             ({ host, url } = this.createHttpRequest(url || uri));
@@ -1232,7 +1236,7 @@ class FileManager extends Module implements IFileManager {
         else {
             const proxy = this.httpProxy;
             let agent: Undef<Agent>;
-            if (proxy && (!proxy.include && !proxy.exclude && !host.localhost || Array.isArray(proxy.include) && proxy.include.find(value => uri.startsWith(value)) || !proxy.include && Array.isArray(proxy.exclude) && !proxy.exclude.find(value => uri.startsWith(value)))) {
+            if (proxy && (!proxy.include && !proxy.exclude && !host.localhost || Array.isArray(proxy.include) && proxy.include.find(value => (uri as string).startsWith(value)) || !proxy.include && Array.isArray(proxy.exclude) && !proxy.exclude.find(value => (uri as string).startsWith(value)))) {
                 const lib = host.secure ? 'https-proxy-agent' : 'http-proxy-agent';
                 try {
                     const proxyHost = proxy.host;
@@ -1304,20 +1308,23 @@ class FileManager extends Module implements IFileManager {
         request.end();
         return request;
     }
-    fetchBuffer(uri: string, options?: Partial<HttpRequest>) {
+    fetchBuffer(uri: StringOfURL, options?: Partial<HttpRequest>) {
         return new Promise<Null<Buffer>>(resolve => {
             try {
+                const time = Date.now();
                 let server = this.createHttpRequest(uri);
                 if (options) {
-                    options.outBuffer = null;
                     server = Object.assign(options, server);
                 }
-                const result = options || server;
-                const time = Date.now();
-                (function downloadUri(this: IFileManager) {
+                (function downloadUri(this: IFileManager, httpVersion?: HttpVersionSupport) {
+                    if (httpVersion) {
+                        server.httpVersion = httpVersion;
+                    }
+                    const result = options || server;
                     const client = this.getHttpClient(uri, server);
                     const host = server.host;
                     let aborted: Undef<boolean>;
+                    result.outBuffer = null;
                     const downloadEnd = () => {
                         if (!aborted) {
                             if (result.outBuffer) {
@@ -1331,7 +1338,7 @@ class FileManager extends Module implements IFileManager {
                         resolve(result.outBuffer = null);
                     };
                     if (host.v2()) {
-                        const retryDownload = async (downgrade: boolean, err?: Error) => {
+                        const retryDownload = (downgrade: boolean, err?: Error) => {
                             if (err) {
                                 warnProtocol.call(this, host, err);
                             }
@@ -1339,11 +1346,10 @@ class FileManager extends Module implements IFileManager {
                                 if (!abortHttpRequest(client, server)) {
                                     client.destroy();
                                 }
-                                result.httpVersion = 1;
                                 if (downgrade) {
                                     downgradeHost(host);
                                 }
-                                resolve(await this.fetchBuffer(uri, result));
+                                downloadUri.call(this, 1);
                             }
                         };
                         (client as ClientHttp2Stream)
@@ -1426,7 +1432,7 @@ class FileManager extends Module implements IFileManager {
                 }).bind(this)();
             }
             catch (err) {
-                this.writeFail([ERR_MESSAGE.READ_BUFFER, uri], err, this.logType.HTTP);
+                this.writeFail([ERR_MESSAGE.READ_BUFFER, uri.toString()], err, this.logType.HTTP);
                 resolve(null);
             }
         });
@@ -1533,7 +1539,7 @@ class FileManager extends Module implements IFileManager {
             }
             return false;
         };
-        const verifyBundle = (file: ExternalAsset, localUri: string, value: string | Null<Buffer>, etag?: string) => {
+        const verifyBundle = (file: ExternalAsset, localUri: string, value: Null<string | Buffer>, etag?: string) => {
             if (!file.invalid) {
                 if (value) {
                     if (value instanceof Buffer) {

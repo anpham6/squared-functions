@@ -49,7 +49,7 @@ const METHOD_ALIAS: StringMap = {
 const MIME_INPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, jimp.MIME_GIF, jimp.MIME_TIFF, 'image/webp']);
 const MIME_OUTPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, 'image/webp']);
 
-function performCommand(uri: string | Buffer, command: string, outputType: string, finalAs?: string, host?: IFileManager, data?: FileData) {
+function performCommand(uri: BufferOfURI, command: string, outputType: string, finalAs?: string, host?: IFileManager, data?: FileData) {
     return jimp.read(uri as string)
         .then(async img => {
             const handler = new Jimp(img);
@@ -402,7 +402,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
     }
     getBuffer(tempFile?: boolean, saveAs?: string, finalAs?: string) {
         const output = this.getTempDir(false, '.' + (finalAs || (saveAs && MIME_OUTPUT.has('image/' + (saveAs === 'jpg' ? 'jpeg' : saveAs)) ? saveAs : this.instance.getMIME().split('/').pop()!)));
-        return new Promise<Null<Buffer | string>>(resolve => {
+        return new Promise<Null<string | Buffer>>(resolve => {
             this.instance.write(output, err => {
                 if (!err) {
                     this.finalize(output, (err_1: Null<Error>, result: string) => {

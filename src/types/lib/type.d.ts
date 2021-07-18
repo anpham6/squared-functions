@@ -12,6 +12,8 @@ type FunctionType<T = unknown, U = unknown> = (...args: U[]) => T;
 
 type NumString = number | string;
 type StringOfArray = string | string[];
+type StringOfURL = string | URL;
+type BufferOfURI = Buffer | string;
 
 type StandardMap = Record<string, any>;
 type PlainObject = Record<string | number | symbol, unknown>;

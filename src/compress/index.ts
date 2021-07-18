@@ -52,13 +52,13 @@ const Compress = new class extends Module implements ICompress {
         const result = this.level[path.extname(output).substring(1).toLowerCase()]!;
         return !isNaN(result) ? result : fallback;
     }
-    getReadable(file: string | Buffer) {
+    getReadable(file: BufferOfURI) {
         if (file instanceof Buffer) {
             return this.supported(12, 3) || this.supported(10, 17, 0, true) ? stream.Readable.from(file) : new BufferStream(file);
         }
         return fs.createReadStream(file);
     }
-    createWriteStreamAsGzip(file: string | Buffer, output: string, options?: CompressLevel) {
+    createWriteStreamAsGzip(file: BufferOfURI, output: string, options?: CompressLevel) {
         let level: Undef<number>,
             chunkSize: Undef<number>;
         if (options) {
@@ -68,7 +68,7 @@ const Compress = new class extends Module implements ICompress {
             .pipe(zlib.createGzip({ level: level ?? this.getLevel(output, zlib.constants.Z_DEFAULT_LEVEL), chunkSize: chunkSize ?? this.chunkSize }))
             .pipe(fs.createWriteStream(output));
     }
-    createWriteStreamAsBrotli(file: string | Buffer, output: string, options?: CompressLevel) {
+    createWriteStreamAsBrotli(file: BufferOfURI, output: string, options?: CompressLevel) {
         let level: Undef<number>,
             chunkSize: Undef<number>,
             mimeType: Undef<string>;
@@ -88,7 +88,7 @@ const Compress = new class extends Module implements ICompress {
             )
             .pipe(fs.createWriteStream(output));
     }
-    tryFile(file: string | Buffer, output: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<string>) {
+    tryFile(file: BufferOfURI, output: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<string>) {
         const format = data.format;
         switch (format) {
             case 'gz':

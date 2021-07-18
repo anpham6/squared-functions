@@ -11,6 +11,6 @@ export interface ImageHandler<T, U> extends IScopeOrigin<T, U> {
     quality(): void;
     rotate(): void;
     write(output: string, callback?: StandardCallback): void;
-    getBuffer(tempFile?: boolean, saveAs?: string): Promise<Null<Buffer | string>>;
+    getBuffer(tempFile?: boolean, saveAs?: string): Promise<Null<string | Buffer>>;
     finalize(output: string, callback: (err: Null<Error>, result: string) => void): void;
 }

@@ -41,9 +41,9 @@ declare namespace functions {
         compressors: ObjectMap<CompressTryFileMethod>;
         chunkSize?: number;
         register(format: string, callback: CompressTryFileMethod): void;
-        getReadable(file: string | Buffer): Readable;
-        createWriteStreamAsGzip(file: string | Buffer, output: string, options?: CompressLevel): WriteStream;
-        createWriteStreamAsBrotli(file: string | Buffer, output: string, options?: CompressLevel): WriteStream;
+        getReadable(file: BufferOfURI): Readable;
+        createWriteStreamAsGzip(file: BufferOfURI, output: string, options?: CompressLevel): WriteStream;
+        createWriteStreamAsBrotli(file: BufferOfURI, output: string, options?: CompressLevel): WriteStream;
         tryFile: CompressTryFileMethod;
         tryImage(uri: string, data: CompressFormat, callback?: CompleteAsyncTaskCallback<Buffer | Uint8Array>): void;
     }
@@ -92,7 +92,7 @@ declare namespace functions {
         setObjectKeys(assets: ExternalAsset[]): void;
         createBucket(service: string, credential: unknown, bucket: string, publicRead?: boolean): Promise<boolean>;
         deleteObjects(service: string, credential: unknown, bucket: string): Promise<void>;
-        downloadObject(service: string, credential: unknown, bucket: string, download: CloudStorageDownload, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string): Promise<void>;
+        downloadObject(service: string, credential: unknown, bucket: string, download: CloudStorageDownload, callback: (value: Null<string | Buffer>) => void): Promise<void>;
         getStorage(action: CloudFunctions, data: Undef<CloudStorage[]>): Undef<CloudStorage>;
         hasStorage(action: CloudFunctions, storage: CloudStorage): CloudStorageUpload | false;
         getDatabaseRows(data: CloudDatabase, cacheKey?: string): Promise<unknown[]>;
@@ -260,9 +260,9 @@ declare namespace functions {
         addCopy(data: FileData, saveAs?: string, replace?: boolean): Undef<string>;
         findMime(data: FileData, rename?: boolean): Promise<string>;
         transformAsset(data: FileData, parent?: ExternalAsset): Promise<void>;
-        createHttpRequest(url: string | URL, httpVersion?: HttpVersionSupport): HttpRequest;
-        getHttpClient(uri: string, options?: Partial<HttpRequest>): HttpRequestClient;
-        fetchBuffer(uri: string, options?: Partial<HttpRequest>): Promise<Null<Buffer>>;
+        createHttpRequest(url: StringOfURL, httpVersion?: HttpVersionSupport): HttpRequest;
+        getHttpClient(uri: StringOfURL, options?: Partial<HttpRequest>): HttpRequestClient;
+        fetchBuffer(uri: StringOfURL, options?: Partial<HttpRequest>): Promise<Null<Buffer>>;
         processAssets(emptyDir?: boolean): void;
         finalize(): Promise<void>;
     }
@@ -270,7 +270,7 @@ declare namespace functions {
     interface FileManagerConstructor extends ModuleConstructor {
         moduleCompress(): ICompress;
         createPermission(): IPermission;
-        resolveMime(data: Buffer | string): Promise<Undef<FileTypeResult>>;
+        resolveMime(data: BufferOfURI): Promise<Undef<FileTypeResult>>;
         fromHttpStatusCode(value: NumString): string;
         cleanupStream(writable: Writable, uri?: string): void;
         resetHttpHost(version?: number): void;
