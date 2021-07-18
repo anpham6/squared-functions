@@ -241,9 +241,9 @@ abstract class Module implements IModule {
             options.titleBgColor ||= options.failed ? 'bgGray' : 'bgGreen';
         }
         if (Array.isArray(value)) {
-            const hint = value[1];
+            const [leading, hint] = value;
             if (this.isString(hint)) {
-                const hintWidth = getFormatWidth(format.hint, LOG_WIDTH.HINT);
+                let hintWidth = getFormatWidth(format.hint, LOG_WIDTH.HINT);
                 const formatHint = (content: string) => {
                     let { hintColor, hintBgColor } = options;
                     if (!hintColor && !hintBgColor) {
@@ -264,10 +264,15 @@ abstract class Module implements IModule {
                     return content;
                 };
                 valueWidth -= Math.min(hint.length, hintWidth) + 2;
-                value = applyFormatPadding(truncateString(value[0], valueWidth - 1), valueWidth, getFormatJustify(format.value)) + (useColor() ? chalk.blackBright('[') + formatHint(truncateString(hint, hintWidth)) + chalk.blackBright(']') : `[${truncateString(hint, hintWidth)}]`);
+                if (hint.length > hintWidth && leading.length + 1 < valueWidth) {
+                    const offset = Math.min(valueWidth - (leading.length + 1), hint.length - hintWidth);
+                    hintWidth += offset;
+                    valueWidth -= offset;
+                }
+                value = applyFormatPadding(truncateString(leading, valueWidth - 1), valueWidth, getFormatJustify(format.value)) + (useColor() ? chalk.blackBright('[') + formatHint(truncateString(hint, hintWidth)) + chalk.blackBright(']') : `[${truncateString(hint, hintWidth)}]`);
             }
             else {
-                value = applyFormatPadding(truncateString(value[0], valueWidth - 1), valueWidth, getFormatJustify(format.value));
+                value = applyFormatPadding(truncateString(leading, valueWidth - 1), valueWidth, getFormatJustify(format.value));
             }
         }
         else {

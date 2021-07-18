@@ -98,7 +98,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
         }
         this.performAsyncTask();
         const transformBuffer = (tempFile?: string) => {
-            this.formatMessage(this.logType.PROCESS, MODULE_NAME, ['Transforming image...', localUri], command);
+            this.formatMessage(this.logType.PROCESS, MODULE_NAME, ['Transforming image...', path.basename(localUri)], command);
             const time = Date.now();
             performCommand(tempFile || getBuffer(data), command, outputType, finalAs, this, data)
                 .then(handler => {

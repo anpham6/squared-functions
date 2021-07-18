@@ -810,21 +810,22 @@ class FileManager extends Module implements IFileManager {
         return this.dataSourceItems.filter(item => this.hasDocument(instance, item.document));
     }
     getUTF8String(file: ExternalAsset, uri?: string) {
-        if (!file.sourceUTF8) {
-            file.encoding ||= 'utf8';
-            if (file.buffer) {
-                file.sourceUTF8 = file.buffer.toString(file.encoding);
+        if (file.sourceUTF8) {
+            return file.sourceUTF8;
+        }
+        file.encoding ||= 'utf8';
+        if (file.buffer) {
+            return file.sourceUTF8 = file.buffer.toString(file.encoding);
+        }
+        if (uri ||= file.localUri) {
+            try {
+                return file.sourceUTF8 = fs.readFileSync(uri, file.encoding);
             }
-            if (uri ||= file.localUri) {
-                try {
-                    file.sourceUTF8 = fs.readFileSync(uri, file.encoding);
-                }
-                catch (err) {
-                    this.writeFail([ERR_MESSAGE.READ_FILE, uri], err, this.logType.FILE);
-                }
+            catch (err) {
+                this.writeFail([ERR_MESSAGE.READ_FILE, uri], err, this.logType.FILE);
             }
         }
-        return file.sourceUTF8 || '';
+        return '';
     }
     setAssetContent(file: ExternalAsset, content: string, options?: AssetContentOptions) {
         const trailing = concatString(file.trailingContent);
