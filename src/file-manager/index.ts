@@ -636,8 +636,7 @@ class FileManager extends Module implements IFileManager {
                 mimeType = await this.findMime(data, true);
             }
             if (file.commands && mimeType?.startsWith('image/')) {
-                const ext = mimeType.split('/')[1];
-                const handler = this.Image.get(ext) || this.Image.get('handler');
+                const handler = this.Image.get(mimeType) || this.Image.get('handler');
                 if (handler) {
                     for (const command of file.commands) {
                         if (withinSizeRange(localUri, command)) {
