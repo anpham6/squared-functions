@@ -51,7 +51,7 @@ export interface CloudScopeOrigin extends Required<IScopeOrigin<IFileManager, IC
 
 export type ServiceHost<T> = (this: IModule, credential: unknown, service?: string, sdk?: string) => T;
 export type UploadCallback = (data: UploadData, success: (value: string) => void) => Promise<void>;
-export type DownloadCallback = (data: DownloadData, success: (value: Null<Buffer | string>) => void) => Promise<void>;
+export type DownloadCallback = (data: DownloadData, success: (value: Null<string | Buffer>) => void) => Promise<void>;
 export type UploadHost = ServiceHost<UploadCallback>;
 export type DownloadHost = ServiceHost<DownloadCallback>;
 
@@ -121,7 +121,7 @@ class Cloud extends Module implements ICloud {
                     getFiles(instance, file, upload).forEach((group, index) => {
                         for (const localUri of group) {
                             if (index === 0 || this.has(localUri)) {
-                                const fileGroup: [Buffer | string, string][] = [];
+                                const fileGroup: [string | Buffer, string][] = [];
                                 if (index === 0) {
                                     for (let i = 1; i < group.length; ++i) {
                                         try {
@@ -151,7 +151,8 @@ class Cloud extends Module implements ICloud {
                                             else {
                                                 mimeType = mime.lookup(localUri) || file.mimeType;
                                             }
-                                            uploadHandler({ buffer, admin, upload, localUri, fileGroup, bucket, bucketGroup, filename, mimeType }, success);
+                                            upload.bucketGroup = bucketGroup;
+                                            uploadHandler({ buffer, admin, upload, localUri, fileGroup, bucket, filename, mimeType }, success);
                                         }
                                         catch (err) {
                                             instance.writeFail([ERR_MESSAGE.READ_FILE, localUri], err, this.logType.FILE);
@@ -269,7 +270,8 @@ class Cloud extends Module implements ICloud {
             if (item.cloudStorage) {
                 for (const data of item.cloudStorage) {
                     if (cloud.hasStorage('download', data)) {
-                        const { pathname, filename, active, overwrite } = data.download!;
+                        const download = data.download!;
+                        const { pathname, filename, active, overwrite } = download;
                         if (filename) {
                             const localUri = item.localUri;
                             let valid = false,
@@ -293,18 +295,19 @@ class Cloud extends Module implements ICloud {
                             }
                             if (valid) {
                                 const location = data.service + data.bucket + filename;
-                                let download = downloadMap[location];
-                                if (download) {
-                                    download.add(downloadUri);
+                                let pending = downloadMap[location];
+                                if (pending) {
+                                    pending.add(downloadUri);
                                 }
                                 else {
-                                    download = new Set<string>([downloadUri]);
+                                    pending = new Set<string>([downloadUri]);
                                     try {
-                                        tasks.push(cloud.downloadObject(data.service, cloud.getCredential(data), data.bucket!, data.download!, (value: Null<Buffer | string>) => {
+                                        download.bucketGroup = bucketGroup;
+                                        tasks.push(cloud.downloadObject(data.service, cloud.getCredential(data), data.bucket!, download, (value: Null<string | Buffer>) => {
                                             if (value) {
                                                 let destUri = '';
                                                 try {
-                                                    const items = Array.from(download!);
+                                                    const items = Array.from(pending!);
                                                     for (let i = 0, length = items.length; i < length; ++i) {
                                                         destUri = items[i];
                                                         if (typeof value === 'string') {
@@ -320,8 +323,8 @@ class Cloud extends Module implements ICloud {
                                                     cloud.writeFail([ERR_MESSAGE.WRITE_FILE, destUri], err, this.logType.FILE);
                                                 }
                                             }
-                                        }, bucketGroup));
-                                        downloadMap[location] = download;
+                                        }));
+                                        downloadMap[location] = pending;
                                     }
                                     catch (err) {
                                         cloud.writeFail([ERR_CLOUD.DOWNLOAD_SUPPORT, data.service], err);
@@ -436,10 +439,10 @@ class Cloud extends Module implements ICloud {
         this.writeFail([ERR_CLOUD.DELETE_OBJECTS_SUPPORT, service], new Error(service + `: ${bucket} (Delete not supported)`));
         return Promise.resolve();
     }
-    downloadObject(service: string, credential: PlainObject, bucket: string, download: CloudStorageDownload, callback: (value: Null<Buffer | string>) => void, bucketGroup?: string) {
+    downloadObject(service: string, credential: PlainObject, bucket: string, download: CloudStorageDownload, callback: (value: Null<string | Buffer>) => void) {
         const downloadHandler = this.getDownloadHandler(service, credential).bind(this);
         return new Promise<void>(resolve => {
-            downloadHandler({ bucket, bucketGroup, download }, async (value: Null<Buffer | string>) => {
+            downloadHandler({ bucket, download }, async (value: Null<string | Buffer>) => {
                 await callback(value);
                 resolve();
             });

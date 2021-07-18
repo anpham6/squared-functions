@@ -20,7 +20,7 @@ const BUCKET_MAP = new Map<string, Promise<boolean>>();
 export default function upload(this: IModule, config: AWSStorageConfig, service = 'aws-v3', sdk = '@aws-sdk/client-s3'): UploadCallback {
     const AWS = require(sdk) as typeof s3;
     return async (data: UploadData, success: (value: string) => void) => {
-        const Bucket = data.bucket ||= data.bucketGroup || uuid.v4();
+        const Bucket = data.bucket ||= data.upload.bucketGroup || uuid.v4();
         const admin = data.admin;
         const bucketKey = service + (config.region || '') + Bucket;
         let promise = BUCKET_MAP.get(bucketKey);

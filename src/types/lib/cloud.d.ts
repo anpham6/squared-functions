@@ -27,6 +27,7 @@ export interface CloudStorageAdmin {
 export interface CloudStorageAction extends Partial<LocationUri> {
     active?: boolean;
     overwrite?: boolean;
+    bucketGroup?: string;
 }
 
 export interface CloudStorageUpload extends CloudStorageAction {
@@ -52,14 +53,13 @@ export interface CacheTimeout {
 export interface FunctionData {
     admin?: CloudStorageAdmin;
     bucket?: string;
-    bucketGroup?: string;
 }
 
 export interface UploadData extends FunctionData {
     upload: CloudStorageUpload;
     buffer: Buffer;
     localUri: string;
-    fileGroup: [Buffer | string, string][];
+    fileGroup: [string | Buffer, string][];
     filename?: string;
     mimeType?: string;
 }

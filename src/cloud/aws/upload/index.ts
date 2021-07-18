@@ -18,7 +18,7 @@ const BUCKET_MAP = new Set<string>();
 export default function upload(this: IModule, credential: AWSStorageCredential, service = 'aws', sdk = 'aws-sdk/clients/s3'): UploadCallback {
     const s3 = createStorageClient.call(this, credential, service, sdk);
     return async (data: UploadData, success: (value: string) => void) => {
-        const Bucket = data.bucket ||= data.bucketGroup || uuid.v4();
+        const Bucket = data.bucket ||= data.upload.bucketGroup || uuid.v4();
         const adminRead = data.admin?.publicRead;
         if (!BUCKET_MAP.has(service + Bucket) || adminRead) {
             if (!await createBucket.call(this, credential, Bucket, adminRead, service, sdk)) {

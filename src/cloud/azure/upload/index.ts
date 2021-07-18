@@ -18,7 +18,7 @@ const BUCKET_MAP = new Set<string>();
 export default function upload(this: IModule, credential: AzureStorageCredential, service = 'azure'): UploadCallback {
     const blobServiceClient = createStorageClient.call(this, credential);
     return async (data: UploadData, success: (value: string) => void) => {
-        const bucket = data.bucket ||= data.bucketGroup || uuid.v4();
+        const bucket = data.bucket ||= data.upload.bucketGroup || uuid.v4();
         const localUri = data.localUri;
         const containerClient = blobServiceClient.getContainerClient(bucket);
         if (!BUCKET_MAP.has(bucket)) {
