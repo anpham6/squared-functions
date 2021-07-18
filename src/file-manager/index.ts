@@ -26,6 +26,8 @@ import mime = require('mime-types');
 import filetype = require('file-type');
 import bytes = require('bytes');
 
+import HttpAgent = require('agentkeepalive');
+
 import Module from '../module';
 import Document from '../document';
 import Task from '../task';
@@ -37,6 +39,7 @@ import Compress from '../compress';
 import Permission from './permission';
 
 const { http, https } = followRedirects;
+const { HttpsAgent } = HttpAgent;
 
 const enum HTTP { // eslint-disable-line no-shadow
     MAX_FAILED = 5,
@@ -1255,7 +1258,7 @@ class FileManager extends Module implements IFileManager {
                 }
             }
             else if (this.keepAliveTimeout > 0) {
-                agent = new (host.secure ? https.Agent : http.Agent)({ keepAlive: true, timeout: this.keepAliveTimeout });
+                agent = new (host.secure ? HttpsAgent : HttpAgent)({ keepAlive: true, timeout: this.keepAliveTimeout, freeSocketTimeout: HTTP_CONNECTTIMEOUT });
             }
             if (baseHeaders || host.headers) {
                 headers = { ...baseHeaders, ...host.headers, ...headers };
