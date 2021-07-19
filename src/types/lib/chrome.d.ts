@@ -57,7 +57,6 @@ export interface DBDataSource<T = string | PlainObject | unknown[], U = PlainObj
 export interface UriDataSource extends DataSource {
     source: "uri";
     uri: string;
-    encoding?: TextEncoding;
     format?: string;
     query?: string;
 }

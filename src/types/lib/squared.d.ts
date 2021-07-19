@@ -15,12 +15,12 @@ interface TextAsset extends Asset, LocationUri {
     content?: string;
 }
 
-export interface FileInfo {
-    name: string;
-    size: string;
+export interface FileAsset extends TextAsset, OutputAction, DocumentAction {
+    format?: string;
+    base64?: string;
 }
 
-export interface DataSource extends DocumentAction {
+export interface DataSource extends ElementAction, DocumentAction {
     source: string;
     index?: number;
     limit?: number;
@@ -30,7 +30,7 @@ export interface DataSource extends DocumentAction {
     removeEmpty?: boolean;
 }
 
-export interface OutputAction extends DocumentAction {
+export interface OutputAction {
     moveTo?: string;
     process?: string[];
     commands?: string[];
@@ -54,6 +54,7 @@ export interface BundleAction {
 
 export interface DocumentAction {
     document?: StringOfArray;
+    encoding?: TextEncoding;
 }
 
 export interface AttributeAction {
@@ -101,12 +102,6 @@ export interface LocationUri {
     filename: string;
 }
 
-export interface FileAsset extends TextAsset, OutputAction {
-    format?: string;
-    base64?: string;
-    encoding?: TextEncoding;
-}
-
 export interface ViewEngine {
     name: string;
     singleRow?: boolean;
@@ -143,6 +138,11 @@ export interface WatchReload {
     secure?: boolean;
     port?: number;
     module?: boolean;
+}
+
+export interface FileInfo {
+    name: string;
+    size: string;
 }
 
 export interface RequestData extends PlainObject {

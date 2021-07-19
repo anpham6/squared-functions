@@ -11,7 +11,7 @@ import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudS
 import type { CompressTryFileMethod } from './compress';
 import type { ConfigOrTransformer, PluginConfig, SourceInput, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
 import type { AssetContentOptions, CompleteAsyncTaskCallback, HttpRequestBuffer, HttpRequestSettings, InstallData, PerformAsyncTaskMethod, PostFinalizeCallback } from './filemanager';
-import type { HttpProxyData, HttpRequest, HttpRequestClient, HttpVersionSupport } from './http';
+import type { HttpProxyData, HttpRequest, HttpRequestClient, HttpVersionSupport, IHttpHost } from './http';
 import type { CropData, QualityData, ResizeData, RotateData } from './image';
 import type { LOG_TYPE, LogMessageOptions, LogTimeProcessOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
 import type { AllSettledOptions, CloudModule, DocumentModule, TaskModule } from './module';
@@ -262,6 +262,7 @@ declare namespace functions {
         compressFile(file: ExternalAsset, overwrite?: boolean): Promise<unknown>;
         createHttpRequest(url: StringOfURL, httpVersion?: HttpVersionSupport): HttpRequest;
         getHttpClient(uri: StringOfURL, options?: Partial<HttpRequest>): HttpRequestClient;
+        getHostProxy(host: IHttpHost, uri: string): Null<HttpProxyData>;
         fetchBuffer(uri: StringOfURL, options?: Partial<HttpRequest>): Promise<Null<BufferContent>>;
         processAssets(emptyDir?: boolean): void;
         finalize(): Promise<void>;

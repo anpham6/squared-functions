@@ -14,6 +14,7 @@ export interface IHttpHost {
     secure: boolean;
     localhost: boolean;
     headers: Undef<OutgoingHttpHeaders>;
+    hasProtocol(version?: number): Promise<boolean>;
     success(version?: HttpVersionSupport): number;
     failed(version?: HttpVersionSupport): number;
     error(): number;
@@ -42,5 +43,6 @@ export interface HttpRequest {
     outAbort?: AbortController;
 }
 
+export type HttpAlpnProtocol = "h2" | "h2c";
 export type HttpRequestClient = ClientRequest | ClientHttp2Stream;
 export type HttpVersionSupport = 1 | 2;
