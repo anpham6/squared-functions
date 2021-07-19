@@ -1,5 +1,5 @@
 import type { IFileManager } from '../../types/lib';
-import type { ExternalAsset, FileData, OutputData } from '../../types/lib/asset';
+import type { ExternalAsset, FileProcessing, OutputFinalize } from '../../types/lib/asset';
 
 import type { IJimpImageHandler } from './image';
 
@@ -49,7 +49,7 @@ const METHOD_ALIAS: StringMap = {
 const MIME_INPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, jimp.MIME_GIF, jimp.MIME_TIFF, 'image/webp']);
 const MIME_OUTPUT = new Set([jimp.MIME_PNG, jimp.MIME_JPEG, jimp.MIME_BMP, 'image/webp']);
 
-function performCommand(uri: BufferOfURI, command: string, outputType: string, finalAs?: string, host?: IFileManager, data?: FileData) {
+function performCommand(uri: BufferOfURI, command: string, outputType: string, finalAs?: string, host?: IFileManager, data?: FileProcessing) {
     return jimp.read(uri as string)
         .then(async img => {
             const handler = new Jimp(img);
@@ -77,10 +77,10 @@ function performCommand(uri: BufferOfURI, command: string, outputType: string, f
         });
 }
 
-const getBuffer = (data: FileData) => (data.file.buffer as unknown) as string || data.file.localUri!;
+const getBuffer = (data: FileProcessing) => (data.file.buffer as unknown) as string || data.file.localUri!;
 
 class Jimp extends Image implements IJimpImageHandler<jimp> {
-    static using(this: IFileManager, data: FileData, command: string) {
+    static using(this: IFileManager, data: FileProcessing, command: string) {
         const localUri = this.getLocalUri(data);
         const mimeType = this.getMimeType(data);
         if (!localUri || !mimeType || !MIME_INPUT.has(mimeType)) {
@@ -113,7 +113,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
                         if (!err && result) {
                             const file = data.file;
                             if (file.document) {
-                                this.writeImage(file.document, { ...data, command, output: result, baseDirectory: this.baseDirectory } as OutputData);
+                                this.writeImage(file.document, { ...data, command, output: result, baseDirectory: this.baseDirectory } as OutputFinalize);
                             }
                             if (this.getLocalUri(data) !== result) {
                                 if (command.indexOf('%') !== -1) {
@@ -402,7 +402,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
     }
     getBuffer(tempFile?: boolean, saveAs?: string, finalAs?: string) {
         const output = this.getTempDir(false, '.' + (finalAs || (saveAs && MIME_OUTPUT.has('image/' + (saveAs === 'jpg' ? 'jpeg' : saveAs)) ? saveAs : this.instance.getMIME().split('/').pop()!)));
-        return new Promise<Null<string | Buffer>>(resolve => {
+        return new Promise<Null<BufferContent>>(resolve => {
             this.instance.write(output, err => {
                 if (!err) {
                     this.finalize(output, (err_1: Null<Error>, result: string) => {

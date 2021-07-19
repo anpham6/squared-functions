@@ -51,7 +51,7 @@ export interface CloudScopeOrigin extends Required<IScopeOrigin<IFileManager, IC
 
 export type ServiceHost<T> = (this: IModule, credential: unknown, service?: string, sdk?: string) => T;
 export type UploadCallback = (data: UploadData, success: (value: string) => void) => Promise<void>;
-export type DownloadCallback = (data: DownloadData, success: (value: Null<string | Buffer>) => void) => Promise<void>;
+export type DownloadCallback = (data: DownloadData, success: (value: Null<BufferContent>) => void) => Promise<void>;
 export type UploadHost = ServiceHost<UploadCallback>;
 export type DownloadHost = ServiceHost<DownloadCallback>;
 
@@ -121,7 +121,7 @@ class Cloud extends Module implements ICloud {
                     getFiles(instance, file, upload).forEach((group, index) => {
                         for (const localUri of group) {
                             if (index === 0 || this.has(localUri)) {
-                                const fileGroup: [string | Buffer, string][] = [];
+                                const fileGroup: [BufferContent, string][] = [];
                                 if (index === 0) {
                                     for (let i = 1; i < group.length; ++i) {
                                         try {
@@ -303,7 +303,7 @@ class Cloud extends Module implements ICloud {
                                     pending = new Set<string>([downloadUri]);
                                     try {
                                         download.bucketGroup = bucketGroup;
-                                        tasks.push(cloud.downloadObject(data.service, cloud.getCredential(data), data.bucket!, download, (value: Null<string | Buffer>) => {
+                                        tasks.push(cloud.downloadObject(data.service, cloud.getCredential(data), data.bucket!, download, (value: Null<BufferContent>) => {
                                             if (value) {
                                                 let destUri = '';
                                                 try {
@@ -439,10 +439,10 @@ class Cloud extends Module implements ICloud {
         this.writeFail([ERR_CLOUD.DELETE_OBJECTS_SUPPORT, service], new Error(service + `: ${bucket} (Delete not supported)`));
         return Promise.resolve();
     }
-    downloadObject(service: string, credential: PlainObject, bucket: string, download: CloudStorageDownload, callback: (value: Null<string | Buffer>) => void) {
+    downloadObject(service: string, credential: PlainObject, bucket: string, download: CloudStorageDownload, callback: (value: Null<BufferContent>) => void) {
         const downloadHandler = this.getDownloadHandler(service, credential).bind(this);
         return new Promise<void>(resolve => {
-            downloadHandler({ bucket, download }, async (value: Null<string | Buffer>) => {
+            downloadHandler({ bucket, download }, async (value: Null<BufferContent>) => {
                 await callback(value);
                 resolve();
             });

@@ -2,7 +2,7 @@ import type { LocationUri, XmlTagNode } from '../../types/lib/squared';
 import type { DataSource, MongoDataSource, RequestData, TemplateMap, UriDataSource } from '../../types/lib/chrome';
 
 import type { IFileManager } from '../../types/lib';
-import type { FileData, OutputData } from '../../types/lib/asset';
+import type { FileProcessing, OutputFinalize } from '../../types/lib/asset';
 import type { CloudDatabase } from '../../types/lib/cloud';
 import type { HttpRequest } from '../../types/lib/http';
 import type { RequestBody as IRequestBody } from '../../types/lib/node';
@@ -1471,7 +1471,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             return (this.configData as TemplateMap).data?.[name];
         }
     }
-    addCopy(data: FileData, saveAs: string) {
+    addCopy(data: FileProcessing, saveAs: string) {
         if (data.command && this.host) {
             const match = REGEXP_SRCSETSIZE.exec(data.command);
             if (match) {
@@ -1479,7 +1479,7 @@ class ChromeDocument extends Document implements IChromeDocument {
             }
         }
     }
-    writeImage(data: OutputData<DocumentAsset>) {
+    writeImage(data: OutputFinalize<DocumentAsset>) {
         const { file, output } = data;
         if (output) {
             const match = file.element?.outerXml && REGEXP_SRCSETSIZE.exec(data.command);

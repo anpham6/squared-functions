@@ -14,6 +14,7 @@ type NumString = number | string;
 type StringOfArray = string | string[];
 type StringOfURL = string | URL;
 type BufferOfURI = Buffer | string;
+type BufferContent = string | Buffer;
 
 type StandardMap = Record<string, any>;
 type PlainObject = Record<string | number | symbol, unknown>;

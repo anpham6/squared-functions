@@ -4,7 +4,7 @@ import type { ImageHandler } from '../types';
 
 export interface IJimpImageHandler<T> extends ImageHandler<IFileManager, T> {
     setCommand(value: string, finalAs?: string): void;
-    getBuffer(tempFile?: boolean, saveAs?: string, finalAs?: string): Promise<Null<string | Buffer>>;
+    getBuffer(tempFile?: boolean, saveAs?: string, finalAs?: string): Promise<Null<BufferContent>>;
     rotate(pathFile?: string, callback?: StandardCallback<string>): Void<Promise<unknown>[]>;
     finalize(output: string, callback: (err: Null<Error>, result: string) => void, finalAs?: string): void;
 }

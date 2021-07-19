@@ -1,8 +1,8 @@
 import type { IScopeOrigin } from '../../types/lib';
-import type { FileData } from '../../types/lib/asset';
+import type { FileProcessing } from '../../types/lib/asset';
 
 export interface ImageHandler<T, U> extends IScopeOrigin<T, U> {
-    data?: FileData;
+    data?: FileProcessing;
     readonly rotateCount: number;
     method(): void;
     resize(): void;
@@ -11,6 +11,6 @@ export interface ImageHandler<T, U> extends IScopeOrigin<T, U> {
     quality(): void;
     rotate(): void;
     write(output: string, callback?: StandardCallback): void;
-    getBuffer(tempFile?: boolean, saveAs?: string): Promise<Null<string | Buffer>>;
+    getBuffer(tempFile?: boolean, saveAs?: string): Promise<Null<BufferContent>>;
     finalize(output: string, callback: (err: Null<Error>, result: string) => void): void;
 }

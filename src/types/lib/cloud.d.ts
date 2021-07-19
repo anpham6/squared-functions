@@ -59,7 +59,7 @@ export interface UploadData extends FunctionData {
     upload: CloudStorageUpload;
     buffer: Buffer;
     localUri: string;
-    fileGroup: [string | Buffer, string][];
+    fileGroup: [BufferContent, string][];
     filename?: string;
     mimeType?: string;
 }

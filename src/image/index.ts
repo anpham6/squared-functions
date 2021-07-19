@@ -1,5 +1,5 @@
 import type { IFileManager, IImage } from '../types/lib';
-import type { FileData } from '../types/lib/asset';
+import type { FileProcessing } from '../types/lib/asset';
 import type { CropData, QualityData, ResizeData, RotateData } from '../types/lib/image';
 
 import Module from '../module';
@@ -22,7 +22,7 @@ const isNumber = (ch: string) => ch >= '0' && ch <= '9';
 const parseHexDecimal = (value: Undef<string>) => value ? +('0x' + value.padEnd(8, 'F')) : NaN;
 
 abstract class Image extends Module implements IImage {
-    static using(this: IFileManager, data: FileData, command: string) {}
+    static using(this: IFileManager, data: FileProcessing, command: string) {}
 
     static transform(uri: string, command: string, mimeType?: string, tempFile?: boolean): Promise<Null<Buffer> | string> {
         return Promise.resolve(tempFile ? '' : null);

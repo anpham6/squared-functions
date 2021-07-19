@@ -2,14 +2,14 @@ import type { BundleAction, FileAsset, StorageAction } from './squared';
 
 import type { CloudStorage } from './cloud';
 
-export interface FileData<T = ExternalAsset> {
+export interface FileProcessing<T = ExternalAsset> {
     file: T;
     mimeType?: string;
     command?: string;
     outputType?: string;
 }
 
-export interface OutputData<T = ExternalAsset> extends FileData<T> {
+export interface OutputFinalize<T = ExternalAsset> extends FileProcessing<T> {
     output: string;
     command: string;
     baseDirectory: string;

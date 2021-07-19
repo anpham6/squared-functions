@@ -6,7 +6,7 @@
 
 import type { CompressFormat, CompressLevel, DataSource, LocationUri, ViewEngine, XmlTagNode } from './squared';
 
-import type { ExternalAsset, FileData, FileOutput, OutputData } from './asset';
+import type { ExternalAsset, FileOutput, FileProcessing, OutputFinalize } from './asset';
 import type { CloudDatabase, CloudFeatures, CloudFunctions, CloudService, CloudStorage, CloudStorageDownload, CloudStorageUpload } from './cloud';
 import type { CompressTryFileMethod } from './compress';
 import type { ConfigOrTransformer, PluginConfig, SourceInput, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
@@ -67,7 +67,7 @@ declare namespace functions {
     }
 
     interface ImageConstructor extends ModuleConstructor {
-        using(this: IFileManager, data: FileData, command: string): void;
+        using(this: IFileManager, data: FileProcessing, command: string): void;
         transform(uri: string, command: string, mimeType?: string, tempFile?: boolean): Promise<Null<Buffer> | string>;
         parseFormat(command: string): string[];
         clamp(value: Undef<string>, min?: number, max?: number): number;
@@ -92,7 +92,7 @@ declare namespace functions {
         setObjectKeys(assets: ExternalAsset[]): void;
         createBucket(service: string, credential: unknown, bucket: string, publicRead?: boolean): Promise<boolean>;
         deleteObjects(service: string, credential: unknown, bucket: string): Promise<void>;
-        downloadObject(service: string, credential: unknown, bucket: string, download: CloudStorageDownload, callback: (value: Null<string | Buffer>) => void): Promise<void>;
+        downloadObject(service: string, credential: unknown, bucket: string, download: CloudStorageDownload, callback: (value: Null<BufferContent>) => void): Promise<void>;
         getStorage(action: CloudFunctions, data: Undef<CloudStorage[]>): Undef<CloudStorage>;
         hasStorage(action: CloudFunctions, storage: CloudStorage): CloudStorageUpload | false;
         getDatabaseRows(data: CloudDatabase, cacheKey?: string): Promise<unknown[]>;
@@ -134,8 +134,8 @@ declare namespace functions {
         transform(type: string, code: string, format: string, options?: TransformOutput): Promise<Void<TransformResult>>;
         setLocalUri?(file: Partial<LocationUri>): void;
         resolveUri?(file: ExternalAsset, source: string): string;
-        addCopy?(data: FileData, saveAs: string, replace?: boolean): Undef<string>;
-        writeImage?(data: OutputData): boolean;
+        addCopy?(data: FileProcessing, saveAs: string, replace?: boolean): Undef<string>;
+        writeImage?(data: OutputFinalize): boolean;
         cloudInit?(state: IScopeOrigin<T, U>): void;
         cloudObject?(state: IScopeOrigin<T, U>, file: ExternalAsset): boolean;
         cloudUpload?(state: IScopeOrigin<T, U>, file: ExternalAsset, url: string, active: boolean): Promise<boolean>;
@@ -248,21 +248,21 @@ declare namespace functions {
         getDocumentAssets(instance: IModule): ExternalAsset[];
         getDataSourceItems(instance: IModule): DataSource[];
         setLocalUri(file: ExternalAsset): FileOutput;
-        getLocalUri(data: FileData): string;
-        getMimeType(data: FileData): Undef<string>;
+        getLocalUri(data: FileProcessing): string;
+        getMimeType(data: FileProcessing): Undef<string>;
+        addCopy(data: FileProcessing, saveAs?: string, replace?: boolean): Undef<string>;
+        findMime(data: FileProcessing, rename?: boolean): Promise<string>;
+        transformAsset(data: FileProcessing, parent?: ExternalAsset): Promise<void>;
         getRelativeUri(file: ExternalAsset, filename?: string): string;
         getUTF8String(file: ExternalAsset, uri?: string): string;
         setAssetContent(file: ExternalAsset, content: string, options?: AssetContentOptions): string;
         getAssetContent(file: ExternalAsset, content?: string): Undef<string>;
         writeBuffer(file: ExternalAsset): Null<Buffer>;
-        writeImage(document: StringOfArray, data: OutputData): boolean;
+        writeImage(document: StringOfArray, data: OutputFinalize): boolean;
         compressFile(file: ExternalAsset, overwrite?: boolean): Promise<unknown>;
-        addCopy(data: FileData, saveAs?: string, replace?: boolean): Undef<string>;
-        findMime(data: FileData, rename?: boolean): Promise<string>;
-        transformAsset(data: FileData, parent?: ExternalAsset): Promise<void>;
         createHttpRequest(url: StringOfURL, httpVersion?: HttpVersionSupport): HttpRequest;
         getHttpClient(uri: StringOfURL, options?: Partial<HttpRequest>): HttpRequestClient;
-        fetchBuffer(uri: StringOfURL, options?: Partial<HttpRequest>): Promise<Null<string | Buffer>>;
+        fetchBuffer(uri: StringOfURL, options?: Partial<HttpRequest>): Promise<Null<BufferContent>>;
         processAssets(emptyDir?: boolean): void;
         finalize(): Promise<void>;
     }

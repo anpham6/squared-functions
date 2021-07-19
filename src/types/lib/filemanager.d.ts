@@ -1,4 +1,4 @@
-import type { FileInfo } from './squared';
+import type { BundleAction, FileInfo } from './squared';
 
 import type { OutgoingHttpHeaders } from 'http';
 
@@ -20,10 +20,8 @@ export interface HttpRequestSettings {
     retryDelay?: NumString;
 }
 
-export interface AssetContentOptions {
-    uri: string;
-    index: number;
-    replacePattern?: string;
+export interface AssetContentOptions extends BundleAction {
+    localUri: string;
 }
 
 export type HttpBaseHeaders = ObjectMap<OutgoingHttpHeaders>;
