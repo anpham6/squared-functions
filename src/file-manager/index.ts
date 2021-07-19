@@ -1125,7 +1125,7 @@ class FileManager extends Module implements IFileManager {
         if (typeof url === 'string') {
             url = new URL(url);
         }
-        const credentials = url.username + (url.password ? ':' + url.password : '');
+        const credentials = url.username ? decodeURIComponent(url.username) + (url.password ? ':' + decodeURIComponent(url.password) : '') : '';
         const host = HTTP_HOST[url.origin + credentials] ||= new HttpHost(url, credentials, this.httpVersion);
         return { host, url, httpVersion: httpVersion || host.version, retries: 0 };
     }
