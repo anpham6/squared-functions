@@ -870,12 +870,12 @@ class ChromeDocument extends Document implements IChromeDocument {
                                         }
                                         else {
                                             const options: Partial<HttpRequest> = { encoding };
-                                            const buffer = await this.fetchBuffer(uri, options);
-                                            if (buffer) {
+                                            try {
+                                                const buffer = await this.fetchBuffer(uri, options);
                                                 content = Buffer.isBuffer(buffer) ? buffer.toString(encoding) : buffer;
                                             }
-                                            else {
-                                                outError = options.outError;
+                                            catch (err) {
+                                                outError = err;
                                             }
                                             cacheData[uri] = content;
                                         }

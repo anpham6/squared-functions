@@ -1,7 +1,7 @@
 import type { TextEncoding } from './squared';
 
 import type { WriteStream } from 'fs';
-import type { ClientRequest, OutgoingHttpHeaders } from 'http';
+import type { ClientRequest, IncomingHttpHeaders, OutgoingHttpHeaders } from 'http';
 import type { ClientHttp2Stream } from 'http2';
 
 export interface IHttpHost {
@@ -38,8 +38,9 @@ export interface HttpRequest {
     headers?: OutgoingHttpHeaders;
     timeout?: number;
     pipeTo?: WriteStream;
-    outResult?: Null<BufferContent>;
-    outError?: unknown;
+    pipeAs?: string;
+    pipeFinish?: () => void;
+    outResponse?: (headers: IncomingHttpHeaders) => void;
     outAbort?: AbortController;
 }
 
