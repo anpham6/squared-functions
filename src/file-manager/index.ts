@@ -48,6 +48,12 @@ const enum HTTP { // eslint-disable-line no-shadow
     CHUNK_SIZE_LOCAL = 64 * 1024
 }
 
+const enum HOST_VERSION {
+    SUCCESS = 0,
+    FAILED = 1,
+    ERROR = 2
+}
+
 export const enum HTTP_STATUS { // eslint-disable-line no-shadow
     CONTINUE = 100,
     SWITCHING_PROTOCOLS = 101,
@@ -253,7 +259,6 @@ const isFunction = <T>(value: unknown): value is T => typeof value === 'function
 const asInt = (value: unknown) => typeof value === 'string' ? parseInt(value) : typeof value === 'number' ? Math.floor(value) : NaN;
 
 class HttpHost implements IHttpHost {
-    headers: Undef<OutgoingHttpHeaders>;
     readonly origin: string;
     readonly protocol: string;
     readonly hostname: string;
@@ -262,6 +267,7 @@ class HttpHost implements IHttpHost {
     readonly localhost: boolean;
 
     private _url: URL;
+    private _headers: Undef<OutgoingHttpHeaders>;
     private _version: HttpVersionSupport;
     private _versionData = [
         [0, 0, 0],
@@ -276,35 +282,44 @@ class HttpHost implements IHttpHost {
         this.secure = url.protocol === 'https:';
         this.port = url.port || (this.secure ? '443' : '80');
         this.localhost = hostname === 'localhost' || hostname === '127.0.0.1';
-        this.headers = credentials ? { authorization: 'Basic ' + Buffer.from(credentials, 'base64') } as OutgoingHttpHeaders : undefined;
+        this._headers = credentials ? { authorization: 'Basic ' + Buffer.from(credentials, 'base64') } as OutgoingHttpHeaders : undefined;
         this._url = url;
         this._version = this.secure || !this.localhost ? httpVersion : 1;
     }
-    setHeaders(headers: OutgoingHttpHeaders) {
-        this.headers = this.headers ? { ...headers, ...this.headers } : headers;
-    }
+
     success(version?: HttpVersionSupport) {
         if (version) {
-            return this._versionData[version - 1][0];
+            return this._versionData[version - 1][HOST_VERSION.SUCCESS];
         }
-        ++this._versionData[this._version - 1][0];
+        ++this._versionData[this._version - 1][HOST_VERSION.SUCCESS];
         return -1;
     }
     failed(version?: HttpVersionSupport) {
         if (version) {
-            return this._versionData[version - 1][1];
+            return this._versionData[version - 1][HOST_VERSION.FAILED];
         }
-        ++this._versionData[this._version - 1][1];
+        ++this._versionData[this._version - 1][HOST_VERSION.FAILED];
         return -1;
     }
     error() {
-        return ++this._versionData[this._version - 1][2];
+        return ++this._versionData[this._version - 1][HOST_VERSION.ERROR];
+    }
+    clone(version?: HttpVersionSupport) {
+        return new HttpHost(this._url, this.credentials, version || this._version);
     }
     v2() {
         return this._version === 2;
     }
-    clone(version?: HttpVersionSupport) {
-        return new HttpHost(this._url, this.credentials, version || this._version);
+    set headers(value: Undef<OutgoingHttpHeaders>) {
+        if (this._headers) {
+            this._headers = Object.assign(this._headers, value);
+        }
+        else {
+            this._headers = value;
+        }
+    }
+    get headers() {
+        return this._headers;
     }
     set version(value) {
         switch (value) {
@@ -1293,6 +1308,9 @@ class FileManager extends Module implements IFileManager {
                         res.setEncoding(encoding);
                     }
                     outputStream = checkEncoding(res, res.headers['content-encoding'], pipeTo && pipeTo.writableHighWaterMark);
+                    if (outputStream === null) {
+                        return;
+                    }
                     const statusCode = res.statusCode!;
                     if (statusCode >= HTTP_STATUS.OK && statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
                         if (!this._connectHttp1[origin]) {
@@ -1301,9 +1319,6 @@ class FileManager extends Module implements IFileManager {
                         else {
                             ++this._connectHttp1[origin]!;
                         }
-                    }
-                    if (outputStream === null) {
-                        return;
                     }
                 }
                 if (outputStream ||= res) {

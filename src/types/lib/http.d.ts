@@ -14,7 +14,6 @@ export interface IHttpHost {
     secure: boolean;
     localhost: boolean;
     headers: Undef<OutgoingHttpHeaders>;
-    setHeaders(headers: OutgoingHttpHeaders): void;
     success(version?: HttpVersionSupport): number;
     failed(version?: HttpVersionSupport): number;
     error(): number;
