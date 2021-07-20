@@ -155,13 +155,6 @@ function withinSizeRange(uri: string, value: Undef<string>) {
     return true;
 }
 
-function downgradeHost(host: IHttpHost) {
-    if (host.v2()) {
-        host.failed();
-        host.version = 1;
-    }
-}
-
 function abortHttpRequest(client: HttpRequestClient, options: HttpRequest) {
     if (client.destroyed) {
         return true;
@@ -175,12 +168,6 @@ function abortHttpRequest(client: HttpRequestClient, options: HttpRequest) {
         return true;
     }
     return false;
-}
-
-function warnProtocol(this: IModule, host: IHttpHost, err: Error) {
-    if (host.v2()) {
-        this.formatMessage(this.logType.HTTP, 'HTTP' + host.version, ['Unsupported protocol', host.origin], err, { failed: true });
-    }
 }
 
 function isRetryStatus(value: number) {
@@ -233,10 +220,6 @@ function getBaseHeaders(uri: string) {
         }
         return result[0][1];
     }
-}
-
-function warnConnectTimeout(this: IModule, request: HttpRequest) {
-    this.formatMessage(this.logType.HTTP, 'HTTP' + request.host.version, ['Connection timeout (retrying)', request.host.origin], request.url.toString());
 }
 
 export function isConnectionTimeout(err: unknown) {
@@ -1164,13 +1147,17 @@ class FileManager extends Module implements IFileManager {
             this.completeAsyncTask(null, localUri, parent);
         }
     }
-    createHttpRequest(url: StringOfURL, httpVersion?: HttpVersionSupport): HttpRequest {
+    getHostProxy(host: IHttpHost, uri: string) {
+        const proxy = this.httpProxy;
+        return proxy && (!proxy.include && !proxy.exclude && !host.localhost || Array.isArray(proxy.include) && proxy.include.find(value => uri.startsWith(value)) || !proxy.include && Array.isArray(proxy.exclude) && !proxy.exclude.find(value => uri.startsWith(value))) ? proxy : null;
+    }
+    createHttpRequest(url: StringOfURL, options?: Partial<HttpRequest>): HttpRequest {
         if (typeof url === 'string') {
             url = new URL(url);
         }
         const credentials = url.username ? decodeURIComponent(url.username) + (url.password ? ':' + decodeURIComponent(url.password) : '') : '';
         const host = HTTP_HOST[url.origin + credentials] ||= new HttpHost(url, credentials, this.httpVersion);
-        return { host, url, httpVersion: httpVersion || host.version, retries: 0 };
+        return { ...options, host, url, retries: 0 };
     }
     getHttpClient(uri: StringOfURL, options?: Partial<HttpRequest>) {
         let host: Undef<IHttpHost>,
@@ -1179,10 +1166,10 @@ class FileManager extends Module implements IFileManager {
             httpVersion: Undef<HttpVersionSupport>,
             headers: Undef<OutgoingHttpHeaders>,
             encoding: Undef<TextEncoding>,
-            pipeTo: Undef<WriteStream>,
+            outStream: Undef<WriteStream>,
             timeout: Undef<number>;
         if (options) {
-            ({ host, url, method, httpVersion, headers, encoding, pipeTo, timeout } = options);
+            ({ host, url, method, httpVersion, headers, encoding, outStream, timeout } = options);
         }
         const getting = (method ||= 'GET') === 'GET';
         let v2: boolean;
@@ -1255,14 +1242,14 @@ class FileManager extends Module implements IFileManager {
                     const statusCode = res[':status']!;
                     if (statusCode >= HTTP_STATUS.OK && statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
                         let compressStream: Optional<Transform>;
-                        if (this.useAcceptEncoding && (compressStream = checkEncoding(request as ClientHttp2Stream, res['content-encoding'], pipeTo && pipeTo.writableHighWaterMark))) {
-                            if (pipeTo) {
+                        if (this.useAcceptEncoding && (compressStream = checkEncoding(request as ClientHttp2Stream, res['content-encoding'], outStream && outStream.writableHighWaterMark))) {
+                            if (outStream) {
                                 compressStream
                                     .on('error', err => request.emit('error', err))
                                     .once('finish', () => {
                                         if (!request.destroyed) {
                                             request.emit('end');
-                                            pipeTo!
+                                            outStream!
                                                 .on('finish', function(this: Transform) {
                                                     if (!this.destroyed) {
                                                         this.destroy();
@@ -1271,7 +1258,7 @@ class FileManager extends Module implements IFileManager {
                                                 .emit('finish');
                                         }
                                     })
-                                    .pipe(pipeTo)
+                                    .pipe(outStream)
                                     .on('error', err => request.emit('error', err));
                             }
                             else {
@@ -1294,9 +1281,9 @@ class FileManager extends Module implements IFileManager {
                                 };
                             }
                         }
-                        else if (pipeTo && compressStream !== null) {
+                        else if (outStream && compressStream !== null) {
                             request
-                                .pipe(pipeTo)
+                                .pipe(outStream)
                                 .on('error', err => request.emit('error', err));
                         }
                         if (!this._connectHttp2[origin]) {
@@ -1345,13 +1332,13 @@ class FileManager extends Module implements IFileManager {
                 headers,
                 agent
             }, res => {
-                let outputStream: Optional<IncomingMessage | Transform>;
+                let source: Optional<IncomingMessage | Transform>;
                 if (getting) {
                     if (encoding) {
                         res.setEncoding(encoding);
                     }
-                    outputStream = checkEncoding(res, res.headers['content-encoding'], pipeTo && pipeTo.writableHighWaterMark);
-                    if (outputStream === null) {
+                    source = checkEncoding(res, res.headers['content-encoding'], outStream && outStream.writableHighWaterMark);
+                    if (source === null) {
                         return;
                     }
                     const statusCode = res.statusCode!;
@@ -1364,18 +1351,18 @@ class FileManager extends Module implements IFileManager {
                         }
                     }
                 }
-                if (outputStream ||= res) {
-                    outputStream
+                if (source ||= res) {
+                    source
                         .on('data', chunk => request.emit('data', chunk))
                         .on('close', () => request.emit('close'))
-                        .once(outputStream !== res ? 'finish' : 'end', () => {
+                        .once(source !== res ? 'finish' : 'end', () => {
                             if (!request.destroyed) {
                                 request.emit('end');
                             }
                         })
                         .on('error', err => request.emit('error', err));
-                    if (pipeTo) {
-                        stream.pipeline(outputStream, pipeTo, err => {
+                    if (outStream) {
+                        stream.pipeline(source, outStream, err => {
                             if (err) {
                                 request.emit('error', err);
                             }
@@ -1390,32 +1377,25 @@ class FileManager extends Module implements IFileManager {
         request.end();
         return request;
     }
-    getHostProxy(host: IHttpHost, uri: string) {
-        const proxy = this.httpProxy;
-        return proxy && (!proxy.include && !proxy.exclude && !host.localhost || Array.isArray(proxy.include) && proxy.include.find(value => uri.startsWith(value)) || !proxy.include && Array.isArray(proxy.exclude) && !proxy.exclude.find(value => uri.startsWith(value))) ? proxy : null;
-    }
     fetchBuffer(uri: StringOfURL, options?: Partial<HttpRequest>) {
         return new Promise<Null<BufferContent>>((resolve, reject) => {
-            const errorRequest = (err: Error) => {
-                this.writeFail([ERR_MESSAGE.READ_BUFFER, uri.toString()], err, this.logType.HTTP);
-                reject(err);
+            let closed: Undef<boolean>;
+            const errorReject = (err: Error) => {
+                if (!closed) {
+                    closed = true;
+                    reject(err);
+                }
             };
             try {
                 const time = Date.now();
-                let request = this.createHttpRequest(uri);
-                if (options) {
-                    request = Object.assign(options, request);
-                }
+                const request = this.createHttpRequest(uri, options);
                 (function downloadUri(this: IFileManager, httpVersion?: HttpVersionSupport) {
-                    const { pipeAs, pipeTo, pipeFinish } = request;
-                    if (pipeTo) {
-                        FileManager.cleanupStream(pipeTo, pipeAs);
+                    const { pipeTo, outStream } = request;
+                    if (outStream) {
+                        FileManager.cleanupStream(outStream, pipeTo);
                     }
-                    if (pipeAs) {
-                        request.pipeTo = fs.createWriteStream(pipeAs, { highWaterMark: !request.host.localhost ? HTTP.CHUNK_SIZE : HTTP.CHUNK_SIZE_LOCAL });
-                        if (pipeFinish) {
-                            request.pipeTo.on('finish', pipeFinish);
-                        }
+                    if (pipeTo) {
+                        request.outStream = fs.createWriteStream(pipeTo, { highWaterMark: !request.host.localhost ? HTTP.CHUNK_SIZE : HTTP.CHUNK_SIZE_LOCAL });
                     }
                     if (httpVersion) {
                         request.httpVersion = httpVersion;
@@ -1424,19 +1404,14 @@ class FileManager extends Module implements IFileManager {
                     const host = request.host;
                     let buffer: Optional<BufferContent>,
                         aborted: Undef<boolean>;
-                    const downloadEnd = () => {
-                        if (!aborted) {
-                            if (buffer) {
-                                this.writeTimeProcess('HTTP' + host.version, request.url.toString(), time, { type: this.logType.HTTP, meterIncrement: 100, queue: true });
-                            }
-                            resolve(buffer || (options && options.encoding ? '' : null));
-                        }
+                    const retryTimeout = () => {
+                        this.formatMessage(this.logType.HTTP, 'HTTP' + host.version, [`Connection timeout (${request.retries} of ${HTTP_RETRYLIMIT})`, host.origin], request.url.toString());
+                        downloadUri.call(this);
                     };
                     const errorResponse = (err: Error) => {
                         if (isRetryable(err, request)) {
                             if (isConnectionTimeout(err)) {
-                                warnConnectTimeout.call(this, request);
-                                downloadUri.call(this);
+                                retryTimeout();
                             }
                             else {
                                 setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
@@ -1444,14 +1419,31 @@ class FileManager extends Module implements IFileManager {
                         }
                         else {
                             host.error();
-                            errorRequest(err);
+                            errorReject(err);
                         }
                     };
                     const acceptResponse = (headers: IncomingHttpHeaders) => {
-                        if (request.outResponse) {
-                            request.outResponse.call(client, headers);
+                        let buffering: Void<boolean>;
+                        if (request.connected) {
+                            buffering = request.connected.call(client, headers);
                         }
-                        client.on('end', downloadEnd.bind(this));
+                        if (buffering !== false) {
+                            client.on('data', data => {
+                                if (!buffer) {
+                                    buffer = data;
+                                }
+                                else if (typeof data === 'string') {
+                                    buffer += data;
+                                }
+                                else {
+                                    buffer = Buffer.concat([buffer, data]);
+                                }
+                            });
+                        }
+                        client.on('end', () => {
+                            this.writeTimeProcess('HTTP' + host.version, request.processMessage || request.url.toString(), time, { type: this.logType.HTTP, meterIncrement: 100, queue: true });
+                            resolve(buffer || (request.encoding ? '' : null));
+                        });
                         host.success();
                     };
                     if (host.v2()) {
@@ -1462,13 +1454,12 @@ class FileManager extends Module implements IFileManager {
                                 }
                                 aborted = true;
                                 buffer = null;
-                                if (downgrade) {
-                                    downgradeHost(host);
+                                if (downgrade && host.version > 1) {
+                                    this.formatMessage(this.logType.HTTP, 'HTTP' + host.version, ['Unsupported protocol', host.origin], err, { failed: true });
+                                    host.failed();
+                                    host.version = 1;
                                 }
                                 downloadUri.call(this, 1);
-                            }
-                            if (err) {
-                                warnProtocol.call(this, host, err);
                             }
                         };
                         (client as ClientHttp2Stream)
@@ -1479,7 +1470,7 @@ class FileManager extends Module implements IFileManager {
                                         acceptResponse(headers);
                                     }
                                     else if (invalidRequest(statusCode)) {
-                                        errorRequest(formatStatusCode(statusCode));
+                                        errorReject(formatStatusCode(statusCode));
                                     }
                                     else if (downgradeVersion(statusCode)) {
                                         retryDownload(true, formatNgFlags(http2.constants.NGHTTP2_PROTOCOL_ERROR, statusCode));
@@ -1514,34 +1505,39 @@ class FileManager extends Module implements IFileManager {
                     else {
                         (client as ClientRequest)
                             .on('response', res => {
-                                const statusCode = res.statusCode!;
-                                if (statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
-                                    acceptResponse(res.headers);
-                                }
-                                else if (isRetryableStatus(statusCode, request)) {
-                                    setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
-                                }
-                                else {
-                                    errorRequest(formatStatusCode(statusCode));
+                                if (!isAborted(host, client)) {
+                                    const statusCode = res.statusCode!;
+                                    if (statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
+                                        acceptResponse(res.headers);
+                                    }
+                                    else if (isRetryableStatus(statusCode, request)) {
+                                        setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
+                                    }
+                                    else {
+                                        errorReject(formatStatusCode(statusCode));
+                                    }
                                 }
                             })
-                            .on('error', err => errorResponse(err));
+                            .on('error', err => {
+                                if (!aborted) {
+                                    errorResponse(err);
+                                }
+                            });
                     }
-                    client.on('data', data => {
-                        if (!buffer) {
-                            buffer = data;
-                        }
-                        else if (typeof data === 'string') {
-                            buffer += data;
-                        }
-                        else {
-                            buffer = Buffer.concat([buffer, data]);
+                    client.on('timeout', () => {
+                        if (!aborted) {
+                            if (++request.retries <= HTTP_RETRYLIMIT) {
+                                retryTimeout();
+                            }
+                            else {
+                                errorReject(formatStatusCode(HTTP_STATUS.REQUEST_TIMEOUT));
+                            }
                         }
                     });
                 }).bind(this)();
             }
             catch (err) {
-                errorRequest(err);
+                errorReject(err);
             }
         });
     }
@@ -1551,14 +1547,8 @@ class FileManager extends Module implements IFileManager {
         const appending: ObjectMap<ExternalAsset[]> = {};
         const completed: string[] = [];
         const emptied: string[] = [];
-        const notFound: string[] = [];
         const { expires: bufferExpires, limit: bufferLimit } = this.cacheHttpRequestBuffer;
         const isCacheable = (file: ExternalAsset) => bufferLimit > 0 && (!file.contentLength || file.contentLength <= bufferLimit);
-        const permissionFail = (file: ExternalAsset) => {
-            const uri = file.uri!;
-            this.writeFail([ERR_MESSAGE.READ_FILE, uri], new Error(`Insufficient permissions (${uri})`));
-            file.invalid = true;
-        };
         const setHeaderData = (file: ExternalAsset, headers: IncomingHttpHeaders, lastModified?: boolean) => {
             let contentLength: Undef<NumString> = headers['content-length'];
             if (contentLength && !isNaN(contentLength = parseInt(contentLength))) {
@@ -1622,7 +1612,8 @@ class FileManager extends Module implements IFileManager {
                                             }
                                             resolve(file);
                                         })
-                                        .on('error', () => resolve(file));
+                                        .on('error', () => resolve(file))
+                                        .on('timeout', () => resolve(file));
                                 })
                             );
                         }
@@ -1685,7 +1676,7 @@ class FileManager extends Module implements IFileManager {
                                         baseDir: Undef<string>,
                                         tempDir: Undef<string>,
                                         etagDir: Undef<string>,
-                                        pipeAs: Undef<string>;
+                                        pipeTo: Undef<string>;
                                     if (etag) {
                                         tempDir = createTempDir(url);
                                         etagDir = encodeURIComponent(etag);
@@ -1698,10 +1689,10 @@ class FileManager extends Module implements IFileManager {
                                             clearTempBuffer(uri, tempDir && path.join(tempDir, cached[0], path.basename(localUri)));
                                         }
                                         if (tempDir) {
-                                            pipeAs = path.join(baseDir = path.join(tempDir, etagDir), path.basename(localUri));
+                                            pipeTo = path.join(baseDir = path.join(tempDir, etagDir), path.basename(localUri));
                                             try {
-                                                if (Module.hasSize(pipeAs)) {
-                                                    verifyBundle(queue, localUri, fs.readFileSync(pipeAs, { encoding }), etag);
+                                                if (Module.hasSize(pipeTo)) {
+                                                    verifyBundle(queue, localUri, fs.readFileSync(pipeTo, { encoding }), etag);
                                                     continue;
                                                 }
                                                 else if (!fs.existsSync(baseDir)) {
@@ -1709,16 +1700,23 @@ class FileManager extends Module implements IFileManager {
                                                 }
                                             }
                                             catch {
-                                                pipeAs = undefined;
+                                                pipeTo = undefined;
                                             }
                                         }
                                     }
-                                    const time = Date.now();
-                                    const options: Partial<HttpRequest> = { url, encoding, pipeAs, outResponse: (headers: IncomingHttpHeaders) => etag = setHeaderData(queue, headers, true) };
+                                    const options: Partial<HttpRequest> = {
+                                        url,
+                                        encoding,
+                                        pipeTo,
+                                        processMessage: uri + ` (${queue.bundleIndex!})`,
+                                        connected: (headers: IncomingHttpHeaders) => {
+                                            etag = setHeaderData(queue, headers, true);
+                                            return true;
+                                        }
+                                    };
                                     tasks.push(this.fetchBuffer(url, options)
                                         .then(data => {
                                             if (data) {
-                                                this.writeTimeProcess('HTTP' + options.host!.version, url.toString() + ` (${queue.bundleIndex!})`, time, { type: this.logType.HTTP, meterIncrement: 100, queue: true });
                                                 verifyBundle(queue, localUri, data, etag);
                                             }
                                             else {
@@ -1741,7 +1739,7 @@ class FileManager extends Module implements IFileManager {
                                     );
                                 }
                                 else {
-                                    permissionFail(file);
+                                    errorPermission(file);
                                 }
                             }
                         }
@@ -1826,7 +1824,7 @@ class FileManager extends Module implements IFileManager {
                 delete downloading[uri];
             }
         };
-        const errorRequest = (err: Error, file: ExternalAsset, pipeTo?: Null<WriteStream>) => {
+        const errorRequest = (file: ExternalAsset, err: Error, pipeTo?: Null<WriteStream>) => {
             const { uri, localUri } = file as Required<ExternalAsset>;
             const clearQueue = (data: ObjectMap<ExternalAsset<unknown>[]>, attr: string) => {
                 if (data[attr]) {
@@ -1838,14 +1836,16 @@ class FileManager extends Module implements IFileManager {
             clearQueue(appending, localUri);
             clearQueue(downloading, uri);
             file.invalid = true;
-            if (!notFound.includes(uri)) {
-                notFound.push(uri);
-                this.completeAsyncTask();
-            }
-            this.writeFail([ERR_MESSAGE.DOWNLOAD_FILE, uri], err);
+            this.completeAsyncTask();
             if (pipeTo) {
                 FileManager.cleanupStream(pipeTo, localUri);
             }
+            this.writeFail([ERR_MESSAGE.DOWNLOAD_FILE, uri], err);
+        };
+        const errorPermission = (file: ExternalAsset) => {
+            const uri = file.uri!;
+            this.writeFail([ERR_MESSAGE.READ_FILE, uri], new Error(`Insufficient permissions (${uri})`));
+            file.invalid = true;
         };
         for (const item of this.assets) {
             if (!item.filename) {
@@ -1882,6 +1882,7 @@ class FileManager extends Module implements IFileManager {
                 }
                 return true;
             };
+            const uri = item.uri;
             if (item.content) {
                 if (!checkQueue(item, localUri, true) && createFolder()) {
                     item.sourceUTF8 = item.content;
@@ -1903,290 +1904,187 @@ class FileManager extends Module implements IFileManager {
                     });
                 }
             }
-            else {
-                const uri = item.uri;
-                if (!uri || notFound.includes(uri)) {
-                    item.invalid = true;
-                    continue;
-                }
-                try {
-                    const url = item.url;
-                    if (url) {
-                        if (!checkQueue(item, localUri)) {
-                            if (downloading[uri]) {
-                                downloading[uri]!.push(item);
-                            }
-                            else if (createFolder()) {
-                                const options = this.createHttpRequest(url);
-                                const tempDir = createTempDir(url);
-                                const time = Date.now();
-                                downloading[uri] = [];
-                                this.performAsyncTask();
-                                const downloadUri = (etagDir?: string, httpVersion?: HttpVersionSupport) => {
-                                    if (options.pipeTo) {
-                                        FileManager.cleanupStream(options.pipeTo, localUri);
-                                    }
-                                    options.pipeTo = fs.createWriteStream(localUri, { highWaterMark: !options.host.localhost ? HTTP.CHUNK_SIZE : HTTP.CHUNK_SIZE_LOCAL });
-                                    if (httpVersion) {
-                                        options.httpVersion = httpVersion;
-                                    }
-                                    const client = this.getHttpClient(uri, options);
-                                    const host = options.host;
-                                    let aborted: Undef<boolean>;
-                                    const retryDownload = (downgrade: boolean, err: Error) => {
-                                        if (!aborted) {
-                                            if (!abortHttpRequest(client, options)) {
-                                                client.destroy();
-                                            }
-                                            aborted = true;
-                                            delete item.buffer;
-                                            if (downgrade) {
-                                                downgradeHost(host);
-                                            }
-                                            setTimeout(() => downloadUri(etagDir, 1), HTTP_RETRYDELAY);
-                                        }
-                                        if (err) {
-                                            warnProtocol.call(this, host, err);
-                                        }
-                                    };
-                                    const checkResponse = (statusCode: number, headers: IncomingHttpHeaders, flags: number) => {
+            else if (uri) {
+                const url = item.url;
+                if (url) {
+                    if (!checkQueue(item, localUri)) {
+                        if (downloading[uri]) {
+                            downloading[uri]!.push(item);
+                        }
+                        else if (createFolder()) {
+                            const request = this.createHttpRequest(url, { method: 'HEAD', httpVersion: 1 });
+                            const tempDir = createTempDir(url);
+                            downloading[uri] = [];
+                            this.performAsyncTask();
+                            (function checkHeaders(this: IFileManager) {
+                                (this.getHttpClient(uri, request) as ClientRequest)
+                                    .on('response', res => {
+                                        const statusCode = res.statusCode!;
                                         if (statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
-                                            setHeaderData(item, headers, true);
-                                            if (item.willChange || isCacheable(item)) {
-                                                client.on('data', data => {
-                                                    if (typeof data === 'string') {
-                                                        if (item.sourceUTF8) {
-                                                            item.sourceUTF8 += data;
-                                                        }
-                                                        else {
-                                                            item.sourceUTF8 = data;
-                                                        }
+                                            const etag = setHeaderData(item, res.headers);
+                                            let etagDir: Undef<string>;
+                                            if (Module.isString(etag)) {
+                                                etagDir = encodeURIComponent(etag);
+                                                const cached = HTTP_BUFFER[uri];
+                                                let buffer: Undef<BufferContent>;
+                                                if (cached) {
+                                                    const etagCache = cached[0];
+                                                    if (etagDir === etagCache) {
+                                                        buffer = cached[1];
                                                     }
                                                     else {
-                                                        item.buffer = item.buffer ? Buffer.concat([item.buffer, data]) : data;
-                                                    }
-                                                });
-                                            }
-                                            host.success();
-                                        }
-                                        else if (isRetryableStatus(statusCode, options)) {
-                                            setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
-                                        }
-                                        else if (host.v2()) {
-                                            if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
-                                                if (HTTP2_UNSUPPORTED.includes(flags)) {
-                                                    retryDownload(true, formatNgFlags(flags, statusCode));
-                                                }
-                                                else {
-                                                    retryDownload(false, formatStatusCode(statusCode));
-                                                }
-                                            }
-                                            else {
-                                                retryDownload(false, formatNgFlags(0, statusCode, headers.location));
-                                            }
-                                        }
-                                        else {
-                                            errorRequest(formatStatusCode(statusCode), item, options.pipeTo);
-                                        }
-                                    };
-                                    const errorResponse = (err: Error) => {
-                                        if (isRetryable(err, options)) {
-                                            if (isConnectionTimeout(err)) {
-                                                warnConnectTimeout.call(this, options);
-                                                downloadUri.call(this);
-                                            }
-                                            else {
-                                                setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
-                                            }
-                                        }
-                                        else {
-                                            host.error();
-                                            errorRequest(err, item, options.pipeTo);
-                                        }
-                                    };
-                                    if (host.v2()) {
-                                        (client as ClientHttp2Stream)
-                                            .on('response', (headers, flags) => {
-                                                if (!isAborted(host, client)) {
-                                                    const statusCode = headers[':status']!;
-                                                    if (invalidRequest(statusCode)) {
-                                                        errorRequest(formatStatusCode(statusCode), item, options.pipeTo);
-                                                    }
-                                                    else if (downgradeVersion(statusCode)) {
-                                                        retryDownload(true, formatNgFlags(http2.constants.NGHTTP2_PROTOCOL_ERROR, statusCode));
-                                                    }
-                                                    else {
-                                                        checkResponse(statusCode, headers, flags);
+                                                        clearTempBuffer(uri, tempDir && path.join(tempDir, etagCache, path.basename(localUri)));
                                                     }
                                                 }
-                                            })
-                                            .on('error', async err => {
-                                                if (!aborted) {
-                                                    if (await host.hasProtocol(2)) {
-                                                        errorResponse(err);
+                                                const setBuffer = () => {
+                                                    if (typeof buffer === 'string') {
+                                                        item.sourceUTF8 = buffer;
                                                     }
-                                                    else {
-                                                        retryDownload(isFailed(err, host), err);
+                                                    else if (buffer) {
+                                                        item.buffer = buffer;
                                                     }
-                                                }
-                                            });
-                                    }
-                                    else {
-                                        (client as ClientRequest)
-                                            .on('response', res => checkResponse(res.statusCode!, res.headers, 0))
-                                            .on('error', err => errorResponse(err));
-
-                                    }
-                                    options.pipeTo.on('finish', () => {
-                                        if (!aborted && !notFound.includes(uri)) {
-                                            this.writeTimeProcess('HTTP' + host.version, url.toString() + (item.bundleIndex === 0 ? ' (0)' : ''), time, { type: this.logType.HTTP, meterIncrement: 100, queue: true });
-                                            processQueue(item, localUri);
-                                            if (etagDir) {
-                                                const buffer = item.sourceUTF8 || item.buffer;
-                                                if (tempDir) {
-                                                    const baseDir = path.join(tempDir, etagDir);
-                                                    const tempUri = path.join(baseDir, path.basename(localUri));
-                                                    try {
-                                                        if (!fs.existsSync(baseDir)) {
-                                                            fs.mkdirSync(baseDir);
-                                                        }
-                                                        if (buffer) {
-                                                            if (bufferLimit > 0) {
-                                                                setTempBuffer(uri, etagDir, buffer, item.contentLength, tempUri);
+                                                };
+                                                const checkBuffer = () => {
+                                                    if (buffer) {
+                                                        setBuffer();
+                                                        fs.writeFileSync(localUri, buffer);
+                                                        fileReceived();
+                                                        return true;
+                                                    }
+                                                    return false;
+                                                };
+                                                try {
+                                                    if (tempDir) {
+                                                        const pipeAs = path.join(tempDir, etagDir, path.basename(localUri));
+                                                        if (Module.hasSize(pipeAs)) {
+                                                            if (!buffer && isCacheable(item)) {
+                                                                setTempBuffer(uri, etagDir, buffer = fs.readFileSync(pipeAs, { encoding: item.encoding }), item.contentLength, pipeAs);
                                                             }
-                                                            fs.writeFile(tempUri, buffer);
-                                                        }
-                                                        else if (fs.statSync(localUri).size > 0) {
-                                                            fs.copyFile(localUri, tempUri);
-                                                        }
-                                                    }
-                                                    catch (err) {
-                                                        this.writeFail([ERR_MESSAGE.WRITE_FILE, tempUri], err, this.logType.FILE);
-                                                    }
-                                                }
-                                                else if (bufferLimit > 0 && buffer) {
-                                                    setTempBuffer(uri, etagDir, buffer, item.contentLength);
-                                                }
-                                            }
-                                        }
-                                    });
-                                };
-                                (function checkHeaders(this: IFileManager) {
-                                    (this.getHttpClient(uri, { method: 'HEAD', httpVersion: 1 }) as ClientRequest)
-                                        .on('response', res => {
-                                            const statusCode = res.statusCode!;
-                                            if (statusCode >= HTTP_STATUS.MULTIPLE_CHOICES) {
-                                                if (isRetryStatus(statusCode) && ++options.retries <= HTTP_RETRYLIMIT) {
-                                                    setTimeout(checkHeaders.bind(this), HTTP_RETRYDELAY);
-                                                }
-                                                else {
-                                                    errorRequest(formatStatusCode(statusCode), item);
-                                                }
-                                            }
-                                            else {
-                                                const etag = setHeaderData(item, res.headers);
-                                                let etagDir: Undef<string>;
-                                                if (Module.isString(etag)) {
-                                                    etagDir = encodeURIComponent(etag);
-                                                    const cached = HTTP_BUFFER[uri];
-                                                    let buffer: Undef<BufferContent>;
-                                                    if (cached) {
-                                                        const etagCache = cached[0];
-                                                        if (etagDir === etagCache) {
-                                                            buffer = cached[1];
-                                                        }
-                                                        else {
-                                                            clearTempBuffer(uri, tempDir && path.join(tempDir, etagCache, path.basename(localUri)));
-                                                        }
-                                                    }
-                                                    const setBuffer = () => {
-                                                        if (typeof buffer === 'string') {
-                                                            item.sourceUTF8 = buffer;
-                                                        }
-                                                        else if (buffer) {
-                                                            item.buffer = buffer;
-                                                        }
-                                                    };
-                                                    const checkBuffer = () => {
-                                                        if (buffer) {
-                                                            setBuffer();
-                                                            fs.writeFileSync(localUri, buffer);
+                                                            if (this.archiving || !Module.hasSameStat(pipeAs, localUri)) {
+                                                                if (buffer) {
+                                                                    fs.writeFileSync(localUri, buffer);
+                                                                }
+                                                                else {
+                                                                    fs.copyFileSync(pipeAs, localUri);
+                                                                }
+                                                            }
+                                                            if (item.willChange) {
+                                                                setBuffer();
+                                                            }
                                                             fileReceived();
-                                                            return true;
-                                                        }
-                                                        return false;
-                                                    };
-                                                    try {
-                                                        if (tempDir) {
-                                                            const tempUri = path.join(tempDir, etagDir, path.basename(localUri));
-                                                            if (Module.hasSize(tempUri)) {
-                                                                if (!buffer && isCacheable(item)) {
-                                                                    setTempBuffer(uri, etagDir, buffer = fs.readFileSync(tempUri, { encoding: item.encoding }), item.contentLength, tempUri);
-                                                                }
-                                                                if (this.archiving || !Module.hasSameStat(tempUri, localUri)) {
-                                                                    if (buffer) {
-                                                                        fs.writeFileSync(localUri, buffer);
-                                                                    }
-                                                                    else {
-                                                                        fs.copyFileSync(tempUri, localUri);
-                                                                    }
-                                                                }
-                                                                if (item.willChange) {
-                                                                    setBuffer();
-                                                                }
-                                                                fileReceived();
-                                                                return;
-                                                            }
-                                                            else if (checkBuffer()) {
-                                                                try {
-                                                                    fs.writeFileSync(tempUri, buffer!);
-                                                                }
-                                                                catch {
-                                                                }
-                                                                return;
-                                                            }
+                                                            return;
                                                         }
                                                         else if (checkBuffer()) {
+                                                            try {
+                                                                fs.writeFileSync(pipeAs, buffer!);
+                                                            }
+                                                            catch {
+                                                            }
                                                             return;
                                                         }
                                                     }
-                                                    catch {
+                                                    else if (checkBuffer()) {
+                                                        return;
                                                     }
                                                 }
-                                                downloadUri(etagDir);
+                                                catch {
+                                                }
                                             }
-                                        })
-                                        .on('error', err => {
-                                            if (isRetryable(err, options)) {
-                                                if (isConnectionTimeout(err)) {
-                                                    checkHeaders.call(this);
-                                                }
-                                                else {
-                                                    setTimeout(checkHeaders.bind(this), HTTP_RETRYDELAY);
-                                                }
+                                            request.method = 'GET';
+                                            request.httpVersion = undefined;
+                                            request.encoding = item.encoding;
+                                            request.pipeTo = localUri;
+                                            request.processMessage = uri + (item.bundleIndex === 0 ? ' (0)' : '');
+                                            request.connected = headers => {
+                                                setHeaderData(item, headers, true);
+                                                return item.willChange || isCacheable(item);
+                                            };
+                                            this.fetchBuffer(url, request)
+                                                .then(data => {
+                                                    if (data) {
+                                                        if (typeof data === 'string') {
+                                                            item.sourceUTF8 = data;
+                                                        }
+                                                        else {
+                                                            item.buffer = data;
+                                                        }
+                                                    }
+                                                    processQueue(item, localUri);
+                                                    if (etagDir && data) {
+                                                        if (tempDir) {
+                                                            const baseDir = path.join(tempDir, etagDir);
+                                                            const tempUri = path.join(baseDir, path.basename(localUri));
+                                                            try {
+                                                                if (!fs.existsSync(baseDir)) {
+                                                                    fs.mkdirSync(baseDir);
+                                                                }
+                                                                if (data) {
+                                                                    if (bufferLimit > 0) {
+                                                                        setTempBuffer(uri, etagDir, data, item.contentLength, tempUri);
+                                                                    }
+                                                                    fs.writeFile(tempUri, data);
+                                                                }
+                                                                else if (fs.statSync(localUri).size > 0) {
+                                                                    fs.copyFile(localUri, tempUri);
+                                                                }
+                                                            }
+                                                            catch (err) {
+                                                                this.writeFail([ERR_MESSAGE.WRITE_FILE, tempUri], err, this.logType.FILE);
+                                                            }
+                                                        }
+                                                        else if (bufferLimit > 0 && data) {
+                                                            setTempBuffer(uri, etagDir, data, item.contentLength);
+                                                        }
+                                                    }
+                                                })
+                                                .catch(err => errorRequest(item, err));
+                                        }
+                                        else if (isRetryableStatus(statusCode, request)) {
+                                                setTimeout(checkHeaders.bind(this), HTTP_RETRYDELAY);
                                             }
                                             else {
-                                                options.host.error();
-                                                errorRequest(err, item);
+                                                errorRequest(item, formatStatusCode(statusCode));
                                             }
-                                        });
-                                }).bind(this)();
-                            }
+                                    })
+                                    .on('error', err => {
+                                        if (isRetryable(err, request)) {
+                                            if (isConnectionTimeout(err)) {
+                                                checkHeaders.call(this);
+                                            }
+                                            else {
+                                                setTimeout(checkHeaders.bind(this), HTTP_RETRYDELAY);
+                                            }
+                                        }
+                                        else {
+                                            request.host.error();
+                                            errorRequest(item, err);
+                                        }
+                                    })
+                                    .on('timeout', () => {
+                                        if (++request.retries <= HTTP_RETRYLIMIT) {
+                                            checkHeaders.call(this);
+                                        }
+                                        else {
+                                            request.host.error();
+                                            errorRequest(item, formatStatusCode(HTTP_STATUS.REQUEST_TIMEOUT));
+                                        }
+                                    });
+                            }).bind(this)();
                         }
                     }
-                    else if (Module.isFileUNC(uri) && this.permission.hasUNCRead(uri) || path.isAbsolute(uri) && this.permission.hasDiskRead(uri)) {
-                        if (!checkQueue(item, localUri) && createFolder() && (this.archiving || !Module.hasSameStat(uri, localUri))) {
-                            this.performAsyncTask();
-                            fs.copyFile(uri, localUri, err => fileReceived(err));
-                        }
-                    }
-                    else {
-                        permissionFail(item);
+                }
+                else if (Module.isFileUNC(uri) && this.permission.hasUNCRead(uri) || path.isAbsolute(uri) && this.permission.hasDiskRead(uri)) {
+                    if (!checkQueue(item, localUri) && createFolder() && (this.archiving || !Module.hasSameStat(uri, localUri))) {
+                        this.performAsyncTask();
+                        fs.copyFile(uri, localUri, err => fileReceived(err));
                     }
                 }
-                catch (err) {
-                    errorRequest(err, item);
+                else {
+                    errorPermission(item);
                 }
+            }
+            else {
+                item.invalid = true;
             }
         }
         this.cleared = true;

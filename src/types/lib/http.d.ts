@@ -32,15 +32,15 @@ export interface HttpRequest {
     host: IHttpHost;
     url: URL;
     retries: number;
-    httpVersion: HttpVersionSupport;
-    method?: string;
+    httpVersion?: HttpVersionSupport;
+    method?: "GET" | "HEAD";
     encoding?: TextEncoding;
     headers?: OutgoingHttpHeaders;
     timeout?: number;
-    pipeTo?: WriteStream;
-    pipeAs?: string;
-    pipeFinish?: () => void;
-    outResponse?: (headers: IncomingHttpHeaders) => void;
+    pipeTo?: string;
+    connected?: (headers: IncomingHttpHeaders) => Void<boolean>;
+    processMessage?: string;
+    outStream?: WriteStream;
     outAbort?: AbortController;
 }
 

@@ -260,7 +260,7 @@ declare namespace functions {
         writeBuffer(file: ExternalAsset): Null<Buffer>;
         writeImage(document: StringOfArray, data: OutputFinalize): boolean;
         compressFile(file: ExternalAsset, overwrite?: boolean): Promise<unknown>;
-        createHttpRequest(url: StringOfURL, httpVersion?: HttpVersionSupport): HttpRequest;
+        createHttpRequest(url: StringOfURL, options?: Partial<HttpRequest>): HttpRequest;
         getHttpClient(uri: StringOfURL, options?: Partial<HttpRequest>): HttpRequestClient;
         getHostProxy(host: IHttpHost, uri: string): Null<HttpProxyData>;
         fetchBuffer(uri: StringOfURL, options?: Partial<HttpRequest>): Promise<Null<BufferContent>>;

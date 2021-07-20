@@ -324,13 +324,14 @@ class Watch extends Module implements IWatch {
                             }
                             const host = this.host;
                             const url = host && new URL(uri);
+                            let pending = false;
                             const timer = setInterval(() => {
-                                const timeout = Math.max(interval * 5, 5000);
-                                const options = url && host!.createHttpRequest(url, 1);
-                                if (options) {
-                                    options.method = 'HEAD';
-                                    options.timeout = timeout;
+                                if (pending) {
+                                    return;
                                 }
+                                const timeout = Math.max(interval * 5, 5000);
+                                const options = url && host!.createHttpRequest(url, { method: 'HEAD', httpVersion: 1, timeout });
+                                pending = true;
                                 (options ? host!.getHttpClient(uri, options) as ClientRequest : request(uri, { method: 'HEAD', timeout }))
                                     .on('response', res => {
                                         const map = HTTP_MAP[uri];
@@ -357,6 +358,7 @@ class Watch extends Module implements IWatch {
                                         else {
                                             clearInterval(timer);
                                         }
+                                        pending = false;
                                     })
                                     .on('error', err => {
                                         if (isConnectionTimeout(err) && ++data.retries <= ERR.MAX_CONNECTION) {
@@ -365,7 +367,9 @@ class Watch extends Module implements IWatch {
                                         this.writeFail([ERR_MESSAGE.WATCH_FILE, uri], err);
                                         delete HTTP_MAP[uri];
                                         clearInterval(timer);
-                                    });
+                                        pending = false;
+                                    })
+                                    .on('timeout', () => pending = false);
                             }, interval);
                             (HTTP_MAP[uri] ||= new Map()).set(dest, { data, timeout: [timer, interval] });
                         }
