@@ -18,7 +18,7 @@ import https = require('https');
 import ws = require('ws');
 import request = require('request');
 
-import { isConnectionTimeout } from '../file-manager';
+import { HTTP_STATUS, formatStatusCode, isConnectionTimeout } from '../file-manager';
 
 type FileWatchMap = ObjectMap<Map<string, { data: FileWatch; timeout: [Null<NodeJS.Timeout>, number] }>>;
 
@@ -39,7 +39,7 @@ const enum TIME { // eslint-disable-line no-shadow
 const enum ERR { // eslint-disable-line no-shadow
     ETAG = 1,
     LOCAL_ACCESS = 2,
-    MAX_CONNECTION = 5
+    TIMEOUT_LIMIT = 10
 }
 
 const REGEXP_EXPIRES = /^(?:\s*([\d.]+)\s*w)?(?:\s*([\d.]+)\s*d)?(?:\s*([\d.]+)\s*h)?(?:\s*([\d.]+)\s*m)?(?:\s*([\d.]+)\s*s)?(?:\s*(\d+)\s*ms)?\s*$/;
@@ -285,7 +285,6 @@ class Watch extends Module implements IWatch {
                             uri,
                             etag,
                             assets,
-                            retries: 0,
                             bundleMain,
                             start,
                             id,
@@ -324,18 +323,24 @@ class Watch extends Module implements IWatch {
                             }
                             const host = this.host;
                             const url = host && new URL(uri);
-                            let pending = false;
+                            const writeError = (err: Error) => {
+                                this.writeFail([ERR_MESSAGE.WATCH_FILE, uri], err);
+                                delete HTTP_MAP[uri];
+                            };
+                            let retries = 0,
+                                pending = false;
                             const timer = setInterval(() => {
                                 if (pending) {
                                     return;
                                 }
-                                const timeout = Math.max(interval * 5, 5000);
-                                const options = url && host!.createHttpRequest(url, { method: 'HEAD', httpVersion: 1, timeout });
+                                const timeout = interval * 5;
+                                const options = url && host!.createHttpRequest(url, { method: 'HEAD', httpVersion: 1, timeout, keepAliveTimeout: timeout * 2 });
                                 pending = true;
-                                (options ? host!.getHttpClient(uri, options) as ClientRequest : request(uri, { method: 'HEAD', timeout }))
+                                ((options ? host!.getHttpClient(uri, options) : request(uri, { method: 'HEAD', timeout })) as ClientRequest)
                                     .on('response', res => {
+                                        const statusCode = res.statusCode!;
                                         const map = HTTP_MAP[uri];
-                                        if (map) {
+                                        if (map && statusCode >= HTTP_STATUS.OK && statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
                                             for (const [target, input] of map) {
                                                 const next = input.data;
                                                 const expired = next.expires;
@@ -356,20 +361,28 @@ class Watch extends Module implements IWatch {
                                             }
                                         }
                                         else {
+                                            if (map) {
+                                                writeError(formatStatusCode(statusCode));
+                                            }
                                             clearInterval(timer);
                                         }
                                         pending = false;
                                     })
                                     .on('error', err => {
-                                        if (isConnectionTimeout(err) && ++data.retries <= ERR.MAX_CONNECTION) {
+                                        if (isConnectionTimeout(err) && ++retries <= ERR.TIMEOUT_LIMIT) {
                                             return;
                                         }
-                                        this.writeFail([ERR_MESSAGE.WATCH_FILE, uri], err);
-                                        delete HTTP_MAP[uri];
+                                        writeError(err);
                                         clearInterval(timer);
                                         pending = false;
                                     })
-                                    .on('timeout', () => pending = false);
+                                    .on('timeout', () => {
+                                        if (++retries > ERR.TIMEOUT_LIMIT) {
+                                            writeError(formatStatusCode(HTTP_STATUS.REQUEST_TIMEOUT));
+                                            clearInterval(timer);
+                                        }
+                                        pending = false;
+                                    });
                             }, interval);
                             (HTTP_MAP[uri] ||= new Map()).set(dest, { data, timeout: [timer, interval] });
                         }

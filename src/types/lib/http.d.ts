@@ -31,12 +31,12 @@ export interface HttpProxyData {
 export interface HttpRequest {
     host: IHttpHost;
     url: URL;
-    retries: number;
     httpVersion?: HttpVersionSupport;
     method?: "GET" | "HEAD";
     encoding?: TextEncoding;
     headers?: OutgoingHttpHeaders;
     timeout?: number;
+    keepAliveTimeout?: number;
     pipeTo?: string;
     connected?: (headers: IncomingHttpHeaders) => Void<boolean>;
     processMessage?: string;
