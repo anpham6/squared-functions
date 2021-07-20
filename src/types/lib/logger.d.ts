@@ -22,7 +22,8 @@ export const enum ERR_MESSAGE {
     READ_DIRECTORY = 'Unable to read directory',
     DELETE_DIRECTORY = 'Unable to delete directory',
     LOAD_CONFIG = 'Unable to load configuration',
-    READ_BUFFER = 'Unable to read buffer'
+    READ_BUFFER = 'Unable to read buffer',
+    WRITE_BUFFER = 'Unable to read buffer'
 }
 
 export enum LOG_TYPE {
