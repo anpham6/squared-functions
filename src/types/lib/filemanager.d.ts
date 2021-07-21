@@ -16,9 +16,10 @@ export interface HttpRequestBuffer {
 export interface HttpRequestSettings {
     headers?: HttpBaseHeaders;
     connectTimeout?: NumString;
-    redirectLimit?: NumString;
     retryLimit?: NumString;
     retryDelay?: NumString;
+    retryAfter?: NumString;
+    redirectLimit?: NumString;
 }
 
 export interface AssetContentOptions extends BundleAction {

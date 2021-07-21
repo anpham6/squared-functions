@@ -138,6 +138,7 @@ let HTTP_CONNECTTIMEOUT = 10 * 1000;
 let HTTP_REDIRECTLIMIT = 10;
 let HTTP_RETRYLIMIT = 3;
 let HTTP_RETRYDELAY = 1000;
+let HTTP_RETRYAFTER = 30 * 1000;
 
 function parseSizeRange(value: string) {
     const match = /\(\s*(\d+)\s*(?:,\s*(\d+|\*)\s*)?\)/.exec(value);
@@ -157,18 +158,21 @@ function withinSizeRange(uri: string, value: Undef<string>) {
     return true;
 }
 
-function isRetryStatus(value: number) {
+function isRetryStatus(value: number, timeout?: boolean) {
     switch (value) {
         case HTTP_STATUS.REQUEST_TIMEOUT:
+        case HTTP_STATUS.GATEWAY_TIMEOUT:
+        case HTTP_STATUS.NETWORK_CONNECT_TIMEOUT_ERROR:
+            if (timeout) {
+                return true;
+            }
         case HTTP_STATUS.TOO_MANY_REQUESTS:
         case HTTP_STATUS.CONNECTION_CLOSED_WITHOUT_RESPONSE:
         case HTTP_STATUS.CLIENT_CLOSED_REQUEST:
         case HTTP_STATUS.INTERNAL_SERVER_ERROR:
         case HTTP_STATUS.BAD_GATEWAY:
         case HTTP_STATUS.SERVICE_UNAVAILABLE:
-        case HTTP_STATUS.GATEWAY_TIMEOUT:
-        case HTTP_STATUS.NETWORK_CONNECT_TIMEOUT_ERROR:
-            return true;
+            return timeout ? false : true;
         default:
             return false;
     }
@@ -451,21 +455,24 @@ class FileManager extends Module implements IFileManager {
     }
 
     static settingsHttpRequest(options: HttpRequestSettings) {
-        let { headers, connectTimeout, redirectLimit, retryLimit, retryDelay } = options; // eslint-disable-line prefer-const
+        let { headers, connectTimeout, retryLimit, retryDelay, retryAfter, redirectLimit } = options; // eslint-disable-line prefer-const
         if (headers) {
             Object.assign(HTTP_BASEHEADERS, headers);
         }
         if (!isNaN(connectTimeout = asInt(connectTimeout)) && connectTimeout > 0) {
             HTTP_CONNECTTIMEOUT = connectTimeout * 1000;
         }
-        if (!isNaN(redirectLimit = asInt(redirectLimit)) && redirectLimit >= 0) {
-            HTTP_REDIRECTLIMIT = redirectLimit;
-        }
         if (!isNaN(retryLimit = asInt(retryLimit)) && retryLimit >= 0) {
             HTTP_RETRYLIMIT = retryLimit;
         }
         if (!isNaN(retryDelay = asInt(retryDelay))) {
             HTTP_RETRYDELAY = Math.max(retryDelay, 0);
+        }
+        if (!isNaN(retryAfter = asInt(retryAfter))) {
+            HTTP_RETRYAFTER = Math.max(retryAfter, 0) * 1000;
+        }
+        if (!isNaN(redirectLimit = asInt(redirectLimit)) && redirectLimit >= 0) {
+            HTTP_REDIRECTLIMIT = redirectLimit;
         }
     }
 
@@ -1398,7 +1405,7 @@ class FileManager extends Module implements IFileManager {
             const pipeTo = options && options.pipeTo;
             let outStream: Undef<WriteStream>,
                 closed: Undef<boolean>;
-            const errorReject = (err: Error) => {
+            const throwError = (err: Error) => {
                 if (!closed) {
                     if (outStream) {
                         FileManager.cleanupStream(outStream, pipeTo);
@@ -1409,8 +1416,8 @@ class FileManager extends Module implements IFileManager {
             };
             try {
                 const time = Date.now();
-                let redirects = 0,
-                    retries = 0;
+                let retries = 0,
+                    redirects = 0;
                 (function downloadUri(this: IFileManager, href: StringOfURL, httpVersion?: HttpVersionSupport) {
                     const request = this.createHttpRequest(href, options);
                     if (outStream) {
@@ -1428,6 +1435,7 @@ class FileManager extends Module implements IFileManager {
                     let buffer: Optional<BufferContent>,
                         aborted: Undef<boolean>;
                     const isRetryable = (value: number) => isRetryStatus(value) && ++retries <= HTTP_RETRYLIMIT;
+                    const formatWarning = (message: string) => this.formatMessage(this.logType.HTTP, 'HTTP' + host.version, [message, host.origin], url.toString(), { titleColor: 'yellow', titleBgColor: 'bgGray' });
                     const abortResponse = () => {
                         aborted = true;
                         if (!client.destroyed) {
@@ -1444,7 +1452,7 @@ class FileManager extends Module implements IFileManager {
                         }
                     };
                     const retryTimeout = () => {
-                        this.formatMessage(this.logType.HTTP, 'HTTP' + host.version, [`Connection timeout (${retries} / ${HTTP_RETRYLIMIT})`, host.origin], url.toString(), { titleColor: 'yellow', titleBgColor: 'bgGray' });
+                        formatWarning(`Connection timeout (${retries} / ${HTTP_RETRYLIMIT})`);
                         downloadUri.call(this, href);
                     };
                     const acceptResponse = (headers: IncomingHttpHeaders) => {
@@ -1493,27 +1501,56 @@ class FileManager extends Module implements IFileManager {
                                 downloadUri.call(this, getLocation(url, location));
                             }
                             else {
-                                errorReject(formatRedirectError());
+                                throwError(formatRedirectError());
                             }
                         }
                         else {
-                            errorReject(formatStatusCode(HTTP_STATUS.NOT_FOUND, 'Redirect location was missing'));
+                            throwError(formatStatusCode(HTTP_STATUS.NOT_FOUND, 'Redirect location was missing'));
                         }
                     };
                     const errorResponse = (err: Error) => {
                         abortResponse();
-                        if (isRetryError(err) && ++retries <= HTTP_RETRYLIMIT) {
-                            if (isConnectionTimeout(err)) {
-                                retryTimeout();
+                        if (isRetryError(err)) {
+                            if (++retries <= HTTP_RETRYLIMIT) {
+                                if (isConnectionTimeout(err)) {
+                                    retryTimeout();
+                                }
+                                else {
+                                    setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
+                                }
                             }
                             else {
-                                setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
+                                throwError(err);
                             }
                         }
                         else {
                             host.error();
-                            errorReject(err);
+                            throwError(err);
                         }
+                    };
+                    const retryResponse = (statusCode: number, retryAfter?: Undef<string>) => {
+                        if (retryAfter && HTTP_RETRYAFTER > 0) {
+                            let offset = +retryAfter || new Date(retryAfter);
+                            if (offset instanceof Date) {
+                                offset = Math.max(0, offset.getTime() - Date.now());
+                            }
+                            else {
+                                offset *= 1000;
+                            }
+                            if (offset > 0) {
+                                if (offset <= HTTP_RETRYAFTER) {
+                                    formatWarning(`Retry After (${retryAfter})`);
+                                    setTimeout(downloadUri.bind(this), offset);
+                                }
+                                else {
+                                    abortResponse();
+                                    throwError(formatStatusCode(statusCode));
+                                }
+                                return;
+                            }
+                        }
+                        formatWarning(FileManager.fromHttpStatusCode(statusCode) + ` (${retries} / ${HTTP_RETRYLIMIT})`);
+                        setTimeout(downloadUri.bind(this), isRetryStatus(statusCode, true) ? 0 : HTTP_RETRYDELAY);
                     };
                     if (host.v2()) {
                         const retryDownload = (downgrade: boolean, err: Error) => {
@@ -1539,13 +1576,13 @@ class FileManager extends Module implements IFileManager {
                                         redirectResponse(headers.location);
                                     }
                                     else if (invalidRequest(statusCode)) {
-                                        errorReject(formatStatusCode(statusCode));
+                                        throwError(formatStatusCode(statusCode));
                                     }
                                     else if (downgradeVersion(statusCode)) {
                                         retryDownload(true, formatNgFlags(http2.constants.NGHTTP2_PROTOCOL_ERROR, statusCode));
                                     }
                                     else if (isRetryable(statusCode)) {
-                                        setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
+                                        retryResponse(statusCode, headers['retry-after']);
                                     }
                                     else if (statusCode >= HTTP_STATUS.BAD_REQUEST) {
                                         if (HTTP2_UNSUPPORTED.includes(flags)) {
@@ -1583,12 +1620,11 @@ class FileManager extends Module implements IFileManager {
                                         redirectResponse(res.headers.location);
                                     }
                                     else if (isRetryable(statusCode)) {
-                                        abortResponse();
-                                        setTimeout(downloadUri.bind(this), HTTP_RETRYDELAY);
+                                        retryResponse(statusCode, res.headers['retry-after']);
                                     }
                                     else {
                                         abortResponse();
-                                        errorReject(formatStatusCode(statusCode));
+                                        throwError(formatStatusCode(statusCode));
                                     }
                                 }
                             })
@@ -1605,14 +1641,14 @@ class FileManager extends Module implements IFileManager {
                                 retryTimeout();
                             }
                             else {
-                                errorReject(formatStatusCode(HTTP_STATUS.REQUEST_TIMEOUT));
+                                throwError(formatStatusCode(HTTP_STATUS.REQUEST_TIMEOUT));
                             }
                         }
                     });
                 }).bind(this)(uri);
             }
             catch (err) {
-                errorReject(err);
+                throwError(err);
             }
         });
     }
@@ -1872,7 +1908,7 @@ class FileManager extends Module implements IFileManager {
                     for (const copyUri of files) {
                         try {
                             if (buffer) {
-                                fs.writeFileSync(localUri, buffer);
+                                fs.writeFileSync(copyUri, buffer);
                             }
                             else {
                                 fs.copyFileSync(localUri, copyUri);
@@ -1995,7 +2031,7 @@ class FileManager extends Module implements IFileManager {
                         else if (createFolder(item, pathname)) {
                             downloading[uri] = [];
                             this.performAsyncTask();
-                            let client: Undef<ClientRequest>;
+                            let client: Null<ClientRequest> = null;
                             const closeResponse = () => {
                                 if (client && !client.destroyed) {
                                     client.destroy();
