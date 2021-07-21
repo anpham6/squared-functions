@@ -236,17 +236,11 @@ function getLocation(url: URL, value: string) {
     return url.protocol + '//' + (credentials ? credentials + '@' : '') + url.hostname + (url.port ? ':' + url.port : '') + (value[0] !== '/' ? '/' : '') + value;
 }
 
-const isFailed = (err: Error, host: IHttpHost) => host.error() >= HTTP.MAX_ERROR || isDowngrade(err) || !isRetryError(err);
-const isDowngrade = (err: unknown) => err instanceof Error && ((err as SystemError).code === 'ERR_HTTP2_ERROR' || Math.abs((err as SystemError).errno) === HTTP_STATUS.HTTP_VERSION_NOT_SUPPORTED);
-const isAborted = (host: IHttpHost, client: HttpRequestClient) => client.destroyed || host.v2() && (client as ClientHttp2Stream).aborted;
-const invalidRequest = (value: number) => value >= HTTP_STATUS.UNAUTHORIZED && value <= HTTP_STATUS.NOT_FOUND || value === HTTP_STATUS.PROXY_AUTHENTICATION_REQUIRED || value === HTTP_STATUS.GONE;
-const downgradeVersion = (value: number) => value === HTTP_STATUS.MISDIRECTED_REQUEST || value === HTTP_STATUS.HTTP_VERSION_NOT_SUPPORTED;
-const formatNgFlags = (value: number, statusCode: number, location?: string) => location ? new Error(`Using HTTP 1.1 for URL redirect (${location})`) : formatStatusCode(statusCode, value ? 'NGHTTP2 Error ' + value : '');
-const formatRedirectError = () => formatStatusCode(HTTP_STATUS.BAD_REQUEST, `Redirect limit was exceeded (${HTTP_REDIRECTLIMIT})`);
 const formatCredentials = (url: URL) => url.username ? decodeURIComponent(url.username) + (url.password ? ':' + decodeURIComponent(url.password) : '') : '';
+const getRedirectError = () => formatStatusCode(HTTP_STATUS.BAD_REQUEST, `Redirect limit was exceeded (${HTTP_REDIRECTLIMIT})`);
 const concatString = (values: Undef<string[]>) => Array.isArray(values) ? values.reduce((a, b) => a + '\n' + b, '') : '';
-const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
 const asInt = (value: unknown) => typeof value === 'string' ? parseInt(value) : typeof value === 'number' ? Math.floor(value) : NaN;
+const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
 
 class HttpHost implements IHttpHost {
     readonly origin: string;
@@ -1252,17 +1246,17 @@ class FileManager extends Module implements IFileManager {
             }
         }
         if (v2) {
-            const listenerMap: ObjectMap<((...args: any[]) => void)[]> = {};
-            let signal: Undef<AbortSignal>,
-                cleared: Undef<boolean>,
-                emitter: Undef<Transform>;
-            if (options && this.supported(15, 4)) {
+            let signal: Undef<PlainObject>;
+            if (getting && options && this.supported(15, 4)) {
                 const ac = new AbortController();
-                signal = ac.signal;
+                signal = { signal: ac.signal };
                 options.outAbort = ac;
             }
-            request = (this._sessionHttp2[origin] ||= http2.connect(origin)).request({ ...baseHeaders, ...host.headers, ...headers, ':path': pathname, ':method': method }, signal && { signal } as PlainObject);
+            request = (this._sessionHttp2[origin] ||= http2.connect(origin)).request({ ...baseHeaders, ...host.headers, ...headers, ':path': pathname, ':method': method }, signal);
             if (getting) {
+                const listenerMap: ObjectMap<((...args: any[]) => void)[]> = {};
+                let cleared: Undef<boolean>,
+                    emitter: Undef<Transform>;
                 request.on('response', response => {
                     cleared = true;
                     const statusCode = response[':status']!;
@@ -1434,8 +1428,11 @@ class FileManager extends Module implements IFileManager {
                     const { host, url, encoding } = request;
                     let buffer: Optional<BufferContent>,
                         aborted: Undef<boolean>;
+                    const isAborted = () => client.destroyed || host.v2() && (client as ClientHttp2Stream).aborted;
                     const isRetryable = (value: number) => isRetryStatus(value) && ++retries <= HTTP_RETRYLIMIT;
+                    const isDowngrade = (err: unknown) => err instanceof Error && ((err as SystemError).code === 'ERR_HTTP2_ERROR' || Math.abs((err as SystemError).errno) === HTTP_STATUS.HTTP_VERSION_NOT_SUPPORTED);
                     const formatWarning = (message: string) => this.formatMessage(this.logType.HTTP, 'HTTP' + host.version, [message, host.origin], url.toString(), { titleColor: 'yellow', titleBgColor: 'bgGray' });
+                    const formatNgFlags = (value: number, statusCode: number, location?: string) => location ? new Error(`Using HTTP 1.1 for URL redirect (${location})`) : formatStatusCode(statusCode, value ? 'NGHTTP2 Error ' + value : '');
                     const abortResponse = () => {
                         aborted = true;
                         if (!client.destroyed) {
@@ -1504,7 +1501,7 @@ class FileManager extends Module implements IFileManager {
                                 downloadUri.call(this, getLocation(url, location));
                             }
                             else {
-                                throwError(formatRedirectError());
+                                throwError(getRedirectError());
                             }
                         }
                         else {
@@ -1570,7 +1567,7 @@ class FileManager extends Module implements IFileManager {
                         };
                         (client as ClientHttp2Stream)
                             .on('response', (headers, flags) => {
-                                if (!isAborted(host, client)) {
+                                if (!isAborted()) {
                                     const statusCode = headers[':status']!;
                                     if (statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
                                         acceptResponse(headers);
@@ -1578,10 +1575,20 @@ class FileManager extends Module implements IFileManager {
                                     else if (statusCode < HTTP_STATUS.BAD_REQUEST) {
                                         redirectResponse(headers.location);
                                     }
-                                    else if (invalidRequest(statusCode)) {
+                                    else if (
+                                        statusCode === HTTP_STATUS.UNAUTHORIZED ||
+                                        statusCode === HTTP_STATUS.PAYMENT_REQUIRED ||
+                                        statusCode === HTTP_STATUS.FORBIDDEN ||
+                                        statusCode === HTTP_STATUS.NOT_FOUND ||
+                                        statusCode === HTTP_STATUS.PROXY_AUTHENTICATION_REQUIRED ||
+                                        statusCode === HTTP_STATUS.GONE)
+                                    {
                                         throwError(formatStatusCode(statusCode));
                                     }
-                                    else if (downgradeVersion(statusCode)) {
+                                    else if (
+                                        statusCode === HTTP_STATUS.MISDIRECTED_REQUEST ||
+                                        statusCode === HTTP_STATUS.HTTP_VERSION_NOT_SUPPORTED)
+                                    {
                                         retryDownload(true, formatNgFlags(http2.constants.NGHTTP2_PROTOCOL_ERROR, statusCode));
                                     }
                                     else if (isRetryable(statusCode)) {
@@ -1606,7 +1613,7 @@ class FileManager extends Module implements IFileManager {
                                         errorResponse(err);
                                     }
                                     else {
-                                        retryDownload(isFailed(err, host), err);
+                                        retryDownload(host.error() >= HTTP.MAX_ERROR || isDowngrade(err) || !isRetryError(err), err);
                                     }
                                 }
                             });
@@ -1614,7 +1621,7 @@ class FileManager extends Module implements IFileManager {
                     else {
                         (client as ClientRequest)
                             .on('response', res => {
-                                if (!isAborted(host, client)) {
+                                if (!isAborted()) {
                                     const statusCode = res.statusCode!;
                                     if (statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
                                         acceptResponse(res.headers);
@@ -2185,7 +2192,7 @@ class FileManager extends Module implements IFileManager {
                                                 }
                                                 catch {
                                                 }
-                                                errorRequest(file, formatRedirectError());
+                                                errorRequest(file, getRedirectError());
                                             }
                                             else {
                                                 downloadUri(request);
