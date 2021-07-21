@@ -506,6 +506,8 @@ abstract class Module implements IModule {
     tempDir = 'tmp';
     readonly errors: string[] = [];
 
+    protected _logEnabled = true;
+
     supported(major: number, minor: number, patch = 0) {
         if (this.major < major) {
             return false;
@@ -539,7 +541,7 @@ abstract class Module implements IModule {
     formatFail(type: LOG_TYPE, title: string, value: LogValue, message?: Null<Error>, options?: LogMessageOptions) {
         type |= LOG_TYPE.FAIL;
         Module.formatMessage(type, title, value, message, applyFailStyle(options));
-        if (message) {
+        if (message && this._logEnabled) {
             this.errors.push(message instanceof Error ? SETTINGS.stack_trace && message.stack || message.message : (message as string).toString());
         }
     }

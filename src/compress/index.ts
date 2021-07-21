@@ -20,6 +20,8 @@ const Compress = new class extends Module implements ICompress {
     compressors: ObjectMap<CompressTryFileMethod> = {};
     chunkSize?: number;
 
+    protected _logEnabled = false;
+
     register(format: string, callback: CompressTryFileMethod, level?: number) {
         this.compressors[format = format.toLowerCase()] = callback;
         if (level !== undefined) {
