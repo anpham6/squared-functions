@@ -378,7 +378,7 @@ class FileManager extends Module implements IFileManager {
             if (file.buffer) {
                 file.sourceUTF8 = file.buffer.toString('utf8');
             }
-            if (localUri ||= file.localUri) {
+            else if (localUri ||= file.localUri) {
                 try {
                     file.sourceUTF8 = fs.readFileSync(localUri, 'utf8');
                 }
