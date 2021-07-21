@@ -12,7 +12,7 @@ import type { CompressTryFileMethod } from './compress';
 import type { ConfigOrTransformer, PluginConfig, SourceInput, SourceMapInput, SourceMapOptions, SourceMapOutput, TransformOutput, TransformResult } from './document';
 import type { AssetContentOptions, CompleteAsyncTaskCallback, HttpRequestBuffer, HttpRequestSettings, InstallData, PerformAsyncTaskMethod, PostFinalizeCallback } from './filemanager';
 import type { HttpProxyData, HttpRequest, HttpRequestClient, HttpVersionSupport, IHttpHost } from './http';
-import type { CropData, QualityData, ResizeData, RotateData } from './image';
+import type { CropData, QualityData, ResizeData, RotateData, TransformOptions } from './image';
 import type { LOG_TYPE, LogMessageOptions, LogTimeProcessOptions, LogValue, ModuleFormatMessageMethod, ModuleWriteFailMethod } from './logger';
 import type { AllSettledOptions, CloudModule, DocumentModule, TaskModule } from './module';
 import type { RequestBody, Settings } from './node';
@@ -68,7 +68,7 @@ declare namespace functions {
 
     interface ImageConstructor extends ModuleConstructor {
         using(this: IFileManager, data: FileProcessing, command: string): void;
-        transform(uri: string, command: string, mimeType?: string, tempFile?: boolean): Promise<Null<Buffer> | string>;
+        transform(uri: string, command: string, options?: TransformOptions): Promise<Null<Buffer> | string>;
         parseFormat(command: string): string[];
         clamp(value: Undef<string>, min?: number, max?: number): number;
         new(): IImage;

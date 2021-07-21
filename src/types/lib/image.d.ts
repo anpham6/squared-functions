@@ -17,3 +17,9 @@ export interface QualityData {
     nearLossless: number;
     preset?: string;
 }
+
+export interface TransformOptions {
+    mimeType?: string;
+    tempFile?: boolean;
+    time?: number;
+}

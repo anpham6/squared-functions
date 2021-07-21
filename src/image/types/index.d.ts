@@ -3,7 +3,7 @@ import type { FileProcessing } from '../../types/lib/asset';
 
 export interface ImageHandler<T, U> extends IScopeOrigin<T, U> {
     data?: FileProcessing;
-    readonly rotateCount: number;
+    rotateCount: number;
     method(): void;
     resize(): void;
     crop(): void;

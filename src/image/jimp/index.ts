@@ -1,9 +1,10 @@
 import type { IFileManager } from '../../types/lib';
 import type { ExternalAsset, FileProcessing, OutputFinalize } from '../../types/lib/asset';
+import type { TransformOptions } from '../../types/lib/image';
 
 import type { IJimpImageHandler } from './image';
 
-import { ERR_MESSAGE } from '../../types/lib/logger';
+import { ERR_MESSAGE, LOG_TYPE } from '../../types/lib/logger';
 
 import path = require('path');
 import fs = require('fs');
@@ -171,12 +172,20 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
         }
     }
 
-    static transform(uri: string, command: string, mimeType?: string, tempFile?: boolean) {
-        const [outputType, saveAs, finalAs] = this.parseFormat(command, mimeType);
+    static transform(uri: string, command: string, options: TransformOptions = {}) {
+        const [outputType, saveAs, finalAs] = this.parseFormat(command, options.mimeType);
         if (outputType) {
-            return performCommand(uri, command, outputType, finalAs).then(handler => handler.getBuffer(tempFile, saveAs, finalAs)).catch(() => tempFile ? '' : null);
+            const filename = path.basename(uri);
+            this.formatMessage(LOG_TYPE.PROCESS, MODULE_NAME, ['Transforming image...', filename], command);
+            return performCommand(uri, command, outputType, finalAs).then(handler => {
+                const result = handler.getBuffer(options.tempFile, saveAs, finalAs);
+                if (options.time) {
+                    handler.writeTimeProcess(MODULE_NAME, filename, options.time, { failed: !result });
+                }
+                return result;
+            }).catch(() => options.tempFile ? '' : null);
         }
-        return super.transform(uri, command, mimeType, tempFile);
+        return super.transform(uri, command, options);
     }
 
     static parseFormat(command: string, mimeType?: string): [string, string, string] {
