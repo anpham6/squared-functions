@@ -4,7 +4,7 @@ import type { TransformOptions } from '../../types/lib/image';
 
 import type { IJimpImageHandler } from './image';
 
-import { ERR_MESSAGE, LOG_TYPE } from '../../types/lib/logger';
+import { ERR_MESSAGE } from '../../types/lib/logger';
 
 import path = require('path');
 import fs = require('fs');
@@ -176,7 +176,7 @@ class Jimp extends Image implements IJimpImageHandler<jimp> {
         const [outputType, saveAs, finalAs] = this.parseFormat(command, options.mimeType);
         if (outputType) {
             const filename = path.basename(uri);
-            this.formatMessage(LOG_TYPE.PROCESS, MODULE_NAME, ['Transforming image...', filename], command);
+            this.formatMessage(Image.LOG_TYPE.PROCESS, MODULE_NAME, ['Transforming image...', filename], command);
             return performCommand(uri, command, outputType, finalAs).then(handler => {
                 const result = handler.getBuffer(options.tempFile, saveAs, finalAs);
                 if (options.time) {

@@ -107,6 +107,7 @@ abstract class Image extends Module implements IImage {
                         next = true,
                         current = '',
                         stringType = '',
+                        decimal = 0,
                         objectCount = 0,
                         arrayCount = 0;
                     const addArg = (item: unknown) => {
@@ -236,7 +237,7 @@ abstract class Image extends Module implements IImage {
                                 break invalid;
                             }
                             else {
-                                if (type === METHOD_ARGTYPE.NUMBER) {
+                                if (type === METHOD_ARGTYPE.NUMBER && !(ch === '.' && decimal++ === 0)) {
                                     if (isSpace || ch === ',' || ch === ')') {
                                         addArg(+current);
                                         switch (ch) {
