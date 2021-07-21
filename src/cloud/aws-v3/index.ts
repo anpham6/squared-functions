@@ -109,7 +109,7 @@ export async function deleteObjects(this: IModule, config: AWSStorageConfig, Buc
         try {
             const client = new AWS.S3Client(config);
             const Contents = (await client.send(new AWS.ListObjectsCommand({ Bucket }))).Contents;
-            if (Contents?.length) {
+            if (Contents && Contents.length) {
                 return client.send(new AWS.DeleteObjectsCommand({ Bucket, Delete: { Objects: Contents.map(data => ({ Key: data.Key! })) } }))
                     .then(data => {
                         if (data.Deleted) {

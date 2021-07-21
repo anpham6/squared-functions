@@ -707,7 +707,7 @@ export abstract class XmlWriter implements IXmlWriter {
                 resetTagPosition(item);
             }
             const append = item.append;
-            if (append?.tagName === tagName) {
+            if (append && append.tagName === tagName) {
                 delete append.tagCount;
             }
         }

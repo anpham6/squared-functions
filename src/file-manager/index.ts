@@ -41,20 +41,11 @@ import Compress from '../compress';
 
 import Permission from './permission';
 
-const { HttpsAgent } = HttpAgent;
-
 const enum HTTP { // eslint-disable-line no-shadow
     MAX_FAILED = 5,
     MAX_ERROR = 10,
     CHUNK_SIZE = 4 * 1024,
     CHUNK_SIZE_LOCAL = 64 * 1024
-}
-
-const enum HOST_VERSION { // eslint-disable-line no-shadow
-    SUCCESS = 0,
-    FAILED = 1,
-    ERROR = 2,
-    ALPN = 3
 }
 
 export const enum HTTP_STATUS { // eslint-disable-line no-shadow
@@ -123,6 +114,13 @@ export const enum HTTP_STATUS { // eslint-disable-line no-shadow
     NETWORK_CONNECT_TIMEOUT_ERROR = 599
 }
 
+const enum HOST_VERSION { // eslint-disable-line no-shadow
+    SUCCESS = 0,
+    FAILED = 1,
+    ERROR = 2,
+    ALPN = 3
+}
+
 const HTTP2_UNSUPPORTED = [
     http2.constants.NGHTTP2_PROTOCOL_ERROR /* 1 */,
     http2.constants.NGHTTP2_CONNECT_ERROR /* 10 */,
@@ -172,7 +170,9 @@ function isRetryStatus(value: number, timeout?: boolean) {
         case HTTP_STATUS.INTERNAL_SERVER_ERROR:
         case HTTP_STATUS.BAD_GATEWAY:
         case HTTP_STATUS.SERVICE_UNAVAILABLE:
-            return timeout ? false : true;
+            if (!timeout) {
+                return true;
+            }
         default:
             return false;
     }
@@ -1339,7 +1339,7 @@ class FileManager extends Module implements IFileManager {
                 }
             }
             else if (keepAliveTimeout > 0) {
-                agent = new (host.secure ? HttpsAgent : HttpAgent)({ keepAlive: true, timeout: keepAliveTimeout, freeSocketTimeout: HTTP_CONNECTTIMEOUT });
+                agent = new (host.secure ? HttpAgent.HttpsAgent : HttpAgent)({ keepAlive: true, timeout: keepAliveTimeout, freeSocketTimeout: HTTP_CONNECTTIMEOUT });
             }
             if (baseHeaders || host.headers) {
                 headers = { ...baseHeaders, ...host.headers, ...headers };
@@ -1407,10 +1407,10 @@ class FileManager extends Module implements IFileManager {
                 closed: Undef<boolean>;
             const throwError = (err: Error) => {
                 if (!closed) {
+                    closed = true;
                     if (outStream) {
                         FileManager.cleanupStream(outStream, pipeTo);
                     }
-                    closed = true;
                     reject(err);
                 }
             };
@@ -1474,23 +1474,26 @@ class FileManager extends Module implements IFileManager {
                             });
                         }
                         client.on('end', () => {
-                            let titleBgColor: Undef<typeof BackgroundColor>;
-                            if (buffer) {
-                                if (encoding && Buffer.isBuffer(buffer)) {
-                                    buffer = buffer.toString(encoding);
-                                }
-                                if (typeof buffer === 'string' && buffer[0] === '\uFEFF' && (encoding === 'utf8' || encoding === 'utf16le')) {
-                                    resolve(buffer.substring(1));
+                            if (!closed) {
+                                closed = true;
+                                let titleBgColor: Undef<typeof BackgroundColor>;
+                                if (buffer) {
+                                    if (encoding && Buffer.isBuffer(buffer)) {
+                                        buffer = buffer.toString(encoding);
+                                    }
+                                    if (typeof buffer === 'string' && buffer[0] === '\uFEFF' && (encoding === 'utf8' || encoding === 'utf16le')) {
+                                        resolve(buffer.substring(1));
+                                    }
+                                    else {
+                                        resolve(buffer);
+                                    }
                                 }
                                 else {
-                                    resolve(buffer);
+                                    resolve(encoding ? '' : null);
+                                    titleBgColor = 'bgBlue';
                                 }
+                                this.writeTimeProcess('HTTP' + host.version, request.statusMessage || url.toString(), time, { type: this.logType.HTTP, meterIncrement: 100, queue: true, titleBgColor });
                             }
-                            else {
-                                resolve(encoding ? '' : null);
-                                titleBgColor = 'bgBlue';
-                            }
-                            this.writeTimeProcess('HTTP' + host.version, request.processMessage || url.toString(), time, { type: this.logType.HTTP, meterIncrement: 100, queue: true, titleBgColor });
                         });
                         host.success();
                     };
@@ -1819,7 +1822,7 @@ class FileManager extends Module implements IFileManager {
                                         url,
                                         encoding,
                                         pipeTo,
-                                        processMessage: uri + ` (${queue.bundleIndex!})`,
+                                        statusMessage: uri + ` (${queue.bundleIndex!})`,
                                         connected: (headers: IncomingHttpHeaders) => {
                                             etag = setHeaderData(queue, headers, true);
                                             return true;
@@ -1888,38 +1891,36 @@ class FileManager extends Module implements IFileManager {
                 const processed = processing[localUri];
                 const downloaded = downloading[uri];
                 if (downloaded && downloaded.length) {
-                    const files: string[] = [];
                     const uriMap = new Map<string, ExternalAsset[]>();
                     for (const item of downloaded) {
-                        const copyUri = item.localUri!;
-                        const items = uriMap.get(copyUri) || [];
-                        if (items.length === 0) {
-                            const pathname = path.dirname(copyUri);
+                        const destUri = item.localUri!;
+                        let items = uriMap.get(destUri);
+                        if (!items) {
+                            const pathname = path.dirname(destUri);
                             if (!Module.mkdirSafe(pathname)) {
                                 item.invalid = true;
                                 continue;
                             }
-                            files.push(copyUri);
+                            uriMap.set(destUri, items = []);
                         }
                         items.push(item);
-                        uriMap.set(copyUri, items);
                     }
                     const buffer = file.sourceUTF8 || file.buffer;
-                    for (const copyUri of files) {
+                    for (const [destUri, items] of uriMap) {
                         try {
                             if (buffer) {
-                                fs.writeFileSync(copyUri, buffer);
+                                fs.writeFileSync(destUri, buffer);
                             }
                             else {
-                                fs.copyFileSync(localUri, copyUri);
+                                fs.copyFileSync(localUri, destUri);
                             }
-                            for (const queue of uriMap.get(copyUri)!) {
+                            for (const queue of items) {
                                 this.performAsyncTask();
                                 this.transformAsset({ file: queue });
                             }
                         }
                         catch (err) {
-                            for (const queue of uriMap.get(copyUri)!) {
+                            for (const queue of items) {
                                 queue.invalid = true;
                             }
                             this.writeFail([buffer ? ERR_MESSAGE.WRITE_BUFFER : ERR_MESSAGE.COPY_FILE, localUri], err, this.logType.FILE);
@@ -2044,7 +2045,7 @@ class FileManager extends Module implements IFileManager {
                                 request.httpVersion = undefined;
                                 request.encoding = item.encoding;
                                 request.pipeTo = localUri;
-                                request.processMessage = location + (item.bundleIndex === 0 ? ' (0)' : '');
+                                request.statusMessage = location + (item.bundleIndex === 0 ? ' (0)' : '');
                                 request.connected = headers => {
                                     setHeaderData(item, headers, true);
                                     return item.willChange || isCacheable(item);

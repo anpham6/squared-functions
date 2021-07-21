@@ -451,7 +451,7 @@ class Cloud extends Module implements ICloud {
     getDatabaseRows(data: CloudDatabase, cacheKey?: string): Promise<unknown[]> {
         if (this.hasCredential('database', data)) {
             const host = CLOUD_SERVICE[data.service];
-            if (host?.executeQuery) {
+            if (host && host.executeQuery) {
                 return host.executeQuery.call(this, this.getCredential(data), data, cacheKey);
             }
         }
@@ -462,7 +462,7 @@ class Cloud extends Module implements ICloud {
         const timeout = this._cache[service];
         if (timeout > 0) {
             const userCache = CLOUD_USERCACHE[userKey];
-            if (userCache?.[queryString]) {
+            if (userCache && userCache[queryString]) {
                 const [expires, result] = userCache[queryString]!;
                 if (Date.now() < expires) {
                     return result;

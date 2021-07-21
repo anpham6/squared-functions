@@ -316,7 +316,7 @@ function transformCss(manager: IFileManager, assets: DocumentAsset[], cssFile: D
             url += ch;
         }
         const setOutputUrl = (asset: DocumentAsset, value: string) => {
-            if (cloud?.getStorage('upload', asset.cloudStorage)) {
+            if (cloud && cloud.getStorage('upload', asset.cloudStorage)) {
                 if (fromHTML) {
                     value = asset.inlineCloud ||= uuid.v4();
                 }
@@ -678,7 +678,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                     domElement.removeAttribute('src', 'href');
                 }
                 else if (uri && !crossorigin && item !== htmlFile) {
-                    if (cloud?.getStorage('upload', item.cloudStorage)) {
+                    if (cloud && cloud.getStorage('upload', item.cloudStorage)) {
                         uri = uuid.v4();
                         item.inlineCloud = uri;
                     }
@@ -758,7 +758,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                                 if (typeof credential === 'string') {
                                                     credential = instance.module.settings?.mongodb?.[credential] as Undef<StandardMap>;
                                                 }
-                                                if (credential?.server) {
+                                                if (credential && credential.server) {
                                                     const { authMechanism = '', authMechanismProperties, user, dnsSrv } = credential;
                                                     let authSource = credential.authSource;
                                                     uri = `mongodb${dnsSrv ? '+srv' : ''}://` + (user ? encodeURIComponent(user) + (authMechanism !== 'GSSAPI' && credential.pwd ? ':' + encodeURIComponent(credential.pwd) : '') + '@' : '') + credential.server + '/?authMechanism=' + encodeURIComponent(authMechanism);

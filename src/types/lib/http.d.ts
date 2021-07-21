@@ -39,7 +39,7 @@ export interface HttpRequest {
     keepAliveTimeout?: number;
     pipeTo?: string;
     connected?: (headers: IncomingHttpHeaders) => Void<boolean>;
-    processMessage?: string;
+    statusMessage?: string;
     outStream?: WriteStream;
     outAbort?: AbortController;
 }
