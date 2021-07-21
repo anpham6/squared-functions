@@ -626,6 +626,8 @@ abstract class Module implements IModule {
     readonly patch = PROCESS_VERSION[2];
     readonly errors: string[] = [];
 
+    protected _logEnabled = true;
+
     private _logQueued: FormatMessageArgs[] = [];
 
     supported(major: number, minor?: number, patch?: number, lts?: boolean) {
@@ -668,7 +670,7 @@ abstract class Module implements IModule {
         else {
             Module.formatMessage(...args);
         }
-        if (message) {
+        if (message && this._logEnabled) {
             this.errors.push(message instanceof Error ? SETTINGS.stack_trace && message.stack || message.message : (message as string).toString());
         }
     }
