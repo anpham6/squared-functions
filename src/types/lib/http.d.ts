@@ -14,7 +14,7 @@ export interface IHttpHost {
     secure: boolean;
     localhost: boolean;
     headers: Undef<OutgoingHttpHeaders>;
-    hasProtocol(version?: number): Promise<boolean>;
+    hasProtocol(version: HttpVersionSupport): Promise<boolean>;
     success(version?: HttpVersionSupport): number;
     failed(version?: HttpVersionSupport): number;
     error(): number;
@@ -28,9 +28,14 @@ export interface HttpProxyData {
     include?: string[];
 }
 
-export interface HttpRequest {
+export interface HttpRequest extends HttpRequestOptions {
     host: IHttpHost;
     url: URL;
+}
+
+export interface HttpRequestOptions {
+    host?: IHttpHost;
+    url?: URL;
     httpVersion?: HttpVersionSupport;
     method?: "GET" | "HEAD";
     encoding?: TextEncoding;

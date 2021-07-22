@@ -4,7 +4,7 @@ import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, I
 import type { ExternalAsset, FileOutput, FileProcessing, OutputFinalize } from '../types/lib/asset';
 import type { CloudDatabase } from '../types/lib/cloud';
 import type { AssetContentOptions, HttpBaseHeaders, HttpRequestBuffer, HttpRequestSettings, InstallData, PostFinalizeCallback } from '../types/lib/filemanager';
-import type { HttpProxyData, HttpRequest, HttpRequestClient, HttpVersionSupport, IHttpHost } from '../types/lib/http';
+import type { HttpProxyData, HttpRequest, HttpRequestClient, HttpRequestOptions, HttpVersionSupport, IHttpHost } from '../types/lib/http';
 import type { CloudModule, DocumentModule } from '../types/lib/module';
 import type { RequestBody } from '../types/lib/node';
 
@@ -237,7 +237,7 @@ function getLocation(url: URL, value: string) {
 }
 
 const formatCredentials = (url: URL) => url.username ? decodeURIComponent(url.username) + (url.password ? ':' + decodeURIComponent(url.password) : '') : '';
-const getRedirectError = () => formatStatusCode(HTTP_STATUS.BAD_REQUEST, `Redirect limit was exceeded (${HTTP_REDIRECTLIMIT})`);
+const getRedirectError = () => formatStatusCode(HTTP_STATUS.BAD_REQUEST, `Redirect limit exceeded (${HTTP_REDIRECTLIMIT})`);
 const concatString = (values: Undef<string[]>) => Array.isArray(values) ? values.reduce((a, b) => a + '\n' + b, '') : '';
 const asInt = (value: unknown) => typeof value === 'string' ? parseInt(value) : typeof value === 'number' ? Math.floor(value) : NaN;
 const isFunction = <T>(value: unknown): value is T => typeof value === 'function';
@@ -257,7 +257,7 @@ class HttpHost implements IHttpHost {
         [0, 0, 0, 1],
         [0, 0, 0, -1]
     ];
-    private _tlsResult: Null<Promise<boolean>> = null;
+    private _tlsConnect: Null<Promise<boolean>> = null;
 
     constructor(url: URL, public readonly credentials = '', httpVersion: HttpVersionSupport = 1) {
         const hostname = url.hostname;
@@ -269,11 +269,14 @@ class HttpHost implements IHttpHost {
         this.localhost = hostname === 'localhost' || hostname === '127.0.0.1';
         this._headers = credentials ? { authorization: 'Basic ' + Buffer.from(credentials, 'base64') } as OutgoingHttpHeaders : undefined;
         this._url = url;
-        this._version = this.secure || !this.localhost ? httpVersion : 1;
+        this._version = this.secure ? httpVersion : 1;
     }
 
-    async hasProtocol(version = this.version) {
-        if (this.version > 1) {
+    async hasProtocol(version: HttpVersionSupport) {
+        if (this._version > 1) {
+            if (!this.secure) {
+                return false;
+            }
             const data = this._versionData[this._version - 1];
             switch (data[HOST_VERSION.ALPN]) {
                 case 0:
@@ -281,28 +284,30 @@ class HttpHost implements IHttpHost {
                 case 1:
                     return true;
             }
-            return this._tlsResult ||= new Promise<boolean>(resolve => {
-                const ALPNProtocols = [this.secure ? 'h' + version : `h${version}c`];
-                const socket = tls.connect(+this.port, this.hostname, { ALPNProtocols, requestCert: true, rejectUnauthorized: false }, () => {
-                    const alpnProtocol = socket.alpnProtocol;
-                    const result = !!alpnProtocol && !!ALPNProtocols.find(value => new RegExp(`\\b${value}\\b`, 'i').exec(alpnProtocol));
+            return this._tlsConnect ||= new Promise<boolean>(resolve => {
+                const alpn = 'h' + version;
+                const socket = tls.connect(+this.port, this.hostname, { ALPNProtocols: [alpn], requestCert: true, rejectUnauthorized: false }, () => {
+                    const result = alpn === socket.alpnProtocol;
                     data[HOST_VERSION.ALPN] = result ? 1 : 0;
                     resolve(result);
-                    this._tlsResult = null;
+                    this._tlsConnect = null;
                 });
                 socket
                     .setNoDelay(false)
                     .setTimeout(HTTP_CONNECTTIMEOUT)
                     .on('timeout', () => {
-                        this.error(version);
-                        resolve(false);
-                        this._tlsResult = null;
+                        if (this._tlsConnect) {
+                            this.error(version);
+                            resolve(false);
+                            this._tlsConnect = null;
+                        }
+                        socket.destroy();
                     })
                     .on('error', () => {
                         this.failed(version);
                         data[HOST_VERSION.ALPN] = 0;
                         resolve(false);
-                        this._tlsResult = null;
+                        this._tlsConnect = null;
                     })
                     .end();
             });
@@ -408,7 +413,7 @@ class FileManager extends Module implements IFileManager {
                     HTTP_HOST[origin]!.version = 1;
                 }
                 break;
-            case 2: {
+            case 2:
                 for (const origin in HTTP_HOST) {
                     const host = HTTP_HOST[origin]!;
                     const failed = host.failed(2);
@@ -417,7 +422,6 @@ class FileManager extends Module implements IFileManager {
                     }
                 }
                 break;
-            }
         }
     }
 
@@ -1153,7 +1157,7 @@ class FileManager extends Module implements IFileManager {
         const proxy = this.httpProxy;
         return proxy && (!proxy.include && !proxy.exclude && !host.localhost || Array.isArray(proxy.include) && proxy.include.find(value => uri.startsWith(value)) || !proxy.include && Array.isArray(proxy.exclude) && !proxy.exclude.find(value => uri.startsWith(value))) ? proxy : null;
     }
-    createHttpRequest(url: StringOfURL, options?: Partial<HttpRequest>): HttpRequest {
+    createHttpRequest(url: StringOfURL, options?: HttpRequestOptions): HttpRequest {
         if (typeof url === 'string') {
             url = new URL(url);
         }
@@ -1161,7 +1165,7 @@ class FileManager extends Module implements IFileManager {
         const host = HTTP_HOST[url.origin + credentials] ||= new HttpHost(url, credentials, this.httpVersion);
         return { ...options, host, url };
     }
-    getHttpClient(uri: StringOfURL, options?: Partial<HttpRequest>) {
+    getHttpClient(uri: StringOfURL, options: HttpRequestOptions) {
         let host: Undef<IHttpHost>,
             url: Undef<URL>,
             method: Undef<string>,
@@ -1229,6 +1233,14 @@ class FileManager extends Module implements IFileManager {
                     break;
             }
             if (pipeTo) {
+                if (outStream) {
+                    stream.pipeline(response, pipeTo, outStream, err => {
+                        if (err) {
+                            response.emit('error', err);
+                        }
+                    });
+                    return pipeTo;
+                }
                 return stream.pipeline(response, pipeTo, err => {
                     if (err) {
                         response.emit('error', err);
@@ -1255,21 +1267,14 @@ class FileManager extends Module implements IFileManager {
             request = (this._sessionHttp2[origin] ||= http2.connect(origin)).request({ ...baseHeaders, ...host.headers, ...headers, ':path': pathname, ':method': method }, signal);
             if (getting) {
                 const listenerMap: ObjectMap<((...args: any[]) => void)[]> = {};
-                let cleared: Undef<boolean>,
-                    emitter: Undef<Transform>;
+                let connected: Undef<boolean>,
+                    emitter: Undef<Writable>;
                 request.on('response', response => {
-                    cleared = true;
+                    connected = true;
                     const statusCode = response[':status']!;
                     if (statusCode >= HTTP_STATUS.OK && statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
                         const source = checkEncoding(request as ClientHttp2Stream, response['content-encoding']);
-                        if (outStream) {
-                            stream.pipeline(source || request as ClientHttp2Stream, outStream, err => {
-                                if (err) {
-                                    request.emit('error', err);
-                                }
-                            });
-                        }
-                        else if (source) {
+                        if (source) {
                             emitter = source;
                             for (const event in listenerMap) {
                                 listenerMap[event]!.forEach(listener => {
@@ -1278,8 +1283,17 @@ class FileManager extends Module implements IFileManager {
                                 });
                             }
                         }
-                        if (encoding && !source) {
-                            (request as ClientHttp2Stream).setEncoding(encoding);
+                        else {
+                            if (outStream) {
+                                stream.pipeline(request as ClientHttp2Stream, outStream, err => {
+                                    if (err) {
+                                        request.emit('error', err);
+                                    }
+                                });
+                            }
+                            if (encoding) {
+                                (request as ClientHttp2Stream).setEncoding(encoding);
+                            }
                         }
                         if (!this._connectHttp2[origin]) {
                             this._connectHttp2[origin] = 1;
@@ -1289,29 +1303,28 @@ class FileManager extends Module implements IFileManager {
                         }
                     }
                 });
-                if (!outStream) {
-                    const addListener = request.on.bind(request);
-                    request.on = function(this: ClientHttp2Stream, event: string, listener: (...args: any[]) => void) {
-                        switch (event) {
-                            case 'data':
-                            case 'close':
-                            case 'error':
-                            case 'end':
-                                if (emitter) {
-                                    emitter.on(event === 'end' ? 'finish' : event, listener);
-                                    break;
-                                }
-                                else if (!cleared) {
-                                    (listenerMap[event] ||= []).push(listener);
-                                }
-                            default:
-                                addListener(event, listener);
+                const addListener = request.on.bind(request);
+                request.on = function(this: ClientHttp2Stream, event: string, listener: (...args: any[]) => void) {
+                    switch (event) {
+                        case 'data':
+                        case 'close':
+                        case 'error':
+                        case 'end':
+                            if (emitter) {
+                                emitter.on(event === 'end' ? 'finish' : event, listener);
                                 break;
-                        }
-                        return this;
-                    };
-                }
+                            }
+                            else if (!connected) {
+                                (listenerMap[event] ||= []).push(listener);
+                            }
+                        default:
+                            addListener(event, listener);
+                            break;
+                    }
+                    return this;
+                };
             }
+            options.httpVersion = 2;
         }
         else {
             keepAliveTimeout ??= this.keepAliveTimeout;
@@ -1350,9 +1363,25 @@ class FileManager extends Module implements IFileManager {
                 const statusCode = response.statusCode!;
                 if (getting && statusCode >= HTTP_STATUS.OK && statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
                     let source: Undef<IncomingMessage | Transform> = checkEncoding(response, response.headers['content-encoding']);
-                    if (!source) {
+                    if (source) {
+                        source.once('finish', () => request.emit('end'));
+                    }
+                    else {
                         if (encoding) {
                             response.setEncoding(encoding);
+                        }
+                        if (outStream) {
+                            stream.pipeline(response, outStream, err => {
+                                if (err) {
+                                    request.emit('error', err);
+                                }
+                                else {
+                                    request.emit('end');
+                                }
+                            });
+                        }
+                        else {
+                            response.once('end', () => request.emit('end'));
                         }
                         source = response;
                     }
@@ -1360,19 +1389,6 @@ class FileManager extends Module implements IFileManager {
                         .on('data', chunk => request.emit('data', chunk))
                         .on('close', () => request.emit('close'))
                         .on('error', err => request.emit('error', err));
-                    if (outStream) {
-                        stream.pipeline(source, outStream, err => {
-                            if (err) {
-                                request.emit('error', err);
-                            }
-                            else {
-                                request.emit('end');
-                            }
-                        });
-                    }
-                    else {
-                        source.once(source === response ? 'end' : 'finish', () => request.emit('end'));
-                    }
                     if (!this._connectHttp1[origin]) {
                         this._connectHttp1[origin] = 1;
                     }
@@ -1387,6 +1403,7 @@ class FileManager extends Module implements IFileManager {
                         .once('end', () => request.emit('end'));
                 }
             });
+            options.httpVersion = 1;
         }
         if (timeout !== 0) {
             request.setTimeout(timeout || HTTP_CONNECTTIMEOUT);
@@ -1394,7 +1411,7 @@ class FileManager extends Module implements IFileManager {
         request.end();
         return request;
     }
-    fetchBuffer(uri: StringOfURL, options?: Partial<HttpRequest>) {
+    fetchBuffer(uri: StringOfURL, options?: HttpRequestOptions) {
         return new Promise<Null<BufferContent>>((resolve, reject) => {
             const pipeTo = options && options.pipeTo;
             let outStream: Undef<WriteStream>,
@@ -1426,7 +1443,7 @@ class FileManager extends Module implements IFileManager {
                     }
                     const client = this.getHttpClient(href, request);
                     const { host, url, encoding } = request;
-                    let buffer: Optional<BufferContent>,
+                    let buffer: Optional<BufferContent | Buffer[]>,
                         aborted: Undef<boolean>;
                     const isAborted = () => client.destroyed || host.v2() && (client as ClientHttp2Stream).aborted;
                     const isRetryable = (value: number) => isRetryStatus(value) && ++retries <= HTTP_RETRYLIMIT;
@@ -1459,14 +1476,22 @@ class FileManager extends Module implements IFileManager {
                         }
                         if (buffering !== false) {
                             client.on('data', data => {
-                                if (!buffer) {
-                                    buffer = data;
+                                if (typeof data === 'string') {
+                                    if (buffer) {
+                                        buffer += data;
+                                    }
+                                    else {
+                                        buffer = data;
+                                    }
                                 }
-                                else if (typeof data === 'string') {
-                                    buffer += data;
+                                else if (!buffer) {
+                                    buffer = [data];
+                                }
+                                else if (typeof buffer === 'string') {
+                                    buffer += Buffer.isBuffer(data) ? data.toString(encoding) : data;
                                 }
                                 else {
-                                    buffer = Buffer.concat([buffer, data]);
+                                    (buffer as Buffer[]).push(data);
                                 }
                             });
                         }
@@ -1475,6 +1500,9 @@ class FileManager extends Module implements IFileManager {
                                 closed = true;
                                 let titleBgColor: Undef<typeof BackgroundColor>;
                                 if (buffer) {
+                                    if (Array.isArray(buffer)) {
+                                        buffer = Buffer.concat(buffer);
+                                    }
                                     if (encoding && Buffer.isBuffer(buffer)) {
                                         buffer = buffer.toString(encoding);
                                     }
@@ -1552,7 +1580,7 @@ class FileManager extends Module implements IFileManager {
                         formatWarning(FileManager.fromHttpStatusCode(statusCode) + ` (${retries} / ${HTTP_RETRYLIMIT})`);
                         setTimeout(downloadUri.bind(this), isRetryStatus(statusCode, true) ? 0 : HTTP_RETRYDELAY);
                     };
-                    if (host.v2()) {
+                    if (request.httpVersion === 2) {
                         const retryDownload = (downgrade: boolean, err: Error) => {
                             if (!aborted) {
                                 abortResponse();
@@ -1784,84 +1812,82 @@ class FileManager extends Module implements IFileManager {
                 if (items) {
                     const tasks: Promise<void>[] = [];
                     for (const queue of items) {
-                        if (!queue.invalid) {
-                            const { uri, content } = queue;
-                            if (content) {
-                                verifyBundle(queue, localUri, content);
-                            }
-                            else if (uri) {
-                                const encoding = queue.encoding ||= 'utf8';
-                                const url = queue.url;
-                                if (url) {
-                                    let etag = queue.etag,
-                                        baseDir: Undef<string>,
-                                        tempDir: Undef<string>,
-                                        etagDir: Undef<string>,
-                                        pipeTo: Undef<string>;
-                                    if (etag) {
-                                        tempDir = createTempDir(url);
-                                        etagDir = encodeURIComponent(etag);
-                                        const cached = HTTP_BUFFER[uri];
-                                        if (cached) {
-                                            if (etagDir === cached[0]) {
-                                                verifyBundle(queue, localUri, Buffer.isBuffer(cached[1]) ? cached[1].toString(encoding) : cached[1]);
+                        const { uri, content } = queue;
+                        if (content) {
+                            verifyBundle(queue, localUri, content);
+                        }
+                        else if (uri) {
+                            const encoding = queue.encoding ||= 'utf8';
+                            const url = queue.url;
+                            if (url) {
+                                let etag = queue.etag,
+                                    baseDir: Undef<string>,
+                                    tempDir: Undef<string>,
+                                    etagDir: Undef<string>,
+                                    pipeTo: Undef<string>;
+                                if (etag) {
+                                    tempDir = createTempDir(url);
+                                    etagDir = encodeURIComponent(etag);
+                                    const cached = HTTP_BUFFER[uri];
+                                    if (cached) {
+                                        if (etagDir === cached[0]) {
+                                            verifyBundle(queue, localUri, Buffer.isBuffer(cached[1]) ? cached[1].toString(encoding) : cached[1]);
+                                            continue;
+                                        }
+                                        clearTempBuffer(uri, tempDir && path.join(tempDir, cached[0], path.basename(localUri)));
+                                    }
+                                    if (tempDir) {
+                                        pipeTo = path.join(baseDir = path.join(tempDir, etagDir), path.basename(localUri));
+                                        try {
+                                            if (Module.hasSize(pipeTo)) {
+                                                verifyBundle(queue, localUri, fs.readFileSync(pipeTo, { encoding }), etag);
                                                 continue;
                                             }
-                                            clearTempBuffer(uri, tempDir && path.join(tempDir, cached[0], path.basename(localUri)));
+                                            else if (!fs.existsSync(baseDir)) {
+                                                fs.mkdirSync(baseDir);
+                                            }
                                         }
-                                        if (tempDir) {
-                                            pipeTo = path.join(baseDir = path.join(tempDir, etagDir), path.basename(localUri));
-                                            try {
-                                                if (Module.hasSize(pipeTo)) {
-                                                    verifyBundle(queue, localUri, fs.readFileSync(pipeTo, { encoding }), etag);
-                                                    continue;
-                                                }
-                                                else if (!fs.existsSync(baseDir)) {
-                                                    fs.mkdirSync(baseDir);
-                                                }
-                                            }
-                                            catch {
-                                                pipeTo = undefined;
-                                            }
+                                        catch {
+                                            pipeTo = undefined;
                                         }
                                     }
-                                    const options: Partial<HttpRequest> = {
-                                        url,
-                                        encoding,
-                                        pipeTo,
-                                        statusMessage: uri + ` (${queue.bundleIndex!})`,
-                                        connected: (headers: IncomingHttpHeaders) => {
-                                            etag = setHeaderData(queue, headers, true);
-                                            return true;
+                                }
+                                const options: HttpRequestOptions = {
+                                    url,
+                                    encoding,
+                                    pipeTo,
+                                    statusMessage: uri + ` (${queue.bundleIndex!})`,
+                                    connected: (headers: IncomingHttpHeaders) => {
+                                        etag = setHeaderData(queue, headers, true);
+                                        return true;
+                                    }
+                                };
+                                tasks.push(this.fetchBuffer(url, options)
+                                    .then(data => {
+                                        if (data) {
+                                            verifyBundle(queue, localUri, data, etag);
                                         }
-                                    };
-                                    tasks.push(this.fetchBuffer(url, options)
-                                        .then(data => {
-                                            if (data) {
-                                                verifyBundle(queue, localUri, data, etag);
-                                            }
-                                            else {
-                                                queue.invalid = true;
-                                            }
-                                        })
-                                        .catch(err => {
+                                        else {
                                             queue.invalid = true;
-                                            throw err;
-                                        })
-                                    );
-                                }
-                                else if (Module.isFileUNC(uri) && this.permission.hasUNCRead(uri) || path.isAbsolute(uri) && this.permission.hasDiskRead(uri)) {
-                                    tasks.push(fs.readFile(uri, encoding)
-                                        .then(data => verifyBundle(queue, localUri, data))
-                                        .catch(err => {
-                                            queue.invalid = true;
-                                            throw err;
-                                        })
-                                    );
-                                }
-                                else {
-                                    errorPermission(file);
-                                }
+                                        }
+                                    })
+                                    .catch(err => {
+                                        queue.invalid = true;
+                                        throw err;
+                                    })
+                                );
+                            }
+                            else if (Module.isFileUNC(uri) && this.permission.hasUNCRead(uri) || path.isAbsolute(uri) && this.permission.hasDiskRead(uri)) {
+                                tasks.push(fs.readFile(uri, encoding)
+                                    .then(data => verifyBundle(queue, localUri, data))
+                                    .catch(err => {
+                                        queue.invalid = true;
+                                        throw err;
+                                    })
+                                );
+                            }
+                            else {
+                                errorPermission(file);
                             }
                         }
                     }
@@ -2068,7 +2094,7 @@ class FileManager extends Module implements IFileManager {
                                             }
                                         }
                                         processQueue(item, localUri);
-                                        if (etagDir && data) {
+                                        if (etagDir) {
                                             if (tempDir) {
                                                 const baseDir = path.join(tempDir, etagDir);
                                                 const tempUri = path.join(baseDir, path.basename(localUri));
@@ -2077,7 +2103,7 @@ class FileManager extends Module implements IFileManager {
                                                         fs.mkdirSync(baseDir);
                                                     }
                                                     if (data) {
-                                                        if (bufferLimit > 0) {
+                                                        if (bufferExpires > 0) {
                                                             setTempBuffer(location, etagDir, data, item.contentLength, tempUri);
                                                         }
                                                         fs.writeFile(tempUri, data);
@@ -2090,14 +2116,14 @@ class FileManager extends Module implements IFileManager {
                                                     this.writeFail([ERR_MESSAGE.WRITE_FILE, tempUri], err, this.logType.FILE);
                                                 }
                                             }
-                                            else if (bufferLimit > 0 && data) {
+                                            else if (bufferExpires > 0 && data) {
                                                 setTempBuffer(location, etagDir, data, item.contentLength);
                                             }
                                         }
                                     })
                                     .catch(err => errorRequest(item, err));
                             };
-                            if (this.cacheHttpRequest || bufferLimit > 0) {
+                            if (this.cacheHttpRequest || bufferExpires > 0) {
                                 let redirects = 0;
                                 (function checkHeaders(this: IFileManager, file: ExternalAsset, href: URL) {
                                     const request = this.createHttpRequest(href, { method: 'HEAD', httpVersion: 1 });

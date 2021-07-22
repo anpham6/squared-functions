@@ -4,7 +4,7 @@ import type { DataSource, MongoDataSource, RequestData, TemplateMap, UriDataSour
 import type { IFileManager } from '../../types/lib';
 import type { FileProcessing, OutputFinalize } from '../../types/lib/asset';
 import type { CloudDatabase } from '../../types/lib/cloud';
-import type { HttpRequest } from '../../types/lib/http';
+import type { HttpRequestOptions } from '../../types/lib/http';
 import type { RequestBody as IRequestBody } from '../../types/lib/node';
 
 import type { CloudScopeOrigin } from '../../cloud';
@@ -869,7 +869,7 @@ class ChromeDocument extends Document implements IChromeDocument {
                                             content = cacheData[uri] as Undef<string>;
                                         }
                                         else {
-                                            const options: Partial<HttpRequest> = { encoding };
+                                            const options: HttpRequestOptions = { encoding };
                                             try {
                                                 const buffer = await this.fetchBuffer(uri, options);
                                                 content = Buffer.isBuffer(buffer) ? buffer.toString(encoding) : buffer;
