@@ -1,4 +1,4 @@
-import type { AttributeMap, ElementAction, DataSource as IDataSource, TextEncoding, ViewEngine } from './squared';
+import type { AttributeMap, ElementAction, DataSource as IDataSource, ViewEngine } from './squared';
 
 import type { FilterQuery, MongoClientOptions } from 'mongodb';
 

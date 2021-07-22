@@ -54,7 +54,7 @@ export interface BundleAction {
 
 export interface DocumentAction {
     document?: StringOfArray;
-    encoding?: TextEncoding;
+    encoding?: BufferEncoding;
 }
 
 export interface AttributeAction {
@@ -186,6 +186,5 @@ export interface ControllerSettingsDirectoryUI {
     audio: string;
 }
 
-export type TextEncoding = "utf8" | "utf16le" | "latin1";
 export type AttributeMap = ObjectMap<Optional<string>>;
 export type WatchValue = boolean | WatchInterval;

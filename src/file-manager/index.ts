@@ -1,4 +1,4 @@
-import type { DataSource, FileInfo, TextEncoding } from '../types/lib/squared';
+import type { DataSource, FileInfo } from '../types/lib/squared';
 
 import type { DocumentConstructor, ICloud, ICompress, IDocument, IFileManager, IModule, ITask, IWatch, ImageConstructor, TaskConstructor } from '../types/lib';
 import type { ExternalAsset, FileOutput, FileProcessing, OutputFinalize } from '../types/lib/asset';
@@ -119,7 +119,8 @@ const enum HOST_VERSION { // eslint-disable-line no-shadow
     SUCCESS = 0,
     FAILED = 1,
     ERROR = 2,
-    ALPN = 3
+    ALPN = 3,
+    ALT_SVC = 4
 }
 
 const HTTP2_UNSUPPORTED = [
@@ -254,10 +255,10 @@ class HttpHost implements IHttpHost {
 
     private _url: URL;
     private _headers: Undef<OutgoingHttpHeaders>;
-    private _version: HttpVersionSupport;
+    private _version: number;
     private _versionData = [
-        [0, 0, 0, 1],
-        [0, 0, 0, -1]
+        [0, 0, 0, 1, 0],
+        [0, 0, 0, -1, -1]
     ];
     private _tlsConnect: Null<Promise<boolean>> = null;
 
@@ -333,24 +334,56 @@ class HttpHost implements IHttpHost {
     error(version: HttpVersionSupport = this.version) {
         return ++this._versionData[version - 1][HOST_VERSION.ERROR];
     }
+    upgrade(value: Undef<string>) {
+        if (value && this.secure) {
+            const data = this._versionData;
+            for (let i = 1; i < data.length; ++i) {
+                const version = data[i];
+                const increment = () => {
+                    if (this._version < i + 1) {
+                        this._version = i + 1;
+                    }
+                };
+                switch (version[HOST_VERSION.ALT_SVC]) {
+                    case 1:
+                        increment();
+                    case 0:
+                        continue;
+                    default: {
+                        version[HOST_VERSION.ALT_SVC] = 0;
+                        const pattern = new RegExp(`h${i + 1}=":(\\d+)"[^,]*`, 'g');
+                        let match: Null<RegExpExecArray>;
+                        while (match = pattern.exec(value)) {
+                            if (match[1] === this.port) {
+                                version[HOST_VERSION.ALT_SVC] = 1;
+                                increment();
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
     clone(version?: HttpVersionSupport) {
-        return new HttpHost(this._url, this.credentials, version || this._version);
+        const host = new HttpHost(this._url, this.credentials, version || this._version as HttpVersionSupport);
+        host.setData(this._versionData);
+        return host;
+    }
+    setData(value: number[][]) {
+        this._versionData = value;
     }
     v2() {
         return this._version === 2;
     }
     set headers(value: Undef<OutgoingHttpHeaders>) {
-        if (this._headers) {
-            this._headers = Object.assign(this._headers, value);
-        }
-        else {
-            this._headers = value;
-        }
+        this._headers = this._headers ? Object.assign(this._headers, value) : value;
     }
     get headers() {
         return this._headers;
     }
-    set version(value) {
+    set version(value: HttpVersionSupport) {
         switch (value) {
             case 1:
             case 2:
@@ -359,7 +392,7 @@ class HttpHost implements IHttpHost {
         }
     }
     get version() {
-        return this._version;
+        return this._version as HttpVersionSupport;
     }
 }
 
@@ -1261,10 +1294,6 @@ class FileManager extends Module implements IFileManager {
             this.completeAsyncTask(null, localUri, parent);
         }
     }
-    getHostProxy(host: IHttpHost, uri: string) {
-        const proxy = this.httpProxy;
-        return proxy && (!proxy.include && !proxy.exclude && !host.localhost || Array.isArray(proxy.include) && proxy.include.find(value => uri.startsWith(value)) || !proxy.include && Array.isArray(proxy.exclude) && !proxy.exclude.find(value => uri.startsWith(value))) ? proxy : null;
-    }
     createHttpRequest(url: StringOfURL, options?: HttpRequestOptions): HttpRequest {
         if (typeof url === 'string') {
             url = new URL(url);
@@ -1279,7 +1308,7 @@ class FileManager extends Module implements IFileManager {
             method: Undef<string>,
             httpVersion: Undef<HttpVersionSupport>,
             headers: Undef<OutgoingHttpHeaders>,
-            encoding: Undef<TextEncoding>,
+            encoding: Undef<BufferEncoding>,
             outStream: Undef<WriteStream>,
             timeout: Undef<number>,
             keepAliveTimeout: Undef<number>;
@@ -1321,7 +1350,10 @@ class FileManager extends Module implements IFileManager {
         else {
             v2 = host.v2();
         }
-        const checkEncoding = (response: IncomingMessage | ClientHttp2Stream, contentEncoding = '') => {
+        const checkEncoding = (response: IncomingMessage | ClientHttp2Stream, statusCode: number, contentEncoding = '') => {
+            if (statusCode === HTTP_STATUS.NO_CONTENT) {
+                return;
+            }
             const chunkSize = outStream && outStream.writableHighWaterMark;
             let pipeTo: Undef<Transform>;
             switch (contentEncoding.trim().toLowerCase()) {
@@ -1383,9 +1415,7 @@ class FileManager extends Module implements IFileManager {
                     connected = true;
                     const statusCode = response[':status']!;
                     if (statusCode >= HTTP_STATUS.OK && statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
-                        const source = checkEncoding(request as ClientHttp2Stream, response['content-encoding']);
-                        if (source) {
-                            emitter = source;
+                        if (emitter = checkEncoding(request as ClientHttp2Stream, statusCode, response['content-encoding'])) {
                             for (const event in listenerMap) {
                                 listenerMap[event]!.forEach(listener => {
                                     request.removeListener(event, listener);
@@ -1472,7 +1502,7 @@ class FileManager extends Module implements IFileManager {
             }, response => {
                 const statusCode = response.statusCode!;
                 if (getting && statusCode >= HTTP_STATUS.OK && statusCode < HTTP_STATUS.MULTIPLE_CHOICES) {
-                    let source: Undef<IncomingMessage | Transform> = checkEncoding(response, response.headers['content-encoding']);
+                    let source: Undef<IncomingMessage | Transform> = checkEncoding(response, statusCode, response.headers['content-encoding']);
                     if (source) {
                         source.once('finish', () => request.emit('end'));
                     }
@@ -1505,6 +1535,9 @@ class FileManager extends Module implements IFileManager {
                     else {
                         ++this._connectHttp1[origin]!;
                     }
+                    if (this.httpVersion === 2) {
+                        host!.upgrade(response.headers['alt-svc']);
+                    }
                 }
                 else {
                     response
@@ -1520,6 +1553,10 @@ class FileManager extends Module implements IFileManager {
         }
         request.end();
         return request;
+    }
+    getHostProxy(host: IHttpHost, uri: string) {
+        const proxy = this.httpProxy;
+        return proxy && (!proxy.include && !proxy.exclude && !host.localhost || Array.isArray(proxy.include) && proxy.include.find(value => uri.startsWith(value)) || !proxy.include && Array.isArray(proxy.exclude) && !proxy.exclude.find(value => uri.startsWith(value))) ? proxy : null;
     }
     fetchBuffer(uri: StringOfURL, options?: HttpRequestOptions) {
         return new Promise<Null<BufferContent>>((resolve, reject) => {
@@ -1630,7 +1667,7 @@ class FileManager extends Module implements IFileManager {
                                 this.writeTimeProcess('HTTP' + host.version, request.statusMessage || url.toString(), time, { type: this.logType.HTTP, meterIncrement: 100, queue: true, titleBgColor });
                             }
                         });
-                        host.success();
+                        host.success(request.httpVersion);
                     };
                     const redirectResponse = (location?: string) => {
                         abortResponse();
@@ -1697,7 +1734,7 @@ class FileManager extends Module implements IFileManager {
                                 buffer = null;
                                 if (downgrade && host.version > 1) {
                                     this.formatMessage(this.logType.HTTP, 'HTTP' + host.version, ['Unsupported protocol', host.origin], err, { failed: true });
-                                    host.failed();
+                                    host.failed(request.httpVersion);
                                     host.version = 1;
                                 }
                                 downloadUri.call(this, href, 1);

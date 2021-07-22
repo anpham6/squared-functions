@@ -1,5 +1,3 @@
-import type { TextEncoding } from './squared';
-
 import type { WriteStream } from 'fs';
 import type { ClientRequest, IncomingHttpHeaders, OutgoingHttpHeaders } from 'http';
 import type { ClientHttp2Stream } from 'http2';
@@ -15,10 +13,12 @@ export interface IHttpHost {
     localhost: boolean;
     headers: Undef<OutgoingHttpHeaders>;
     hasProtocol(version: HttpVersionSupport): Promise<boolean>;
+    upgrade(value: Undef<string>, upgrade?: boolean): void;
     success(version?: HttpVersionSupport): number;
     failed(version?: HttpVersionSupport): number;
     error(): number;
     clone(version?: HttpVersionSupport): IHttpHost;
+    setData(value: number[][]): void;
     v2(): boolean;
 }
 
@@ -38,7 +38,7 @@ export interface HttpRequestOptions {
     url?: URL;
     httpVersion?: HttpVersionSupport;
     method?: "GET" | "HEAD";
-    encoding?: TextEncoding;
+    encoding?: BufferEncoding;
     headers?: OutgoingHttpHeaders;
     timeout?: number;
     keepAliveTimeout?: number;
@@ -49,6 +49,5 @@ export interface HttpRequestOptions {
     outAbort?: AbortController;
 }
 
-export type HttpAlpnProtocol = "h2" | "h2c";
 export type HttpRequestClient = ClientRequest | ClientHttp2Stream;
 export type HttpVersionSupport = 1 | 2;
