@@ -57,7 +57,6 @@
     "eslint": "^7.31.0",
     "file-type": "^16.5.2",
     "htmlparser2": "^6.1.0",
-    "http-status-codes": "^2.1.4",
     "ibm-cos-sdk": "^1.10.0",
     "jimp": "^0.16.1",
     "readdirp": "^3.6.0",

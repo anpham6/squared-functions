@@ -24,7 +24,6 @@ import http2 = require('http2');
 import tls = require('tls');
 import stream = require('stream');
 import zlib = require('zlib');
-import httpStatus = require('http-status-codes');
 import mime = require('mime-types');
 import filetype = require('file-type');
 import bytes = require('bytes');
@@ -50,8 +49,9 @@ const enum HTTP { // eslint-disable-line no-shadow
 
 export const enum HTTP_STATUS { // eslint-disable-line no-shadow
     CONTINUE = 100,
-    SWITCHING_PROTOCOLS = 101,
+    SWITCHING_PROTOCOL = 101,
     PROCESSING = 102,
+    EARLY_HINTS = 103,
     OK = 200,
     CREATED = 201,
     ACCEPTED = 202,
@@ -86,7 +86,7 @@ export const enum HTTP_STATUS { // eslint-disable-line no-shadow
     PAYLOAD_TOO_LARGE = 413,
     REQUEST_URI_TOO_LONG = 414,
     UNSUPPORTED_MEDIA_TYPE = 415,
-    REQUESTED_RANGE_NOT_SATISFIABLE = 416,
+    RANGE_NOT_SATISFIABLE = 416,
     EXPECTATION_FAILED = 417,
     IM_A_TEAPOT = 418,
     MISDIRECTED_REQUEST = 421,
@@ -97,7 +97,6 @@ export const enum HTTP_STATUS { // eslint-disable-line no-shadow
     PRECONDITION_REQUIRED = 428,
     TOO_MANY_REQUESTS = 429,
     REQUEST_HEADER_FIELDS_TOO_LARGE = 431,
-    CONNECTION_CLOSED_WITHOUT_RESPONSE = 444,
     UNAVAILABLE_FOR_LEGAL_REASONS = 451,
     CLIENT_CLOSED_REQUEST = 499,
     INTERNAL_SERVER_ERROR = 500,
@@ -111,7 +110,9 @@ export const enum HTTP_STATUS { // eslint-disable-line no-shadow
     LOOP_DETECTED = 508,
     NOT_EXTENDED = 510,
     NETWORK_AUTHENTICATION_REQUIRED = 511,
-    NETWORK_CONNECT_TIMEOUT_ERROR = 599
+    WEB_SERVER_IS_DOWN = 521,
+    CONNECTION_TIMED_OUT = 522,
+    A_TIMEOUT_OCCURRED = 524
 }
 
 const enum HOST_VERSION { // eslint-disable-line no-shadow
@@ -160,16 +161,17 @@ function isRetryStatus(value: number, timeout?: boolean) {
     switch (value) {
         case HTTP_STATUS.REQUEST_TIMEOUT:
         case HTTP_STATUS.GATEWAY_TIMEOUT:
-        case HTTP_STATUS.NETWORK_CONNECT_TIMEOUT_ERROR:
+        case HTTP_STATUS.CONNECTION_TIMED_OUT:
+        case HTTP_STATUS.A_TIMEOUT_OCCURRED:
             if (timeout) {
                 return true;
             }
         case HTTP_STATUS.TOO_MANY_REQUESTS:
-        case HTTP_STATUS.CONNECTION_CLOSED_WITHOUT_RESPONSE:
         case HTTP_STATUS.CLIENT_CLOSED_REQUEST:
         case HTTP_STATUS.INTERNAL_SERVER_ERROR:
         case HTTP_STATUS.BAD_GATEWAY:
         case HTTP_STATUS.SERVICE_UNAVAILABLE:
+        case HTTP_STATUS.WEB_SERVER_IS_DOWN:
             if (!timeout) {
                 return true;
             }
@@ -380,14 +382,118 @@ class FileManager extends Module implements IFileManager {
 
     static fromHttpStatusCode(value: NumString) {
         switch (+value) {
+            case HTTP_STATUS.CONTINUE:
+                return 'Continue';
+            case HTTP_STATUS.SWITCHING_PROTOCOL:
+                return 'Switching Protocol';
+            case HTTP_STATUS.PROCESSING:
+                return 'Processing';
+            case HTTP_STATUS.EARLY_HINTS:
+                return 'Early Hints';
+            case HTTP_STATUS.OK:
+                return 'OK';
+            case HTTP_STATUS.CREATED:
+                return 'Created';
+            case HTTP_STATUS.ACCEPTED:
+                return 'Accepted';
+            case HTTP_STATUS.NON_AUTHORITATIVE_INFORMATION:
+                return 'Non-Authoritative Information';
+            case HTTP_STATUS.NO_CONTENT:
+                return 'No Content';
+            case HTTP_STATUS.RESET_CONTENT:
+                return 'Reset Content';
+            case HTTP_STATUS.PARTIAL_CONTENT:
+                return 'Partial Content';
+            case HTTP_STATUS.MULTI_STATUS:
+                return 'Multi-Status';
+            case HTTP_STATUS.ALREADY_REPORTED:
+                return 'Already Reported';
             case HTTP_STATUS.IM_USED:
                 return 'IM Used';
+            case HTTP_STATUS.MULTIPLE_CHOICES:
+                return 'Multiple Choice';
+            case HTTP_STATUS.MOVED_PERMANENTLY:
+                return 'Moved Permanently';
             case HTTP_STATUS.FOUND:
                 return 'Found';
-            case HTTP_STATUS.UPGRADE_REQUIRED:
+            case HTTP_STATUS.SEE_OTHER:
+                return 'See Other';
+            case HTTP_STATUS.NOT_MODIFIED:
+                return 'Not Modified';
+            case HTTP_STATUS.USE_PROXY:
+                return 'Use Proxy';
+            case HTTP_STATUS.TEMPORARY_REDIRECT:
+                return 'Temporary Redirect';
+            case HTTP_STATUS.PERMANENT_REDIRECT:
+                return 'Permanent Redirect';
+            case HTTP_STATUS.BAD_REQUEST:
+                return 'Bad Request';
+            case HTTP_STATUS.UNAUTHORIZED:
                 return 'Upgrade Required';
+            case HTTP_STATUS.PAYMENT_REQUIRED:
+                return 'Payment Required';
+            case HTTP_STATUS.FORBIDDEN:
+                return 'Forbidden';
+            case HTTP_STATUS.NOT_FOUND:
+                return 'Not Found';
+            case HTTP_STATUS.METHOD_NOT_ALLOWED:
+                return 'Method Not Allowed';
+            case HTTP_STATUS.NOT_ACCEPTABLE:
+                return 'Not Acceptable';
+            case HTTP_STATUS.PROXY_AUTHENTICATION_REQUIRED:
+                return 'Proxy Authentication Required';
+            case HTTP_STATUS.REQUEST_TIMEOUT:
+                return 'Request Timeout';
+            case HTTP_STATUS.CONFLICT:
+                return 'Conflict';
+            case HTTP_STATUS.GONE:
+                return 'Gone';
+            case HTTP_STATUS.LENGTH_REQUIRED:
+                return 'Length Required';
+            case HTTP_STATUS.PRECONDITION_FAILED:
+                return 'Precondition Failed';
+            case HTTP_STATUS.PAYLOAD_TOO_LARGE:
+                return 'Payload Too Large';
+            case HTTP_STATUS.REQUEST_URI_TOO_LONG:
+                return 'URI Too Long';
+            case HTTP_STATUS.UNSUPPORTED_MEDIA_TYPE:
+                return 'Unsupported Media Type';
+            case HTTP_STATUS.RANGE_NOT_SATISFIABLE:
+                return 'Range Not Satisfiable';
+            case HTTP_STATUS.EXPECTATION_FAILED:
+                return 'Expectation Failed';
+            case HTTP_STATUS.IM_A_TEAPOT:
+                return "I'm a teapot";
             case HTTP_STATUS.MISDIRECTED_REQUEST:
                 return 'Misdirected Request';
+            case HTTP_STATUS.UNPROCESSABLE_ENTITY:
+                return 'Unprocessable Entity';
+            case HTTP_STATUS.LOCKED:
+                return 'Locked';
+            case HTTP_STATUS.FAILED_DEPENDENCY:
+                return 'Failed Dependency';
+            case HTTP_STATUS.UPGRADE_REQUIRED:
+                return 'Upgrade Required';
+            case HTTP_STATUS.PRECONDITION_REQUIRED:
+                return 'Precondition Required';
+            case HTTP_STATUS.TOO_MANY_REQUESTS:
+                return 'Too Many Requests';
+            case HTTP_STATUS.REQUEST_HEADER_FIELDS_TOO_LARGE:
+                return 'Request Header Fields Too Large';
+            case HTTP_STATUS.UNAVAILABLE_FOR_LEGAL_REASONS:
+                return 'Unavailable For Legal Reasons';
+            case HTTP_STATUS.INTERNAL_SERVER_ERROR:
+                return 'Internal Server Error';
+            case HTTP_STATUS.NOT_IMPLEMENTED:
+                return 'Not Implemented';
+            case HTTP_STATUS.BAD_GATEWAY:
+                return 'Bad Gateway';
+            case HTTP_STATUS.SERVICE_UNAVAILABLE:
+                return 'Service Unavailable';
+            case HTTP_STATUS.GATEWAY_TIMEOUT:
+                return 'Gateway Timeout';
+            case HTTP_STATUS.HTTP_VERSION_NOT_SUPPORTED:
+                return 'HTTP Version Not Supported';
             case HTTP_STATUS.VARIANT_ALSO_NEGOTIATES:
                 return 'Variant Also Negotiates';
             case HTTP_STATUS.INSUFFICIENT_STORAGE:
@@ -396,8 +502,10 @@ class FileManager extends Module implements IFileManager {
                 return 'Loop Detected';
             case HTTP_STATUS.NOT_EXTENDED:
                 return 'Not Extended';
+            case HTTP_STATUS.NETWORK_AUTHENTICATION_REQUIRED:
+                return 'Network Authentication Required';
             default:
-                return httpStatus.getReasonPhrase(value);
+                return 'Unknown';
         }
     }
 
@@ -1239,13 +1347,15 @@ class FileManager extends Module implements IFileManager {
                             response.emit('error', err);
                         }
                     });
-                    return pipeTo;
                 }
-                return stream.pipeline(response, pipeTo, err => {
-                    if (err) {
-                        response.emit('error', err);
-                    }
-                });
+                else {
+                    stream.pipeline(response, pipeTo, err => {
+                        if (err) {
+                            response.emit('error', err);
+                        }
+                    });
+                }
+                return pipeTo;
             }
         };
         const origin = host.origin;
